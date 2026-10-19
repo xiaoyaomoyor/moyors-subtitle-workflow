@@ -309,3 +309,23 @@ print(json.dumps([bands(p) for p in sys.argv[1:]]))`,png,ref],{encoding:'utf8',w
   await expect(page.locator('#fixed-subtitle-preview [data-role="main"] .fixed-subtitle-text')).toHaveText('MMM\nMMM\nMMM');
   await expect(page.locator('#fixed-subtitle-preview [data-role="extension"] .fixed-subtitle-text')).toHaveText('WWWW\nWWWW');
 });
+
+test('old migration options are absent from preview, project and export selectors',async({page})=>{
+  await disableOnboarding(page);
+  await page.route('**/ass-styles',route=>route.abort()); // Modern styles no longer depend on the legacy library endpoint.
+  await page.goto(server.url);
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await page.evaluate(()=>{
+    DATA.preview.style_migration={notice:true,presets:[MSWProjectStyle.defaults(),{...MSWProjectStyle.defaults(),name:'ASS 输出方案'}]};
+    window.dispatchEvent(new CustomEvent('msw:project-changed'));
+  });
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
+  await toggleMediaSettings(page);
+  for(const id of ['style-project-preset','style-preview-mode','video-export-style-source']){
+    const labels=await page.locator('#'+id+' option').allTextContents();
+    expect(labels.join(' ')).not.toMatch(/旧工程预览样式|ASS 输出方案/);
+    expect(labels.some(text=>text.includes('默认'))).toBe(true);
+  }
+  await expect(page.locator('#style-migration-row')).toHaveCount(0);
+  expect(await page.evaluate(()=>DATA.preview.style_migration)).toBeUndefined();
+});

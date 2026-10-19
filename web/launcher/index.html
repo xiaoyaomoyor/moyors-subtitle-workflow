@@ -34,6 +34,8 @@
   <link rel="stylesheet" href="launcher.css">
 </head>
 <body>
+  <div id="launcherToasts" class="launcher-toasts" aria-live="polite" aria-relevant="additions"></div>
+  <span id="demoBadge" hidden></span>
   <main class="shell" inert aria-busy="true">
     <!-- 顶部品牌栏 -->
     <header class="app-header">
@@ -53,9 +55,9 @@
         </div>
       </div>
       <nav class="header-actions" aria-label="quick actions" data-i18n-aria-label="header_actions_label">
-        <div id="status" class="status app-status" role="status" aria-live="polite"></div>
-        <span id="demoBadge" class="demo-badge hidden" data-i18n="demo_mode">演示模式</span>
-        <button id="homeLink" class="text-link" type="button" data-i18n="project_home">项目官网</button>
+        <button id="homeLink" class="ghost launcher-icon-button" type="button" title="GitHub" aria-label="GitHub">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.86c-2.78.6-3.37-1.18-3.37-1.18-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03a9.6 9.6 0 0 1 5 0c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+        </button>
       </nav>
     </header>
 
@@ -99,15 +101,14 @@
       <div class="page-scroll">
         <div class="page-head">
           <h1 class="page-title" id="homeTitle" data-i18n="nav_home">启动编辑器</h1>
-          <p class="page-sub" data-i18n="home_sub">打开最近工程，或直接进入空白编辑器开始导入媒体。</p>
         </div>
 
         <div class="home-toolbar">
           <input id="recentSearch" class="search-input" type="text" autocomplete="off" placeholder="搜索工程名、媒体名或路径…" data-i18n-placeholder="recent_search_placeholder">
+          <button id="homeBrowse" class="ghost launcher-icon-button" type="button" data-i18n-title="home_browse_folder" data-i18n-aria-label="home_browse_folder" title="从文件夹中选择工程" aria-label="从文件夹中选择工程"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2M3 8h18a1 1 0 0 1 1 1.2l-2 10A2 2 0 0 1 18 21H5a2 2 0 0 1-2-2L1 10a1 1 0 0 1 1-2Z"/></svg></button>
           <span class="home-toolbar-spacer"></span>
           <span id="recentCount" class="hint" aria-live="polite"></span>
         </div>
-        <p id="homeNotice" class="hint hidden" aria-live="polite"></p>
 
         <!-- S3/§5.1：最近工程与全部工程两个独立折叠分组；搜索作用于两组。 -->
         <section class="home-group" data-home-group="recent">
@@ -137,54 +138,17 @@
           <p id="allGroupTarget" class="home-group-target hint hidden" aria-live="polite"></p>
         </section>
 
-        <section id="serverCard" class="card sub-accordion collapsed" aria-labelledby="serverTitle">
-          <button id="serverToggle" class="accordion-header" type="button" aria-expanded="false">
-            <span class="chevron">▸</span>
-            <span id="serverTitle" data-i18n="server_advanced">高级：直接指定工程与端口</span>
-          </button>
-          <div class="collapse-body">
-          <div id="serverBody">
-            <div class="field">
-              <label for="jsonPath" data-i18n="json_project">工程文件</label>
-              <div class="path-row">
-                <input id="jsonPath" type="text" autocomplete="off" data-i18n-placeholder="json_placeholder">
-                <button id="pickJson" class="ghost" type="button" data-i18n="choose">选择</button>
-              </div>
-              <p id="jsonPathError" class="field-error"></p>
-            </div>
-            <div id="serverMediaField" class="field hidden">
-              <label for="serverMediaPath" data-i18n="server_media">服务器媒体（可选）</label>
-              <div class="path-row">
-                <input id="serverMediaPath" type="text" autocomplete="off">
-                <button id="pickServerMedia" class="ghost" type="button" data-i18n="choose">选择</button>
-              </div>
-              <p class="hint warn" data-i18n="server_media_missing">工程未记录媒体，或文件已移动，请手动选择。</p>
-              <p id="serverMediaFlvHint" class="hint warn hidden" data-i18n="flv_media_hint" aria-live="polite">flv 无法预览，将会自动转换成 mp4 格式</p>
-              <p id="serverMediaPathError" class="field-error"></p>
-            </div>
-            <div class="field"><label for="port" data-i18n="port">端口</label><div class="port-row"><input id="port" type="number" min="1" max="65535" value="8250"><button id="refreshServerStatus" class="ghost small" type="button" data-i18n="server_refresh" title="刷新当前端口的服务器状态">刷新</button></div><p id="portError" class="field-error"></p></div>
-            <div class="link-row server-advanced-actions">
-              <div class="split-wrap">
-                <button id="openMawe" class="ghost split-main" type="button" data-i18n="start_server_editor">启动 Server 版字幕编辑器</button>
-                <button id="openMenu" class="ghost split-caret" type="button" aria-haspopup="true">▾</button>
-                <div id="htmlMenu" class="split-menu hidden">
-                  <button id="openHtml" class="hidden" type="button" data-i18n="open_html">打开该工程的 HTML 编辑器</button>
-                  <button id="openBlankHtml" type="button" data-i18n="open_blank_html">打开空的 HTML 编辑器</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          </div>
-        </section>
+        <input id="jsonPath" type="hidden"><input id="serverMediaPath" type="hidden">
       </div>
       <footer class="page-actions home-launch">
-        <span id="homeServerStatus" class="status-line"></span>
-        <span id="homeTarget" class="home-target hidden" aria-live="polite"></span>
+        <div id="homeServerStatus" class="home-server-control">
+          <button id="homeServerToggle" class="ghost launcher-icon-button" type="button" data-state="stopped" aria-label="启动服务器" title="启动服务器"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M12 6.5h5M12 17.5h5"/></svg></button>
+          <label id="homeServerPort"><span data-i18n="port">端口</span><input id="port" type="number" min="1" max="65535" value="8250" aria-label="端口" data-i18n-aria-label="port"></label>
+          <a id="homeServerAddress" class="status-link hidden" href="#"></a>
+        </div>
         <span class="footer-spacer"></span>
-        <button id="homeBrowse" class="ghost" type="button" data-i18n="home_browse">浏览工程…</button>
         <button id="homeBlank" class="ghost" type="button" data-i18n="home_blank_launch">启动空白编辑器</button>
-        <button id="homeOpenSelected" class="primary hidden" type="button" data-i18n="home_open_selected">打开所选工程</button>
-        <button id="stopServer" class="ghost server-stop hidden" type="button" data-i18n="server_stop">停止服务器</button>
+        <button id="homeOpenSelected" class="primary" type="button" data-i18n="home_open_selected" disabled>打开所选工程</button>
       </footer>
     </section>
 
@@ -197,6 +161,7 @@
           <h1 class="page-title" id="prefabTitle" data-i18n="nav_prefab">预制工程</h1>
           <p class="page-sub" data-i18n="prefab_sub">按处理方案生成可进入编辑器的工程；未勾选的步骤直接跳过。</p>
         </div>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
         <div class="prefab-meta-row">
           <span class="chip" id="prefabOrderChip" aria-live="polite"></span>
           <span class="prefab-meta-spacer"></span>

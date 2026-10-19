@@ -2034,6 +2034,8 @@
   STRINGS.zh["queue_finished"] = "处理完成：成功 {done} 个，失败 {failed} 个。"; STRINGS.en["queue_finished"] = "Complete: {done} succeeded, {failed} failed.";
   STRINGS.zh["queue_cancelled"] = "队列已取消，已完成的结果仍然保留。"; STRINGS.en["queue_cancelled"] = "Queue cancelled; completed results are retained.";
 
+  Object.assign(STRINGS.zh, { home_browse_folder: '从文件夹中选择工程', server_start: '启动服务器' });
+  Object.assign(STRINGS.en, { home_browse_folder: 'Choose a project from a folder', server_start: 'Start server' });
   STRINGS.zh.queue_needs_subtitles = '该任务没有字幕，请关联字幕或开启识别。'; STRINGS.en.queue_needs_subtitles = 'This task needs subtitles. Link a subtitle file or enable recognition.';
   STRINGS.zh.queue_needs_video = 'OCR 去重需要视频，请在任务详情或 OCR 模块中关联视频。'; STRINGS.en.queue_needs_video = 'OCR requires a video. Link one in task details or the OCR module.';
   STRINGS.zh.queue_rerun = '是否跳过已完成的任务？选择“否”将重新处理整个队列。'; STRINGS.en.queue_rerun = 'Skip completed tasks? Choose No to process the entire queue again.';
@@ -2142,6 +2144,7 @@
       const guidance = llmHttpErrorText(context?.httpStatus, context);
       if (guidance) return [guidance, builtInGuidance].filter(Boolean).join(" ");
     }
+    if (['project_in_use','recycle_failed','recent_project_invalid'].includes(code)) return compactDetail(detail) || t('failed_key_missing');
     const entry = ERROR_TEXT[state.lang][code];
     const message = typeof entry === "function" ? entry(compact) : (entry || compact || t("failed"));
     return [message, builtInGuidance].filter(Boolean).join(" ");
@@ -2201,7 +2204,22 @@
     }
     if (cursor < value.length) appendMessageText(container, value.slice(cursor));
   }
-  const setStatus = (message) => { if (state.detectedServerUrl) setServerStatus(state.detectedServerUrl, true, message); else { state.serverStatusUrl = ""; renderMessage($("status"), message); } };
+  const setStatus = message => renderMessage($("status"), message);
+  function notify(message, { error = false } = {}) {
+    if (!message) return;
+    const region = $('launcherToasts'), text = String(message);
+    if ([...region.children].some(node => node.dataset.message === text)) return;
+    const node = document.createElement('div');
+    node.className = 'launcher-toast'; node.dataset.error = String(error); node.dataset.message = text;
+    node.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01"/></svg><span></span><button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>';
+    node.querySelector('span').textContent = text;
+    const close = node.querySelector('button'); close.title = t('error_notice_close'); close.setAttribute('aria-label', close.title);
+    let timer; const dismiss = () => { clearTimeout(timer); node.remove(); };
+    const schedule = () => { clearTimeout(timer); timer = setTimeout(dismiss, error ? 9000 : 5000); };
+    close.onclick = dismiss; node.onmouseenter = () => clearTimeout(timer); node.onmouseleave = schedule;
+    node.onfocusin = () => clearTimeout(timer); node.onfocusout = schedule;
+    region.append(node); while (region.children.length > 3) region.firstElementChild.remove(); schedule();
+  }
   function handleWaveformTaskEvent(event) {
     if (event.taskId && state.waveformTaskId && event.taskId !== state.waveformTaskId) return;
     if (event.status === "running") { setStatus(t("waveform_project_running")); return; }
@@ -2292,6 +2310,7 @@
     clearErrorReport();
   }
   function showErrorNotice(message, code = "", detail = "") {
+    if (window.MSWNavigation?.current() === "home") { notify(message, { error: true }); return; }
     const notice = $("errorNotice");
     const action = $("errorNoticeAction");
     const issue = $("errorNoticeIssue");
@@ -2398,19 +2417,9 @@
       appendLog(`[error] open_issue: ${detail}`);
     }
   }
-  function setServerStatus(url, alreadyRunning = false, prefix = "") {
-    // B3：记录「状态行当前显示的服务器地址」——重探判定存亡、退出后清行的依据。
+  function setServerStatus(url) {
     state.serverStatusUrl = url;
-    const status = $("status");
-    status.replaceChildren();
-    if (prefix) { renderMessage(status, prefix); status.append(document.createTextNode(" ")); }
-    status.append(document.createTextNode(alreadyRunning ? `${t("server_already_running")} ` : `${t("server_address")} `));
-    const link = document.createElement("a");
-    link.href = url;
-    link.textContent = url;
-    link.className = "status-link";
-    link.addEventListener("click", (event) => { event.preventDefault(); bridge("open_url", { url }); });
-    status.append(link);
+    renderServerButton();
   }
   // latest（顶部黄字）常驻展示最新日志行；quietLatest 供 runtime 安装过程
   // 使用——那段时间逐行 [runtime] 输出已在自动滚动的列表与面板进度区出现，
@@ -2463,10 +2472,10 @@
     } catch (error) {
       const message = `${method}: ${error && error.message ? error.message : error}`;
       appendLog(`[bridge] ${message}`, { quietLatest: true });
-      const code = ["choose_file", "choose_folder"].includes(method) ? "file_dialog_failed" : "backend_request_failed";
+      const code = ["choose_file", "choose_folder", "relocate_recent_project"].includes(method) ? "file_dialog_failed" : "backend_request_failed";
       const feedback = t(code);
       appendLog(feedback);
-      setStatus(feedback);
+      if (window.MSWNavigation?.current() !== "home") setStatus(feedback);
       return { ok: false, code, error: feedback };
     }
   }
@@ -2517,18 +2526,24 @@
   function formPayload() { const caps=syncOpenaiCapabilities(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&$('openaiDiarize').checked)); const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; const waveformOn = waveformModuleEnabled(); return { providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), defaultAudioTrack: getDefaultAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), openaiBaseUrl: $("openaiBaseUrl").value.trim(), openaiModel, openaiPrompt: caps?.prompt&&!diarize?$("openaiPrompt").value.trim():"", openaiKeywords: caps?.keywords&&!diarize?$("openaiKeywords").value.trim():"", openaiDiarize: diarize, region: $("region").value, workspaceId: $("workspaceId").value.trim(), localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, fireredPunc: $("fireredPunc").value, alignmentModel: $("alignmentModel").value, alignmentModelPath: $("alignmentModelPath").value.trim(), language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), doubaoHotwords: $("doubaoHotwords").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateWaveform: waveformOn, generateSpectral: waveformOn && $("generateSpectral").checked, generateHtml: $("generateHtml").checked, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
   function serverPayload(extra = {}) { return Object.assign({ jsonPath: $("jsonPath").value.trim(), mediaPath: $("serverMediaPath").value.trim(), port: $("port").value || "8250", guiLang: state.lang }, extra); }
   function renderServerButton() {
-    const button = $("openMawe");
-    if (!button) return;
-    button.textContent = state.serverStarting
-      ? SERVER_STARTING_TEXT[state.lang]
-      : ((state.serverRunning || state.detectedServerUrl) ? t("open_editor") : t("start_server_editor"));
-    button.disabled = state.serverStarting;
-    $("stopServer").classList.toggle("hidden", !state.serverRunning && !state.detectedServerUrl);
-    $("stopServer").disabled = state.serverStarting || state.serverStopping;
+    const running = Boolean(state.serverRunning || state.detectedServerUrl || state.serverStatusUrl);
+    const busy = state.serverStarting || state.serverStopping;
+    const button = $('homeServerToggle');
+    button.dataset.state = busy ? 'busy' : running ? 'running' : 'stopped';
+    button.title = busy ? SERVER_STARTING_TEXT[state.lang] : t(running ? 'server_stop' : 'server_start');
+    button.setAttribute('aria-label', button.title); button.disabled = busy;
+    $('homeServerPort').classList.toggle('hidden', running);
+    $('port').disabled = busy || running;
+    const link = $('homeServerAddress'), url = state.serverStatusUrl || state.detectedServerUrl || state.activeSessionUrl;
+    link.classList.toggle('hidden', !running || !url);
+    link.textContent = url ? url.replace(/\/$/, '').replace(/\/?\?lang=[^&]+$/, '') : '';
+    link.href = url || '#';
+    $('homeBlank').disabled = busy;
+    const open = $('homeOpenSelected'); open.dataset.busy = String(busy); open.disabled = busy || !$('jsonPath').value.trim();
   }
   let checkingShownSession = false;
   setInterval(async () => {
-    if (!state.activeSessionUrl || state.serverStarting || state.serverStopping || checkingShownSession || document.hidden) return;
+    if (!(state.activeSessionUrl || state.serverStatusUrl) || state.serverStarting || state.serverStopping || checkingShownSession || document.hidden) return;
     checkingShownSession = true;
     try { await refreshShownServerStatus(); } finally { checkingShownSession = false; }
   }, 6000);
@@ -2587,7 +2602,6 @@
     }
     await checkExistingServer();
   }
-  function syncHtmlMenu() { const enabled = $("generateHtml").checked; $("openHtml").classList.toggle("hidden", !enabled); $("openHtml").disabled = enabled && !state.result?.htmlPath; }
   function renderChevron(id) { const arrow = $(id).querySelector(".chevron"); if (arrow) arrow.textContent = $(id).classList.contains("collapsed") ? "▸" : "▾"; }
   function renderStickerCurrent() { $("stickerCurrent").textContent = state.config?.stickerDir || t("unset"); $("stickerCurrent").disabled = !state.config?.stickerDir; $("stickerDir").value = state.config?.stickerDir || ""; }
   $("stickerCurrent").addEventListener("click", async () => {
@@ -3059,8 +3073,8 @@
     }
     return setDroppedPath("serverMediaPath", value);
   }
-  function setJsonPath(path) { $("jsonPath").value = path; setError("jsonPath", ""); if (path !== state.serverProjectPath) $("openMawe").classList.add("attention"); refreshServerMedia(); window.MSWLauncher?.onProjectPathChanged?.(); }
-  function applyErrorResult(result, logDetail = true) { const detail = [result.detail || result.error || "", result.diagnostics ? JSON.stringify(result.diagnostics, null, 2) : ""].filter(Boolean).join("\n"); const message = errText(result.code, result.detail || result.error || ""); const fieldMessage = result.code === "server_start_failed" ? t("server_start_failed_hint") : (result.code === "server_no_response" ? t("server_no_response_hint") : message); if (result.field) setError(result.field, fieldMessage); if (result.field === "port" || result.field === "serverMediaPath" || result.field === "jsonPath") expandServer(); if (result.postprocessStep) window.MSWLauncher?.openAutoPostprocessStep?.(result.postprocessStep, result.field); else if (result.field === "autoPostprocessEnabled") $("autoPostprocessCard")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" }); setStatus(message); if (logDetail && detail) appendLog(`[detail] ${detail}`); showErrorNotice(message, result.code || "", detail); }
+  function setJsonPath(path) { $("jsonPath").value = path; setError("jsonPath", ""); refreshServerMedia(); window.MSWLauncher?.onProjectPathChanged?.(); }
+  function applyErrorResult(result, logDetail = true) { const detail = [result.detail || result.error || "", result.diagnostics ? JSON.stringify(result.diagnostics, null, 2) : ""].filter(Boolean).join("\n"); const message = errText(result.code, result.detail || result.error || ""); const fieldMessage = result.code === "server_start_failed" ? t("server_start_failed_hint") : (result.code === "server_no_response" ? t("server_no_response_hint") : message); if (result.field) setError(result.field, fieldMessage); if (result.postprocessStep) window.MSWLauncher?.openAutoPostprocessStep?.(result.postprocessStep, result.field); else if (result.field === "autoPostprocessEnabled") $("autoPostprocessCard")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" }); setStatus(message); if (logDetail && detail) appendLog(`[detail] ${detail}`); showErrorNotice(message, result.code || "", detail); }
   function validateSegmentation(data) { for (const [field, minimum] of [["maxLen", 1], ["minLen", 1], ["maxWords", 1], ["minWords", 1], ["gapSplit", 0]]) { const value = data[field]; if (!value) continue; if (!/^\d+$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum) return fail(field, errText("segmentation_invalid", "")); } if (data.maxLen && data.minLen && Number(data.maxLen) < Number(data.minLen)) return fail("maxLen", errText("segmentation_invalid", "")); if (data.maxWords && data.minWords && Number(data.maxWords) < Number(data.minWords)) return fail("maxWords", errText("segmentation_invalid", "")); return true; }
   function validateLocal(overrides = {}) { clearErrors(); const data = { ...formPayload(), ...overrides }; if (!data.mediaPath) return fail("mediaPath", errText("media_not_found", "")); if (!data.srtPath) return fail("srtPath", errText("output_missing", "")); if (!validateSegmentation(data)) return false; if (isLocalProvider()) { const runtime = state.config.localRuntime || {}; const status = localStatus(); if (state.localRuntimeInstalling || runtime.status === "installing") return fail("model", t("local_runtime_installing")); if (state.localPreparing) return fail("model", t("local_prepare_running")); if (runtime.status === "checking") return fail("model", t("local_runtime_checking")); if (!runtime.ready && runtime.status !== "ready") return fail("model", errText("local_runtime_missing", "")); if (!status.status || status.status === "checking") return fail("model", t("local_checking")); if (status.status === "runtime_missing") return fail("model", errText("local_runtime_missing", "")); if (status.status === "path_invalid") return fail("localModelPath", errText("local_model_path_invalid", "")); if (status.status === "path_mismatch") return fail("localModelPath", errText("local_model_path_mismatch", "")); if (status.status === "missing") return fail("model", errText("local_model_missing", "")); if (status.status === "partial") return fail("model", errText("local_model_incomplete", "")); return true; } if (provider().requiresApiKey !== false && !data.apiKey && !provider().apiKey) return fail("apiKey", errText("api_key_missing", "")); if (provider().id === "openai" && !data.openaiBaseUrl) return fail("openaiBaseUrl", errText("custom_asr_base_url_missing", "")); if (isCustomOpenAiModel() && !data.openaiModel) return fail("openaiModel", errText("custom_asr_model_missing", "")); if (provider().regions.length > 0 && data.region === "singapore" && !data.workspaceId) return fail("workspaceId", errText("workspace_missing", "")); if (provider().id === "qwen" && selectedModel().supportsContext && Array.from(data.qwenAudioContext).length > 400) return fail("qwenAudioContext", errText("context_too_long", "")); if (provider().id === "soniox" && selectedModel().supportsContext && Array.from([data.sonioxContextGeneral, data.sonioxContextText, data.sonioxContextTerms, data.sonioxContextTranslationTerms].join("\n")).length > 10000) return fail("sonioxContextText", errText("soniox_context_too_long", "")); if (provider().id === "qwen" && selectedModel().supportsHotwords && data.qwenAudioHotwordsMode === "file" && ext(data.qwenAudioHotwordsFile) !== ".txt") return fail("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); return true; }
   function fail(field, message) {
@@ -3081,7 +3095,6 @@
     else bind(window, document.documentElement);
     document.querySelectorAll(".page-scroll:not(.page.active .page-scroll), .batch-queue, .batch-details pre, .llm-model-options, .script-preview pre, .replace-rule-preview pre, .log, .modal-card, .settings-scroll, .toolbox-content, .toolbox-chain-list, .toolbox-result, .toolbox-stream-text, select[multiple], textarea").forEach((el) => bind(el, el));
   }
-  function expandServer() { $("serverCard").classList.remove("collapsed"); renderChevron("serverCard"); $("serverToggle")?.setAttribute("aria-expanded", "true"); }
   function hasFileDrag(event) { return !event.dataTransfer || Array.from(event.dataTransfer.types || []).includes("Files"); }
   function setDropHighlight(active) { $("mediaCard").classList.toggle("drag-over", active); }
   function isInsideMediaCard(node) { return node instanceof Node && $("mediaCard").contains(node); }
@@ -3187,7 +3200,7 @@
     }
     setError("mediaPath", mediaDropError());
   }
-  async function refreshServerMedia() { const jsonPath = $("jsonPath").value.trim(); const result = await bridge("check_server_media", { jsonPath }); state.serverMediaOk = Boolean(result.hasMedia && result.mediaExists); $("serverMediaField").classList.toggle("hidden", state.serverMediaOk || !jsonPath); return result; }
+  async function refreshServerMedia() { const jsonPath = $("jsonPath").value.trim(); const result = await bridge("check_server_media", { jsonPath }); state.serverMediaOk = Boolean(result.hasMedia && result.mediaExists); return result; }
   async function refreshFfmpeg() { const requestId = ++ffmpegRequest; const result = await bridge("check_ffmpeg"); if (requestId !== ffmpegRequest) return result; $("modalFfmpegFound").classList.toggle("hidden", !result.found); $("modalFfmpegMissing").classList.toggle("hidden", Boolean(result.found)); $("ffmpegPathBox").classList.toggle("hidden", Boolean(result.found)); $("settingsDot").classList.toggle("hidden", Boolean(result.found)); $("modalFfmpegFound").title = result.directory || ""; $("ffmpegDir").textContent = result.directory || ""; return result; }
   function ffmpegSaveError(result) { if (result.code) return errText(result.code, result.detail || result.error); if (result.found === false) return t("ffmpeg_missing"); return compactDetail(result.error) || t("failed"); }
   function selectSettingsTab(tabName) {
@@ -3271,12 +3284,11 @@
   }
   async function openServerEditor(options = {}) {
     clearErrors();
-    $("htmlMenu").classList.add("hidden");
     if (state.serverStarting) return;
     const projectPath = $("jsonPath").value.trim();
     // R0/F02：优先使用后端返回过的实际会话 URL（含独立端口），不再回退到端口输入框猜测。
     const currentUrl = state.detectedServerUrl || state.activeSessionUrl || `http://127.0.0.1:${$("port").value || "8250"}/?lang=${state.lang}`;
-    if (!options.force && ((state.serverRunning && projectPath === state.serverProjectPath) || (state.detectedServerUrl && !projectPath))) { await bridge("open_url", { url: currentUrl }); return; }
+    if (!options.force && ((state.serverRunning && projectPath === state.serverProjectPath) || (state.detectedServerUrl && !projectPath))) { if (options.openBrowser !== false) await bridge("open_url", { url: currentUrl }); return; }
     serverStatusRequest += 1;
     state.serverStarting = true;
     let conflict = null;
@@ -3293,13 +3305,12 @@
         state.serverRunning = !result.serverAlreadyRunning;
         state.serverProjectPath = state.serverRunning ? projectPath : "";
         state.detectedServerUrl = result.serverAlreadyRunning ? result.url || "" : "";
-        $("openMawe").classList.remove("attention");
         renderServerButton();
         if (result.url) {
           setServerStatus(result.url, Boolean(result.serverAlreadyRunning));
           // 这是用户明确的打开操作。相同工程/地址不能证明浏览器页仍在，
           // 服务就绪后始终打开；后台状态轮询不经过这里，不会自行重复开页。
-          await bridge("open_url", { url: result.url });
+          if (options.openBrowser !== false) await bridge("open_url", { url: result.url });
           window.MSWProjectHome?.refresh?.();
         } else setStatus("");
       } else if (result.code === "server_conflict") {
@@ -3392,7 +3403,7 @@
     fillSelect("provider", state.config.providers, state.config.providerId || "qwen");
     applyProvider(false);
     $("workspaceId").value = state.config.workspaceId || "";
-    syncWorkspace(); syncTestRun(); renderChevron("advancedCard"); renderChevron("serverCard"); renderLanguage();
+    syncWorkspace(); syncTestRun(); renderChevron("advancedCard"); renderLanguage();
     appendLog(window.MSWLauncher.backend === "real" ? "MSW launcher ready." : "[mock] Static browser demo mode enabled.");
     revealLauncher();
     window.dispatchEvent(new CustomEvent("mawlauncherready"));
@@ -3566,9 +3577,7 @@
       if (event.result?.srtPath) $("srtPath").value = event.result.srtPath;
       setJsonPath(event.result?.jsonPath || "");
       showPreparedProject(event.result?.jsonPath || "");
-      $("openMawe").classList.add("attention");
       $("openFolder").classList.remove("hidden");
-      syncHtmlMenu();
       appendLog(t("done"));
       void checkExistingServer(t("done"));
     }
@@ -3576,7 +3585,7 @@
     if (["dropMedia", "dropJson", "dropSubtitle", "dropReject"].includes(event.type) && !state.dropTarget && window.MSWLauncher?.onBatchDrop?.(event.path || "")) { clearDropState(); return; }
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
-  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
+  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, notify, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
 
   window.MSWLauncher.validateQueueRecognition = mediaPath => validateLocal({ mediaPath, srtPath: 'queue.srt' });
   window.MSWLauncher.setQueueProgress = message => setStatus(message);
@@ -3609,6 +3618,14 @@
     });
   });
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (state.theme === "system") applyTheme(); });
+  $('homeServerToggle').addEventListener('click', () => {
+    if (state.serverRunning || state.detectedServerUrl || state.serverStatusUrl) void stopEditorServer();
+    else void openServerEditor({ intent: $('jsonPath').value.trim() ? 'project' : 'blank', openBrowser: false });
+  });
+  $('homeServerAddress').addEventListener('click', async event => {
+    event.preventDefault(); const result = await bridge('open_url', { url: state.serverStatusUrl || state.detectedServerUrl || state.activeSessionUrl });
+    if (!result.ok) applyErrorResult(result);
+  });
   $("homeLink").addEventListener("click", () => bridge("open_url", { url: HOME_URL }));
   $("errorNoticeClose").addEventListener("click", hideErrorNotice);
   $("errorNoticeCopy").addEventListener("click", () => { void copyErrorReport(); });
@@ -3621,15 +3638,11 @@
   $("provider").addEventListener("change", () => applyProvider(true)); $("model").addEventListener("change", () => { applySelectedModel(true); if (isLocalProvider()) { void refreshLocalRuntime(); void refreshLocalModels(); } }); $("language").addEventListener("change", () => savePrefsDebounced({ language: languageValue() })); $("region").addEventListener("change", syncWorkspace); $("audioTrack").addEventListener("change", () => { const value = Number($("audioTrack").value); if (Number.isInteger(value) && value >= 0) state.audioTrack = value; }); $("advancedToggle").addEventListener("click", () => toggle("advancedCard"));
   $("testRun").addEventListener("change", syncTestRun);
   $("openaiModel").addEventListener("input", () => { if (isCustomOpenAiModel()) state.config.openaiCustomModel = $("openaiModel").value.trim(); });
-  $("generateHtml").addEventListener("change", syncHtmlMenu);
   $("mediaPath").addEventListener("input", () => { setError("mediaPath", ""); setOutputNotice(""); syncFlvHints(); syncDefaultOutput(); scheduleAudioTrackProbe($("mediaPath").value); }); $("srtPath").addEventListener("input", () => { state.srtAuto = false; state.testSuffixAdded = false; setError("srtPath", ""); setOutputNotice(""); });
   $("pickMedia")?.addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "media" }); if (!result.ok) return; if (!MEDIA_EXTS.has(ext(result.path))) { setError("mediaPath", mediaDropError()); return; } setMedia(result.path); });
   $("qwenAudioHotwordsModeText").addEventListener("click", () => { setHotwordsMode("text"); setError("qwenAudioHotwordsFile", ""); }); $("qwenAudioHotwordsModeFile").addEventListener("click", () => { setHotwordsMode("file"); setError("qwenAudioHotwordsFile", ""); }); $("pickQwenAudioHotwordsFile").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "hotwords" }); if (result.ok) await loadHotwordFile(result.path || "", false); });
-  $("pickJson").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "json" }); if (result.ok) setJsonPath(result.path); });
-  $("serverToggle").addEventListener("click", () => { toggle("serverCard"); $("serverToggle").setAttribute("aria-expanded", String(!$("serverCard").classList.contains("collapsed"))); });
-  $("jsonPath").addEventListener("input", () => setError("jsonPath", "")); $("jsonPath").addEventListener("change", refreshServerMedia); $("pickServerMedia").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "media" }); if (result.ok) setServerMedia(result.path || ""); });
+  $("jsonPath").addEventListener("input", () => setError("jsonPath", "")); $("jsonPath").addEventListener("change", refreshServerMedia);
   ["apiKey", "openaiBaseUrl", "openaiModel", "workspaceId", "qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordsFile", "qwenAudioHotwordWeight", "sonioxContextGeneral", "sonioxContextText", "sonioxContextTerms", "sonioxContextTranslationTerms", "serverMediaPath", "port", "ffmpegPath", "stickerDir"].forEach((field) => { const el = $(field); el?.addEventListener("input", () => { setError(field, ""); if (field === "qwenAudioContext") renderPromptCharacterCount(); if (field.startsWith("sonioxContext")) renderSonioxContextCharacterCount(); if (field === "qwenAudioHotwords") renderHotwordWarnings(); if (field === "qwenAudioHotwordWeight") renderHotwordWarnings(); if (field === "serverMediaPath") syncFlvHints(); if (field === "port") { state.detectedServerUrl = ""; renderServerButton(); } }); el?.addEventListener("change", () => { setError(field, ""); if (field.startsWith("sonioxContext")) renderSonioxContextCharacterCount(); if (field === "qwenAudioHotwordWeight") renderHotwordWarnings(); if (field === "serverMediaPath") syncFlvHints(); if (field === "port") void checkExistingServer(); }); });
-  $("refreshServerStatus").addEventListener("click", async () => { $("refreshServerStatus").disabled = true; try { await checkExistingServer(); } finally { $("refreshServerStatus").disabled = false; } });
   // 回到启动器即自动刷新服务器状态：从编辑器窗口切回（或退出编辑器）时
   // 不再需要手动点「刷新」。focus + visibilitychange 双信号，1.5s 节流去重。
   let lastAutoStatusRefresh = 0;
@@ -3781,8 +3794,7 @@
   $("start").addEventListener("click", () => { void window.MSWQueue?.start(); });
   $("stop").addEventListener("click", () => { void window.MSWQueue?.stop(); });
   $("retryPostprocess").addEventListener("click", async () => { hideErrorNotice(); $("retryPostprocess").classList.add("hidden"); setRunning(true); const result = await bridge("retry_postprocess"); if (!result.ok) { setRunning(false); applyErrorResult(result, false); } });
-  $("openMawe").addEventListener("click", openServerEditor); $("stopServer").addEventListener("click", stopEditorServer); $("openFolder").addEventListener("click", () => bridge("open_output_folder")); $("openLogFolder").addEventListener("click", () => bridge("open_log_folder"));
-  $("openMenu").addEventListener("click", () => $("htmlMenu").classList.toggle("hidden")); $("openHtml").addEventListener("click", () => { $("htmlMenu").classList.add("hidden"); bridge("open_html"); }); $("openBlankHtml").addEventListener("click", () => { $("htmlMenu").classList.add("hidden"); bridge("open_blank_html"); }); document.addEventListener("click", (event) => { if (!event.target.closest(".split-wrap")) $("htmlMenu").classList.add("hidden"); });
+  $("openFolder").addEventListener("click", () => bridge("open_output_folder")); $("openLogFolder").addEventListener("click", () => bridge("open_log_folder"));
   $("mediaCard").addEventListener("dragenter", onDragEnter); $("mediaCard").addEventListener("dragleave", onDragLeave);
   bindDropField("mediaPath", "media");
   bindDropField("qwenAudioHotwordsTextField", "text", "qwenAudioHotwords");

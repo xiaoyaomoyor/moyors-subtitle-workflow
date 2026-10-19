@@ -71,7 +71,6 @@
       assProfiles:[{id:'project',name:s.name,styleId:'project-main',animations:s.animations}],
       assignments:{assExportProfileId:'project',assExtensionStyleId:'project-secondary'}});
   }
-  const family = value => ({default:U.ASS_DEFAULT_ASS_STYLE.fontName, sans:'Arial', yahei:'Microsoft YaHei',hei:'SimHei',song:'SimSun'}[value] || value || U.ASS_DEFAULT_ASS_STYLE.fontName);
   function fromBurn(raw = {}) {
     const s = defaults(); delete s.pairLayout; s.name='旧工程烧录样式'; s.legacyBurn=clone(raw);
     for(const [role,size,y] of [['main',48,.86],['secondary',40,.94]]) {
@@ -82,15 +81,7 @@
     }
     return normalize(s);
   }
-  function fromPreview(preview={}) {
-    const s=defaults(); delete s.pairLayout; s.main.marginV=108; s.name='旧工程预览样式';
-    for(const [role,key] of [['main','subtitle'],['secondary','extension_subtitle']]) {
-      const p=preview[key] || {};
-      s[role]={...s[role],fontName:family(p.font_family),fontSize:(p.font_size || (role==='main'?18:16))*4,primaryColor:p.color||s[role].primaryColor};
-    }
-    return normalize(s);
-  }
-  function migrate(project, library, originalPreview=project.preview||{}) {
+  function migrate(project) {
     project.preview ||= {};
     for(const field of ['project_style','project_style_custom'])if(project.preview[field]!=null){
       if(project.preview[field].schema!==schema)throw Error('工程字幕样式版本不受支持，请使用兼容的编辑器');
@@ -98,15 +89,15 @@
     }
     const selection=project.preview.project_style_selection;
     if(selection!==undefined&&(typeof selection!=='string'||!/^[a-zA-Z0-9_-]{1,160}$/.test(selection)))throw Error('工程样式选择无效');
-    if(project.preview.project_style?.schema===schema) return false;
+    // Retain current-format snapshots, but stop importing legacy appearance.
+    const changed=Object.hasOwn(project.preview,'style_migration');
+    delete project.preview.style_migration;
+    if(project.preview.project_style?.schema===schema) return changed;
     if(project.preview.project_style!=null)throw Error('工程字幕样式版本不受支持，请使用兼容的编辑器');
-    const p=project.preview;
-    const old=Object.keys(originalPreview).some(k=>['subtitle','extension_subtitle','burn_subtitles','ass_library_exports'].includes(k));
-    p.project_style=originalPreview.ass_library_exports===true?fromLibrary(originalPreview.burn_ass_library || library):old?fromBurn(originalPreview.burn_subtitles):defaults();
-    if(old) p.style_migration={version:1,presets:[fromPreview(originalPreview),fromLibrary(library)],
-      source:originalPreview.ass_library_exports===true?'ass':'burn',notice:true};
+    project.preview.project_style=defaults();
     return true;
   }
+
   function presets() {
     const standard=defaults(),normal={...standard,pairLayout:undefined,main:{...standard.main,marginV:108}};
     return [{id:'default',...standard},
@@ -218,5 +209,5 @@
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);

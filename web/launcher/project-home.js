@@ -114,7 +114,7 @@
   };
   // 图钉取自 Lucide（ISC License，https://lucide.dev），以 currentColor 内联使用。
   // T1/U1：描边定义在 SVG 根，两条路径（含针杆 M12 17v5）统一继承。
-  var PIN_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z"/></svg>';
+  var PIN_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z"/></svg>';
   var COVER_STATE_LABEL_KEYS = {
     audio: "cover_state_audio",
     no_media: "cover_state_no_media",
@@ -594,18 +594,8 @@
   }
 
   function renderLaunchArea() {
-    var openSelected = el("homeOpenSelected");
-    var chip = el("homeTarget");
-    var entry = selectedEntry();
-    var raw = browsedTargetPath();
-    // C3：多选时目标名后附已选数量（启动目标始终是锚点=最近交互的工程）。
-    var extra = state.selectedPaths.length > 1 ? "（" + t("selected_extra").replace("{n}", String(state.selectedPaths.length)) + "）" : "";
-    var label = entry ? entry.name + extra : (raw ? basenameOf(raw) : "");
-    if (openSelected) openSelected.classList.toggle("hidden", !label);
-    if (chip) {
-      chip.classList.toggle("hidden", !label);
-      chip.textContent = label ? t("home_target").replace("{name}", label) : "";
-    }
+    var button = el("homeOpenSelected");
+    if (button) button.disabled = !browsedTargetPath() || button.dataset.busy === 'true';
   }
 
   function persistSelection() {
@@ -677,7 +667,7 @@
       state.selectedPaths.push(path);
       state.selectedPath = path;
     }
-    if (state.selectedPath && window.MSWLauncher && window.MSWLauncher.setJsonPath) {
+    if (window.MSWLauncher && window.MSWLauncher.setJsonPath) {
       window.MSWLauncher.setJsonPath(state.selectedPath);
     }
     persistSelection();
@@ -782,24 +772,22 @@
     if (raw) void window.MSWLauncher.openServerEditor();
   }
 
-  function relocateFlow(entry) {
-    void window.MSWLauncher.confirm(t("recent_relocate_confirm").replace("{name}", entry.name)).then(function (yes) {
-      if (!yes) return;
-      void bridge("relocate_recent_project", { path: entry.path }).then(function (result) {
-        if (result && result.ok) refresh();
-        else if (result && result.cancelled) return;
-        else if (window.MSWLauncher && window.MSWLauncher.errorText) {
-          notice(t("recent_relocate_failed") + (result ? window.MSWLauncher.errorText(result.code || "", result.detail || result.error || "") : ""));
-        }
-      });
-    });
+  async function relocateFlow(entry) {
+    const result = await bridge("relocate_recent_project", { path: entry.path });
+    if (result?.cancelled) return;
+    if (!result?.ok) { notice(t("recent_relocate_failed") + window.MSWLauncher.errorText(result?.code || "", result?.detail || result?.error || ""), true); return; }
+    const wasSelected = state.selectedPaths.includes(entry.path);
+    if (wasSelected) {
+      state.selectedPaths = state.selectedPaths.map(path => path === entry.path ? result.path : path);
+      if (state.selectedPath === entry.path) state.selectedPath = result.path;
+      persistSelection();
+    }
+    await refresh();
+    if (wasSelected) window.MSWLauncher.setJsonPath(state.selectedPath);
   }
 
-  function notice(message) {
-    var node = el("homeNotice");
-    if (!node) return;
-    node.textContent = String(message || "");
-    node.classList.toggle("hidden", !message);
+  function notice(message, error = false) {
+    window.MSWLauncher?.notify(message, { error });
   }
 
   // S3/§5.3：删除工程文件——确认对话框展示工程名、实际路径与删除范围。
@@ -811,12 +799,12 @@
       if (!yes) return;
       void bridge("delete_project_file", { path: entry.path }).then(function (result) {
         if (result && result.ok) {
-          notice(t("delete_project_done").replace("{name}", entry.name));
+          removeDeletedSelection([entry.path]);
           refresh();
           return;
         }
         var detail = result && (result.detail || result.error) ? (result.detail || result.error) : "";
-        notice(t("delete_project_failed").replace("{detail}", detail || t("failed_key_missing")));
+        notice(t("delete_project_failed").replace("{detail}", detail || t("failed_key_missing")), true);
       });
     });
   }
@@ -833,19 +821,28 @@
         return bridge("delete_project_file", { path: item.path }).catch(function () { return null; });
       })).then(function (results) {
         var moved = results.filter(function (result) { return result && result.ok; }).length;
+        removeDeletedSelection(entries.filter(function (_, i) { return results[i]?.ok; }).map(function (item) { return item.path; }));
         var firstError = "";
         results.forEach(function (result) {
           if (result && !result.ok && !firstError) firstError = result.detail || result.error || "";
         });
         var text = t("batch_delete_done").replace("{n}", String(moved));
         if (moved < entries.length) text += "（" + t("delete_project_failed").replace("{detail}", firstError || t("failed_key_missing")) + "）";
-        notice(text);
+        if (moved < entries.length) notice(text, true);
         refresh();
       });
     });
   }
 
   // ---------------- 刷新 ----------------
+
+  function removeDeletedSelection(paths) {
+    state.selectedPaths = state.selectedPaths.filter(function (path) { return !paths.includes(path); });
+    if (paths.includes(state.selectedPath)) state.selectedPath = state.selectedPaths.at(-1) || '';
+    persistSelection();
+    window.MSWLauncher.setJsonPath(state.selectedPath);
+    updateCardStates();
+  }
 
   function acknowledgeCard(path) {
     if (!state.projects.concat(state.allProjects).some(function (entry) { return entry.path === path && entry.isNew; })) return;
@@ -1163,7 +1160,8 @@
     if (browse) {
       browse.addEventListener("click", async function () {
         var result = await bridge("choose_file", { kind: "json" });
-        if (result && result.ok) window.MSWLauncher.setJsonPath(result.path);
+        if (result && result.ok) openProject(result.path);
+        else if (result?.code) notice(window.MSWLauncher.errorText(result.code, result.detail || result.error), true);
       });
     }
     var openSelected = el("homeOpenSelected");

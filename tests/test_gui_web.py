@@ -58,6 +58,42 @@ class GuiWebBridgeTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
+    def test_relocate_bridge_passes_valid_native_filter_and_updates_registry(self):
+        from maw.launcher_projects import register_project
+        from webview.util import parse_file_type
+        old, new = self.root / 'moved.mosp', self.root / 'new.mosp'
+        new.write_text('{}', encoding='utf-8')
+        register_project(old, source='opened', registry_path=self.paths.project_registry)
+        def dialog(**kwargs):
+            for value in kwargs['file_types']:
+                parse_file_type(value)  # Real pywebview validation, before showing its OS dialog.
+            return (str(new),)
+        with mock.patch('maw.gui_web._file_dialog', side_effect=dialog):
+            result = self.api.relocate_recent_project({'path': str(old)})
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['path'], str(new))
+        self.assertIn(str(new), self.paths.project_registry.read_text(encoding='utf-8').replace('\\\\', '\\'))
+
+    def test_delete_bridge_checks_actual_sessions_then_recycles(self):
+        from maw.gui_web import EditorSession
+        project = self.root / 'delete.mosp'
+        project.write_text('{}', encoding='utf-8')
+        process = mock.Mock()
+        process.poll.return_value = None
+        self.api.editor_sessions[8250] = EditorSession(8250, process=process, project_path=str(project))
+        with mock.patch('maw.gui_web.delete_project_file_from_registry', return_value={'ok': True}) as recycle:
+            self.assertEqual(self.api.delete_project_file({'path': str(project)})['code'], 'project_in_use')
+            recycle.assert_not_called()
+            process.poll.return_value = 0
+            self.assertTrue(self.api.delete_project_file({'path': str(project)})['ok'])
+            recycle.assert_called_once_with(project, registry_path=self.paths.project_registry, metadata_path=self.paths.recent_metadata)
+
+    def test_relocate_cancel_does_not_change_records(self):
+        with mock.patch('maw.gui_web._file_dialog', return_value=None):
+            result = self.api.relocate_recent_project({'path': str(self.root / 'old.mosp')})
+        self.assertTrue(result['cancelled'])
+        self.assertFalse(self.paths.recent_metadata.exists())
+
     def test_get_config_returns_registry_and_masked_key_when_env_exists(self) -> None:
         """Given local config, When JS asks for config, Then secrets are masked and registries return."""
         _ = self.env_path.write_text("DASHSCOPE_API_KEY=sk-secret-abcd\nDASHSCOPE_REGION=singapore\nMAW_GUI_LANG=en\n", encoding="utf-8")
@@ -3534,7 +3570,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("cursor: pointer", stylesheet)
 
         # 闲置「就绪」移除：状态区为 aria-live 瞬时反馈，空消息整块收起。
-        self.assertIn('id="status" class="status app-status" role="status" aria-live="polite"', page)
+        self.assertIn('id="status" class="status" role="status" aria-live="polite"', page)
+        self.assertIn('id="launcherToasts"', page)
         self.assertNotIn(">就绪<", page)
         self.assertIn(".app-status:empty", stylesheet)
         self.assertNotIn('t("ready")', launcher_script)
@@ -3704,7 +3741,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('register_project(project_path, source="editor")', serve_source)
 
         # 首页双折叠分组 + 图钉入封面 + 三种移除语义。
-        for element_id in ("recentGroupTitle", "recentGroupBody", "allGroupTitle", "allGroupBody", "allGrid", "allCount", "homeNotice"):
+        for element_id in ("recentGroupTitle", "recentGroupBody", "allGroupTitle", "allGroupBody", "allGrid", "allCount", "launcherToasts"):
             self.assertIn(f'id="{element_id}"', page)
         self.assertIn('data-home-group="recent"', page)
         self.assertIn('data-home-group="all"', page)
@@ -3820,10 +3857,10 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("const ap = a.pinned ? 0 : 1;", launcher_script)
 
         # C2：图钉在封面左上角并向内倾斜（避开右上角选中对勾）。
-        pin_block = stylesheet[stylesheet.index(".recent-cover .recent-pin {"):]
-        self.assertIn("top: 6px;", pin_block[:200])
-        self.assertIn("left: 6px;", pin_block[:200])
-        self.assertIn("transform: rotate(-35deg);", pin_block[:200])
+        pin_block = stylesheet[stylesheet.index(".recent-cover .recent-pin,"):]
+        self.assertIn("top: 8px;", pin_block[:200])
+        self.assertIn("left: 8px;", pin_block[:200])
+        self.assertIn("transform: rotate(-35deg);", pin_block[:900])
         self.assertNotIn("right: 6px;", pin_block[:200])
 
         # C3：多选模型（分派 + Ctrl 增减 + Shift 范围）与批量菜单/批量删除。
@@ -3931,8 +3968,8 @@ class LauncherAssetContractTests(unittest.TestCase):
         """T1（三轮审查）：图钉描边在 SVG 根、两组封面独立观察、版本失效与失败态。"""
         home_script = (ROOT / "web" / "launcher" / "project-home.js").read_text(encoding="utf-8")
 
-        # U1：PIN_ICON 根元素带 fill=none/stroke=currentColor——两条路径（含针杆）继承。
-        self.assertIn('width="13" height="13" fill="none" stroke="currentColor"', home_script)
+        # 图钉改为主题色实心图标，针杆仍用描边显示。
+        self.assertIn('width="13" height="13" fill="currentColor" stroke="currentColor"', home_script)
         self.assertNotIn('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1Z" fill="none"', home_script)
         # U2：render 统一收集两组可见卡并集做一次 observeCovers；renderAllGroup 不再单独观察。
         # C4：最近组观察上限改为常量 RECENT_LIMIT（state.visible 已移除）。
@@ -4020,11 +4057,11 @@ class LauncherAssetContractTests(unittest.TestCase):
         launcher_script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
         gui_web_source = (ROOT / "maw" / "gui_web.py").read_text(encoding="utf-8")
 
-        # H04：端口大表单默认收起；三个清晰操作与目标徽标常驻首页。
-        self.assertIn('id="serverCard" class="card sub-accordion collapsed"', page)
-        self.assertIn('id="serverToggle"', page)
+        # 服务器控制收口页脚；浏览工程位于搜索旁，移除高级表单和目标徽标。
+        self.assertNotIn('id="serverCard"', page)
+        self.assertIn('id="homeServerToggle"', page)
         self.assertIn('id="homeBrowse"', page)
-        self.assertIn('id="homeTarget"', page)
+        self.assertNotIn('id="homeTarget"', page)
         # H01：封面状态与图片由 project-home 驱动，卡片带媒体文件名。
         self.assertIn("cover.dataset.coverState = status;", home_script)
         self.assertIn("recent-cover-image", home_script)
@@ -4348,7 +4385,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertEqual(_port({}), 8250)
         self.assertEqual(_port({"port": "invalid"}), 8250)
         self.assertIn('id="port" type="number" min="1" max="65535" value="8250"', page)
-        self.assertIn('id="refreshServerStatus"', page)
+        self.assertIn('id="homeServerToggle"', page)
 
     def test_single_file_editor_controls_are_opt_in_and_contextual(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -4362,14 +4399,12 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertGreater(page.index('id="debugRaw"'), page.index('id="speakerColorsField"'))
         self.assertGreater(page.index('id="debugRawField"'), page.index('id="advancedCard"'))
         self.assertIn('data-i18n-title="generate_html_title"', page)
-        self.assertIn('id="openHtml" class="hidden"', page)
+        self.assertNotIn('id="openHtml"', page)
         self.assertIn('generateHtml: $("generateHtml").checked', script)
         self.assertIn('debugRaw: $("debugRaw").checked', script)
         self.assertIn('test_run: "快速测试"', script)
         self.assertIn('test_run: "Quick test"', script)
-        self.assertIn('function syncHtmlMenu()', script)
-        self.assertIn('$("openHtml").classList.toggle("hidden", !enabled)', script)
-        self.assertIn('$("openHtml").disabled = enabled && !state.result?.htmlPath', script)
+        self.assertNotIn('function syncHtmlMenu()', script)
 
     def test_launcher_unified_start_stop_and_retry_controls_are_wired(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -4385,20 +4420,20 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('data-i18n="batch_confirm_yes">是', page)
         self.assertIn('data-i18n="batch_confirm_no">否', page)
 
-    def test_server_status_uses_clickable_link_and_independent_stop_control(self) -> None:
+    def test_server_status_uses_footer_link_and_toggle_control(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
-        self.assertIn('function setServerStatus(url, alreadyRunning = false, prefix = "")', script)
+        self.assertIn('function setServerStatus(url)', script)
         self.assertIn('bridge("open_url", { url })', script)
         self.assertIn('server_already_running', script)
         self.assertIn('get_server_status', script)
-        self.assertIn('id="stopServer" class="ghost server-stop hidden"', page)
-        self.assertIn('$("stopServer").addEventListener("click", stopEditorServer)', script)
+        self.assertIn('id="homeServerAddress"', page)
+        self.assertIn("$('homeServerToggle').addEventListener('click'", script)
         self.assertIn('bridge("stop_server", serverPayload({ url: state.activeSessionUrl }))', script)
         self.assertIn('void checkExistingServer(t("done"));', script)
-        self.assertIn('id="refreshServerStatus"', page)
-        self.assertNotIn('state.serverRunning ? t("server_stop")', script)
+        self.assertNotIn('id="stopServer"', page)
+        self.assertIn("running ? 'server_stop' : 'server_start'", script)
 
     def test_workspace_requests_sync_server_config_from_response(self) -> None:
         script = (ROOT / "web" / "editor.js").read_text(encoding="utf-8")
@@ -4432,32 +4467,32 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('已保存工作区：${displayName}', script)
         self.assertIn('[currentBuiltinWorkspaceName]: workspace };', script)
 
-    def test_html_editor_menu_uses_current_labels_and_closes_outside_the_menu(self) -> None:
+    def test_removed_advanced_editor_controls_have_no_stale_handlers(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
-        self.assertIn("打开该工程的 HTML 编辑器", page)
-        self.assertIn("打开空的 HTML 编辑器", page)
-        self.assertIn('event.target.closest(".split-wrap")', script)
+        for element_id in ('serverCard', 'serverToggle', 'htmlMenu', 'openHtml', 'pickServerMedia'):
+            self.assertNotIn(f'id="{element_id}"', page)
+            self.assertNotIn(f'$("{element_id}").addEventListener', script)
 
     def test_launcher_uses_server_as_default_and_hides_mose_in_menu(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
-        self.assertIn('id="openMawe" class="ghost split-main" type="button" data-i18n="start_server_editor"', page)
+        self.assertIn('id="homeOpenSelected"', page)
         self.assertNotIn('id="openMose"', page)
         self.assertNotIn("在 MOSE 中打开", page)
-        self.assertIn('$("openMawe").addEventListener("click", openServerEditor)', script)
+        self.assertIn('id="homeBlank"', page)
         self.assertNotIn("openMose", script)
         self.assertNotIn("open_mose", script)
         self.assertIn('async function openServerEditor(options = {})', script)
         self.assertIn('bridge("start_server"', script)
 
-    def test_project_change_marks_server_editor_action_for_rebinding(self) -> None:
+    def test_project_change_notifies_card_selection_and_server_binding(self) -> None:
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
         self.assertIn('function setJsonPath(path)', script)
-        self.assertIn('$("openMawe").classList.add("attention")', script)
+        self.assertIn('window.MSWLauncher?.onProjectPathChanged?.()', script)
         self.assertIn('state.serverProjectPath', script)
 
     def test_language_filter_hint_is_available_to_single_language_providers(self) -> None:
@@ -4634,14 +4669,14 @@ class LauncherAssetContractTests(unittest.TestCase):
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
         self.assertIn('const SERVER_STARTING_TEXT = { zh: "启动中……", en: "Starting…" };', script)
-        self.assertIn("button.disabled = state.serverStarting;", script)
+        self.assertIn("button.disabled = busy;", script)
         self.assertIn("state.serverStarting = true;", script)
         self.assertIn("state.serverStarting = false;", script)
         self.assertIn("serverStopping: false", script)
         self.assertIn("if (state.serverStopping) return;", script)
         self.assertIn("state.serverStopping = true;", script)
         self.assertIn("state.serverStopping = false;", script)
-        self.assertIn('$("stopServer").disabled = state.serverStarting || state.serverStopping;', script)
+        self.assertIn('const busy = state.serverStarting || state.serverStopping;', script)
         self.assertIn("guiLang: state.lang", script)
 
     def test_launcher_log_and_server_notice_layout(self) -> None:
@@ -4652,7 +4687,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('id="openLogFolder" class="inline-link" type="button" data-i18n="open_log_folder">打开日志文件夹', page)
         self.assertNotIn("📁 打开日志文件夹", page)
         self.assertLess(page.index('<pre id="log"'), page.index('id="openLogFolder"'))
-        self.assertIn('<div class="field"><label for="port"', page)
+        self.assertIn('id="homeServerPort"', page)
         self.assertNotIn('<div class="field compact"><label for="port"', page)
         self.assertIn('data-i18n="error_open_faq">查看常见问题', page)
         self.assertIn('data-i18n="error_open_issue">打开项目主页', page)

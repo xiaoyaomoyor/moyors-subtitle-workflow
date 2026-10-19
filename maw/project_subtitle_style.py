@@ -103,33 +103,7 @@ def load_presets(path: Path | None = None):
     try:
         return normalize_presets(json.loads((path or presets_path()).read_text(encoding='utf-8')))
     except FileNotFoundError:
-        if path is not None:
-            return {'version':1, 'presets':[]}
-        # Read-only migration. The first explicit preset save persists the new
-        # library; merely opening an editor never overwrites the user's old one.
-        from maw.ass_styles import load_ass_style_library, default_ass_style_library, find_ass_style
-        old=load_ass_style_library(); baseline=default_ass_style_library()
-        original={s['id']:s for s in baseline['styles']}
-        secondary=find_ass_style(old,old['assignments']['assExtensionStyleId'])
-        changed={s['id']:s for s in old['styles'] if s!=original.get(s['id'])}
-        migrated=[]
-        for profile in old['assProfiles']:
-            if profile not in baseline['assProfiles'] or profile['styleId'] in changed or secondary['id'] in changed:
-                migrated.append(dict(normalize_project_style({'schema':SCHEMA,'name':'旧版：'+profile['name'],
-                    'main':find_ass_style(old,profile['styleId']),'secondary':secondary,'animations':profile['animations']}),id='legacy-profile-'+profile['id']))
-        for key,style in changed.items():
-            migrated.append(dict(normalize_project_style({'schema':SCHEMA,'name':'旧版：'+style['name'],
-                'main':style,'secondary':secondary}),id='legacy-style-'+key))
-        srt_id=old['assignments']['srtBurnStyleId']
-        if srt_id in changed or srt_id!=baseline['assignments']['srtBurnStyleId']:
-            # FFmpeg's implicit SRT ASS canvas is 288 high. Convert its numeric
-            # styling to the shared 1080p reference when importing that slot.
-            srt=dict(find_ass_style(old,srt_id))
-            for field in ('fontSize','outline','shadow','spacing','marginL','marginR','marginV'):
-                srt[field]*=1080/288
-            migrated.append(dict(normalize_project_style({'schema':SCHEMA,'name':'旧版 SRT 烧录：'+srt['name'],
-                'main':srt,'secondary':secondary}),id='legacy-srt-burn'))
-        return {'version':1,'presets':migrated}
+        return {'version':1, 'presets':[]}
 
 
 def save_presets(raw, path: Path | None = None):

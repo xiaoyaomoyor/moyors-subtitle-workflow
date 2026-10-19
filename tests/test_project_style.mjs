@@ -51,7 +51,7 @@ test('new projects use zero pair spacing without rewriting existing or legacy ge
   assert.equal(S.presets()[1].pairLayout,undefined);
   const previous={preview:{project_style:{...S.defaults(),pairLayout:undefined,main:{...S.defaults().main,marginV:108}}}};
   const before=JSON.stringify(previous);S.migrate(previous,{});assert.equal(JSON.stringify(previous),before);
-  assert.equal(S.fromBurn({}).pairLayout,undefined);assert.equal(S.fromPreview({}).main.marginV,108);
+  assert.equal(S.fromBurn({}).pairLayout,undefined);
 });
 test('custom project snapshots survive preset selection, capture and restore',()=>{
   const project={preview:{}},custom=S.defaults();custom.main.primaryColor='#123456';
@@ -92,21 +92,19 @@ test('preset copies isolate projects and proofreading',()=>{
   S.apply(a,preset);S.apply(b,preset);a.preview.project_style.main.fontSize=20;
   assert.equal(b.preview.project_style.main.fontSize,72);assert.equal(preset.main.fontSize,72);
 });
-test('legacy styles migrate once and retain independent source presets',()=>{
-  const project={preview:{burn_subtitles:{main:{font_size:99,background_alpha:.5}},subtitle:{font_size:32,color:'#123456'}}};
-  assert.equal(S.migrate(project,U.normalizeAssStyleLibrary({})),true);
-  assert.equal(project.preview.project_style.legacyBurn.main.font_size,99);
-  assert.equal(project.preview.style_migration.presets[0].main.primaryColor,'#123456');
-  const before=JSON.stringify(project);assert.equal(S.migrate(project,{}),false);assert.equal(JSON.stringify(project),before);
+test('legacy appearance does not generate presets or override the default style',()=>{
+  for(const preview of [{burn_subtitles:{main:{font_size:99}},subtitle:{font_size:32,color:'#123456'}},{ass_library_exports:true}]){
+    const project={preview};assert.equal(S.migrate(project),true);
+    assert.deepEqual(project.preview.project_style,S.defaults());
+    assert.equal(project.preview.style_migration,undefined);
+    const before=JSON.stringify(project);assert.equal(S.migrate(project),false);assert.equal(JSON.stringify(project),before);
+  }
 });
-test('ASS-enabled migration captures full profile independently',()=>{
-  const library=U.normalizeAssStyleLibrary({styles:[{id:'custom',fontSize:90}],assProfiles:[{id:'profile',styleId:'custom'}],assignments:{assExportProfileId:'profile'}});
-  const project={preview:{ass_library_exports:true}};S.migrate(project,library);
-  assert.equal(project.preview.project_style.main.fontSize,90);
-  library.styles.find(s=>s.id==='custom').fontSize=15;
-  assert.equal(project.preview.project_style.main.fontSize,90);
-  const restored=S.fromLibrary(S.toLibrary(project.preview.project_style));
-  assert.equal(restored.main.fontSize,90);
+test('existing current-format styles survive removal of obsolete migration choices',()=>{
+  const style=S.defaults();style.name='My preset';style.main.fontSize=99;
+  const project={preview:{project_style:style,style_migration:{presets:[{name:'旧工程预览样式'}],notice:true}}};
+  assert.equal(S.migrate(project),true);assert.deepEqual(project.preview.project_style,style);
+  assert.equal(project.preview.style_migration,undefined);assert.equal(S.migrate(project),false);
 });
 test('editor-created geometry does not misidentify a fresh project as legacy',()=>{
   const project={preview:{subtitle:{font_size:18},ass_library_exports:false}};

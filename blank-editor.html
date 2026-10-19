@@ -18148,7 +18148,6 @@ export default MawDynamicCaptions;
       assProfiles:[{id:'project',name:s.name,styleId:'project-main',animations:s.animations}],
       assignments:{assExportProfileId:'project',assExtensionStyleId:'project-secondary'}});
   }
-  const family = value => ({default:U.ASS_DEFAULT_ASS_STYLE.fontName, sans:'Arial', yahei:'Microsoft YaHei',hei:'SimHei',song:'SimSun'}[value] || value || U.ASS_DEFAULT_ASS_STYLE.fontName);
   function fromBurn(raw = {}) {
     const s = defaults(); delete s.pairLayout; s.name='旧工程烧录样式'; s.legacyBurn=clone(raw);
     for(const [role,size,y] of [['main',48,.86],['secondary',40,.94]]) {
@@ -18159,15 +18158,7 @@ export default MawDynamicCaptions;
     }
     return normalize(s);
   }
-  function fromPreview(preview={}) {
-    const s=defaults(); delete s.pairLayout; s.main.marginV=108; s.name='旧工程预览样式';
-    for(const [role,key] of [['main','subtitle'],['secondary','extension_subtitle']]) {
-      const p=preview[key] || {};
-      s[role]={...s[role],fontName:family(p.font_family),fontSize:(p.font_size || (role==='main'?18:16))*4,primaryColor:p.color||s[role].primaryColor};
-    }
-    return normalize(s);
-  }
-  function migrate(project, library, originalPreview=project.preview||{}) {
+  function migrate(project) {
     project.preview ||= {};
     for(const field of ['project_style','project_style_custom'])if(project.preview[field]!=null){
       if(project.preview[field].schema!==schema)throw Error('工程字幕样式版本不受支持，请使用兼容的编辑器');
@@ -18175,15 +18166,15 @@ export default MawDynamicCaptions;
     }
     const selection=project.preview.project_style_selection;
     if(selection!==undefined&&(typeof selection!=='string'||!/^[a-zA-Z0-9_-]{1,160}$/.test(selection)))throw Error('工程样式选择无效');
-    if(project.preview.project_style?.schema===schema) return false;
+    // Retain current-format snapshots, but stop importing legacy appearance.
+    const changed=Object.hasOwn(project.preview,'style_migration');
+    delete project.preview.style_migration;
+    if(project.preview.project_style?.schema===schema) return changed;
     if(project.preview.project_style!=null)throw Error('工程字幕样式版本不受支持，请使用兼容的编辑器');
-    const p=project.preview;
-    const old=Object.keys(originalPreview).some(k=>['subtitle','extension_subtitle','burn_subtitles','ass_library_exports'].includes(k));
-    p.project_style=originalPreview.ass_library_exports===true?fromLibrary(originalPreview.burn_ass_library || library):old?fromBurn(originalPreview.burn_subtitles):defaults();
-    if(old) p.style_migration={version:1,presets:[fromPreview(originalPreview),fromLibrary(library)],
-      source:originalPreview.ass_library_exports===true?'ass':'burn',notice:true};
+    project.preview.project_style=defaults();
     return true;
   }
+
   function presets() {
     const standard=defaults(),normal={...standard,pairLayout:undefined,main:{...standard.main,marginV:108}};
     return [{id:'default',...standard},
@@ -18295,7 +18286,7 @@ export default MawDynamicCaptions;
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,fromPreview,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);
 
 // Unified subtitle identities and derived layout. No DOM, media or persistence.
@@ -66433,7 +66424,6 @@ window.addEventListener('beforeunload', (e) => {
       <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
       <label class="media-settings-field" data-option-help="先选择要编辑的轨道组，预设作用于该组，默认使用默认白字。调整立即用于工程；覆盖预设才更新用户预设，内置预设需另存。恢复默认会恢复所选预设保存的参数。预览、ASS 和默认烧录使用工程样式，SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
     </div>
-    <div id="style-migration-row" class="msw-style-notice" hidden><p id="style-migration-note" class="msw-processing-hint" hidden></p></div>
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
     <form id="style-save-form" class="msw-style-save-form" hidden><label class="media-settings-field"><span>预设名称</span><input id="style-preset-name" maxlength="80" required></label><button type="submit" id="style-save-preset">保存</button><button type="button" id="style-save-cancel">取消</button></form>
     <div id="style-delete-confirm" class="msw-style-delete-confirm" hidden><p id="style-delete-question"></p><div class="msw-processing-actions"><button type="button" id="style-delete-confirm-button">删除预设</button><button type="button" id="style-delete-cancel">取消</button></div></div>
@@ -66506,14 +66496,13 @@ window.addEventListener('beforeunload', (e) => {
   $('style-field-t-tags').placeholder='\\fscx120\\fscy120';
   $('style-field-wrapMode').closest('label').dataset.optionHelp='自动按画面宽度换行；按字数为每行字幕正文设置上限（1–200）。汉字、英文字母、标点、空格各计 1，常见组合表情不拆开；保留手动换行。画面过窄时仍可能提前换行。仅影响预览、ASS 和烧录，不改写正文或 SRT。';
   global.MSWHelp?.hydrate(panel);
-  let role='main',library=[],legacyLibrary=host.legacyAssLibrary(),selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
-  let proof={mode:'project'},legacyProof=null;
+  let role='main',library=[],selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
+  let proof={mode:'project'};
   try {
     const saved=JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}');proof.mode=saved.mode||'project';
-    const old=saved.customStyle||(saved.mode==='custom'?saved.style:null);if(old)legacyProof=S.normalize(old);
   } catch(_) {}
   const projectStyle=()=>host.data.preview?.project_style || S.defaults();
-  const all=()=>[...S.presets(),...library,...(host.data.preview?.style_migration?.presets||[]).map((s,i)=>({id:`migrated-${i}`,...s}))];
+  const all=()=>[...S.presets(),...library];
   const find=id=>all().find(s=>s.id===id);
   const value=()=>fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
   // A library preset may carry both dialogue and annotation styles. Compare
@@ -66599,12 +66588,7 @@ window.addEventListener('beforeunload', (e) => {
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
     $('style-transform-preset').value=transformTags.some(([tags])=>tags===style.animations.t.tags)?style.animations.t.tags:'custom';
     $('style-field-t-tags').closest('label').hidden=$('style-transform-preset').value!=='custom';
-    const note=host.data.preview?.style_migration;
-    $('style-migration-row').hidden=!note?.notice;
-    $('style-migration-note').hidden=!note?.notice;
-    $('style-migration-note').textContent=t('已保留旧输出样式；原预览和 ASS 配置可在预设中找回。');
-    if(note?.notice && !$('style-migration-dismiss')) {const b=document.createElement('button');b.id='style-migration-dismiss';b.type='button';b.textContent=t('知道了');b.onclick=()=>{const current=host.data.preview?.style_migration;if(current)current.notice=false;host.persistStyleMigration();sync();};$('style-migration-note').after(b);}
-    if($('style-migration-dismiss'))$('style-migration-dismiss').hidden=!note?.notice;
+
   }
   const positionDrafts=new Map();
   const positionContext=()=>JSON.stringify([host.generation,fixedPositionEditing,fixedPositionScope,fixedStyleTrackId,
@@ -66812,22 +66796,12 @@ window.addEventListener('beforeunload', (e) => {
     const generation=host.generation;
     try {
       if(host.config?.processingUrl) {
-        const response=await fetch(host.config.assStylesUrl);if(!response.ok)throw Error('无法读取旧 ASS 样式库');legacyLibrary=await response.json();
         library=(await request('subtitle-presets')).presets;
       } else library=JSON.parse(localStorage.getItem('msw.subtitle-presets.v1')||'[]');
       if(!Array.isArray(library))library=[];
+      library=library.filter(s=>!/^legacy-(profile|style|srt-burn)/.test(s.id||''));
       if(generation!==host.generation)return;
-      // Preserve the removed custom-preview preference as an ordinary preset.
-      if(legacyProof){
-        let preset=all().find(s=>same(s,legacyProof));
-        if(!preset){
-          let name='已保存的预览样式',suffix=2;while(all().some(s=>s.name===name))name='已保存的预览样式 '+suffix++;
-          preset={...legacyProof,name,id:global.MSWProject.id('style')};await saveLibrary([...library,preset]);
-        }
-        if(generation!==host.generation)return;
-        if(proof.mode==='custom')proof.mode=preset.id;legacyProof=null;persistProof();
-      }
-      if(S.migrate(host.data,legacyLibrary,host.originalSubtitlePreview()))host.persistStyleMigration();
+      if(S.migrate(host.data))host.persistStyleMigration();
       styleGeneration=generation;ready=true;message('');rebuild();sync();syncExport();
     } catch(error) {if(generation===host.generation){loadError=error.message;message('字幕样式加载失败：'+error.message,true);$('style-retry').hidden=false;}}
     finally {if(generation===host.generation)panel.inert=false;}

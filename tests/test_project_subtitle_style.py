@@ -48,15 +48,14 @@ class ProjectSubtitleStyleTests(unittest.TestCase):
         self.assertEqual(margins[0],margins[1])
         self.assertEqual(margins[0]['secondary']-margins[0]['main'],50)
 
-    def test_old_srt_slot_is_imported_without_modifying_its_library(self):
+    def test_missing_preset_library_does_not_import_legacy_styles(self):
         from maw.ass_styles import default_ass_style_library
         old=default_ass_style_library()
         next(s for s in old['styles'] if s['id']=='default')['fontSize']=20
         before=copy.deepcopy(old)
         with tempfile.TemporaryDirectory() as folder, patch('maw.project_subtitle_style.presets_path',return_value=Path(folder)/'new.json'), patch('maw.ass_styles.load_ass_style_library',return_value=old):
             imported=load_presets()['presets']
-        srt=next(s for s in imported if s['id']=='legacy-srt-burn')
-        self.assertEqual(srt['main']['fontSize'],75)
+        self.assertEqual(imported,[])
         self.assertEqual(old,before)
         with self.assertRaisesRegex(ValueError,'版本不受支持'):
             save_presets({'version':99,'presets':[]})

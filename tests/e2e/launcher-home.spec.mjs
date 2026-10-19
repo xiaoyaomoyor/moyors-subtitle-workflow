@@ -72,7 +72,7 @@ test('selection survives reload with both style and accessibility state', async 
   await clip.click();
   await expect(clip).toHaveClass(/selected/);
   await expect(clip).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#homeTarget')).toHaveText('当前目标：clip.mosp');
+  await expect(page.locator('#homeTarget')).toHaveCount(0);
 
   // H02：刷新后样式与 aria-pressed 同时恢复。
   await page.reload();
@@ -81,7 +81,7 @@ test('selection survives reload with both style and accessibility state', async 
   await expect(restored).toHaveClass(/selected/);
   await expect(restored).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#homeOpenSelected')).toBeVisible();
-  await expect(page.locator('#homeTarget')).toHaveText('当前目标：clip.mosp');
+  await expect(page.locator('#homeTarget')).toHaveCount(0);
 });
 
 test('search hiding the target clears it instead of opening a hidden project', async ({ page }) => {
@@ -93,7 +93,7 @@ test('search hiding the target clears it instead of opening a hidden project', a
   await page.locator('#recentSearch').fill('moved');
   await page.waitForFunction(() => document.querySelectorAll('.recent-card').length === 1);
   await expect(page.locator('.recent-card.selected')).toHaveCount(0);
-  await expect(page.locator('#homeOpenSelected')).toBeHidden();
+  await expect(page.locator('#homeOpenSelected')).toBeDisabled();
   await expect(page.locator('#homeTarget')).toBeHidden();
   await expect(page.locator('#jsonPath')).toHaveValue('');
 });
@@ -112,7 +112,7 @@ test('double-click opens the selected project and blank launch clears the target
   const blankIntent = await page.evaluate(() => window.__mockServerIntents.at(-1));
   expect(blankIntent).toMatchObject({ intent: 'blank', jsonPath: '' });
   // 空白启动后目标徽标回到隐藏，主按钮不再指向旧工程。
-  await expect(page.locator('#homeOpenSelected')).toBeHidden();
+  await expect(page.locator('#homeOpenSelected')).toBeDisabled();
 });
 
 test('open selected waits for readiness and opens again after the same project server exits', async ({ page }) => {
@@ -134,24 +134,24 @@ test('open selected waits for readiness and opens again after the same project s
   await cardOf(page, 'clip.mosp').click();
   const openSelected = page.locator('#homeOpenSelected');
   await openSelected.click();
-  await openSelected.click(); // 启动中重复点击不重复创建进程或提前打开空页面。
+  await expect(openSelected).toBeDisabled(); // 启动中禁止重复提交。
   expect(await page.evaluate(() => __launches)).toHaveLength(1);
   expect(await page.evaluate(() => __launches[0])).toMatchObject({ intent: 'project', jsonPath: 'D:\\Demo\\clip.mosp' });
   expect(await page.evaluate(() => __openedEditor)).toHaveLength(0);
   const ready = { ok: true, url: 'http://127.0.0.1:8250/?lang=zh' };
   await page.evaluate(result => __finishLaunch(result), ready);
   await expect.poll(() => page.evaluate(() => __openedEditor)).toEqual([ready.url]);
-  await expect(page.locator('#openMawe')).toBeEnabled();
+  await expect(page.locator('#homeOpenSelected')).toBeEnabled();
   await openSelected.click(); // 服务仍在时复用会话，但仍打开编辑器。
   await expect.poll(() => page.evaluate(() => __openedEditor)).toEqual([ready.url, ready.url]);
   expect(await page.evaluate(() => __launches)).toHaveLength(1);
 
   await page.evaluate(() => { __editorRunning = false; window.dispatchEvent(new Event('focus')); });
-  await expect(page.locator('#stopServer')).toBeHidden();
+  await expect(page.locator('#homeServerToggle')).toHaveAttribute('data-state', 'stopped');
   expect(await page.evaluate(() => __openedEditor)).toHaveLength(2); // 后台探测自身不打开页面。
   await openSelected.click();
   await page.evaluate(() => __finishLaunch({ ok: false, field: 'port', code: 'server_no_response' }));
-  await expect(page.locator('#openMawe')).toBeEnabled();
+  await expect(page.locator('#homeOpenSelected')).toBeEnabled();
   expect(await page.evaluate(() => __openedEditor)).toHaveLength(2); // 未就绪不得打开。
   await openSelected.click();
   await page.evaluate(result => __finishLaunch(result), ready);
@@ -159,40 +159,37 @@ test('open selected waits for readiness and opens again after the same project s
   expect(await page.evaluate(() => __launches)).toHaveLength(3);
 });
 
-test('browse sets the unified target; the port form stays collapsed until expanded', async ({ page }) => {
+test('folder icon opens a chosen project; only the footer owns server controls', async ({ page }) => {
   await openHome(page);
-
-  // H04：端口大表单默认收起，三个清晰操作常驻。
-  const serverCard = page.locator('#serverCard');
-  await expect(serverCard).toHaveClass(/collapsed/);
-  await expect(page.locator('#jsonPath')).toBeHidden();
-  await expect(page.locator('#homeBrowse')).toBeVisible();
-  await expect(page.locator('#homeBlank')).toBeVisible();
-
-  await page.locator('#homeBrowse').click();
-  await expect(page.locator('#jsonPath')).toHaveValue('D:\\Demo\\project.json');
-  // 浏览到的目标显示在徽标上；不在最近列表中 → 不伪造卡片选中。
-  await expect(page.locator('#homeTarget')).toHaveText('当前目标：project.json');
-  await expect(page.locator('.recent-card.selected')).toHaveCount(0);
-  await expect(page.locator('#homeOpenSelected')).toBeVisible();
-
-  await page.locator('#serverToggle').click();
-  await expect(serverCard).not.toHaveClass(/collapsed/);
-  await expect(page.locator('#jsonPath')).toBeVisible();
+  await expect(page.locator('#serverCard')).toHaveCount(0);
+  await expect(page.locator('#homeTarget')).toHaveCount(0);
+  await expect(page.locator('#homeNotice')).toHaveCount(0);
+  await expect(page.locator('.header-actions button')).toHaveCount(1);
+  await expect(page.locator('#homeBrowse')).toHaveAttribute('title', '从文件夹中选择工程');
+  const search = await page.locator('#recentSearch').boundingBox(), folder = await page.locator('#homeBrowse').boundingBox();
+  expect(folder.x).toBeGreaterThanOrEqual(search.x + search.width);
+  expect(Math.abs(folder.y - search.y)).toBeLessThan(8);
   await expect(page.locator('#port')).toBeVisible();
+  await page.locator('#homeBrowse').click();
+  await expect.poll(() => page.evaluate(() => window.__mockServerIntents?.at(-1)?.intent)).toBe('project');
+  await expect(page.locator('#homeServerAddress')).toBeVisible();
 });
 
-test('missing project offers relocation instead of silently opening something else', async ({ page }) => {
+test('missing project opens relocation directly; cancellation is quiet', async ({ page }) => {
   await openHome(page);
-  const missing = cardOf(page, 'moved.mosp');
-
-  await missing.dblclick();
-  await expect(page.locator('#batchConfirmModal')).toBeVisible();
-  await expect(page.locator('#batchConfirmMessage')).toContainText('moved.mosp');
-  await page.locator('#batchConfirmNo').click();
+  await page.evaluate(() => {
+    window.__relocations = [];
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'relocate_recent_project') { __relocations.push(payload.path); return { ok: false, cancelled: true }; }
+      return next(method, payload);
+    };
+  });
+  await cardOf(page, 'moved.mosp').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: '重新定位…' }).click();
+  await expect.poll(() => page.evaluate(() => __relocations.length)).toBe(1);
   await expect(page.locator('#batchConfirmModal')).toBeHidden();
-  // 未确认时不改动工程目标。
-  await expect(page.locator('#jsonPath')).toHaveValue('');
+  await expect(page.locator('.launcher-toast')).toHaveCount(0);
+  await expect(cardOf(page, 'moved.mosp')).toBeVisible();
 });
 
 test('context menu exposes open, pin, folder, cover refresh, and remove actions', async ({ page }) => {
@@ -498,19 +495,25 @@ test('delete project file flow confirms scope, recycles, and reports; registry r
   await expect(menu).toHaveCount(0);
   expect(await page.evaluate(() => Array.from(document.querySelectorAll('#allGrid .recent-name')).some((n) => n.textContent === 'old-take.mosp'))).toBe(true);
 
-  // 确认后删除：请求指向该工程文件，卡片消失并给出回收站反馈。
+  // 确认后删除：请求指向该工程文件，卡片消失即为反馈，清空被删除的启动目标。
+  await oldTake.click();
+  await expect(page.locator('#homeOpenSelected')).toBeEnabled();
+  await oldTake.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250);
   await oldTake.click({ button: 'right' });
   await menu.locator('button.danger').click();
   await page.locator('#batchConfirmYes').click();
   await page.waitForFunction(() => (window.__deleteRequests || []).length > 0);
   const deleted = await page.evaluate(() => ({
     gone: !Array.from(document.querySelectorAll('#allGrid .recent-name')).some((n) => n.textContent === 'old-take.mosp'),
-    notice: document.getElementById('homeNotice').textContent,
+    notice: document.querySelectorAll('.launcher-toast').length,
     request: (window.__deleteRequests || [])[0],
   }));
   expect(deleted.gone).toBe(true);
-  expect(deleted.notice).toContain('已移入回收站');
+  expect(deleted.notice).toBe(0);
   expect(deleted.request).toContain('old-take.mosp');
+  await expect(page.locator('#jsonPath')).toHaveValue('');
+  await expect(page.locator('#homeOpenSelected')).toBeDisabled();
 
   // 调整4：包含关系不变式（全部工程 ⊇ 最近工程）——「从全部工程记录移除」
   // 同步撤出最近组；只删一侧会被读取补齐立即撤销。
@@ -649,16 +652,16 @@ test('server address line clears after the editor exits the server and the windo
   // （正是此前地址残留的受管路径）。
   await page.evaluate(() => window.MSWLauncher.setJsonPath('D:\\Demo\\clip.mosp'));
   await page.evaluate(() => window.MSWLauncher.openServerEditor());
-  await page.waitForFunction(() => document.querySelector('#status a.status-link') !== null);
-  await expect(page.locator('#status')).toContainText('当前服务器地址');
-  await expect(page.locator('#stopServer')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#homeServerAddress')).toBeVisible();
+  await expect(page.locator('#homeServerAddress')).toContainText('127.0.0.1');
+  await expect(page.locator('#homeServerToggle')).toHaveAttribute('data-state', 'running');
 
   // 编辑器内「退出服务器」→ 回到启动器窗口聚焦：重探（mock 报未运行）→
   // 地址行清空、链接消失、关闭服务器按钮一并隐藏。
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await page.waitForFunction(() => document.querySelector('#status a.status-link') === null);
+  await expect(page.locator('#homeServerAddress')).toBeHidden();
   await expect(page.locator('#status')).not.toContainText('当前服务器地址');
-  await expect(page.locator('#stopServer')).toHaveClass(/hidden/);
+  await expect(page.locator('#homeServerToggle')).toHaveAttribute('data-state', 'stopped');
 });
 
 test('all-projects sorts pinned entries first then by name (C1)', async ({ page }) => {
@@ -684,7 +687,7 @@ test('pin badge sits at the cover top-left and is tilted inward (C2)', async ({ 
   const geo = await pin.evaluate((node) => {
     const cover = node.closest('.recent-cover').getBoundingClientRect();
     const box = node.getBoundingClientRect();
-    return { offsetLeft: box.left - cover.left, transform: getComputedStyle(node).transform };
+    return { offsetLeft: box.left - cover.left, transform: getComputedStyle(node.querySelector("svg")).transform };
   });
   expect(geo.offsetLeft).toBeLessThan(20);
   const matrix = geo.transform.match(/matrix\(([^)]+)\)/)[1].split(',').map(Number);
@@ -702,7 +705,7 @@ test('ctrl-click and shift-click build a multi-selection that drives the batch m
   await intro.click({ modifiers: ['Control'] });
   await expect(clip).toHaveClass(/selected/);
   await expect(intro).toHaveClass(/selected/);
-  await expect(page.locator('#homeTarget')).toContainText('已选 2 个');
+  expect(await page.evaluate(() => MSWProjectHome.state.selectedPaths.length)).toBe(2);
 
   // 右键所选卡：菜单进入批量模式（固定项带数量）。
   await clip.click({ button: 'right' });
@@ -719,7 +722,7 @@ test('ctrl-click and shift-click build a multi-selection that drives the batch m
   await page.locator('#allGrid .recent-card').nth(2).click();
   await page.locator('#allGrid .recent-card').first().click({ modifiers: ['Shift'] });
   await expect(page.locator('#allGrid .recent-card.selected')).toHaveCount(3);
-  await expect(page.locator('#homeTarget')).toContainText('已选 3 个');
+  expect(await page.evaluate(() => MSWProjectHome.state.selectedPaths.length)).toBe(3);
 
   // 批量删除：一次确认列出全部名称，确认后逐个入回收站并汇总反馈。
   await page.locator('#allGrid .recent-card').first().click({ button: 'right' });
@@ -732,7 +735,7 @@ test('ctrl-click and shift-click build a multi-selection that drives the batch m
   expect(message).toContain('old-take.mosp');
   await page.locator('#batchConfirmYes').click();
   await page.waitForFunction(() => (window.__deleteRequests || []).length >= 3);
-  await expect(page.locator('#homeNotice')).toContainText('已将 3 个工程文件移入回收站');
+  await expect(page.locator('.launcher-toast')).toHaveCount(0);
   await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length === 0);
 });
 
@@ -778,4 +781,106 @@ test('batch recent mutations finish sequentially before refreshing the shared li
   expect(await page.evaluate(()=>window.__recentReads)).toBe(0);
   await page.evaluate(()=>window.__recentWrites[1]());
   await expect.poll(()=>page.evaluate(()=>window.__recentReads)).toBe(1);
+});
+
+test('server icon starts without opening a browser, address opens it, stop restores editable port', async ({ page }) => {
+  await openHome(page);
+  await page.evaluate(() => {
+    window.__running = false; window.__opens = []; window.__ports = []; window.__stops = [];
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'get_server_status') return { ok: true, running: __running, url: 'http://127.0.0.1:8266/?lang=zh' };
+      if (method === 'start_server') { __running = true; __ports.push(payload.port); return {ok:true,url:'http://127.0.0.1:8266/?lang=zh'}; }
+      if (method === 'stop_server') { __running = false; __stops.push(payload); return {ok:true}; }
+      if (method === 'open_url') { __opens.push(payload.url); return {ok:true}; }
+      return next(method, payload);
+    };
+  });
+  await page.locator('#port').fill('8266'); await page.locator('#port').press('Tab');
+  await page.locator('#homeServerToggle').click();
+  await expect(page.locator('#homeServerToggle')).toHaveAttribute('data-state','running');
+  expect(await page.evaluate(() => __ports)).toEqual(['8266']);
+  expect(await page.evaluate(() => __opens)).toEqual([]);
+  await expect(page.locator('#port')).toBeHidden();
+  await page.locator('#homeServerAddress').click();
+  expect(await page.evaluate(() => __opens)).toHaveLength(1);
+  await page.locator('#homeServerToggle').click();
+  await expect(page.locator('#homeServerToggle')).toHaveAttribute('data-state','stopped');
+  await expect(page.locator('#port')).toBeEnabled();
+  await expect(page.locator('#port')).toHaveValue('8266');
+  expect(await page.evaluate(() => __stops[0].url || __stops[0].port)).toBeTruthy();
+});
+
+test('card failures use one dismissible toast, never an inline status or navigation jump', async ({ page }) => {
+  await openHome(page);
+  await page.evaluate(() => {
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'relocate_recent_project') throw new Error('dialog unavailable');
+      if (method === 'delete_project_file') return {ok:false,code:'project_in_use',detail:'工程正在编辑器中使用，请关闭该工程后重试。'};
+      return next(method, payload);
+    };
+  });
+  await cardOf(page, 'moved.mosp').click({button:'right'});
+  await page.getByRole('menuitem', {name:'重新定位…'}).click();
+  await expect(page.locator('.launcher-toast')).toHaveCount(1);
+  await expect(page.locator('#homeNotice')).toHaveCount(0);
+  await expect(page.locator('.header-actions')).not.toContainText('失败');
+  await page.locator('.launcher-toast button').click();
+  await page.locator('#allGrid .recent-card').first().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(250); // Context menus dismiss on an in-flight scroll.
+  await page.locator('#allGrid .recent-card').first().click({button:'right'});
+  await page.getByRole('menuitem', {name:'删除工程文件…'}).click();
+  await page.locator('#batchConfirmYes').click();
+  await expect(page.locator('.launcher-toast')).toContainText('请关闭该工程后重试');
+  await expect(page.locator('#allGrid .recent-card')).toHaveCount(3);
+  expect(await page.evaluate(() => MSWNavigation.current())).toBe('home');
+});
+
+test('home badges and footer remain compact in light and dark themes', async ({ page }, testInfo) => {
+  await openHome(page);
+  await page.evaluate(() => {
+    window.__demoRegistry[0].isNew = true;
+    return MSWProjectHome.refresh();
+  });
+  for (const theme of ['light','dark']) {
+    await page.evaluate(theme => { if (theme==='light') document.documentElement.dataset.theme='light'; else delete document.documentElement.dataset.theme; }, theme);
+    await page.waitForTimeout(200); // Finish the color transition before visual capture.
+    await expect(page.locator('.recent-pin svg').first()).toHaveAttribute('fill', 'currentColor');
+    const layout = await page.evaluate(() => ({overflow:document.documentElement.scrollWidth > innerWidth,buttons:[...document.querySelectorAll('.home-launch > button')].map(n=>n.textContent)}));
+    expect(layout.overflow).toBe(false);
+    expect(layout.buttons).toEqual(['启动空白编辑器','打开所选工程']);
+    await page.screenshot({path:testInfo.outputPath(`home-${theme}.png`)});
+  }
+});
+
+test('relocation updates the selected card and both lists before opening its new path',async({page})=>{
+  await openHome(page);
+  await page.evaluate(()=>{
+    MSWLauncher.bridgeOverride=async(method,payload,next)=>{
+      if(method==='relocate_recent_project') {
+        const fresh={...MSWProjectHome.state.projects.find(p=>p.path===payload.path),path:'D:/Relocated/found.mosp',name:'found.mosp',exists:true};
+        window.__relocated=fresh;
+        return {ok:true,path:fresh.path};
+      }
+      if(window.__relocated && method==='get_recent_projects')return {ok:true,projects:[__relocated]};
+      if(window.__relocated && method==='get_all_projects')return {ok:true,projects:[__relocated],total:1,matched:1,pages:1,page:1};
+      return next(method,payload);
+    };
+  });
+  await cardOf(page,'moved.mosp').click();
+  await cardOf(page,'moved.mosp').click({button:'right'});
+  await page.getByRole('menuitem',{name:'重新定位…'}).click();
+  await expect(page.locator('#jsonPath')).toHaveValue('D:/Relocated/found.mosp');
+  await expect(page.locator('.recent-card.selected')).toHaveCount(2);
+  await expect(page.locator('.recent-card.missing')).toHaveCount(0);
+  await page.locator('#homeOpenSelected').click();
+  await expect.poll(()=>page.evaluate(()=>window.__mockServerIntents?.at(-1)?.jsonPath)).toBe('D:/Relocated/found.mosp');
+});
+
+test('Ctrl deselecting the last card clears the launch target', async ({page})=>{
+  await openHome(page);
+  await cardOf(page,'clip.mosp').click();
+  await cardOf(page,'clip.mosp').click({modifiers:['Control']});
+  await expect(page.locator('.recent-card.selected')).toHaveCount(0);
+  await expect(page.locator('#jsonPath')).toHaveValue('');
+  await expect(page.locator('#homeOpenSelected')).toBeDisabled();
 });

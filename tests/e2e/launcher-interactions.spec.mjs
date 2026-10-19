@@ -689,30 +689,16 @@ test('FAQ open failures remain visible without an unhandled rejection', async ({
   await expect(page.locator('#log')).toContainText('open_issue: Issue page unavailable');
 });
 
-test('server media accepts a dropped file even when batch mode is selected', async ({ page }) => {
+test('home server controls preserve the prefab queue without the removed advanced form', async ({ page }) => {
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
-  // 工程文件/服务器媒体字段位于「启动编辑器」页的高级折叠区（R3/H04 默认收起）。
-  await page.evaluate(() => window.MSWNavigation.show('home'));
-  await page.locator('#serverToggle').click();
-  await page.locator('#jsonPath').fill('D:\\Demo\\missing-media.mosp');
-  await page.locator('#serverMediaField').evaluate((element) => element.classList.remove('hidden'));
-  // 批量切换位于「预制工程」页的媒体卡。
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
   await page.evaluate(() => MSWQueue.addPaths(['D:/Demo/queued-a.mp4', 'D:/Demo/queued-b.mp4']));
-
-  await page.locator('#serverMediaPath').evaluate((input) => {
-    const dataTransfer = { types: ['Files'], files: [{ path: 'D:\\Demo\\clip.mp4' }] };
-    const dragEnter = new Event('dragenter', { bubbles: true, cancelable: true });
-    Object.defineProperty(dragEnter, 'dataTransfer', { value: dataTransfer });
-    input.dispatchEvent(dragEnter);
-    const drop = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer });
-    input.dispatchEvent(drop);
-  });
-
-  await expect(page.locator('#serverMediaPath')).toHaveValue('D:\\Demo\\clip.mp4');
-  await expect(page.locator('#serverMediaPath')).not.toHaveClass(/drag-over/);
+  await page.evaluate(() => window.MSWNavigation.show('home'));
+  await expect(page.locator('#serverCard')).toHaveCount(0);
+  await page.locator('#homeServerToggle').click();
+  await expect(page.locator('#homeServerAddress')).toBeVisible();
+  await page.evaluate(() => window.MSWNavigation.show('prefab'));
   await expect(page.locator('.queue-file')).toHaveCount(2);
 });
 

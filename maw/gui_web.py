@@ -853,7 +853,9 @@ class LauncherApi:
             resolved = path.expanduser().resolve()
         except OSError as error:
             return _error_result("path", "recent_project_invalid", str(error))
-        for session in self.sessions.values():
+        with self._session_lock:
+            sessions = list(self.editor_sessions.values())
+        for session in sessions:
             project = (session.project_path or "").strip()
             if project and Path(project).expanduser().resolve() == resolved and session.running():
                 return _error_result("path", "project_in_use", f"工程正在编辑器会话中编辑：{resolved}")
@@ -868,7 +870,7 @@ class LauncherApi:
         path = _optional_path(payload.get("path"))
         if path is None:
             return _error_result("path", "recent_project_invalid", "")
-        selected = _file_dialog(open_dialog=True, file_types=(".mosp", ".json"))
+        selected = _file_dialog(open_dialog=True, file_types=("MSW projects (*.mosp;*.json)",))
         if not selected:
             return {"ok": False, "cancelled": True}
         return relocate_recent_project(path, Path(selected[0]), metadata_path=self.paths.recent_metadata, registry_path=self.paths.project_registry)
