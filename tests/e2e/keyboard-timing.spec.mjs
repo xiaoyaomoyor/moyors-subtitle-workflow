@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import { DURATION_MS, cleanupTempDir, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, toggleEditorSettings, toggleWaveSettings } from './helpers.mjs';
+import {readFileSync,writeFileSync} from 'node:fs';
+import { DURATION_MS, cleanupTempDir, disableOnboarding, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, toggleEditorSettings, toggleWaveSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -11,6 +12,16 @@ test.beforeAll(async () => {
   const projectPath = join(tempDir, 'project.json');
   generateWav(mediaPath, DURATION_MS / 1000);
   generateProjectJson(projectPath);
+  // Install the fixture before v4 migration; replacing an id-less legacy
+  // projection in a live v4 project is not a supported editing operation.
+  const p=JSON.parse(readFileSync(projectPath,'utf8'));
+  p.segments=[
+    {id:'first',start:5000,end:10000,text:'First',items:[{start:5000,end:10000,text:'First'}]},
+    {id:'second',start:10000,end:18000,text:'Second',items:[{start:10000,end:18000,text:'Second'}]},
+    {id:'third',start:25000,end:30000,text:'Third',items:[{start:25000,end:30000,text:'Third'}]},
+  ];
+  p.multi_subtitle={enabled:true,display_mode:'both',tracks:[{id:'extension-1',role:'extension',segments:[{id:'extension-001',start:12000,end:16000,text:'Extension',items:[]}]}],bindings:[]};
+  writeFileSync(projectPath,JSON.stringify(p));
   server = await startServer(projectPath, mediaPath, await findFreePort());
 });
 
@@ -20,25 +31,15 @@ test.afterAll(async () => {
 });
 
 async function loadAttachedCues(page, autoSnapAdjacentCues) {
-  if (typeof autoSnapAdjacentCues === 'boolean') {
-    await page.addInitScript((enabled) => {
-      localStorage.setItem(
-        'moy.asr.editor.settings.v1',
-        JSON.stringify({ autoSnapAdjacentCues: enabled }),
-      );
-    }, autoSnapAdjacentCues);
-  }
-  await page.goto(server.url);
-  await page.evaluate(() => {
-    DATA.segments.splice(
-      0,
-      DATA.segments.length,
-      { start: 5000, end: 10000, text: 'First', items: [{ start: 5000, end: 10000, text: 'First' }] },
-      { start: 10000, end: 18000, text: 'Second', items: [{ start: 10000, end: 18000, text: 'Second' }] },
-      { start: 25000, end: 30000, text: 'Third', items: [{ start: 25000, end: 30000, text: 'Third' }] },
+  await disableOnboarding(page);
+  await page.addInitScript((enabled) => {
+    localStorage.setItem(
+      'moy.asr.editor.settings.v1',
+      JSON.stringify({ autoSaveProject:false,...(typeof enabled==='boolean'?{autoSnapAdjacentCues:enabled}:{}) }),
     );
-    renderAll();
-  });
+  }, autoSnapAdjacentCues);
+  await page.goto(server.url);
+  await expect.poll(()=>page.evaluate(()=>DATA.segments.length)).toBe(3);
 }
 
 function readTimings(page) {
@@ -168,23 +169,6 @@ test('A/D at the outer cue boundaries still seeks the boundary cue', async ({ pa
 
 test('F seeks and plays a selected extension cue', async ({ page }) => {
   await loadAttachedCues(page);
-  await page.evaluate(() => {
-    DATA.multi_subtitle = {
-      schema: 'moy.asr.multi_subtitle.v1',
-      enabled: true,
-      display_mode: 'both',
-      tracks: [{
-        id: 'extension-1',
-        role: 'extension',
-        name: 'English',
-        language: 'English',
-        split_mode: 'word',
-        segments: [{ id: 'extension-001', start: 12000, end: 16000, text: 'Extension' }],
-      }],
-      bindings: [],
-    };
-    renderAll({ waveform: 'full' });
-  });
 
   const extensionBlock = page.locator('.waveform-cue-block[data-track="extension"]').first();
   await expect(extensionBlock).toBeVisible();
@@ -219,65 +203,66 @@ test('I/O seeks the current cue boundaries and stays paused', async ({ page }) =
 
 test('selected arrow keys move cues, adjust boundaries, and honor the configured step', async ({ page }) => {
   await loadAttachedCues(page, true);
+  await page.evaluate(()=>{DATA.segments[1].start=11000;DATA.segments[1].items[0].start=11000;renderAll();});
   await toggleWaveSettings(page);
   const step = page.locator('#cue-move-step');
   await expect(step).toHaveValue('50');
   await step.fill('250');
   await step.press('Tab');
-  await page.keyboard.press('Escape');
+  await page.locator('#wave-settings-close').click();
   await page.locator('.cue[data-idx="0"]').click();
 
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5250, end: 10250 },
-    { start: 10250, end: 18000 },
+    { start: 11000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
 
-  // Alt leaves the following cue fixed while the selected cue moves away.
+  // Fixed tracks leave unselected neighbours in place, including with Alt.
   await page.keyboard.press('Alt+ArrowLeft');
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5000, end: 10000 },
-    { start: 10250, end: 18000 },
+    { start: 11000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
-  // Moving back toward it still closes the gap, without moving the follower.
+  // Moving back toward it closes the gap without moving the follower.
   await page.keyboard.press('Alt+ArrowRight');
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5250, end: 10250 },
-    { start: 10250, end: 18000 },
+    { start: 11000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
 
   await page.keyboard.press('Control+ArrowLeft');
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5000, end: 10250 },
-    { start: 10250, end: 18000 },
+    { start: 11000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
   await page.keyboard.press('Control+Shift+ArrowRight');
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5000, end: 10500 },
-    { start: 10500, end: 18000 },
+    { start: 11000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
 });
 
-test('automatic adjacent snapping is on by default and Alt temporarily disables it', async ({ page }) => {
+test('fixed-track keyboard boundaries stop at a touching neighbour and can shrink independently', async ({ page }) => {
   await loadAttachedCues(page);
   await expect(page.locator('#auto-snap-adjacent-cues')).toBeChecked();
   await page.locator('.cue[data-idx="0"]').click();
   await page.keyboard.press('Control+Shift+ArrowRight');
   await expect.poll(() => readTimings(page)).toEqual([
-    { start: 5000, end: 10050 },
-    { start: 10050, end: 18000 },
+    { start: 5000, end: 10000 },
+    { start: 10000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
 
   await page.keyboard.press('Alt+Control+Shift+ArrowLeft');
   await expect.poll(() => readTimings(page)).toEqual([
-    { start: 5000, end: 10000 },
-    { start: 10050, end: 18000 },
+    { start: 5000, end: 9950 },
+    { start: 10000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
 });
@@ -306,10 +291,8 @@ test('shared handles link boundary dragging and Alt lights only the independent 
     if (altKey) await page.keyboard.up('Alt');
   };
 
-  // 默认开启：共享边界拖动联动相邻字幕；拖动期间状态栏提示当前吸附模式。
+  // 共享边界拖动联动相邻字幕；状态通过边界高亮反馈。
   await dragSharedBoundary();
-  await expect(page.locator('#waveform-status'))
-    .toContainText('共享边界');
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5000, end: 9500 },
     { start: 9500, end: 18000 },
@@ -366,8 +349,6 @@ test('a single lit edge can reverse before release without moving its neighbor',
   await page.mouse.down();
   await expect(page.locator('#waveform-pane')).toHaveClass(/cue-drag-active/);
   await page.mouse.move(startX + deltaX, y, { steps: 4 });
-  await expect(page.locator('#waveform-status'))
-    .toContainText('调整中');
   await page.mouse.up();
   await page.keyboard.up('Alt');
   expect((await readTimings(page))[1].start).toBe(10000);
@@ -416,13 +397,14 @@ test('Shift+arrow keys snap selected subtitle boundaries to neighbors', async ({
   ]);
 });
 
-test('A/D adjusts a held subtitle block and a held shared boundary', async ({ page }) => {
+test('A/D adjusts a held subtitle block and its boundary without moving neighbours', async ({ page }) => {
   await loadAttachedCues(page, true);
+  await page.evaluate(()=>{DATA.segments[1].start=11000;DATA.segments[1].items[0].start=11000;renderAll();});
   await toggleWaveSettings(page);
   const step = page.locator('#cue-move-step');
   await step.fill('100');
   await step.press('Tab');
-  await page.keyboard.press('Escape');
+  await page.locator('#wave-settings-close').click();
 
   const block = page.locator('.waveform-cue-block[data-idx="0"]').first();
   await expect(block).toBeVisible();
@@ -434,7 +416,7 @@ test('A/D adjusts a held subtitle block and a held shared boundary', async ({ pa
   await page.mouse.up();
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5100, end: 10100 },
-    { start: 10100, end: 18000 },
+    { start: 11000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
 
@@ -448,18 +430,18 @@ test('A/D adjusts a held subtitle block and a held shared boundary', async ({ pa
   await page.mouse.up();
   await expect.poll(() => readTimings(page)).toEqual([
     { start: 5100, end: 10200 },
-    { start: 10200, end: 18000 },
+    { start: 11000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
 });
 
-test('A also compresses an attached preceding cue', async ({ page }) => {
+test('A on a held subtitle stops at its preceding neighbour', async ({ page }) => {
   await loadAttachedCues(page, true);
   await toggleWaveSettings(page);
   const step = page.locator('#cue-move-step');
   await step.fill('100');
   await step.press('Tab');
-  await page.keyboard.press('Escape');
+  await page.locator('#wave-settings-close').click();
 
   const block = page.locator('.waveform-cue-block[data-idx="1"]').first();
   await expect(block).toBeVisible();
@@ -470,8 +452,8 @@ test('A also compresses an attached preceding cue', async ({ page }) => {
   await page.keyboard.press('a');
   await page.mouse.up();
   await expect.poll(() => readTimings(page)).toEqual([
-    { start: 5000, end: 9900 },
-    { start: 9900, end: 17900 },
+    { start: 5000, end: 10000 },
+    { start: 10000, end: 18000 },
     { start: 25000, end: 30000 },
   ]);
 });

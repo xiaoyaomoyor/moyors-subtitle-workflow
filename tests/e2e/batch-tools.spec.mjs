@@ -126,3 +126,31 @@ test('cleanup selected scope follows selection changes while its floating panel 
  await expect(page.locator('#subtitle-cleanup-status')).toContainText('将删除 1 条');await expect(page.locator('#subtitle-cleanup-apply')).toBeEnabled();
  await selectIds(page,[]);await expect(page.locator('#subtitle-cleanup-apply')).toBeDisabled();
 });
+
+test('cleanup all tracks supports inclusive character counts, keywords and one undo',async({page},info)=>{
+ const before=await snapshot(page);await clickBatchOperation(page,'clear-empty-cues');
+ await page.locator('#subtitle-cleanup-track').selectOption('*');
+ await page.locator('#subtitle-cleanup-comparison').selectOption('gte');
+ await page.locator('#subtitle-cleanup-threshold').fill('10');
+ await expect(page.locator('#subtitle-cleanup-status')).toContainText('将删除 4 条');
+ await page.locator('#subtitle-cleanup-threshold').fill('-1');await expect(page.locator('#subtitle-cleanup-apply')).toBeDisabled();
+ await page.locator('#subtitle-cleanup-mode').selectOption('keyword');await expect(page.locator('#subtitle-cleanup-apply')).toBeDisabled();
+ await page.locator('#subtitle-cleanup-keyword').fill('bravo');await expect(page.locator('#subtitle-cleanup-status')).toContainText('将删除 4 条');
+ await page.screenshot({path:info.outputPath('cleanup-keywords.png')});
+ await page.locator('#subtitle-cleanup-apply').click();
+ expect((await snapshot(page)).subtitles.cues.map(c=>c.content.text)).toEqual(['对应字幕','对应字幕']);
+ await page.locator('#subtitle-cleanup-close').click();await page.keyboard.press('Control+z');expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
+});
+
+test('all-track cleanup keeps selection narrow and rejects locked matches atomically',async({page},info)=>{
+ const p=await snapshot(page);p.subtitles.tracks.find(t=>t.id==='third').locked=true;
+ await page.evaluate(p=>applyCanonicalProject(p,'locked-cleanup.mosp'),p);await selectIds(page,['third-1']);
+ await clickBatchOperation(page,'clear-empty-cues');await page.locator('#subtitle-cleanup-track').selectOption('*');
+ await page.locator('#subtitle-cleanup-mode').selectOption('keyword');await page.locator('#subtitle-cleanup-keyword').fill('Alpha');
+ await expect(page.locator('#subtitle-cleanup-status')).toContainText('锁定');await expect(page.locator('#subtitle-cleanup-apply')).toBeDisabled();
+ await selectIds(page,[]);await expect(page.locator('#subtitle-cleanup-status')).toContainText('没有可清理');
+ await page.locator('#subtitle-cleanup-scope').selectOption('all');await expect(page.locator('#subtitle-cleanup-status')).toContainText('锁定');
+ await page.locator('#subtitle-cleanup-mode').selectOption('length');await page.locator('#subtitle-cleanup-threshold').fill('4');
+ await expect(page.locator('#subtitle-cleanup-status')).toContainText('将删除 2 条');
+ await page.setViewportSize({width:900,height:600});await page.locator('#subtitle-cleanup-panel').screenshot({path:info.outputPath('cleanup-threshold.png')});
+});

@@ -23,6 +23,23 @@ const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 async function idle(page){await expect.poll(()=>page.evaluate(()=>!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled),{timeout:15000}).toBe(true);}
 const events=page=>page.evaluate(async()=>await MSWSubtitleRenderer.renderer.renderer.getEvents());
 const pos=text=>text.match(/\\pos\(([^,]+),([^)]*)\)/).slice(1).map(Number);
+
+test('fullscreen arrow seek ignores hidden cue selection and stays consistent across player controls',async({page})=>{
+  await page.evaluate(()=>{selectOnly(0);player.pause();player.currentTime=3;});
+  const before=await snap(page);
+  await page.locator('#media-fullscreen').click();
+  await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===playerWrap)).toBe(true);
+  const step=await page.evaluate(()=>timelineMediaSeekStepMilliseconds()/1000);
+  for(const id of ['player','media-fullscreen','media-seek','media-volume','media-play-toggle']){
+    await page.evaluate(id=>{const el=document.getElementById(id);el.tabIndex=0;el.focus();player.currentTime=3;},id);
+    await page.keyboard.press('ArrowLeft');
+    await expect.poll(()=>page.evaluate(()=>player.currentTime)).toBeCloseTo(3-step,2);
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(()=>page.evaluate(()=>player.currentTime)).toBeCloseTo(3,2);
+    expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  }
+  await page.evaluate(()=>document.exitFullscreen());
+});
 async function open(page,both=false){
   await page.evaluate(both=>{selectOnly(0);if(both)addExtensionToSelection(0);MSWSubtitleStyle.editTrack(fixedTrack(DATA.segments[0]).id);},both);
   await page.locator('#style-position-scope').selectOption('cue');await idle(page);
@@ -36,6 +53,37 @@ async function position(page){
   await expect(page.locator('#style-position-cancel')).toBeVisible();
   await expect(page.locator('#fixed-position-toolbar')).toHaveCount(0);
 }
+
+test('track percentage position persists through redraw, ASS rendering, save and reopen',async({page})=>{
+  await page.evaluate(()=>MSWSubtitleStyle.editTrack(fixedTrack(DATA.segments[0]).id));
+  await page.locator('#style-track-placement').selectOption('fixed');
+  await idle(page);const prior=pos((await events(page))[0].Text)[1];
+  await axis(page,'y',45);
+  const changed=await snap(page);
+  expect(changed.subtitles.tracks[0].position).toEqual({x:.5,y:.45});
+  await expect(page.locator('#style-position-y')).toHaveValue('45');
+  expect(pos((await events(page))[0].Text)[1]-prior).toBeCloseTo((.45-.08)*1080,3);
+  await page.evaluate(()=>renderAll());await idle(page);
+  expect((await snap(page)).subtitles.tracks[0].position).toEqual({x:.5,y:.45});
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+  await page.reload();await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');await idle(page);
+  expect((await snap(page)).subtitles.tracks[0].position).toEqual({x:.5,y:.45});
+});
+
+test('selected cue percentage keeps typed decimals during refresh and commits with Enter',async({page})=>{
+  await open(page);
+  const y=page.locator('#style-position-y');await y.fill('45.25');
+  await page.evaluate(()=>MSWSubtitleStyle.syncPosition());
+  await expect(y).toHaveValue('45.25');
+  await y.press('Enter');await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_position.y).toBeCloseTo(.4525,5);
+  expect(pos((await events(page))[0].Text)[1]).toBeCloseTo(488.7,3);
+  await y.fill('101');await y.press('Tab');
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_position.y).toBeCloseTo(.4525,5);
+  await page.locator('#style-position-reset').click();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_position).toBeUndefined();
+  expect(Number(await y.inputValue())).toBeLessThanOrEqual(100);
+});
 
 test('single auto cue positioning preserves its bound partner, saves, reopens and resets inheritance',async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));

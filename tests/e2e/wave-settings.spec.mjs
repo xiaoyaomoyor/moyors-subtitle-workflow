@@ -43,6 +43,8 @@ test('mode, amplitude and visibility controls still affect the waveform and surv
   await page.locator('#waveform-hover-details').check();
   await page.evaluate(() => {DATA.segments[0].disabled=true; renderAll({waveform:'full'});});
   const block = page.locator('.waveform-cue-block[data-idx="0"]').first();
+  await expect(block).toHaveAttribute('title', /#1 · .* ~ /);
+  await expect(block).not.toHaveAttribute('title', /· (?:主字幕|副字幕|S\d)/);
   await expect(block).toHaveClass(/disabled/);
   await page.locator('#waveform-disabled-display').selectOption('hidden');
   await expect(block).toBeHidden();

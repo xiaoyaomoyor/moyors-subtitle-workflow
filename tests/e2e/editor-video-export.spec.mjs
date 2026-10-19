@@ -55,6 +55,36 @@ async function expectDetail(page,card,text){
   await expect(page.locator('#msw-option-help')).toContainText(text);await page.keyboard.press('Escape');
 }
 
+test('playhead export freezes its source end at submission and rejects the zero position',async({page})=>{
+  await open(page);await page.locator('#video-export-range').selectOption('playhead');
+  await page.evaluate(()=>seekMediaTo(0));
+  await expect(page.locator('#video-export-start')).toBeDisabled();
+  await expect(page.locator('#video-export-summary')).toContainText('请将播放头');
+  await page.evaluate(()=>seekMediaTo(2.5));
+  await expect(page.locator('#video-export-summary')).toContainText('00:02.500');
+  const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/audio-exports'));
+  const completed=finish(page),body=(await submitted).postDataJSON();
+  expect(body.options.start_ms).toBe(0);expect(body.options.end_ms).toBe(2500);
+  await page.evaluate(()=>seekMediaTo(3.5));
+  const {info}=await completed;expect(Number(info.format.duration)).toBeCloseTo(2.5,1);
+});
+
+test('custom source timecodes validate, normalize and render the requested interval',async({page},info)=>{
+  await open(page);await page.locator('#video-export-range').selectOption('custom');
+  const start=page.locator('#video-export-start-time'),end=page.locator('#video-export-end-time');
+  await expect(start).toHaveValue('00:00.000');await expect(end).toHaveValue('00:04.000');
+  await end.fill('1:99');await expect(page.locator('#video-export-start')).toBeDisabled();
+  await expect(page.locator('#video-export-summary')).toContainText('时间格式无效');
+  await start.fill('00:01.000');await end.fill('0:00:03.500');await end.press('Tab');
+  await expect(end).toHaveValue('00:03.500');await expect(page.locator('#video-export-summary')).toContainText('00:02.500');
+  await page.setViewportSize({width:540,height:750});
+  await page.locator('#video-export-panel').screenshot({path:info.outputPath('export-timecodes.png')});
+  const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/audio-exports'));
+  const result=await finish(page),body=(await submitted).postDataJSON();
+  expect([body.options.start_ms,body.options.end_ms]).toEqual([1000,3500]);
+  expect(Number(result.info.format.duration)).toBeCloseTo(2.5,1);
+});
+
 test('video and audio menu entries show window icons and video downloads the protected mix', async ({page}) => {
   await page.evaluate(()=>{PROJECT_NAME='字幕工程.最终版';});
   await open(page);

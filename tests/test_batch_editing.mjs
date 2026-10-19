@@ -13,6 +13,30 @@ function fixture(){const p=core.migrate({segments:[0,1,2].map(i=>({id:'s'+i,star
  for(const c of [...p.subtitles.cues]){p.subtitles.cues.push({id:'paired-'+c.id,track_id:'other',content:{...structuredClone(c.content),start:c.content.start+50,end:c.content.end+50,items:[]}});p.subtitles.bindings.push({id:'b-'+c.id,source_id:c.id,target_id:'paired-'+c.id,start_offset_ms:50,end_offset_ms:50});}
  core.validate(p);return p;}
 const firstIds=p=>batch.scope(p,p.subtitles.tracks[0].id).map(c=>c.id);
+
+test('cleanup character thresholds count visible characters and include exact bounds',()=>{
+ const rows=[' \n\t','Hello world!','中 文。','e\u0301👩‍💻'].map((text,i)=>({id:String(i),content:{text}}));
+ assert.deepEqual(rows.map(c=>batch.visibleCharacterCount(c.content.text)),[0,11,3,2]);
+ assert.deepEqual(batch.cleanupMatches(rows,{threshold:0}).map(c=>c.id),['0']);
+ assert.deepEqual(batch.cleanupMatches(rows,{threshold:3,comparison:'gte'}).map(c=>c.id),['1','2']);
+ assert.deepEqual(batch.cleanupMatches(rows,{threshold:3,comparison:'lte'}).map(c=>c.id),['0','2','3']);
+ for(const threshold of ['',-1,1.5,'abc'])assert.throws(()=>batch.cleanupMatches(rows,{threshold}),/整数/);
+});
+test('cleanup keywords are literal and case insensitive, empty keyword never removes everything',()=>{
+ const rows=['A [Tag]','tag','TAG'].map(text=>({content:{text}}));
+ assert.equal(batch.cleanupMatches(rows,{mode:'keyword',keyword:'[tag]'}).length,1);
+ assert.equal(batch.cleanupMatches(rows,{mode:'keyword',keyword:'tag'}).length,3);
+ assert.throws(()=>batch.cleanupMatches(rows,{mode:'keyword',keyword:'  '}),/关键词/);
+});
+test('all-track cleanup scope includes disabled collapsed tracks without expanding an empty selection',()=>{
+ const p=fixture();p.subtitles.tracks[1].enabled=false;p.subtitles.tracks[1].collapsed=true;
+ assert.equal(batch.scope(p,'*',null,{allTracks:true}).length,6);
+ assert.equal(batch.scope(p,'*',[],{allTracks:true}).length,0);
+ assert.equal(batch.scope(p,'*',[p.subtitles.cues[3].id],{allTracks:true}).length,1);
+ p.subtitles.tracks[1].locked=true;const before=structuredClone(p);
+ assert.throws(()=>batch.cleanup(p,batch.scope(p,'*',null,{allTracks:true}).map(c=>c.id)),/锁定/);
+ assert.deepEqual(p,before);
+});
 test('physical scope ignores display columns, preserves empty selection and explicit disabled rows',()=>{
  const p=fixture(),ids=firstIds(p);p.subtitle_view={secondary_cue_ids:[ids[1]]};p.subtitles.tracks[0].collapsed=true;p.subtitles.cues[1].content.disabled=true;
  assert.deepEqual(batch.scope(p,p.subtitles.tracks[0].id,[]),[]);

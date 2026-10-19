@@ -3944,9 +3944,7 @@
       block.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(extra + lane) * pitch}px)`;
       if (this.settings.hoverDetails) {
         const index = Number(role === 'extension' ? block.dataset.extIdx : block.dataset.idx);
-        block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '))
-          + ` · ${role === 'main' ? '主字幕' : '副字幕'}`
-          + (fixed ? ` · ${this.options.getFixedTrackName?.(segment, role) || ''}` : ` · 第 ${lane + 1} 层`);
+        block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '));
       }
     }
 

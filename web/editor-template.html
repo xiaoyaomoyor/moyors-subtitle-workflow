@@ -236,7 +236,7 @@ __WAVEFORM_CSS__
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
-          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="选择轨道与范围，清理空字幕或清空字幕">清理字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="选择轨道与范围，按字符数或关键词清理字幕">清理字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -566,8 +566,10 @@ __WAVEFORM_CSS__
   <div class="gap-remove-panel-body">
     <div class="batch-scope-fields">
       <label>作用轨道<select id="subtitle-cleanup-track"></select></label>
-      <label>作用范围<select id="subtitle-cleanup-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
-      <label>清理内容<select id="subtitle-cleanup-mode"><option value="empty">仅空字幕</option><option value="all">范围内全部字幕</option></select></label>
+      <label>作用范围<select id="subtitle-cleanup-scope"><option value="selected">所选字幕</option><option value="all">轨道内全部字幕</option></select></label>
+      <label>清理内容<select id="subtitle-cleanup-mode"><option value="length">字数阈值</option><option value="keyword">包含关键词</option><option value="all">范围内全部字幕</option></select></label>
+      <div id="subtitle-cleanup-length" class="cleanup-condition" data-option-help="忽略空格与换行，标点计入；英文按字母计数。小于等于 0 可清理空字幕。"><span class="msw-option-label">字符数</span><div class="cleanup-threshold"><select id="subtitle-cleanup-comparison" aria-label="字数比较"><option value="lte">小于等于 ≤</option><option value="gte">大于等于 ≥</option></select><input id="subtitle-cleanup-threshold" aria-label="字数阈值" type="number" min="0" step="1" value="0" required></div></div>
+      <label id="subtitle-cleanup-keyword-field" data-option-help="按完整关键词匹配，不区分英文字母大小写；不使用正则表达式。" hidden><span class="msw-option-label">关键词</span><input id="subtitle-cleanup-keyword" type="text" placeholder="输入关键词"></label>
     </div>
     <p hidden data-help-for="subtitle-cleanup-title">只删除选定轨道与范围的字幕，包含禁用、隐藏和折叠内容。删除时解除对应绑定，另一侧字幕和音频素材保留；遇到锁定时整批不应用，可一次撤销。</p>
     <div class="msw-processing-actions"><small id="subtitle-cleanup-status" class="msw-processing-hint" role="status" aria-live="polite"></small><button id="subtitle-cleanup-apply" type="button" class="primary">清理</button></div>

@@ -3915,6 +3915,9 @@
   .batch-scope-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px 12px; padding: 12px; margin-bottom: 12px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); }
   .batch-scope-fields label { display: flex; flex-direction: column; gap: 5px; min-width: 0; margin: 0; font-size: 12px; color: var(--text-secondary); }
   .batch-scope-fields select { width: 100%; min-width: 0; min-height: 30px; padding: 4px 6px; font: inherit; color: var(--text-primary); background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .cleanup-condition { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: 12px; color: var(--text-secondary); }
+  .cleanup-threshold { display: grid; grid-template-columns: minmax(0,1fr) minmax(65px,.7fr); gap: 6px; }
+  #subtitle-cleanup-panel input { width: 100%; min-width: 0; min-height: 30px; box-sizing: border-box; padding: 4px 6px; font: inherit; color: var(--text-primary); background: var(--form-input-bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .batch-text-modal .preview { color: var(--text-secondary); }
   .batch-text-modal .text-process-operations { padding: 12px; gap: 9px; }
   .batch-text-modal .text-process-operation { grid-template-columns: 15px minmax(0,1fr); }
@@ -6671,7 +6674,7 @@
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
-          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="选择轨道与范围，清理空字幕或清空字幕">清理字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+          <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="选择轨道与范围，按字符数或关键词清理字幕">清理字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -7001,8 +7004,10 @@
   <div class="gap-remove-panel-body">
     <div class="batch-scope-fields">
       <label>作用轨道<select id="subtitle-cleanup-track"></select></label>
-      <label>作用范围<select id="subtitle-cleanup-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
-      <label>清理内容<select id="subtitle-cleanup-mode"><option value="empty">仅空字幕</option><option value="all">范围内全部字幕</option></select></label>
+      <label>作用范围<select id="subtitle-cleanup-scope"><option value="selected">所选字幕</option><option value="all">轨道内全部字幕</option></select></label>
+      <label>清理内容<select id="subtitle-cleanup-mode"><option value="length">字数阈值</option><option value="keyword">包含关键词</option><option value="all">范围内全部字幕</option></select></label>
+      <div id="subtitle-cleanup-length" class="cleanup-condition" data-option-help="忽略空格与换行，标点计入；英文按字母计数。小于等于 0 可清理空字幕。"><span class="msw-option-label">字符数</span><div class="cleanup-threshold"><select id="subtitle-cleanup-comparison" aria-label="字数比较"><option value="lte">小于等于 ≤</option><option value="gte">大于等于 ≥</option></select><input id="subtitle-cleanup-threshold" aria-label="字数阈值" type="number" min="0" step="1" value="0" required></div></div>
+      <label id="subtitle-cleanup-keyword-field" data-option-help="按完整关键词匹配，不区分英文字母大小写；不使用正则表达式。" hidden><span class="msw-option-label">关键词</span><input id="subtitle-cleanup-keyword" type="text" placeholder="输入关键词"></label>
     </div>
     <p hidden data-help-for="subtitle-cleanup-title">只删除选定轨道与范围的字幕，包含禁用、隐藏和折叠内容。删除时解除对应绑定，另一侧字幕和音频素材保留；遇到锁定时整批不应用，可一次撤销。</p>
     <div class="msw-processing-actions"><small id="subtitle-cleanup-status" class="msw-processing-hint" role="status" aria-live="polite"></small><button id="subtitle-cleanup-apply" type="button" class="primary">清理</button></div>
@@ -19533,11 +19538,26 @@ export default MawDynamicCaptions;
   const copy=v=>JSON.parse(JSON.stringify(v));
   const fail=message=>{throw Error(message);};
   const trackCues=(p,id)=>p.subtitles.cues.filter(c=>c.track_id===id).sort((a,b)=>a.content.start-b.content.start||a.id.localeCompare(b.id));
-  function scope(p,trackId,selectedIds=null,{includeDisabled=true}={}) {
+  function scope(p,trackId,selectedIds=null,{includeDisabled=true,allTracks=false}={}) {
+    const selected=selectedIds==null?null:new Set(selectedIds);
+    if(allTracks&&trackId==='*')return p.subtitles.cues.filter(c=>(!selected||selected.has(c.id))&&(includeDisabled||!c.content.disabled));
     const track=p.subtitles.tracks.find(t=>t.id===trackId);
     if(!track)fail('请选择作用轨道');
-    const selected=selectedIds==null?null:new Set(selectedIds);
     return trackCues(p,trackId).filter(c=>(!selected||selected.has(c.id))&&(includeDisabled||!c.content.disabled));
+  }
+  const graphemes=typeof Intl.Segmenter==='function'?new Intl.Segmenter(undefined,{granularity:'grapheme'}):null;
+  function visibleCharacterCount(text) {
+    const value=String(text??'').replace(/\s/gu,'');
+    return graphemes?[...graphemes.segment(value)].length:Array.from(value).length;
+  }
+  function cleanupMatches(cues,{mode='length',comparison='lte',threshold=0,keyword=''}={}) {
+    if(mode==='all')return cues;
+    if(mode==='keyword') {
+      const term=String(keyword).trim().toLocaleLowerCase();if(!term)fail('请输入要清理的关键词');
+      return cues.filter(c=>c.content.text.toLocaleLowerCase().includes(term));
+    }
+    if(mode!=='length'||!['lte','gte'].includes(comparison)||threshold===''||!Number.isSafeInteger(Number(threshold))||Number(threshold)<0)fail('字数阈值须为大于等于 0 的整数');
+    return cues.filter(c=>comparison==='gte'?visibleCharacterCount(c.content.text)>=Number(threshold):visibleCharacterCount(c.content.text)<=Number(threshold));
   }
   function refreshOffsets(p){const cues=new Map(p.subtitles.cues.map(c=>[c.id,c]));
     for(const b of p.subtitles.bindings)for(const edge of ['start','end'])b[edge+'_offset_ms']=cues.get(b.target_id).content[edge]-cues.get(b.source_id).content[edge];
@@ -19622,7 +19642,7 @@ export default MawDynamicCaptions;
     next.subtitle_view={...next.subtitle_view,secondary_cue_ids:[...right]};
     refreshOffsets(next);core.validate(next);checkLocks(p,next);return {project:next,ids:newIds,changed:report.stats.changedSegments};
   }
-  const api={scope,trackCues,time,texts,textSources,draft,cleanup};
+  const api={scope,trackCues,time,texts,textSources,draft,cleanup,cleanupMatches,visibleCharacterCount};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWBatchEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -20787,6 +20807,15 @@ export default MawDynamicCaptions;
 (function (global) {
   'use strict';
   const VERSION = 'msw.audio-render.v1', MAX_MS = 12 * 60 * 60 * 1000;
+  function parseSourceTime(value) {
+    const text=String(value??'').trim(),parts=text.split(':');
+    const valid=parts.length<=3&&parts.every((p,i)=>i===parts.length-1?/^(?:\d+(?:\.\d{1,3})?|\.\d{1,3})$/.test(p):/^\d+$/.test(p));
+    const numbers=parts.map(Number);
+    if(!valid||parts.length>1&&(numbers.at(-1)>=60||parts.length===3&&numbers[1]>=60))throw Error('时间格式无效，请使用 分:秒.毫秒（如 20:39.478）');
+    const ms=Math.round(numbers.reduce((total,n)=>total*60+n,0)*1000);
+    if(!Number.isSafeInteger(ms)||ms<0||ms>MAX_MS)throw Error('导出时间须在 00:00.000 至 720:00.000 之间');
+    return ms;
+  }
   function integer(value, min, max, label) {
     if (!Number.isInteger(value) || value < min || value > max) throw Error(label);
     return value;
@@ -20916,7 +20945,7 @@ export default MawDynamicCaptions;
       intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: levels.source,...(levels.sourceMuted?{muted:true}:{}) } : null,
       peak_protection: o.peak_protection };
   }
-  global.MSWAudioRender = Object.freeze({ VERSION, options, monitorGains, audioEnd, videoOptions, removedRanges, compile });
+  global.MSWAudioRender = Object.freeze({ VERSION, parseSourceTime, options, monitorGains, audioEnd, videoOptions, removedRanges, compile });
 })(window);
 
 // Pure translation selection, placement and optimistic reconciliation.
@@ -21859,7 +21888,14 @@ export default MawDynamicCaptions;
     '仅匹配参考轨道中尚未绑定的字幕。未匹配的字幕仍会导入；分组与绑定分别管理。': 'Match only unbound subtitles on the reference track. Unmatched subtitles are still imported. Track groups and bindings are managed separately.',
     '使用所选音频贴片的文字和时间，在目标轨道补字幕。没有合成文字的外部音频以文件名占位，不进行语音识别。与已有字幕或其他所选贴片重叠时跳过，不覆盖或解绑已有字幕；一次撤销。': 'Fill the destination track using the selected audio clips’ text and timing. Imported audio without synthesis text uses its filename as a placeholder; this does not run speech recognition. Overlaps with existing subtitles or other selected clips are skipped without overwriting or unbinding. Undo once to revert.',
     '清理字幕': 'Clean up subtitles', '关闭清理字幕': 'Close subtitle cleanup', '清理内容': 'Content to remove',
+    '选择轨道与范围，按字符数或关键词清理字幕': 'Choose tracks and scope, then remove subtitles by character count or keyword',
     '清理': 'Clean up', '仅空字幕': 'Empty subtitles only', '范围内全部字幕': 'All subtitles in scope',
+    '轨道内全部字幕': 'All subtitles on target tracks', '包含关键词': 'Contains keyword',
+    '字符数': 'Character count', '字数比较': 'Count comparison', '小于等于 ≤': 'At most ≤', '大于等于 ≥': 'At least ≥',
+    '关键词': 'Keyword', '输入关键词': 'Enter a keyword', '请输入要清理的关键词': 'Enter a keyword to match',
+    '字数阈值须为大于等于 0 的整数': 'The character threshold must be a whole number of 0 or greater',
+    '忽略空格与换行，标点计入；英文按字母计数。小于等于 0 可清理空字幕。': 'Ignore spaces and line breaks; count punctuation and individual English letters. At most 0 removes empty subtitles.',
+    '按完整关键词匹配，不区分英文字母大小写；不使用正则表达式。': 'Match the literal keyword, ignoring letter case. Regular expressions are not used.',
     '选择轨道与范围，清理空字幕或清空字幕': 'Choose a track and scope to remove empty subtitles or all subtitles',
     '当前范围没有可清理的字幕': 'No subtitles to remove in this scope',
     '当前范围没有字幕': 'No subtitles in this scope', '字幕时间没有变化': 'Subtitle timing is unchanged',
@@ -23333,6 +23369,11 @@ export default MawDynamicCaptions;
     "导出范围": "Export range",
     "整个时间轴": "Entire timeline",
     "指定源时间范围": "Custom source range",
+    '截止到当前播放头': 'Up to current playhead', '源起点': 'Source start', '源终点': 'Source end',
+    '请将播放头移到起点之后': 'Move the playhead past the start',
+    '时间格式无效，请使用 分:秒.毫秒（如 20:39.478）': 'Invalid time; use minutes:seconds.milliseconds (e.g. 20:39.478)',
+    '导出时间须在 00:00.000 至 720:00.000 之间': 'Export time must be between 00:00.000 and 720:00.000',
+    '截止到当前播放头：从源时间轴起点导出至点击开始时的播放头位置。指定范围可输入分:秒.毫秒、时:分:秒.毫秒或秒数，例如 20:39.478。': 'Export from the source timeline start to the playhead at the moment you start export. Custom times accept minutes:seconds.milliseconds, hours:minutes:seconds.milliseconds, or seconds, e.g. 20:39.478.',
     "源起点（秒）": "Source start (s)",
     "源终点（秒）": "Source end (s)",
     "跳过空隙": "Skip gaps",
@@ -28973,9 +29014,7 @@ export default MawDynamicCaptions;
       block.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(extra + lane) * pitch}px)`;
       if (this.settings.hoverDetails) {
         const index = Number(role === 'extension' ? block.dataset.extIdx : block.dataset.idx);
-        block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '))
-          + ` · ${role === 'main' ? '主字幕' : '副字幕'}`
-          + (fixed ? ` · ${this.options.getFixedTrackName?.(segment, role) || ''}` : ` · 第 ${lane + 1} 层`);
+        block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '));
       }
     }
 
@@ -47120,6 +47159,17 @@ document.addEventListener('fullscreenchange', syncMediaControls);
 // Ctrl(Cmd)+Shift+方向键调整右边界。
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  // 全屏是播放上下文；视频、自定义按钮和滑杆焦点都使用同一跳转步长，
+  // 不让后台的字幕选区或原生滑杆抢走方向键。定位模式仍由画面定位处理。
+  if (document.fullscreenElement === playerWrap && !fixedPositionEditing
+      && !e.defaultPrevented && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
+      && !isTextEditingTarget(e)
+      && !e.target?.closest?.('select, [role="menu"]') && hasLoadedMedia()) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    seekMediaBy((e.key === 'ArrowLeft' ? -1 : 1) * timelineMediaSeekStepMilliseconds() / 1000);
+    return;
+  }
   if (editingState || isTextEditingTarget(e)) return;
   // 切分确认区内的方向键调整文字分界，不触发时间轴操作。
   if (multiSubtitleSplitModal?.contains(document.activeElement)) return;
@@ -59525,21 +59575,32 @@ function queueCleanupPreview() {
   clearTimeout(cleanupPreviewTimer);cleanupPreviewTimer=setTimeout(previewSubtitleCleanup,30);
 }
 function openSubtitleCleanup(mode='empty') {
-  commitProcessingEdits();initBatchScope('subtitle-cleanup');document.getElementById('subtitle-cleanup-mode').value=mode;
+  commitProcessingEdits();initBatchScope('subtitle-cleanup');
+  const track=document.getElementById('subtitle-cleanup-track'),id=track.value;
+  track.prepend(new Option('全部轨道','*'));track.value=id;
+  document.getElementById('subtitle-cleanup-mode').value=mode==='empty'?'length':mode;
+  if(mode==='empty'){document.getElementById('subtitle-cleanup-comparison').value='lte';document.getElementById('subtitle-cleanup-threshold').value='0';}
   subtitleCleanupFloating.open();previewSubtitleCleanup();
 }
 function previewSubtitleCleanup() {
   const status=document.getElementById('subtitle-cleanup-status'),button=document.getElementById('subtitle-cleanup-apply');button.disabled=true;
+  const mode=document.getElementById('subtitle-cleanup-mode').value;
+  document.getElementById('subtitle-cleanup-length').hidden=mode!=='length';
+  document.getElementById('subtitle-cleanup-keyword-field').hidden=mode!=='keyword';
   try {
-    const context=batchContext('subtitle-cleanup'),empty=document.getElementById('subtitle-cleanup-mode').value==='empty';
-    const ids=context.cues.filter(c=>!empty||!c.content.text.trim()).map(c=>c.id);
+    const context=batchContext('subtitle-cleanup',batchSelectedIds(),{allTracks:true});
+    const ids=MSWBatchEditing.cleanupMatches(context.cues,{mode,
+      comparison:document.getElementById('subtitle-cleanup-comparison').value,
+      threshold:document.getElementById('subtitle-cleanup-threshold').value,
+      keyword:document.getElementById('subtitle-cleanup-keyword').value}).map(c=>c.id);
     const project=ids.length?MSWBatchEditing.cleanup(context.p,ids):context.p;
     const bindings=context.p.subtitles.bindings.length-project.subtitles.bindings.length;
     status.textContent=ids.length?`将删除 ${ids.length} 条字幕${bindings?` · 解除 ${bindings} 组绑定，另一侧字幕保留`:''}`:'当前范围没有可清理的字幕';
     button.disabled=!ids.length;return {project,ids};
   }catch(error){status.textContent=error.message;return null;}
 }
-for(const suffix of ['track','scope','mode'])document.getElementById('subtitle-cleanup-'+suffix)?.addEventListener('change',previewSubtitleCleanup);
+for(const suffix of ['track','scope','mode','comparison'])document.getElementById('subtitle-cleanup-'+suffix)?.addEventListener('change',previewSubtitleCleanup);
+for(const suffix of ['threshold','keyword'])document.getElementById('subtitle-cleanup-'+suffix)?.addEventListener('input',previewSubtitleCleanup);
 document.getElementById('subtitle-cleanup-close')?.addEventListener('click',()=>subtitleCleanupFloating.close());
 document.getElementById('subtitle-cleanup-apply')?.addEventListener('click',()=>{
   try {
@@ -65880,12 +65941,25 @@ window.addEventListener('beforeunload', (e) => {
       }
       return result;
     }
+    function sourceRange() {
+      const mode=el('audio-export-range').value;
+      if(video&&mode==='playhead') {
+        const end=Math.round(global.MSWE.resolve('audio-timeline')?.currentTimeMs()??host.player.currentTime*1000);
+        if(!Number.isFinite(end)||end<=0)throw Error('请将播放头移到起点之后');
+        return {start_ms:0,end_ms:end};
+      }
+      if(mode!=='custom')return {start_ms:0,end_ms:null};
+      const time=key=>{
+        const text=el('audio-export-'+key+'-time').value;
+        if(!video)return text.trim()?Math.round(Number(text)*1000):NaN;
+        try{return core.parseSourceTime(text);}catch(error){throw Error(t(key==='start'?'源起点':'源终点')+'：'+t(error.message));}
+      };
+      return {start_ms:time('start'),end_ms:time('end')};
+    }
     function selectedOptions() {
-      const custom = el('audio-export-range').value === 'custom';
       const numeric = id => {if(el(id).readOnly)return 0;const value=el(id).value;return value?.trim()?Number(value):NaN;};
       const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
-        duration_ms: host.audioExportDuration(), start_ms: custom ? Math.round(numeric('audio-export-start-time') * 1000) : 0,
-        end_ms: custom ? Math.round(numeric('audio-export-end-time') * 1000) : null,
+        duration_ms: host.audioExportDuration(), ...sourceRange(),
         remove_gaps: el('audio-export-remove-gaps').checked, source_audio_index: Number(el('audio-export-stream').value || 0),
         source_gain_db: numeric('audio-export-source-gain'), voice_gain_db: numeric('audio-export-voice-gain'), peak_protection: el('audio-export-peak').checked,
         ...(!timeline?{monitor:monitorSnapshot()}:{}) });
@@ -65952,8 +66026,7 @@ window.addEventListener('beforeunload', (e) => {
         let status=t('正在读取音画时长');
         if(context?.video) {
           try {
-            const custom=el('audio-export-range').value==='custom',start=custom?Number(el('audio-export-start-time').value)*1000:0;
-            const end=custom?Number(el('audio-export-end-time').value)*1000:Infinity;
+            const range=sourceRange(),start=range.start_ms,end=range.end_ms??Infinity;
             const audioEnd=core.audioEnd(host.audioExportPreview(),{mode:el('audio-export-mode').value,source_audio_index:Number(el('audio-export-stream').value||0)},context);
             const delta=Math.round(Math.max(start,Math.min(end,audioEnd))-Math.max(start,Math.min(end,context.video.duration_ms)));
             status=delta===0?t('音视频一致'):`${t(delta>0?'音频领先视频':'视频领先音频')} ${(Math.abs(delta)/1000).toFixed(3)} ${t('秒')}`;
@@ -66176,6 +66249,7 @@ window.addEventListener('beforeunload', (e) => {
     function schedule(delay = 1200) { clearTimeout(timer); timer = setTimeout(poll, delay); }
     async function poll() {
       if (!available || polling) { if (available) schedule(); return; }
+      if(video&&floating.isOpen()&&el('audio-export-range').value==='playhead')update();
       const id = projectId(), generation = host.generation; polling = true;
       try {
         const data = await request(`audio-exports?project_id=${encodeURIComponent(id)}`);
@@ -66223,7 +66297,7 @@ window.addEventListener('beforeunload', (e) => {
     button.addEventListener('click', () => {
       host.commitEdits(); message('');
       el('audio-export-remove-gaps').checked = false;
-      el('audio-export-end-time').value = String(Math.max(.001, host.audioExportDuration() / 1000));
+      el('audio-export-end-time').value = video?durationText(Math.max(1,host.audioExportDuration())):String(Math.max(.001, host.audioExportDuration() / 1000));
       floating.open(); update(); void loadContext(); schedule(0);
     });
     el('audio-export-close').addEventListener('click', () => floating.close());
@@ -66237,6 +66311,12 @@ window.addEventListener('beforeunload', (e) => {
       await start({start_ms:at,end_ms:at+5000,video_tail:'freeze',remove_gaps:false,burn_subtitles:event.detail.target,preview_sample:true});
     });
     for (const input of panel.querySelectorAll('input, select')) input.addEventListener('input', update);
+    if(video) {
+      for(const key of ['start','end'])el('audio-export-'+key+'-time').addEventListener('change',event=>{
+        try{event.target.value=durationText(core.parseSourceTime(event.target.value));}catch(_){/* Keep invalid text visible for correction. */}update();
+      });
+      for(const event of ['timeupdate','seeked'])host.player.addEventListener(event,()=>{if(floating.isOpen()&&el('audio-export-range').value==='playhead')update();});
+    }
     global.addEventListener('msw:audio-changed', () => { if (floating.isOpen()) update(); });
     global.addEventListener('msw:subtitles-changed', () => { if (floating.isOpen()) update(); });
     global.addEventListener('msw:burn-style', () => { if (floating.isOpen()) update(); });
@@ -66273,6 +66353,13 @@ window.addEventListener('beforeunload', (e) => {
   mount('timeline');
   function arrangeVideoFields(panel) {
     const body=panel.querySelector('.gap-remove-panel-body'),get=id=>panel.querySelector('#video-export-'+id);
+    get('range').append(new Option('截止到当前播放头','playhead'));
+    get('range').closest('label').dataset.optionHelp='截止到当前播放头：从源时间轴起点导出至点击开始时的播放头位置。指定范围可输入分:秒.毫秒、时:分:秒.毫秒或秒数，例如 20:39.478。';
+    for(const key of ['start','end']) {
+      const input=get(key+'-time');input.type='text';input.removeAttribute('min');input.removeAttribute('step');input.placeholder='00:00.000';input.autocomplete='off';input.spellcheck=false;
+      input.value=durationText(Number(input.value)*1000);
+      input.closest('label').firstChild.textContent=key==='start'?'源起点':'源终点';
+    }
     const section=(name,id,folded=false)=>{
       const node=document.createElement(folded?'details':'section');node.id='video-export-'+id;
       node.className='settings-panel-section msw-export-section';
@@ -66332,8 +66419,8 @@ window.addEventListener('beforeunload', (e) => {
     <div id="style-position-fields"><div class="media-settings-grid">
       <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
       <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
-      <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="0.1" required></label>
-      <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="0.1" required></label>
+      <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="any" required></label>
+      <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="any" required></label>
     </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p></div>
   </details>`);
   panel.querySelector('#style-general').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
@@ -66483,12 +66570,21 @@ window.addEventListener('beforeunload', (e) => {
     if(note?.notice && !$('style-migration-dismiss')) {const b=document.createElement('button');b.id='style-migration-dismiss';b.type='button';b.textContent=t('知道了');b.onclick=()=>{const current=host.data.preview?.style_migration;if(current)current.notice=false;host.persistStyleMigration();sync();};$('style-migration-note').after(b);}
     if($('style-migration-dismiss'))$('style-migration-dismiss').hidden=!note?.notice;
   }
+  const positionDrafts=new Map();
+  const positionContext=()=>JSON.stringify([host.generation,fixedPositionEditing,fixedPositionScope,fixedStyleTrackId,
+    fixedPositionScope==='cue'?[...fixedPositionSelectedIds()].sort():null]);
+  function positionValue(key,value,enabled=true) {
+    const input=$('style-position-'+key);
+    if(enabled&&positionDrafts.get(key)===positionContext())return;
+    positionDrafts.delete(key);
+    input.value=enabled&&value!==null?Math.round(value*100000)/1000:'';
+  }
   function syncPosition() {
     $('style-position-drag').hidden=fixedPositionEditing;
     $('style-position-cancel').hidden=$('style-position-finish').hidden=!fixedPositionEditing;
     for(const id of ['style-position-scope','style-track-target','style-main','style-secondary'])$(id).disabled=fixedPositionEditing;
     if(!productionFlatMode()) {
-      if(fixedPositionEditing)for(const key of ['x','y'])$('style-position-'+key).value=Math.round(fixedPositionCurrent()[key]*1000)/10;
+      if(fixedPositionEditing)for(const key of ['x','y'])positionValue(key,fixedPositionCurrent()[key]);
       return;
     }
     const track=fixedStyleTarget(),selected=fixedPositionScope==='cue',rows=selected?fixedPositionSelection():[];
@@ -66497,7 +66593,7 @@ window.addEventListener('beforeunload', (e) => {
     const p=fixedPositionCurrent();$('style-position-scope').value=fixedPositionScope;
     for(const key of ['x','y']) {
       const input=$('style-position-'+key);input.disabled=!enabled;
-      input.value=enabled&&p[key]!==null?Math.round(p[key]*1000)/10:'';
+      positionValue(key,p[key],enabled);
       input.placeholder=enabled&&p[key]===null?'多个值':'';
     }
     $('style-track-placement').closest('label').hidden=selected;
@@ -66527,14 +66623,23 @@ window.addEventListener('beforeunload', (e) => {
   $('style-position-drag').onclick=()=>fixedStartPositioning();
   $('style-position-cancel').onclick=()=>fixedStopPositioning(false);
   $('style-position-finish').onclick=()=>fixedStopPositioning(true);
-  $('style-position-reset').onclick=()=>{fixedCommitPosition(null);sync();refresh();};
-  for(const key of ['x','y'])$('style-position-'+key).onchange=()=>{
-    if(productionFlatMode()&&fixedPositionScope==='cue') {
-      const input=$('style-position-'+key);if(input.checkValidity())fixedCommitPosition({[key]:Number(input.value)/100});sync();refresh();return;
-    }
-    if(!['x','y'].every(k=>$('style-position-'+k).checkValidity())){sync();return;}
-    fixedCommitPosition({x:Number($('style-position-x').value)/100,y:Number($('style-position-y').value)/100});sync();refresh();
-  };
+  $('style-position-reset').onclick=()=>{positionDrafts.clear();fixedCommitPosition(null);sync();refresh();};
+  for(const key of ['x','y']) {
+    const input=$('style-position-'+key);
+    input.oninput=()=>positionDrafts.set(key,positionContext());
+    input.onkeydown=event=>{if(event.key==='Enter'&&!fixedPositionEditing){event.preventDefault();event.stopPropagation();input.blur();}};
+    input.onchange=()=>{
+      if(!ready||styleGeneration!==host.generation)return;
+      if(!input.reportValidity())return;
+      positionDrafts.delete(key);
+      if(productionFlatMode()&&fixedPositionScope==='cue')fixedCommitPosition({[key]:Number(input.value)/100});
+      else {
+        if(!['x','y'].every(k=>$('style-position-'+k).reportValidity()))return;
+        fixedCommitPosition({x:Number($('style-position-x').value)/100,y:Number($('style-position-y').value)/100});
+      }
+      sync();refresh();
+    };
+  }
   panel.addEventListener('change',event=>{
     // Becoming inert on project switch can flush a native change event from
     // the previously focused input. Never commit it into the new project.

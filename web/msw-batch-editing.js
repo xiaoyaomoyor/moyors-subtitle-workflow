@@ -5,11 +5,26 @@
   const copy=v=>JSON.parse(JSON.stringify(v));
   const fail=message=>{throw Error(message);};
   const trackCues=(p,id)=>p.subtitles.cues.filter(c=>c.track_id===id).sort((a,b)=>a.content.start-b.content.start||a.id.localeCompare(b.id));
-  function scope(p,trackId,selectedIds=null,{includeDisabled=true}={}) {
+  function scope(p,trackId,selectedIds=null,{includeDisabled=true,allTracks=false}={}) {
+    const selected=selectedIds==null?null:new Set(selectedIds);
+    if(allTracks&&trackId==='*')return p.subtitles.cues.filter(c=>(!selected||selected.has(c.id))&&(includeDisabled||!c.content.disabled));
     const track=p.subtitles.tracks.find(t=>t.id===trackId);
     if(!track)fail('请选择作用轨道');
-    const selected=selectedIds==null?null:new Set(selectedIds);
     return trackCues(p,trackId).filter(c=>(!selected||selected.has(c.id))&&(includeDisabled||!c.content.disabled));
+  }
+  const graphemes=typeof Intl.Segmenter==='function'?new Intl.Segmenter(undefined,{granularity:'grapheme'}):null;
+  function visibleCharacterCount(text) {
+    const value=String(text??'').replace(/\s/gu,'');
+    return graphemes?[...graphemes.segment(value)].length:Array.from(value).length;
+  }
+  function cleanupMatches(cues,{mode='length',comparison='lte',threshold=0,keyword=''}={}) {
+    if(mode==='all')return cues;
+    if(mode==='keyword') {
+      const term=String(keyword).trim().toLocaleLowerCase();if(!term)fail('请输入要清理的关键词');
+      return cues.filter(c=>c.content.text.toLocaleLowerCase().includes(term));
+    }
+    if(mode!=='length'||!['lte','gte'].includes(comparison)||threshold===''||!Number.isSafeInteger(Number(threshold))||Number(threshold)<0)fail('字数阈值须为大于等于 0 的整数');
+    return cues.filter(c=>comparison==='gte'?visibleCharacterCount(c.content.text)>=Number(threshold):visibleCharacterCount(c.content.text)<=Number(threshold));
   }
   function refreshOffsets(p){const cues=new Map(p.subtitles.cues.map(c=>[c.id,c]));
     for(const b of p.subtitles.bindings)for(const edge of ['start','end'])b[edge+'_offset_ms']=cues.get(b.target_id).content[edge]-cues.get(b.source_id).content[edge];
@@ -94,6 +109,6 @@
     next.subtitle_view={...next.subtitle_view,secondary_cue_ids:[...right]};
     refreshOffsets(next);core.validate(next);checkLocks(p,next);return {project:next,ids:newIds,changed:report.stats.changedSegments};
   }
-  const api={scope,trackCues,time,texts,textSources,draft,cleanup};
+  const api={scope,trackCues,time,texts,textSources,draft,cleanup,cleanupMatches,visibleCharacterCount};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWBatchEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

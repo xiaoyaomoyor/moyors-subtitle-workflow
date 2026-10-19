@@ -64,12 +64,25 @@
       }
       return result;
     }
+    function sourceRange() {
+      const mode=el('audio-export-range').value;
+      if(video&&mode==='playhead') {
+        const end=Math.round(global.MSWE.resolve('audio-timeline')?.currentTimeMs()??host.player.currentTime*1000);
+        if(!Number.isFinite(end)||end<=0)throw Error('请将播放头移到起点之后');
+        return {start_ms:0,end_ms:end};
+      }
+      if(mode!=='custom')return {start_ms:0,end_ms:null};
+      const time=key=>{
+        const text=el('audio-export-'+key+'-time').value;
+        if(!video)return text.trim()?Math.round(Number(text)*1000):NaN;
+        try{return core.parseSourceTime(text);}catch(error){throw Error(t(key==='start'?'源起点':'源终点')+'：'+t(error.message));}
+      };
+      return {start_ms:time('start'),end_ms:time('end')};
+    }
     function selectedOptions() {
-      const custom = el('audio-export-range').value === 'custom';
       const numeric = id => {if(el(id).readOnly)return 0;const value=el(id).value;return value?.trim()?Number(value):NaN;};
       const settings = core.options({ mode: el('audio-export-mode').value, sample_rate: Number(el('audio-export-rate').value),
-        duration_ms: host.audioExportDuration(), start_ms: custom ? Math.round(numeric('audio-export-start-time') * 1000) : 0,
-        end_ms: custom ? Math.round(numeric('audio-export-end-time') * 1000) : null,
+        duration_ms: host.audioExportDuration(), ...sourceRange(),
         remove_gaps: el('audio-export-remove-gaps').checked, source_audio_index: Number(el('audio-export-stream').value || 0),
         source_gain_db: numeric('audio-export-source-gain'), voice_gain_db: numeric('audio-export-voice-gain'), peak_protection: el('audio-export-peak').checked,
         ...(!timeline?{monitor:monitorSnapshot()}:{}) });
@@ -136,8 +149,7 @@
         let status=t('正在读取音画时长');
         if(context?.video) {
           try {
-            const custom=el('audio-export-range').value==='custom',start=custom?Number(el('audio-export-start-time').value)*1000:0;
-            const end=custom?Number(el('audio-export-end-time').value)*1000:Infinity;
+            const range=sourceRange(),start=range.start_ms,end=range.end_ms??Infinity;
             const audioEnd=core.audioEnd(host.audioExportPreview(),{mode:el('audio-export-mode').value,source_audio_index:Number(el('audio-export-stream').value||0)},context);
             const delta=Math.round(Math.max(start,Math.min(end,audioEnd))-Math.max(start,Math.min(end,context.video.duration_ms)));
             status=delta===0?t('音视频一致'):`${t(delta>0?'音频领先视频':'视频领先音频')} ${(Math.abs(delta)/1000).toFixed(3)} ${t('秒')}`;
@@ -360,6 +372,7 @@
     function schedule(delay = 1200) { clearTimeout(timer); timer = setTimeout(poll, delay); }
     async function poll() {
       if (!available || polling) { if (available) schedule(); return; }
+      if(video&&floating.isOpen()&&el('audio-export-range').value==='playhead')update();
       const id = projectId(), generation = host.generation; polling = true;
       try {
         const data = await request(`audio-exports?project_id=${encodeURIComponent(id)}`);
@@ -407,7 +420,7 @@
     button.addEventListener('click', () => {
       host.commitEdits(); message('');
       el('audio-export-remove-gaps').checked = false;
-      el('audio-export-end-time').value = String(Math.max(.001, host.audioExportDuration() / 1000));
+      el('audio-export-end-time').value = video?durationText(Math.max(1,host.audioExportDuration())):String(Math.max(.001, host.audioExportDuration() / 1000));
       floating.open(); update(); void loadContext(); schedule(0);
     });
     el('audio-export-close').addEventListener('click', () => floating.close());
@@ -421,6 +434,12 @@
       await start({start_ms:at,end_ms:at+5000,video_tail:'freeze',remove_gaps:false,burn_subtitles:event.detail.target,preview_sample:true});
     });
     for (const input of panel.querySelectorAll('input, select')) input.addEventListener('input', update);
+    if(video) {
+      for(const key of ['start','end'])el('audio-export-'+key+'-time').addEventListener('change',event=>{
+        try{event.target.value=durationText(core.parseSourceTime(event.target.value));}catch(_){/* Keep invalid text visible for correction. */}update();
+      });
+      for(const event of ['timeupdate','seeked'])host.player.addEventListener(event,()=>{if(floating.isOpen()&&el('audio-export-range').value==='playhead')update();});
+    }
     global.addEventListener('msw:audio-changed', () => { if (floating.isOpen()) update(); });
     global.addEventListener('msw:subtitles-changed', () => { if (floating.isOpen()) update(); });
     global.addEventListener('msw:burn-style', () => { if (floating.isOpen()) update(); });
@@ -457,6 +476,13 @@
   mount('timeline');
   function arrangeVideoFields(panel) {
     const body=panel.querySelector('.gap-remove-panel-body'),get=id=>panel.querySelector('#video-export-'+id);
+    get('range').append(new Option('截止到当前播放头','playhead'));
+    get('range').closest('label').dataset.optionHelp='截止到当前播放头：从源时间轴起点导出至点击开始时的播放头位置。指定范围可输入分:秒.毫秒、时:分:秒.毫秒或秒数，例如 20:39.478。';
+    for(const key of ['start','end']) {
+      const input=get(key+'-time');input.type='text';input.removeAttribute('min');input.removeAttribute('step');input.placeholder='00:00.000';input.autocomplete='off';input.spellcheck=false;
+      input.value=durationText(Number(input.value)*1000);
+      input.closest('label').firstChild.textContent=key==='start'?'源起点':'源终点';
+    }
     const section=(name,id,folded=false)=>{
       const node=document.createElement(folded?'details':'section');node.id='video-export-'+id;
       node.className='settings-panel-section msw-export-section';

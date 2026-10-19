@@ -12586,6 +12586,17 @@ document.addEventListener('fullscreenchange', syncMediaControls);
 // Ctrl(Cmd)+Shift+方向键调整右边界。
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  // 全屏是播放上下文；视频、自定义按钮和滑杆焦点都使用同一跳转步长，
+  // 不让后台的字幕选区或原生滑杆抢走方向键。定位模式仍由画面定位处理。
+  if (document.fullscreenElement === playerWrap && !fixedPositionEditing
+      && !e.defaultPrevented && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
+      && !isTextEditingTarget(e)
+      && !e.target?.closest?.('select, [role="menu"]') && hasLoadedMedia()) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    seekMediaBy((e.key === 'ArrowLeft' ? -1 : 1) * timelineMediaSeekStepMilliseconds() / 1000);
+    return;
+  }
   if (editingState || isTextEditingTarget(e)) return;
   // 切分确认区内的方向键调整文字分界，不触发时间轴操作。
   if (multiSubtitleSplitModal?.contains(document.activeElement)) return;
@@ -24991,21 +25002,32 @@ function queueCleanupPreview() {
   clearTimeout(cleanupPreviewTimer);cleanupPreviewTimer=setTimeout(previewSubtitleCleanup,30);
 }
 function openSubtitleCleanup(mode='empty') {
-  commitProcessingEdits();initBatchScope('subtitle-cleanup');document.getElementById('subtitle-cleanup-mode').value=mode;
+  commitProcessingEdits();initBatchScope('subtitle-cleanup');
+  const track=document.getElementById('subtitle-cleanup-track'),id=track.value;
+  track.prepend(new Option('全部轨道','*'));track.value=id;
+  document.getElementById('subtitle-cleanup-mode').value=mode==='empty'?'length':mode;
+  if(mode==='empty'){document.getElementById('subtitle-cleanup-comparison').value='lte';document.getElementById('subtitle-cleanup-threshold').value='0';}
   subtitleCleanupFloating.open();previewSubtitleCleanup();
 }
 function previewSubtitleCleanup() {
   const status=document.getElementById('subtitle-cleanup-status'),button=document.getElementById('subtitle-cleanup-apply');button.disabled=true;
+  const mode=document.getElementById('subtitle-cleanup-mode').value;
+  document.getElementById('subtitle-cleanup-length').hidden=mode!=='length';
+  document.getElementById('subtitle-cleanup-keyword-field').hidden=mode!=='keyword';
   try {
-    const context=batchContext('subtitle-cleanup'),empty=document.getElementById('subtitle-cleanup-mode').value==='empty';
-    const ids=context.cues.filter(c=>!empty||!c.content.text.trim()).map(c=>c.id);
+    const context=batchContext('subtitle-cleanup',batchSelectedIds(),{allTracks:true});
+    const ids=MSWBatchEditing.cleanupMatches(context.cues,{mode,
+      comparison:document.getElementById('subtitle-cleanup-comparison').value,
+      threshold:document.getElementById('subtitle-cleanup-threshold').value,
+      keyword:document.getElementById('subtitle-cleanup-keyword').value}).map(c=>c.id);
     const project=ids.length?MSWBatchEditing.cleanup(context.p,ids):context.p;
     const bindings=context.p.subtitles.bindings.length-project.subtitles.bindings.length;
     status.textContent=ids.length?`将删除 ${ids.length} 条字幕${bindings?` · 解除 ${bindings} 组绑定，另一侧字幕保留`:''}`:'当前范围没有可清理的字幕';
     button.disabled=!ids.length;return {project,ids};
   }catch(error){status.textContent=error.message;return null;}
 }
-for(const suffix of ['track','scope','mode'])document.getElementById('subtitle-cleanup-'+suffix)?.addEventListener('change',previewSubtitleCleanup);
+for(const suffix of ['track','scope','mode','comparison'])document.getElementById('subtitle-cleanup-'+suffix)?.addEventListener('change',previewSubtitleCleanup);
+for(const suffix of ['threshold','keyword'])document.getElementById('subtitle-cleanup-'+suffix)?.addEventListener('input',previewSubtitleCleanup);
 document.getElementById('subtitle-cleanup-close')?.addEventListener('click',()=>subtitleCleanupFloating.close());
 document.getElementById('subtitle-cleanup-apply')?.addEventListener('click',()=>{
   try {

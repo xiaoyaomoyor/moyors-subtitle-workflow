@@ -38,8 +38,8 @@
     <div id="style-position-fields"><div class="media-settings-grid">
       <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
       <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
-      <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="0.1" required></label>
-      <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="0.1" required></label>
+      <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="any" required></label>
+      <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="any" required></label>
     </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p></div>
   </details>`);
   panel.querySelector('#style-general').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
@@ -189,12 +189,21 @@
     if(note?.notice && !$('style-migration-dismiss')) {const b=document.createElement('button');b.id='style-migration-dismiss';b.type='button';b.textContent=t('知道了');b.onclick=()=>{const current=host.data.preview?.style_migration;if(current)current.notice=false;host.persistStyleMigration();sync();};$('style-migration-note').after(b);}
     if($('style-migration-dismiss'))$('style-migration-dismiss').hidden=!note?.notice;
   }
+  const positionDrafts=new Map();
+  const positionContext=()=>JSON.stringify([host.generation,fixedPositionEditing,fixedPositionScope,fixedStyleTrackId,
+    fixedPositionScope==='cue'?[...fixedPositionSelectedIds()].sort():null]);
+  function positionValue(key,value,enabled=true) {
+    const input=$('style-position-'+key);
+    if(enabled&&positionDrafts.get(key)===positionContext())return;
+    positionDrafts.delete(key);
+    input.value=enabled&&value!==null?Math.round(value*100000)/1000:'';
+  }
   function syncPosition() {
     $('style-position-drag').hidden=fixedPositionEditing;
     $('style-position-cancel').hidden=$('style-position-finish').hidden=!fixedPositionEditing;
     for(const id of ['style-position-scope','style-track-target','style-main','style-secondary'])$(id).disabled=fixedPositionEditing;
     if(!productionFlatMode()) {
-      if(fixedPositionEditing)for(const key of ['x','y'])$('style-position-'+key).value=Math.round(fixedPositionCurrent()[key]*1000)/10;
+      if(fixedPositionEditing)for(const key of ['x','y'])positionValue(key,fixedPositionCurrent()[key]);
       return;
     }
     const track=fixedStyleTarget(),selected=fixedPositionScope==='cue',rows=selected?fixedPositionSelection():[];
@@ -203,7 +212,7 @@
     const p=fixedPositionCurrent();$('style-position-scope').value=fixedPositionScope;
     for(const key of ['x','y']) {
       const input=$('style-position-'+key);input.disabled=!enabled;
-      input.value=enabled&&p[key]!==null?Math.round(p[key]*1000)/10:'';
+      positionValue(key,p[key],enabled);
       input.placeholder=enabled&&p[key]===null?'多个值':'';
     }
     $('style-track-placement').closest('label').hidden=selected;
@@ -233,14 +242,23 @@
   $('style-position-drag').onclick=()=>fixedStartPositioning();
   $('style-position-cancel').onclick=()=>fixedStopPositioning(false);
   $('style-position-finish').onclick=()=>fixedStopPositioning(true);
-  $('style-position-reset').onclick=()=>{fixedCommitPosition(null);sync();refresh();};
-  for(const key of ['x','y'])$('style-position-'+key).onchange=()=>{
-    if(productionFlatMode()&&fixedPositionScope==='cue') {
-      const input=$('style-position-'+key);if(input.checkValidity())fixedCommitPosition({[key]:Number(input.value)/100});sync();refresh();return;
-    }
-    if(!['x','y'].every(k=>$('style-position-'+k).checkValidity())){sync();return;}
-    fixedCommitPosition({x:Number($('style-position-x').value)/100,y:Number($('style-position-y').value)/100});sync();refresh();
-  };
+  $('style-position-reset').onclick=()=>{positionDrafts.clear();fixedCommitPosition(null);sync();refresh();};
+  for(const key of ['x','y']) {
+    const input=$('style-position-'+key);
+    input.oninput=()=>positionDrafts.set(key,positionContext());
+    input.onkeydown=event=>{if(event.key==='Enter'&&!fixedPositionEditing){event.preventDefault();event.stopPropagation();input.blur();}};
+    input.onchange=()=>{
+      if(!ready||styleGeneration!==host.generation)return;
+      if(!input.reportValidity())return;
+      positionDrafts.delete(key);
+      if(productionFlatMode()&&fixedPositionScope==='cue')fixedCommitPosition({[key]:Number(input.value)/100});
+      else {
+        if(!['x','y'].every(k=>$('style-position-'+k).reportValidity()))return;
+        fixedCommitPosition({x:Number($('style-position-x').value)/100,y:Number($('style-position-y').value)/100});
+      }
+      sync();refresh();
+    };
+  }
   panel.addEventListener('change',event=>{
     // Becoming inert on project switch can flush a native change event from
     // the previously focused input. Never commit it into the new project.

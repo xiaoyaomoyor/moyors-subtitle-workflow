@@ -3,6 +3,15 @@
 (function (global) {
   'use strict';
   const VERSION = 'msw.audio-render.v1', MAX_MS = 12 * 60 * 60 * 1000;
+  function parseSourceTime(value) {
+    const text=String(value??'').trim(),parts=text.split(':');
+    const valid=parts.length<=3&&parts.every((p,i)=>i===parts.length-1?/^(?:\d+(?:\.\d{1,3})?|\.\d{1,3})$/.test(p):/^\d+$/.test(p));
+    const numbers=parts.map(Number);
+    if(!valid||parts.length>1&&(numbers.at(-1)>=60||parts.length===3&&numbers[1]>=60))throw Error('时间格式无效，请使用 分:秒.毫秒（如 20:39.478）');
+    const ms=Math.round(numbers.reduce((total,n)=>total*60+n,0)*1000);
+    if(!Number.isSafeInteger(ms)||ms<0||ms>MAX_MS)throw Error('导出时间须在 00:00.000 至 720:00.000 之间');
+    return ms;
+  }
   function integer(value, min, max, label) {
     if (!Number.isInteger(value) || value < min || value > max) throw Error(label);
     return value;
@@ -132,5 +141,5 @@
       intervals, pieces, source: o.mode === 'mix' ? { audio_index: o.source_audio_index, gain_db: levels.source,...(levels.sourceMuted?{muted:true}:{}) } : null,
       peak_protection: o.peak_protection };
   }
-  global.MSWAudioRender = Object.freeze({ VERSION, options, monitorGains, audioEnd, videoOptions, removedRanges, compile });
+  global.MSWAudioRender = Object.freeze({ VERSION, parseSourceTime, options, monitorGains, audioEnd, videoOptions, removedRanges, compile });
 })(window);

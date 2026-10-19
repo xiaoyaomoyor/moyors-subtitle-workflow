@@ -7,6 +7,11 @@ for (const file of ['msw-project.js', 'msw-audio-core.js', 'msw-audio-render-cor
   vm.runInNewContext(fs.readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8'), context);
 }
 const core = context.window.MSWAudioRender;
+
+test('source timecode accepts editor timestamps and seconds with exact millisecond boundaries',()=>{
+  for(const [text,ms] of [['20:39.478',1239478],['1:20:39.478',4839478],['00:00.001',1],['1239.478',1239478],['.5',500],['720:00.000',43200000]])assert.equal(core.parseSourceTime(text),ms);
+  for(const text of ['', ' ', '-1', '12:60', '1:60:00', '1:02:60', '720:00.001', 'NaN', 'Infinity', '1e3', '1::2','1.2345','12:xx'])assert.throws(()=>core.parseSourceTime(text));
+});
 test('overlay-only duration is exported and disabled overlay does not extend it', () => {
   const project = { segments: [], overlay_track: { enabled: true, segments: [{ start: 100, end: 2500, text: 'overlay' }] } };
   assert.equal(core.compile(project).source_end_ms, 2500);
