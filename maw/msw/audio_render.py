@@ -75,6 +75,18 @@ def command_prefix(ffmpeg):
     return [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-filter_complex_threads", "1"]
 
 
+def filter_script_option(ffmpeg, cancel):
+    """FFmpeg 9 removed the old spelling; retain support for older installations."""
+    with tempfile.TemporaryFile() as output:
+        run([str(ffmpeg), "-hide_banner", "-h", "full"], cancel, timeout=10, stdout=output)
+        output.seek(0)
+        # Read linewise: help output can be large, but contains no media/user data.
+        for line in output:
+            if line.lstrip().startswith(b"-filter_complex_script "):
+                return "-filter_complex_script"
+    return "-/filter_complex"
+
+
 def probe_source(ffprobe, source, cancel):
     import json
     with tempfile.TemporaryFile() as output:
@@ -160,6 +172,7 @@ def render(plan, output, ffmpeg, cancel, progress, resolve_asset, *, source=None
     with tempfile.TemporaryDirectory(prefix=f"render-{output.stem}-", dir=output.parent) as temporary:
         root = Path(temporary)
         cache, cache_size, serial = OrderedDict(), 0, 0
+        script_option = None
 
         def fresh():
             nonlocal serial
@@ -226,6 +239,7 @@ def render(plan, output, ffmpeg, cancel, progress, resolve_asset, *, source=None
                 raise ValueError("原媒体在导出期间发生变化，请重新导出")
 
         def mix(parts, length):
+            nonlocal script_option
             dest = fresh()
             cmd = command_prefix(ffmpeg)
             filters, labels = [], []
@@ -242,7 +256,9 @@ def render(plan, output, ffmpeg, cancel, progress, resolve_asset, *, source=None
             # containing Unicode, quotes or shell metacharacters.
             script = root / "mix.txt"
             script.write_text(";\n".join(filters), encoding="utf-8", newline="\n")
-            cmd += ["-filter_complex_script", str(script), "-map", "[out]", "-c:a", "pcm_f32le", "-f", "f32le", str(dest)]
+            if script_option is None:
+                script_option = filter_script_option(ffmpeg, cancel)
+            cmd += [script_option, str(script), "-map", "[out]", "-c:a", "pcm_f32le", "-f", "f32le", str(dest)]
             run(cmd, cancel)
             if dest.stat().st_size != length * 8:
                 raise ValueError("混音长度异常，未发布不完整的 WAV")

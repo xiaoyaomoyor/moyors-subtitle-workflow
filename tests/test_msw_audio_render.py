@@ -14,7 +14,7 @@ import wave
 
 from maw.ffmpeg import resolve_ffmpeg_tools
 from maw.msw.audio_plan import compile_plan
-from maw.msw.audio_render import RenderCancelled, probe_source, render, run
+from maw.msw.audio_render import RenderCancelled, filter_script_option, probe_source, render, run
 from test_msw_audio_plan import FIXTURES
 
 
@@ -27,6 +27,18 @@ def make_wave(values, rate=24000, channels=1):
         writer.setparams((channels, 2, rate, 0, 'NONE', 'not compressed'))
         writer.writeframes(data.tobytes())
     return buffer.getvalue()
+
+
+class FilterScriptCompatibilityTests(unittest.TestCase):
+    def test_script_option_supports_legacy_and_current_ffmpeg(self):
+        for help_text, expected in [
+            (b"Advanced options:\n-filter_complex_script filename read a graph\n", "-filter_complex_script"),
+            (b"Advanced options:\n-filter_complex graph create a graph\n", "-/filter_complex"),
+        ]:
+            with self.subTest(option=expected), patch('maw.msw.audio_render.run') as command:
+                command.side_effect = lambda *args, stdout, **kwargs: stdout.write(help_text)
+                self.assertEqual(filter_script_option('ffmpeg', threading.Event()), expected)
+                self.assertEqual(command.call_count, 1)
 
 
 class AudioRenderTests(unittest.TestCase):

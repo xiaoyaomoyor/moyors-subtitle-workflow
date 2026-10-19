@@ -5,6 +5,7 @@
     ? require('./msw-subtitle-layers.js') : global.MSWSubtitleLayers;
   const SCHEMA = 'msw.project.v3';
   const cueStyle = typeof module !== 'undefined' && module.exports ? require('./msw-cue-style.js') : global.MSWCueStyle;
+  const motion = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-animation.js') : global.MSWSubtitleAnimation;
   const TRACK_SCHEMA = 'msw.subtitle_tracks.v2';
   const LEGACY_TRACK_SCHEMA = 'msw.subtitle_tracks.v1';
   // kind is retained as historical metadata; behavior uses independent fields.
@@ -24,6 +25,7 @@
   const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
     && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
     && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
+      && (value[k].animation === undefined || motion.valid(value[k].animation))
       && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
       && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))
     && (value.pairLayout === undefined || value.pairLayout && ['main-above', 'secondary-above'].includes(value.pairLayout.order)
@@ -53,6 +55,7 @@
           || !Number.isSafeInteger(cue.end) || cue.start < 0 || cue.end <= cue.start) fail('字幕 ID 重复或时间范围无效');
         if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position, true)) fail('字幕位置必须是画面内的 x、y 比例和有效锚点');
         if (cue.subtitle_style !== undefined && !cueStyle.valid(cue.subtitle_style)) fail('字幕外观覆盖包含无效参数');
+        if (cue.subtitle_animation !== undefined && !motion.valid(cue.subtitle_animation)) fail('字幕动画覆盖包含无效参数');
         if (cue.subtitle_style_preset !== undefined && !stable(cue.subtitle_style_preset)) fail('字幕外观预设标识无效');
         seen.add(cue.id);
         rows.push({ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index });

@@ -141,7 +141,7 @@ function fixedRefreshSubtitlePreview(tMs) {
     if(!element){element=document.createElement('div');element.className='fixed-subtitle-row';element.dataset.key=entry.key;
       element.dataset.cueId=entry.cue_id;element.dataset.role=entry.role;const text=document.createElement('div');text.className='fixed-subtitle-text';element.append(text);root.append(element);}
     const text=element.firstElementChild,size=entry.size,style=entry.style;
-    if(!text.firstElementChild)text.replaceChildren(document.createElement('span'),document.createTextNode(''));
+    if(text.childNodes.length!==2||text.lastChild.nodeType!==Node.TEXT_NODE)text.replaceChildren(document.createElement('span'),document.createTextNode(''));
     const speaker=text.firstElementChild;
     if(speaker.textContent!==size.prefix)speaker.textContent=size.prefix;
     if(text.lastChild.nodeValue!==size.text.slice(size.prefix.length))text.lastChild.nodeValue=size.text.slice(size.prefix.length);
@@ -151,14 +151,24 @@ function fixedRefreshSubtitlePreview(tMs) {
     for(const key of ['primaryColor','outlineColor'])if(entry.cue.subtitle_style?.[key])variant[key]=entry.cue.subtitle_style[key];
     const paletteColor=COLOR_BY_NAME[MULTI_SUBTITLE_UTILS.effectiveColorName(entry.cue,segments)]?.value;
     speaker.style.color=['text','speaker'].includes(getSubtitleAppearance().ass_color_style||DEFAULT_ASS_COLOR_STYLE)?paletteColor||'':'';
-    const profile={animations:entry.group.style.animations};
-    const animation=window.AsrEditorUtils.assPreviewAnimationState(profile,tMs-entry.cue.start,entry.cue.end-entry.cue.start,
+    const profile={animations:entry.animations};
+    const motion=entry.motion?window.MSWSubtitleAnimation.sample(entry.motion,tMs-entry.cue.start,entry.cue.end-entry.cue.start,window.MSWProjectStyle.characters(size.text).filter(c=>c.trim()).length):null;
+    const animation=motion?{opacity:motion.opacity,transformProgress:null}:window.AsrEditorUtils.assPreviewAnimationState(profile,tMs-entry.cue.start,entry.cue.end-entry.cue.start,
       {playResX:rect.referenceWidth,playResY:1080,stageWidth:rect.referenceWidth,stageHeight:1080});
-    const animated=assPreviewAnimatedStyle(variant,profile,animation);
+    const animated=motion?{...variant,scaleX:variant.scaleX*motion.scale/100,scaleY:variant.scaleY*motion.scale/100,angle:variant.angle+motion.rotation}:assPreviewAnimatedStyle(variant,profile,animation);
     applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
+    if(motion){
+      text.replaceChildren();let seen=0,prefix=0;
+      for(const unit of window.MSWProjectStyle.characters(size.text)){
+        if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
+        if(seen>motion.revealed)span.style.visibility='hidden';
+        if(prefix<size.prefix.length)span.style.color=speaker.style.color;
+        text.append(span);if(unit!=='\n')prefix+=unit.length;
+      }
+    }
     Object.assign(text.style,{position:'absolute',left:size.innerX+'px',top:size.innerY+'px',maxWidth:size.maxWidth+'px'});
-    let dx=0,dy=0;
-    if(profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
+    let dx=motion?.x||0,dy=motion?.y||0;
+    if(!motion&&profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
     if(fixedPositionDragAffects(entry)){const offset=fixedPositionDrag||fixedPositionSession;dx+=offset.dx;dy+=offset.dy;}
     Object.assign(element.style,{left:entry.x+dx+'px',top:entry.y+dy+'px',width:entry.width+'px',height:entry.height+'px'});
     const selected=fixedPositionScope==='track'?entry.group.trackId===fixedStyleTrackId:productionFlatMode()?fixedPositionSelectedIds().has(entry.cue_id):entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));

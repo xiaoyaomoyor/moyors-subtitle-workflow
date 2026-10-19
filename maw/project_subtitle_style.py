@@ -10,6 +10,7 @@ from maw.ass_styles import (DEFAULT_ASS_STYLE, DEFAULT_ASS_EXTENSION_STYLE,
     _normalize_style, _normalize_animation, default_ass_styles_path)
 from maw.file_io import atomic_write_text
 from maw.subtitle_wrapping import normalize_wrapping, render_project
+from maw.msw import subtitle_animation
 
 SCHEMA = 'msw.subtitle-style.v1'
 
@@ -37,6 +38,8 @@ def normalize_project_style(raw):
         animations=_normalize_animation(raw.get('animations')))
     for role in ('main', 'secondary'):
         result[role].update(normalize_wrapping(raw[role]))
+        if 'animation' in raw[role]:
+            result[role]['animation'] = subtitle_animation.normalize(raw[role]['animation'])
     if 'annotation' in raw:
         if not isinstance(raw['annotation'], dict) or 'annotation' in raw['annotation']:
             raise ValueError('画面文字基础样式无效')

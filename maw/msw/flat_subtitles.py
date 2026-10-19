@@ -11,6 +11,7 @@ from copy import deepcopy
 
 from maw.msw import subtitle_tracks as old
 from maw.msw import cue_style
+from maw.msw import subtitle_animation
 
 SCHEMA = "msw.project.v4"
 MODEL_SCHEMA = "msw.subtitles.v1"
@@ -82,6 +83,8 @@ def _content_valid(cue):
     _frame_pair(cue)
     if "subtitle_style" in cue and not cue_style.valid(cue["subtitle_style"]):
         _fail("字幕外观覆盖包含无效参数")
+    if "subtitle_animation" in cue and not subtitle_animation.valid(cue["subtitle_animation"]):
+        _fail("字幕动画覆盖包含无效参数")
     if "subtitle_style_preset" in cue and not old._stable(cue["subtitle_style_preset"]):
         _fail("字幕外观预设标识无效")
     if "speaker" in cue and (not isinstance(cue["speaker"], str) or not cue["speaker"].strip()):

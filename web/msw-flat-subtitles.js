@@ -5,6 +5,7 @@
   const old = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-tracks.js') : global.MSWSubtitleTracks;
   const SCHEMA='msw.project.v4', MODEL_SCHEMA='msw.subtitles.v1', MIGRATION_SCHEMA='msw.subtitle-migration.v1';
   const cueStyle=typeof module!=='undefined'&&module.exports?require('./msw-cue-style.js'):global.MSWCueStyle;
+  const motion=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-animation.js'):global.MSWSubtitleAnimation;
   const structural=['segments','multi_subtitle','subtitle_tracks','subtitle_layers','overlay_track'];
   const clone=value=>JSON.parse(JSON.stringify(value));
   const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -37,6 +38,7 @@
       ||Object.hasOwn(cue,'disabled')&&typeof cue.disabled!=='boolean')fail('字幕时间或正文无效');
     framePair(cue);
     if(Object.hasOwn(cue,'subtitle_style')&&!cueStyle.valid(cue.subtitle_style))fail('字幕外观覆盖包含无效参数');
+    if(Object.hasOwn(cue,'subtitle_animation')&&!motion.valid(cue.subtitle_animation))fail('字幕动画覆盖包含无效参数');
     if(Object.hasOwn(cue,'subtitle_style_preset')&&!stable(cue.subtitle_style_preset))fail('字幕外观预设标识无效');
     if(Object.hasOwn(cue,'speaker')&&(typeof cue.speaker!=='string'||!cue.speaker.trim()))fail('说话人无效');
     if(Object.hasOwn(cue,'items')) {

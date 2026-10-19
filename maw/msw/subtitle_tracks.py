@@ -12,6 +12,7 @@ from copy import deepcopy
 
 from maw.msw import subtitle_layers as layers
 from maw.msw import cue_style
+from maw.msw import subtitle_animation
 
 SCHEMA = "msw.project.v3"
 TRACK_SCHEMA = "msw.subtitle_tracks.v2"
@@ -53,6 +54,8 @@ def _snapshot_valid(value):
         return False
     for role in ("main", "secondary"):
         style = value[role]
+        if 'animation' in style and not subtitle_animation.valid(style['animation']):
+            return False
         if (style.get("wrapMode", "auto") not in ("auto", "characters")
                 or type(style.get("charsPerLine", 20)) is not int or not 1 <= style.get("charsPerLine", 20) <= 200):
             return False
@@ -99,6 +102,8 @@ def _records(project):
             seen.add(cue["id"])
             if "subtitle_style" in cue and not cue_style.valid(cue["subtitle_style"]):
                 _fail("字幕外观覆盖包含无效参数")
+            if "subtitle_animation" in cue and not subtitle_animation.valid(cue["subtitle_animation"]):
+                _fail("字幕动画覆盖包含无效参数")
             if "subtitle_style_preset" in cue and not _stable(cue["subtitle_style_preset"]):
                 _fail("字幕外观预设标识无效")
             rows.append(dict(role=role, track_id=track_id, cue_id=cue["id"], cue=cue, index=index))

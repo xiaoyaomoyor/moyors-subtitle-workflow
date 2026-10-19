@@ -5279,6 +5279,24 @@
 .msw-style-field-reset svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.7; }
 #subtitle-properties .msw-style-check .msw-style-field-reset { position:static; }
 @container (max-width:300px) { #subtitle-properties .msw-style-fields,#subtitle-properties .media-settings-grid { grid-template-columns:minmax(0,1fr); } }
+
+.msw-motion-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:2px 0 10px; }
+.msw-motion-actions #motion-preview { margin-left:auto; width:28px; padding:5px; }
+.msw-motion-actions svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.7; }
+.msw-motion-presets { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; }
+.msw-motion-presets .is-overridden > span::after { content:'•'; margin-left:4px; color:var(--accent); }
+.msw-motion-effect { border-top:1px solid var(--border-subtle); margin-top:12px; padding-top:10px; }
+.msw-motion-heading { display:flex; align-items:center; justify-content:space-between; min-height:28px; margin-bottom:6px; color:var(--text-muted); font-size:12px; }
+.msw-motion-heading .msw-style-icon { width:24px; height:24px; min-height:24px; padding:4px; }
+.msw-motion-heading > span::before { content:'▸'; margin-right:6px; }
+.msw-motion-effect[open] > .msw-motion-heading > span::before { content:'▾'; }
+#subtitle-motion-controls .msw-style-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.msw-motion-wide { grid-column:1 / -1; }
+.msw-motion-transform { display:grid; gap:7px; }
+.msw-motion-transform-row { display:grid; grid-template-columns:minmax(0,1.15fr) repeat(2,minmax(0,1fr)); gap:6px; align-items:center; }
+.msw-motion-transform-row > span { color:var(--text-muted); font-size:11px; }
+.msw-motion-transform-head > span:not(:first-child) { text-align:center; }
+.msw-motion-transform .msw-style-field > .msw-option-label { display:none; }
 /* The trial uses the existing dock, waveform and theme tokens. */
 .flat-processing-panel { position:fixed; inset:10vh auto auto 50%; transform:translateX(-50%); width:min(720px,94vw); max-height:80vh; overflow:auto; margin:0; padding:16px; border:1px solid var(--border); border-radius:var(--radius-md,8px); background:var(--bg-panel); color:var(--text-primary); box-shadow:0 8px 30px #0004; z-index:10050; }
 .flat-processing-panel>header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
@@ -18101,13 +18119,78 @@ export default MawDynamicCaptions;
   }
 })();
 
+// Shared animation contract. Time is always relative to the original cue.
+(function(global){
+  'use strict';
+  const schema='msw.subtitle-animation.v1';
+  const definitions={
+    fade:{enabled:false,unit:'percent',in:10,out:10},
+    typewriter:{enabled:false,unit:'percent',start:0,end:40},
+    blink:{enabled:false,unit:'percent',start:0,end:100,period:600,opacity:0},
+    transform:{enabled:false,unit:'percent',start:0,end:25,fromX:0,fromY:0,toX:0,toY:0,fromScale:85,toScale:100,fromRotation:0,toRotation:0,fromOpacity:100,toOpacity:100,easing:'smooth'}
+  };
+  const names=Object.keys(definitions),clone=v=>JSON.parse(JSON.stringify(v));
+  const object=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+  const timings=name=>name==='fade'?['in','out']:['start','end'];
+  function valid(raw){
+    if(!object(raw)||raw.schema!==schema||!object(raw.effects)||Object.keys(raw).some(k=>!['schema','effects'].includes(k)))return false;
+    return Object.entries(raw.effects).every(([name,e])=>{
+      const d=definitions[name];if(!d||!object(e)||Object.keys(e).length!==Object.keys(d).length)return false;
+      for(const [k,v] of Object.entries(e)){
+        if(!Object.hasOwn(d,k))return false;
+        if(k==='enabled'){if(typeof v!=='boolean')return false;}
+        else if(k==='unit'){if(!['percent','ms'].includes(v))return false;}
+        else if(k==='easing'){if(!['linear','ease-in','ease-out','smooth'].includes(v))return false;}
+        else{
+          const bounds=timings(name).includes(k)?[0,e.unit==='percent'?100:60000]:k==='period'?[80,60000]:k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
+          if(typeof v!=='number'||!Number.isFinite(v)||v<bounds[0]||v>bounds[1])return false;
+        }
+      }
+      return name==='fade'||e.end>e.start;
+    });
+  }
+  function normalize(raw){if(!valid(raw))throw Error('字幕动画参数无效');return {schema,effects:{...clone(definitions),...clone(raw.effects)}};}
+  const defaults=()=>({schema,effects:clone(definitions)});
+  function resolve(base,override){return base===undefined&&override===undefined?null:normalize({schema,effects:{...(base?.effects||{}),...(override?.effects||{})}});}
+  const ms=(e,key,duration)=>e[key]*(e.unit==='percent'?duration/100:1);
+  const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+  const ease=(p,mode)=>mode==='ease-in'?p*p:mode==='ease-out'?1-(1-p)**2:mode==='smooth'?p*p*(3-2*p):p;
+  function sample(raw,elapsed,duration,count=0){
+    const {fade:f,typewriter:w,blink:b,transform:t}=raw.effects;
+    const time=clamp(elapsed,0,duration),state={opacity:1,x:0,y:0,scale:100,rotation:0,revealed:count};
+    if(f.enabled){let a=ms(f,'in',duration),z=ms(f,'out',duration);if(a+z>duration){const ratio=duration/(a+z);a*=ratio;z*=ratio;}state.opacity=Math.min(a?time/a:1,z?(duration-time)/z:1,1);}
+    if(b.enabled&&time>=ms(b,'start',duration)&&time<ms(b,'end',duration)&&Math.floor((time-ms(b,'start',duration))/(b.period/2))%2)state.opacity*=b.opacity/100;
+    if(t.enabled){const p=ease(clamp((time-ms(t,'start',duration))/(ms(t,'end',duration)-ms(t,'start',duration))),t.easing);for(const [key,suffix] of [['x','X'],['y','Y'],['scale','Scale'],['rotation','Rotation']])state[key]=t['from'+suffix]+(t['to'+suffix]-t['from'+suffix])*p;state.opacity*=(t.fromOpacity+(t.toOpacity-t.fromOpacity)*p)/100;}
+    if(w.enabled)state.revealed=Math.floor(clamp((time-ms(w,'start',duration))/(ms(w,'end',duration)-ms(w,'start',duration)))*count+1e-7);
+    return state;
+  }
+  function envelope(row,width){
+    const t=row.motion?.effects.transform;if(!t?.enabled)return row;
+    const ax=row.position.x*width,ay=row.position.y*1080,s=Math.max(t.fromScale,t.toScale)/100;
+    const corners=[[row.x-ax,row.y-ay],[row.x+row.width-ax,row.y-ay],[row.x-ax,row.y+row.height-ay],[row.x+row.width-ax,row.y+row.height-ay]];
+    const radius=Math.max(...corners.map(([x,y])=>Math.hypot(x,y)))*s,rotate=t.fromRotation||t.toRotation;
+    const xs=rotate?[-radius,radius]:corners.flatMap(([x])=>[x*t.fromScale/100,x*t.toScale/100]);
+    const ys=rotate?[-radius,radius]:corners.flatMap(([,y])=>[y*t.fromScale/100,y*t.toScale/100]);
+    return {...row,x:ax+Math.min(...xs)+Math.min(t.fromX,t.toX),y:ay+Math.min(...ys)+Math.min(t.fromY,t.toY),width:Math.max(...xs)-Math.min(...xs)+Math.abs(t.toX-t.fromX),height:Math.max(...ys)-Math.min(...ys)+Math.abs(t.toY-t.fromY)};
+  }
+  // Extending the first exported event must hold its initial pose, then keep
+  // the same source clock. Only tags emitted by our compiler are accepted.
+  function delayAssTags(text,delta){
+    const add=v=>String(Math.round((Number(v)+delta)*10000)/10000);
+    return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
+      .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
+  }
+  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
+})(typeof globalThis==='undefined'?window:globalThis);
+
 // Project styles are snapshots. Library presets and proofreading never mutate them.
 (function(global) {
   'use strict';
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 10;
+  const layoutVersion = 11;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -18151,8 +18234,8 @@ export default MawDynamicCaptions;
   function normalize(raw = {}) {
     if(raw.annotation!==undefined&&(!raw.annotation||typeof raw.annotation!=='object'||Array.isArray(raw.annotation)||raw.annotation.annotation!==undefined))throw Error('画面文字基础样式无效');
     return {schema, name: String(raw.name || '默认白字').slice(0, 80),
-      main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{})},
-      secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{})},
+      main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{}),...(raw.main?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.main.animation)}:{})},
+      secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{}),...(raw.secondary?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.secondary.animation)}:{})},
       animations: U.normalizeAssAnimations(raw.animations),
       ...(raw.annotation!==undefined?{annotation:normalize(raw.annotation)}:{}),
       ...(raw.pairLayout!==undefined?{pairLayout:normalizePair(raw.pairLayout)}:{}),
@@ -18263,7 +18346,7 @@ export default MawDynamicCaptions;
     return normalize(style);
   }
   function swapAppearance(raw) {
-    const style=normalize(raw),position=['id','name','alignment','marginL','marginR','marginV','encoding'];
+    const style=normalize(raw),position=['id','name','alignment','marginL','marginR','marginV','encoding','animation'];
     const before=clone(style);
     for(const [role,other] of [['main','secondary'],['secondary','main']]) {
       style[role]={...before[other]};for(const key of position)style[role][key]=before[role][key];
@@ -18312,7 +18395,7 @@ export default MawDynamicCaptions;
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,characters,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);
 
 // Partial per-cue appearance. Position and track animation remain independent.
@@ -18674,6 +18757,7 @@ export default MawDynamicCaptions;
     ? require('./msw-subtitle-layers.js') : global.MSWSubtitleLayers;
   const SCHEMA = 'msw.project.v3';
   const cueStyle = typeof module !== 'undefined' && module.exports ? require('./msw-cue-style.js') : global.MSWCueStyle;
+  const motion = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-animation.js') : global.MSWSubtitleAnimation;
   const TRACK_SCHEMA = 'msw.subtitle_tracks.v2';
   const LEGACY_TRACK_SCHEMA = 'msw.subtitle_tracks.v1';
   // kind is retained as historical metadata; behavior uses independent fields.
@@ -18693,6 +18777,7 @@ export default MawDynamicCaptions;
   const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
     && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
     && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
+      && (value[k].animation === undefined || motion.valid(value[k].animation))
       && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
       && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))
     && (value.pairLayout === undefined || value.pairLayout && ['main-above', 'secondary-above'].includes(value.pairLayout.order)
@@ -18722,6 +18807,7 @@ export default MawDynamicCaptions;
           || !Number.isSafeInteger(cue.end) || cue.start < 0 || cue.end <= cue.start) fail('字幕 ID 重复或时间范围无效');
         if (cue.subtitle_position !== undefined && !positionValid(cue.subtitle_position, true)) fail('字幕位置必须是画面内的 x、y 比例和有效锚点');
         if (cue.subtitle_style !== undefined && !cueStyle.valid(cue.subtitle_style)) fail('字幕外观覆盖包含无效参数');
+        if (cue.subtitle_animation !== undefined && !motion.valid(cue.subtitle_animation)) fail('字幕动画覆盖包含无效参数');
         if (cue.subtitle_style_preset !== undefined && !stable(cue.subtitle_style_preset)) fail('字幕外观预设标识无效');
         seen.add(cue.id);
         rows.push({ role: track.role, track_id: track.track_id, cue_id: cue.id, cue, index });
@@ -19027,6 +19113,7 @@ export default MawDynamicCaptions;
   const old = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-tracks.js') : global.MSWSubtitleTracks;
   const SCHEMA='msw.project.v4', MODEL_SCHEMA='msw.subtitles.v1', MIGRATION_SCHEMA='msw.subtitle-migration.v1';
   const cueStyle=typeof module!=='undefined'&&module.exports?require('./msw-cue-style.js'):global.MSWCueStyle;
+  const motion=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-animation.js'):global.MSWSubtitleAnimation;
   const structural=['segments','multi_subtitle','subtitle_tracks','subtitle_layers','overlay_track'];
   const clone=value=>JSON.parse(JSON.stringify(value));
   const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -19059,6 +19146,7 @@ export default MawDynamicCaptions;
       ||Object.hasOwn(cue,'disabled')&&typeof cue.disabled!=='boolean')fail('字幕时间或正文无效');
     framePair(cue);
     if(Object.hasOwn(cue,'subtitle_style')&&!cueStyle.valid(cue.subtitle_style))fail('字幕外观覆盖包含无效参数');
+    if(Object.hasOwn(cue,'subtitle_animation')&&!motion.valid(cue.subtitle_animation))fail('字幕动画覆盖包含无效参数');
     if(Object.hasOwn(cue,'subtitle_style_preset')&&!stable(cue.subtitle_style_preset))fail('字幕外观预设标识无效');
     if(Object.hasOwn(cue,'speaker')&&(typeof cue.speaker!=='string'||!cue.speaker.trim()))fail('说话人无效');
     if(Object.hasOwn(cue,'items')) {
@@ -19355,6 +19443,7 @@ export default MawDynamicCaptions;
   const layers=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-layers.js'):global.MSWSubtitleLayers;
   const copy=value=>JSON.parse(JSON.stringify(value));
   const cueStyle=typeof module!=='undefined'&&module.exports?require('./msw-cue-style.js'):global.MSWCueStyle;
+  const motion=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-animation.js'):global.MSWSubtitleAnimation;
   const fail=message=>{throw Error(message);};
   const body=p=>p.subtitles;
   const cue=(p,id)=>body(p).cues.find(c=>c.id===id);
@@ -19381,6 +19470,23 @@ export default MawDynamicCaptions;
     }
   }
   function updateText(p,id,text) {return transaction(p,next=>{editable(next,[id]);const c=cue(next,id).content;if(c.text===text)return;c.text=text;c.items=[];c._dirty=true;});}
+  function updateAnimation(p,changes,{reset=null}={}) {
+    if(reset!==null&&reset!=='all'&&!motion.names.includes(reset))fail('字幕动画恢复对象无效');
+    return transaction(p,next=>{
+      editable(next,changes.map(c=>c.id));
+      for(const change of changes){
+        const c=cue(next,change.id).content;
+        if(reset==='all'){delete c.subtitle_animation;continue;}
+        const effects={...c.subtitle_animation?.effects};
+        if(reset)delete effects[reset];
+        else{
+          if(!motion.valid(change.animation))fail('字幕动画覆盖包含无效参数');
+          Object.assign(effects,change.animation.effects);
+        }
+        if(Object.keys(effects).length)c.subtitle_animation={schema:motion.schema,effects};else delete c.subtitle_animation;
+      }
+    });
+  }
   function updateAppearance(p,ids,patch,{reset=[] ,replace=false,presetId}={}) {
     if(!cueStyle.valid(patch)||!Array.isArray(reset)||reset.some(k=>!cueStyle.fields.includes(k)))fail('字幕外观覆盖包含无效参数');
     if(presetId!==undefined&&(typeof presetId!=='string'||!presetId.trim()||presetId.length>160))fail('字幕外观预设标识无效');
@@ -19501,6 +19607,8 @@ export default MawDynamicCaptions;
         else delete merged.subtitle_style;
         if(earliest.content.subtitle_style_preset)merged.subtitle_style_preset=earliest.content.subtitle_style_preset;
         else delete merged.subtitle_style_preset;
+        if(earliest.content.subtitle_animation)merged.subtitle_animation=copy(earliest.content.subtitle_animation);
+        else delete merged.subtitle_animation;
         const out={...copy(members[0]),id:merged.id,content:merged};
         if(members.some(c=>Object.hasOwn(c,'hidden')))out.hidden=mode==='common'?members.every(c=>c.hidden):members.some(c=>c.hidden);
         delete out.content.id;frame(n,out.content);return out;
@@ -19595,7 +19703,7 @@ export default MawDynamicCaptions;
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateAppearance,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -20112,6 +20220,7 @@ export default MawDynamicCaptions;
   const intersect = (a,b) => a.x < b.x+b.width && b.x < a.x+a.width && a.y < b.y+b.height && b.y < a.y+a.height;
   const finite = n => typeof n === 'number' && Number.isFinite(n);
   const cueStyle = typeof module !== 'undefined' && module.exports ? require('./msw-cue-style.js') : global.MSWCueStyle;
+  const motion = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-animation.js') : global.MSWSubtitleAnimation;
   const groupPosition = cue => cue.subtitle_position?.alignment ? cue.subtitle_position.base : cue.subtitle_position;
   function positionOf(entry,width) {
     if(entry.position)return {...entry.position};
@@ -20146,6 +20255,8 @@ export default MawDynamicCaptions;
       for (const row of rows) {
         const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
         row.style = cueStyle.apply(own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'], row.cue);
+        row.motion = motion.resolve(row.style.animation,row.cue.subtitle_animation);
+        row.animations = own.animations;
         row.size = measure(row,{...own,[row.role==='main'?'main':'secondary']:row.style},width);
         if (!row.size || !['width','height'].every(k=>finite(row.size[k])&&row.size[k]>=0)) throw Error('字幕字体测量失败');
       }
@@ -33788,7 +33899,14 @@ async function fixedAssDocument(target='both',removeGaps=false) {
   const lines=result.ass.split('\n'),events=lines.map((line,index)=>({index,fields:line.startsWith('Dialogue: ')?line.split(','):null})).filter(e=>e.fields);
   const stamp=value=>value.split(':').reduce((sum,part)=>sum*60+Number(part),0);
   events.sort((a,b)=>stamp(a.fields[1])-stamp(b.fields[1]));
-  if(events.length){const first=events[0];first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');}
+  if(events.length){
+    const first=events[0],delay=stamp(first.fields[1])*1000;
+    if(result.geometry?.some(row=>row.style===first.fields[3]&&row.motion)){
+      const text=window.MSWSubtitleAnimation.delayAssTags(first.fields.slice(9).join(','),delay);
+      first.fields.splice(9,first.fields.length-9,text);
+    }
+    first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');
+  }
   return lines.join('\n');
 }
 function fixedCanExport() {
@@ -34444,7 +34562,7 @@ function fixedRefreshSubtitlePreview(tMs) {
     if(!element){element=document.createElement('div');element.className='fixed-subtitle-row';element.dataset.key=entry.key;
       element.dataset.cueId=entry.cue_id;element.dataset.role=entry.role;const text=document.createElement('div');text.className='fixed-subtitle-text';element.append(text);root.append(element);}
     const text=element.firstElementChild,size=entry.size,style=entry.style;
-    if(!text.firstElementChild)text.replaceChildren(document.createElement('span'),document.createTextNode(''));
+    if(text.childNodes.length!==2||text.lastChild.nodeType!==Node.TEXT_NODE)text.replaceChildren(document.createElement('span'),document.createTextNode(''));
     const speaker=text.firstElementChild;
     if(speaker.textContent!==size.prefix)speaker.textContent=size.prefix;
     if(text.lastChild.nodeValue!==size.text.slice(size.prefix.length))text.lastChild.nodeValue=size.text.slice(size.prefix.length);
@@ -34454,14 +34572,24 @@ function fixedRefreshSubtitlePreview(tMs) {
     for(const key of ['primaryColor','outlineColor'])if(entry.cue.subtitle_style?.[key])variant[key]=entry.cue.subtitle_style[key];
     const paletteColor=COLOR_BY_NAME[MULTI_SUBTITLE_UTILS.effectiveColorName(entry.cue,segments)]?.value;
     speaker.style.color=['text','speaker'].includes(getSubtitleAppearance().ass_color_style||DEFAULT_ASS_COLOR_STYLE)?paletteColor||'':'';
-    const profile={animations:entry.group.style.animations};
-    const animation=window.AsrEditorUtils.assPreviewAnimationState(profile,tMs-entry.cue.start,entry.cue.end-entry.cue.start,
+    const profile={animations:entry.animations};
+    const motion=entry.motion?window.MSWSubtitleAnimation.sample(entry.motion,tMs-entry.cue.start,entry.cue.end-entry.cue.start,window.MSWProjectStyle.characters(size.text).filter(c=>c.trim()).length):null;
+    const animation=motion?{opacity:motion.opacity,transformProgress:null}:window.AsrEditorUtils.assPreviewAnimationState(profile,tMs-entry.cue.start,entry.cue.end-entry.cue.start,
       {playResX:rect.referenceWidth,playResY:1080,stageWidth:rect.referenceWidth,stageHeight:1080});
-    const animated=assPreviewAnimatedStyle(variant,profile,animation);
+    const animated=motion?{...variant,scaleX:variant.scaleX*motion.scale/100,scaleY:variant.scaleY*motion.scale/100,angle:variant.angle+motion.rotation}:assPreviewAnimatedStyle(variant,profile,animation);
     applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
+    if(motion){
+      text.replaceChildren();let seen=0,prefix=0;
+      for(const unit of window.MSWProjectStyle.characters(size.text)){
+        if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
+        if(seen>motion.revealed)span.style.visibility='hidden';
+        if(prefix<size.prefix.length)span.style.color=speaker.style.color;
+        text.append(span);if(unit!=='\n')prefix+=unit.length;
+      }
+    }
     Object.assign(text.style,{position:'absolute',left:size.innerX+'px',top:size.innerY+'px',maxWidth:size.maxWidth+'px'});
-    let dx=0,dy=0;
-    if(profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
+    let dx=motion?.x||0,dy=motion?.y||0;
+    if(!motion&&profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
     if(fixedPositionDragAffects(entry)){const offset=fixedPositionDrag||fixedPositionSession;dx+=offset.dx;dy+=offset.dy;}
     Object.assign(element.style,{left:entry.x+dx+'px',top:entry.y+dy+'px',width:entry.width+'px',height:entry.height+'px'});
     const selected=fixedPositionScope==='track'?entry.group.trackId===fixedStyleTrackId:productionFlatMode()?fixedPositionSelectedIds().has(entry.cue_id):entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));
@@ -66506,6 +66634,87 @@ window.addEventListener('beforeunload', (e) => {
   }
 })(window);
 
+// Compact effect controls shared by track defaults and actual cue selections.
+(function(global){
+  'use strict';
+  const A=global.MSWSubtitleAnimation;
+  function create(root,{context,commit,message,preview}){
+    const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展'};
+    const help={fade:'按字幕自身时长淡入淡出；两段相加超过字幕时长时等比缩短。',typewriter:'逐字显示，保留完整文字的换行与位置；空格和换行不占一次出字。',blink:'在指定时段内交替显示；间隔是一次完整亮暗循环的毫秒数。可与淡入淡出叠加。',transform:'从起始状态变化到结束状态，前后保持各自状态。位移相对字幕原位置，缩放相对原字号；坐标单位以 1080p 为基准。'};
+    const svg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg>';
+    root.innerHTML='<div class="msw-motion-actions"><button type="button" id="motion-inherit">跟随轨道动画</button><button type="button" id="motion-clear">关闭全部</button><button type="button" id="motion-preview" aria-label="从字幕起点预览" title="从字幕起点预览"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg></button></div><div class="msw-motion-presets"></div><div class="msw-motion-effects"></div>';
+    const $=id=>root.querySelector('#'+id),controls=new Map();
+    for(const name of A.names){
+      const label=document.createElement('label');label.className='msw-style-check';label.dataset.optionHelp=help[name];
+      label.innerHTML=`<input type="checkbox" id="motion-${name}-enabled"><span class="msw-option-label">${labels[name]}</span>`;
+      root.querySelector('.msw-motion-presets').append(label);
+      const card=document.createElement('details');card.className='msw-motion-effect';card.hidden=true;card.open=true;card.id='motion-'+name+'-card';
+      card.innerHTML=`<summary class="msw-motion-heading"><span>${labels[name]}</span><button type="button" class="msw-style-icon" id="motion-${name}-reset" title="此效果跟随轨道" aria-label="${labels[name]}跟随轨道">${svg}</button></summary><div class="msw-style-fields"></div>`;
+      root.querySelector('.msw-motion-effects').append(card);
+      const fields=card.lastElementChild;
+      const add=(key,title,type='number',choices)=>{
+        const line=document.createElement('label');line.className='msw-style-field';
+        const caption=document.createElement('span');caption.className='msw-option-label';caption.textContent=title;
+        const input=document.createElement(type==='select'?'select':'input');input.id='motion-'+name+'-'+key;input.dataset.motion=key;input.setAttribute('aria-label',title);
+        if(['unit','easing'].includes(key))line.classList.add('msw-motion-wide');
+        if(type==='select')input.replaceChildren(...choices.map(([v,l])=>new Option(l,v)));
+        else{input.type=type;input.required=true;input.step='any';input.min=key.endsWith('Rotation')?'-360':/[XY]$/.test(key)?'-4096':key==='period'?'80':key.endsWith('Scale')?'1':'0';input.max=key.endsWith('Rotation')?'360':/[XY]$/.test(key)?'4096':key==='period'?'60000':key.endsWith('Scale')?'1000':'100';}
+        line.append(caption,input);fields.append(line);controls.set(name+'.'+key,{input,caption,title});
+        input.onchange=()=>{
+          if(!input.reportValidity()){sync();return;}
+          try{commit(name,key,type==='number'?Number(input.value):input.value);message('');}catch(error){message(error.message,true);sync();}
+        };
+      };
+      add('unit','时间单位','select',[['percent','字幕时长 (%)'],['ms','毫秒 (ms)']]);
+      const unit=controls.get(name+'.unit');unit.input.closest('label').dataset.optionHelp='比例按每条字幕自己的时长计算；毫秒从字幕起点计算。切换单位按当前预览字幕换算，多选分别换算；空轨按 1 秒换算。超出字幕的部分不显示。';
+      for(const key of A.timings(name))add(key,{in:'淡入',out:'淡出',start:'开始',end:'结束'}[key]);
+      if(name==='blink'){add('period','循环间隔 (ms)');add('opacity','变暗时不透明度 (%)');}
+      if(name==='transform'){
+        add('easing','变化方式','select',[['linear','匀速'],['ease-in','先慢后快'],['ease-out','先快后慢'],['smooth','平滑']]);
+        const table=document.createElement('div');table.className='msw-motion-transform msw-motion-wide';
+        table.innerHTML='<div class="msw-motion-transform-row msw-motion-transform-head"><span>参数</span><span>起始</span><span>结束</span></div>';
+        for(const [suffix,title] of [['Scale','缩放 (%)'],['X','横向位移 (px)'],['Y','纵向位移 (px)'],['Rotation','旋转 (°)'],['Opacity','不透明度 (%)']]){
+          add('from'+suffix,'起始'+title);add('to'+suffix,'结束'+title);
+          const row=document.createElement('div');row.className='msw-motion-transform-row';
+          const caption=document.createElement('span');caption.textContent=title;row.append(caption);
+          for(const side of ['from','to'])row.append(controls.get(name+'.'+side+suffix).input.closest('label'));
+          table.append(row);
+        }
+        fields.append(table);
+      }
+      $('motion-'+name+'-enabled').onchange=event=>{try{commit(name,'enabled',event.target.checked);message('');}catch(error){message(error.message,true);sync();}};
+      $('motion-'+name+'-reset').onclick=event=>{event.preventDefault();try{commit(name,'reset');message('');}catch(error){message(error.message,true);}sync();};
+    }
+    $('motion-inherit').onclick=()=>{try{commit('all','reset');message('');}catch(error){message(error.message,true);}sync();};
+    $('motion-clear').onclick=()=>{try{commit('all','disable');message('');}catch(error){message(error.message,true);}sync();};
+    $('motion-preview').onclick=()=>preview();
+    function sync(){
+      const c=context(),items=c.items,first=items[0]?.value||A.defaults();
+      for(const el of root.querySelectorAll('input,select,button'))el.disabled=c.blocked;
+      $('motion-inherit').hidden=!c.cue;$('motion-inherit').disabled=c.blocked||!items.some(i=>i.override);
+      $('motion-preview').disabled=!c.preview;
+      for(const name of A.names){
+        const e=first.effects[name],check=$('motion-'+name+'-enabled');
+        check.checked=e.enabled;check.indeterminate=items.some(i=>i.value.effects[name].enabled!==e.enabled);
+        const overridden=c.cue&&items.some(i=>Object.hasOwn(i.override?.effects||{},name));
+        check.closest('label').classList.toggle('is-overridden',overridden);
+        const card=$('motion-'+name+'-card');card.hidden=!e.enabled&&!check.indeterminate;
+        const reset=$('motion-'+name+'-reset');reset.hidden=!overridden;
+        for(const [key,{input,caption,title}] of controls){if(!key.startsWith(name+'.'))continue;
+          const k=key.split('.')[1],mixed=items.some(i=>i.value.effects[name][k]!==e[k]);
+          input.value=mixed?'':String(e[k]);input.placeholder=mixed?'多个值':'';
+          input.closest('label').classList.toggle('is-mixed',mixed);
+          if(A.timings(name).includes(k)){input.max=e.unit==='percent'?'100':'60000';caption.textContent=title+(e.unit==='percent'?' (%)':' (ms)');}
+          if(k==='period')input.max='60000';
+        }
+      }
+      global.MSWHelp?.hydrate(root);
+    }
+    return {sync};
+  }
+  global.MSWSubtitleAnimationUI={create};
+})(window);
+
 (function(global) {
   'use strict';
   const host=global.MSWE?.resolve('processing-host'), S=global.MSWProjectStyle;
@@ -66531,7 +66740,7 @@ window.addEventListener('beforeunload', (e) => {
     <details id="style-general" class="msw-style-section" open><summary>通用</summary><div id="style-basic-fields" class="msw-style-fields"></div></details>
     <details id="style-more" class="msw-style-section"><summary>进阶</summary><div id="style-emphasis-fields" class="msw-style-checks"></div><div id="style-advanced-fields" class="msw-style-fields"></div></details>
     <details id="style-animation" class="msw-style-section"><summary><span class="msw-option-label">动画</span></summary><div id="style-animation-fields"></div></details>
-    <small data-help-for="style-animation" hidden>动画作用于当前轨道组。时间从每条字幕开始计算，单位为毫秒。</small>
+    <small data-help-for="style-animation" hidden>轨道默认只作用于当前主/副轨道；所选字幕按效果覆盖，其余跟随轨道。时间从每条字幕开始计算。新动画会替代原有 ASS 动画；恢复轨道动画可取消单条覆盖。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   $('style-save-as').insertAdjacentHTML('beforebegin',iconButton('style-overwrite','覆盖预设','overwrite'));
@@ -66617,6 +66826,7 @@ window.addEventListener('beforeunload', (e) => {
   }
   let role='main',library=[],selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
   let editScope='cue';fixedPositionScope='cue';
+  const M=global.MSWSubtitleAnimation;
   const cueScope=()=>editScope==='cue'&&productionFlatMode();
   const selectedRows=()=>{
     if(!productionFlatMode())return [];
@@ -66666,6 +66876,54 @@ window.addEventListener('beforeunload', (e) => {
       rebuild();sync();refresh();
     }catch(error){message(error.message,true);sync();}
   }
+  const legacyAnimation=document.createElement('details');legacyAnimation.id='motion-legacy';legacyAnimation.className='msw-style-section';
+  legacyAnimation.innerHTML='<summary><span class="msw-option-label">原有 ASS 动画</span></summary>';
+  legacyAnimation.dataset.optionHelp='原工程的 ASS 动画保持原样。使用上方新动画时替换旧动画；新动画支持所选字幕、叠加和统一时间规则。';
+  $('style-animation-fields').before(legacyAnimation);legacyAnimation.append($('style-animation-fields'));
+  const motionRoot=document.createElement('div');motionRoot.id='subtitle-motion-controls';legacyAnimation.before(motionRoot);
+  function motionContext(){
+    const cue=cueScope(),rows=cue?selectedRows():[],target=fixedStyleTarget();
+    const sources=cue?rows.map(row=>({row,track:fixedTrack(row.cue,row.role,row.track_id)})):target?[{track:target}]:[];
+    const owned=cue?[]:fixedTrackCore.createIndex(host.data).records({includeHidden:true}).filter(r=>r.subtitle_track_id===target?.id);
+    const items=sources.map(({row,track})=>{
+      const style=global.MSWTrackPresentation.styleFor(host.data,track),base=style[track.flat_style_slot||'main'].animation;
+      const override=row?.cue.subtitle_animation;
+      const previewRow=row||owned.find(r=>r.cue.start<=player.currentTime*1000&&r.cue.end>player.currentTime*1000)||owned[0];
+      return {row,track,style,override,base,legacy:!base&&!override&&Object.values(style.animations).some(e=>e.enabled),value:M.resolve(base,override)||M.defaults(),duration:previewRow?previewRow.cue.end-previewRow.cue.start:1000,preview:previewRow};
+    });
+    return {cue,items,preview:items[0]?.preview,blocked:!ready||saving||fixedPositionEditing||!productionFlatMode()||!items.length||items.some(i=>i.track.locked)};
+  }
+  function commitMotion(name,key,value){
+    const context=motionContext();if(context.blocked)return;
+    commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
+    const updates=context.items.map(item=>{
+      const effects={};
+      for(const effect of name==='all'?M.names:[name]){
+        const state=structuredClone(item.value.effects[effect]);
+        if(key==='disable')state.enabled=false;
+        else if(key!=='reset'){
+          if(key==='unit'&&state.unit!==value)for(const time of M.timings(effect))state[time]=Math.min(value==='percent'?100:60000,Math.round(M.ms(state,time,item.duration)*(value==='percent'?100/item.duration:1)*1000)/1000);
+          state[key]=value;
+        }
+        effects[effect]=state;
+      }
+      const animation={schema:M.schema,effects};if(key!=='reset'&&!M.valid(animation))throw Error('动画结束必须晚于开始，且参数须在允许范围内');
+      return {id:item.row?.cue_id,animation,item};
+    });
+    let next;
+    if(context.cue)next=global.MSWFlatEditing.updateAnimation(before,updates,key==='reset'?{reset:name}:{});
+    else{
+      const {item,animation}=updates[0],style=S.normalize(item.style),slot=item.track.flat_style_slot||'main';
+      style[slot].animation=key==='reset'?M.defaults():M.resolve(item.base,animation);
+      next=global.MSWFlatEditing.updateTrack(before,item.track.id,{style:{...before.subtitles.tracks.find(t=>t.id===item.track.id).style,mode:'snapshot',value:style}});
+    }
+    if(JSON.stringify(next)===JSON.stringify(before))return;
+    productionCommitProject(next,key==='reset'?'恢复轨道动画':'修改字幕动画',context.cue?updates.map(u=>u.id):[...fixedPositionSelectedIds()]);
+    fixedPreviewInvalidate();global.dispatchEvent(new Event('msw:burn-style'));rebuild();sync();refresh();
+  }
+  const motionUI=global.MSWSubtitleAnimationUI.create(motionRoot,{context:motionContext,commit:commitMotion,message:(text,error)=>message(text,error),preview:()=>{
+    const row=motionContext().preview;if(!row)return;player.currentTime=row.cue.start/1000;void player.play().catch(error=>message(error.message,true));
+  }});
   let proof={mode:'project'};
   try {
     const saved=JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}');proof.mode=saved.mode||'project';
@@ -66744,7 +67002,8 @@ window.addEventListener('beforeunload', (e) => {
     $('style-selection-label').textContent=cueScope()?(rows.length===1?fixedCueLabel(rows[0].cue,rows[0].role,rows[0].track_id):rows.length?`已选 ${rows.length} 条 · ${new Set(rows.map(r=>r.subtitle_track_id)).size} 轨`:'请选择字幕'):'未单独设置的字幕跟随轨道';
     $('style-track-target').hidden=cueScope();
     restoreAppearance.hidden=!cueScope();restoreAppearance.disabled=blocked||!rows.some(r=>r.cue.subtitle_style);
-    $('style-animation').hidden=cueScope();
+    $('style-animation').hidden=false;
+    legacyAnimation.hidden=cueScope()||!motionContext().items.some(i=>i.legacy);
     $('style-track-position').hidden=!fixedPresentationMode()||!cueScope()&&(!track||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed');
     $('style-track-placement').value=track?fixedTrackCore.placement(track):'auto';$('style-track-placement').disabled=blocked;
     $('style-position-fields').hidden=!productionFlatMode()&&(!track||fixedTrackCore.placement(track)!=='fixed');
@@ -66801,7 +67060,7 @@ window.addEventListener('beforeunload', (e) => {
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
     $('style-transform-preset').value=transformTags.some(([tags])=>tags===style.animations.t.tags)?style.animations.t.tags:'custom';
     $('style-field-t-tags').closest('label').hidden=$('style-transform-preset').value!=='custom';
-
+    motionUI.sync();
   }
   const positionDrafts=new Map();
   const positionContext=()=>JSON.stringify([host.generation,fixedPositionEditing,fixedPositionScope,fixedStyleTrackId,
@@ -67312,12 +67571,14 @@ window.addEventListener('beforeunload', (e) => {
   function sourceRows() {
     const exact=global.MSWSubtitleRenderer;
     if(exact?.status==='libass'&&exact.geometry.length)return exact.geometry.map(r=>{
+      if(r.motion)return global.MSWSubtitleAnimation.envelope(r,fixedVideoRect().referenceWidth);
       const dx=r.move?.enabled?r.move.x2-r.move.x1:0,dy=r.move?.enabled?r.move.y2-r.move.y1:0;
       return {...r,x:r.x+Math.min(0,dx),y:r.y+Math.min(0,dy),width:r.width+Math.abs(dx),height:r.height+Math.abs(dy)};
     });
     if(typeof fixedPresentationMode==='function'&&fixedPresentationMode()) {
       const allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),extension:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
-      return fixedPreviewLayout().layout.entries.filter(r=>allowed[r.role]).map(r=>({...r,groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
+      const width=fixedVideoRect().referenceWidth;
+      return fixedPreviewLayout().layout.entries.filter(r=>allowed[r.role]).map(r=>({...global.MSWSubtitleAnimation.envelope({...r,position:global.MSWTrackPresentation.positionOf(r,width)},width),groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
     }
     return [];
   }

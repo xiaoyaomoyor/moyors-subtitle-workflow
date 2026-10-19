@@ -104,6 +104,40 @@ class VideoRenderTests(unittest.TestCase):
                 return data.read()
         self.assertEqual(packets(self.source), packets(output))
 
+    def test_flat_cue_animation_survives_audio_mix_trim_and_encoding_chunks(self):
+        from maw.msw.flat_subtitles import migrate_project
+        from maw.msw.subtitle_animation import normalize, SCHEMA, DEFINITIONS
+        from maw.project_subtitle_style import builtin_presets
+
+        run([str(self.tools.ffmpeg), '-v', 'error', '-y', '-f', 'lavfi', '-i',
+             'color=black:size=640x360:rate=24:duration=4', '-c:v', 'libx264',
+             '-threads', '1', str(self.source)], self.cancel)
+        self.info = probe_source(self.tools.ffprobe, self.source, self.cancel)
+        style = builtin_presets()[0]
+        style['main'].update(fontSize=120, primaryColor='#FF0000', outline=0, shadow=0)
+        self.project['preview'] = dict(project_style=style)
+        self.project['segments'] = [dict(id='animated', start=0, end=4000, text='MMMM',
+            subtitle_animation=normalize(dict(schema=SCHEMA, effects={
+                'typewriter': dict(DEFINITIONS['typewriter'], enabled=True, end=100)})))]
+        self.project = migrate_project(self.project)
+        # These output frames map to 1.75 s / 2.75 s in the original cue.
+        # Restarting at the trim or encoding chunk would reveal zero/one M.
+        with patch('maw.msw.video_render.CHUNK_SECONDS', .5):
+            _, _, output = self.export(mode='voice', start_ms=1500, end_ms=3500,
+                                       burn_subtitles='main', video_encoding='cpu')
+        counts = []
+        for seconds in (.25, 1.25):
+            with tempfile.TemporaryFile() as data:
+                run([str(self.tools.ffmpeg), '-v', 'error', '-ss', str(seconds), '-i', str(output),
+                     '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'],
+                    self.cancel, stdout=data)
+                data.seek(0)
+                pixels = data.read()
+            counts.append(sum(r > 80 and r > g*2 and r > b*2
+                              for r, g, b in zip(pixels[::3], pixels[1::3], pixels[2::3])))
+        self.assertGreater(counts[0], 100)
+        self.assertAlmostEqual(counts[1]/counts[0], 2, delta=.15)
+
     def test_speaker_only_color_survives_real_mp4_encoding_and_explicit_opt_out(self):
         from maw.ass_styles import normalize_ass_style_library
 

@@ -2,7 +2,7 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEPENDENCIES = ('msw-cue-style.js', 'msw-subtitle-layers.js', 'msw-subtitle-tracks.js', 'msw-flat-subtitles.js',
+DEPENDENCIES = ('msw-subtitle-animation.js', 'msw-cue-style.js', 'msw-subtitle-layers.js', 'msw-subtitle-tracks.js', 'msw-flat-subtitles.js',
                 'tools/project-tracks.js')
 
 

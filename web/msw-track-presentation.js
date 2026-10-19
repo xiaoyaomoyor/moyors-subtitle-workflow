@@ -7,6 +7,7 @@
   const intersect = (a,b) => a.x < b.x+b.width && b.x < a.x+a.width && a.y < b.y+b.height && b.y < a.y+a.height;
   const finite = n => typeof n === 'number' && Number.isFinite(n);
   const cueStyle = typeof module !== 'undefined' && module.exports ? require('./msw-cue-style.js') : global.MSWCueStyle;
+  const motion = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-animation.js') : global.MSWSubtitleAnimation;
   const groupPosition = cue => cue.subtitle_position?.alignment ? cue.subtitle_position.base : cue.subtitle_position;
   function positionOf(entry,width) {
     if(entry.position)return {...entry.position};
@@ -41,6 +42,8 @@
       for (const row of rows) {
         const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
         row.style = cueStyle.apply(own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'], row.cue);
+        row.motion = motion.resolve(row.style.animation,row.cue.subtitle_animation);
+        row.animations = own.animations;
         row.size = measure(row,{...own,[row.role==='main'?'main':'secondary']:row.style},width);
         if (!row.size || !['width','height'].every(k=>finite(row.size[k])&&row.size[k]>=0)) throw Error('字幕字体测量失败');
       }

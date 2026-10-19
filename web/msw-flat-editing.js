@@ -5,6 +5,7 @@
   const layers=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-layers.js'):global.MSWSubtitleLayers;
   const copy=value=>JSON.parse(JSON.stringify(value));
   const cueStyle=typeof module!=='undefined'&&module.exports?require('./msw-cue-style.js'):global.MSWCueStyle;
+  const motion=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-animation.js'):global.MSWSubtitleAnimation;
   const fail=message=>{throw Error(message);};
   const body=p=>p.subtitles;
   const cue=(p,id)=>body(p).cues.find(c=>c.id===id);
@@ -31,6 +32,23 @@
     }
   }
   function updateText(p,id,text) {return transaction(p,next=>{editable(next,[id]);const c=cue(next,id).content;if(c.text===text)return;c.text=text;c.items=[];c._dirty=true;});}
+  function updateAnimation(p,changes,{reset=null}={}) {
+    if(reset!==null&&reset!=='all'&&!motion.names.includes(reset))fail('字幕动画恢复对象无效');
+    return transaction(p,next=>{
+      editable(next,changes.map(c=>c.id));
+      for(const change of changes){
+        const c=cue(next,change.id).content;
+        if(reset==='all'){delete c.subtitle_animation;continue;}
+        const effects={...c.subtitle_animation?.effects};
+        if(reset)delete effects[reset];
+        else{
+          if(!motion.valid(change.animation))fail('字幕动画覆盖包含无效参数');
+          Object.assign(effects,change.animation.effects);
+        }
+        if(Object.keys(effects).length)c.subtitle_animation={schema:motion.schema,effects};else delete c.subtitle_animation;
+      }
+    });
+  }
   function updateAppearance(p,ids,patch,{reset=[] ,replace=false,presetId}={}) {
     if(!cueStyle.valid(patch)||!Array.isArray(reset)||reset.some(k=>!cueStyle.fields.includes(k)))fail('字幕外观覆盖包含无效参数');
     if(presetId!==undefined&&(typeof presetId!=='string'||!presetId.trim()||presetId.length>160))fail('字幕外观预设标识无效');
@@ -151,6 +169,8 @@
         else delete merged.subtitle_style;
         if(earliest.content.subtitle_style_preset)merged.subtitle_style_preset=earliest.content.subtitle_style_preset;
         else delete merged.subtitle_style_preset;
+        if(earliest.content.subtitle_animation)merged.subtitle_animation=copy(earliest.content.subtitle_animation);
+        else delete merged.subtitle_animation;
         const out={...copy(members[0]),id:merged.id,content:merged};
         if(members.some(c=>Object.hasOwn(c,'hidden')))out.hidden=mode==='common'?members.every(c=>c.hidden):members.some(c=>c.hidden);
         delete out.content.id;frame(n,out.content);return out;
@@ -245,6 +265,6 @@
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateAppearance,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -705,7 +705,14 @@ async function fixedAssDocument(target='both',removeGaps=false) {
   const lines=result.ass.split('\n'),events=lines.map((line,index)=>({index,fields:line.startsWith('Dialogue: ')?line.split(','):null})).filter(e=>e.fields);
   const stamp=value=>value.split(':').reduce((sum,part)=>sum*60+Number(part),0);
   events.sort((a,b)=>stamp(a.fields[1])-stamp(b.fields[1]));
-  if(events.length){const first=events[0];first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');}
+  if(events.length){
+    const first=events[0],delay=stamp(first.fields[1])*1000;
+    if(result.geometry?.some(row=>row.style===first.fields[3]&&row.motion)){
+      const text=window.MSWSubtitleAnimation.delayAssTags(first.fields.slice(9).join(','),delay);
+      first.fields.splice(9,first.fields.length-9,text);
+    }
+    first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');
+  }
   return lines.join('\n');
 }
 function fixedCanExport() {

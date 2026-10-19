@@ -12,6 +12,7 @@ from maw.msw.subtitle_fonts import family_metrics, installed_fonts
 from maw.project_subtitle_style import normalize_project_style, builtin_presets
 from maw.subtitle_wrapping import wrap_text, _characters
 from maw.msw import cue_style
+from maw.msw import subtitle_animation
 
 
 def measured_text(text, style, width, *, prefix=''):
@@ -132,6 +133,7 @@ def layout(project, width=1920):
             own_style = resolve_style(index.tracks[row['subtitle_track_id']]) if flat else style
             row['style'] = cue_style.apply(own_style['main' if row['role']=='main' else 'secondary'], row['cue'])
             row['animations'] = own_style['animations']
+            row['motion'] = subtitle_animation.resolve(row['style'].get('animation'), row['cue'].get('subtitle_animation'))
             cue = row['cue']
             if flat:
                 head = cues.get((cue.get('color_ref') or {}).get('cue_id'), {})
@@ -275,11 +277,31 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
             lo,hi=max(r['cue']['start'],interval['start_ms']),min(r['cue']['end'],interval['end_ms'])
             if hi<=lo:continue
             start=interval['output_start_ms']+lo-interval['start_ms'];end=start+hi-lo
+            layer=r['rank']*2+(r['role']=='extension')
+            if r['motion'] is not None:
+                # Clip in source time first. Seeking/trimming must never restart effects.
+                offset=start-lo
+                if frame_at is not None:
+                    if not start<=frame_at<end:continue
+                    clip_lo,clip_hi=lo,hi
+                else:
+                    clip_lo,clip_hi=max(lo,start_ms-offset),min(hi,end_ms-offset)
+                if clip_hi<=clip_lo:continue
+                origin=r['cue']['start']
+                for a,b,tags,body in subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
+                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if mode=='speaker' else None):
+                    event_start,event_end=a+origin+offset,b+origin+offset
+                    if frame_at is not None:
+                        if not event_start<=frame_at<event_end:continue
+                    else:event_start-=start_ms;event_end-=start_ms
+                    if ass_time(event_start)==ass_time(event_end):continue
+                    lines.append(f'Dialogue: {layer},{ass_time(event_start)},{ass_time(event_end)},cue-{i},,0,0,0,,{{{tags}}}{body}')
+                    if len(lines)>200000:raise ValueError('字幕动画事件过多，请缩短动画时段或减少效果')
+                continue
             if frame_at is not None:
                 if not start<=frame_at<end:continue
             else:start,end=max(start,start_ms)-start_ms,min(end,end_ms)-start_ms
             if end<=start:continue
             # Explicit positions suppress libass's implicit collision re-stacking.
-            layer=r['rank']*2+(r['role']=='extension')
             lines.append(f'Dialogue: {layer},{ass_time(start)},{ass_time(end)},cue-{i},,0,0,0,,{{{base}}}{text}')
     return '\n'.join(lines)+'\n'

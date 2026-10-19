@@ -33,12 +33,14 @@
   function sourceRows() {
     const exact=global.MSWSubtitleRenderer;
     if(exact?.status==='libass'&&exact.geometry.length)return exact.geometry.map(r=>{
+      if(r.motion)return global.MSWSubtitleAnimation.envelope(r,fixedVideoRect().referenceWidth);
       const dx=r.move?.enabled?r.move.x2-r.move.x1:0,dy=r.move?.enabled?r.move.y2-r.move.y1:0;
       return {...r,x:r.x+Math.min(0,dx),y:r.y+Math.min(0,dy),width:r.width+Math.abs(dx),height:r.height+Math.abs(dy)};
     });
     if(typeof fixedPresentationMode==='function'&&fixedPresentationMode()) {
       const allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),extension:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
-      return fixedPreviewLayout().layout.entries.filter(r=>allowed[r.role]).map(r=>({...r,groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
+      const width=fixedVideoRect().referenceWidth;
+      return fixedPreviewLayout().layout.entries.filter(r=>allowed[r.role]).map(r=>({...global.MSWSubtitleAnimation.envelope({...r,position:global.MSWTrackPresentation.positionOf(r,width)},width),groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
     }
     return [];
   }
