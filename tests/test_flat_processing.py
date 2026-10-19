@@ -20,6 +20,38 @@ def snapshot(p):
 
 
 class FlatProcessingTests(unittest.TestCase):
+    def test_track_group_order_ignores_binding_direction_and_preview_columns(self):
+        p = flat.migrate_project({'segments': [dict(id='a', start=1000, end=2000, text='Source')],
+            'multi_subtitle': {'enabled': True, 'tracks': [dict(id='zh', segments=[dict(id='z', start=1100, end=2100, text='Translation')])],
+                              'bindings': [dict(id='b', track_id='zh', main_segment_ids=['a'], extension_segment_ids=['z'])]}})
+        main, secondary = p['subtitles']['tracks']
+        secondary['secondary_for'] = main['id']
+        flat.normalize_groups(p)
+        self.assertEqual(secondary['secondary_for'], main['id'])
+        main['style'].update(mode='snapshot', value=copy.deepcopy(builtin_presets()[0]))
+        secondary['style'].update(mode='snapshot', value=copy.deepcopy(builtin_presets()[0]))
+        source, translation = p['subtitles']['cues']
+        for order in ('secondary-above', 'main-above'):
+            main['style']['value']['pairLayout'] = dict(order=order, gap=-12)
+            expected = {r['cue_id']: (r['x'], r['y'], r['style']) for r in layout(p)}
+            self.assertEqual(expected[translation['id']][1] < expected[source['id']][1], order == 'secondary-above')
+            for reverse in (False, True):
+                for right in (source['id'], translation['id']):
+                    candidate = copy.deepcopy(p)
+                    if reverse:
+                        b = candidate['subtitles']['bindings'][0]
+                        b['source_id'], b['target_id'] = b['target_id'], b['source_id']
+                        b['start_offset_ms'] *= -1
+                        b['end_offset_ms'] *= -1
+                    candidate['subtitle_view'] = dict(secondary_cue_ids=[right])
+                    before = copy.deepcopy(candidate)
+                    self.assertEqual({r['cue_id']: (r['x'], r['y'], r['style']) for r in layout(candidate)}, expected)
+                    payload = dict(project=candidate, target='both', video=dict(width=1920, height=1080))
+                    preview = preview_ass(payload)
+                    plan = dict(intervals=[dict(start_ms=0, end_ms=3000, output_start_ms=0)])
+                    self.assertEqual(preview['ass'], styled_ass(candidate, plan, 'both', payload['video']))
+                    self.assertEqual(candidate, before)
+
     def test_translation_and_tts_capture_native_ids(self):
         p = project()
         c = p['subtitles']['cues'][0]

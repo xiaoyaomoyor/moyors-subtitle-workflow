@@ -111,12 +111,22 @@ def layout(project, width=1920):
         if not members:
             return
         used.update(key(r) for r in members)
-        track = index.tracks[members[0]['subtitle_track_id']]
+        owners = [index.tracks[r['subtitle_track_id']] for r in members]
+        # Track groups own visual order; a reverse manual binding must not
+        # reverse the picture or change the group's style/avoidance priority.
+        primary = next((t for t in owners if any(other.get('secondary_for') == t['id'] for other in owners)), None) if flat else None
+        if primary:
+            members.sort(key=lambda r: r['subtitle_track_id'] != primary['id'])
+        track = primary or owners[0]
         style = resolve_style(track)
         pair = pair_settings(style)
         upper = 'extension' if pair['order']=='secondary-above' else 'main'
         group = dict(id=key(members[0]), trackId=track['id'], kind='annotation' if placement(track)=='fixed' else 'dialogue', rank=tracks.index(track), rows=members, style=style)
-        members.sort(key=lambda r: r.get('pair_role',r['role'])!=upper)
+        def pair_role(row):
+            if primary:
+                return 'main' if row['subtitle_track_id'] == primary['id'] else 'extension'
+            return row.get('pair_role', row['role'])
+        members.sort(key=lambda r: pair_role(r) != upper)
         for row in members:
             own_style = resolve_style(index.tracks[row['subtitle_track_id']]) if flat else style
             row['style'] = own_style['main' if row['role']=='main' else 'secondary']

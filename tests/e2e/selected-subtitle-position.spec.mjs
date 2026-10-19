@@ -24,6 +24,35 @@ async function idle(page){await expect.poll(()=>page.evaluate(()=>!MSWSubtitleRe
 const events=page=>page.evaluate(async()=>await MSWSubtitleRenderer.renderer.renderer.getEvents());
 const pos=text=>text.match(/\\pos\(([^,]+),([^)]*)\)/).slice(1).map(Number);
 
+test('manually added reverse-bound subtitles retain group order in preview, save and reopen',async({page},info)=>{
+  await page.evaluate(()=>{
+    let p=JSON.parse(buildJson());
+    for(const c of p.subtitles.cues)c.content.end=2000;
+    const [main,secondary]=p.subtitles.tracks,style=MSWProjectStyle.defaults();
+    style.pairLayout={order:'secondary-above',gap:0};
+    for(const t of p.subtitles.tracks)t.style={...t.style,mode:'snapshot',value:structuredClone(style)};
+    p=MSWFlatEditing.addCue(p,main.id,'manual-source',3000,5000,'TRUST');
+    p=MSWFlatEditing.addCue(p,secondary.id,'manual-translation',3000,5000,'信任');
+    p.subtitle_view.secondary_cue_ids.push('manual-translation');
+    productionCommitProject(p,'新增字幕');player.currentTime=3.5;
+  });
+  await page.locator('.multi-cue-column.extension').filter({hasText:'信任'}).locator('.time').click();
+  await page.locator('.multi-cue-column.main').filter({hasText:'TRUST'}).locator('.time').click({modifiers:['Control']});
+  await page.keyboard.press('g');await idle(page);
+  const saved=await snap(page),binding=saved.subtitles.bindings.find(b=>b.source_id==='manual-translation');
+  expect(binding.target_id).toBe('manual-source');
+  const check=async()=>{
+    await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');await idle(page);
+    const rows=await events(page),source=rows.find(e=>e.Text.endsWith('TRUST')),translation=rows.find(e=>e.Text.endsWith('信任'));
+    expect(source).toBeTruthy();expect(translation).toBeTruthy();
+    expect(pos(translation.Text)[1]).toBeLessThan(pos(source.Text)[1]);
+  };
+  await check();await page.screenshot({path:info.outputPath('manual-bound-order.png')});
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+  await page.reload();await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');await idle(page);
+  await check();expect((await snap(page)).subtitles.bindings).toEqual(saved.subtitles.bindings);
+});
+
 test('fullscreen arrow seek ignores hidden cue selection and stays consistent across player controls',async({page})=>{
   await page.evaluate(()=>{selectOnly(0);player.pause();player.currentTime=3;});
   const before=await snap(page);

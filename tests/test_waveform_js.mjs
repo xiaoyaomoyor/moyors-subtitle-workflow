@@ -1164,6 +1164,30 @@ test('waveformScaleFromLoudness clamps the predicted peak to full scale', () => 
   assert.equal(fit(null, 120), null);
 });
 
+test('peak-only caches auto-fit without an RMS layer, while silence and manual scaling stay safe', () => {
+  const peaks = Int8Array.from(Array.from({length:200},(_,i)=>i<198?(i%2?-23:23):127));
+  const before = Array.from(peaks), reference = helpers.waveformPeakReference(peaks);
+  assert.equal(reference,23/127,'isolated full-scale peaks must not shrink typical speech');
+  const state = {
+    peakReference:reference, settings:{waveformScaleAuto:true,waveformScale:1,rowHeight:168},
+    renderWaveformScaleLabel(){}, redrawWaveformCanvases(){},
+  };
+  assert.equal(helpers.setLoudnessStats.call(state,null),true);
+  assert.ok(state.settings.waveformScale>5 && state.settings.waveformScale<=6);
+  assert.deepEqual(Array.from(peaks),before,'display fitting never modifies peaks');
+  state.settings.waveformScaleAuto=false;state.settings.waveformScale=2;
+  assert.equal(helpers.setLoudnessStats.call(state,null),false);
+  assert.equal(state.settings.waveformScale,2);
+  state.settings.waveformScaleAuto=true;
+  assert.equal(helpers.setLoudnessStats.call(state,{schema:helpers.loudnessSchema,p95:.3357}),true);
+  assert.ok(state.settings.waveformScale<2,'real RMS remains authoritative when available');
+  assert.equal(helpers.waveformPeakReference(new Int8Array(200)),null);
+  assert.equal(helpers.waveformPeakReference(null),null);
+  assert.equal(helpers.waveformScaleForPeak(0,168),null);
+  assert.equal(helpers.waveformScaleForPeak(undefined,168),null);
+  assert.equal(helpers.waveformScaleForPeak(1/127,168),6,'near-silence has bounded amplification');
+});
+
 test('loudness auto-fit never overrides an amplitude the user already set', (t) => {
   const setLoudnessStats = helpers.setLoudnessStats;
   const fitWaveformScaleToLoudness = helpers.fitWaveformScaleToLoudness;

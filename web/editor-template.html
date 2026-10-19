@@ -1015,8 +1015,8 @@ __WAVEFORM_CSS__
         <label class="wave-settings-field" data-option-help="REAPER 波形使用媒体旁的 .ReaPeaks 缓存，缺少时自动使用原生波形；选择只影响波形形状，不改变媒体。"><span class="msw-option-label">波形来源</span>
           <select id="waveform-shape-source"><option value="self">原生波形</option><option value="reapeaks" selected>REAPER 波形</option></select>
         </label>
-        <div class="wave-settings-field" data-option-help="只缩放波形的显示高度，不改变声音。响度适配会按整段音频的响度自动拟合；缺少响度缓存时无法适配。"><span class="msw-option-label" id="waveform-amplitude-title">显示振幅</span>
-          <div class="wave-settings-amplitude"><span class="editor-settings-stepper" role="group" aria-labelledby="waveform-amplitude-title"><button type="button" id="waveform-scale-down" title="减小波形振幅" aria-label="减小波形振幅">−</button><b id="waveform-scale-label" aria-live="polite">×1.0</b><button type="button" id="waveform-scale-up" title="增大波形振幅" aria-label="增大波形振幅">＋</button></span><button type="button" id="waveform-scale-fit" class="waveform-scale-fit">响度适配</button></div>
+        <div class="wave-settings-field" data-option-help="只缩放波形的显示高度，不改变声音。自动适配优先使用整段音频的响度；没有响度缓存时按波形峰值适配。手动调整后保持你的设置。"><span class="msw-option-label" id="waveform-amplitude-title">显示振幅</span>
+          <div class="wave-settings-amplitude"><span class="editor-settings-stepper" role="group" aria-labelledby="waveform-amplitude-title"><button type="button" id="waveform-scale-down" title="减小波形振幅" aria-label="减小波形振幅">−</button><b id="waveform-scale-label" aria-live="polite">×1.0</b><button type="button" id="waveform-scale-up" title="增大波形振幅" aria-label="增大波形振幅">＋</button></span><button type="button" id="waveform-scale-fit" class="waveform-scale-fit">自动适配</button></div>
         </div>
       </div>
       <div class="wave-settings-checks">

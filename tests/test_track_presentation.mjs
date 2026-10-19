@@ -10,6 +10,30 @@ const context={window:{},TextEncoder,TextDecoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 globalThis.MSWProjectStyle=context.window.MSWProjectStyle;
 const S=globalThis.MSWProjectStyle;
+test('group order belongs to physical tracks, independent of binding direction and list columns',()=>{
+  const native=flat.migrate({segments:[{id:'source',start:1000,end:2000,text:'Source'}],multi_subtitle:{enabled:true,
+    tracks:[{id:'zh',segments:[{id:'translation',start:1100,end:2100,text:'Translation'}]}],
+    bindings:[{id:'b',track_id:'zh',main_segment_ids:['source'],extension_segment_ids:['translation']}]}});
+  const [main,secondary]=native.subtitles.tracks;
+  secondary.secondary_for=main.id;flat.normalizeGroups(native);
+  assert.equal(secondary.secondary_for,main.id);
+  const source=native.subtitles.cues.find(c=>c.track_id===main.id),translation=native.subtitles.cues.find(c=>c.track_id===secondary.id);
+  const positions=p=>P.layout(production.fromProject(p),{measure:()=>({width:100,height:40})}).entries
+    .map(e=>[e.cue.text,e.x,e.y,e.style.fontSize,e.group.trackId]).sort((a,b)=>a[0].localeCompare(b[0]));
+  for(const order of ['secondary-above','main-above']){
+    main.style={...main.style,mode:'snapshot',value:S.defaults()};main.style.value.pairLayout={order,gap:-12};
+    secondary.style={...secondary.style,mode:'snapshot',value:S.defaults()};
+    const expected=positions(native),byText=new Map(expected.map(e=>[e[0],e]));
+    assert.equal(byText.get('Translation')[2]<byText.get('Source')[2],order==='secondary-above');
+    for(const reverse of [false,true])for(const right of [source.id,translation.id]){
+      const p=structuredClone(native),link=p.subtitles.bindings[0];
+      if(reverse){[link.source_id,link.target_id]=[link.target_id,link.source_id];link.start_offset_ms*=-1;link.end_offset_ms*=-1;}
+      p.subtitle_view={secondary_cue_ids:[right]};const before=JSON.stringify(p);
+      assert.deepEqual(positions(p),expected);
+      assert.equal(JSON.stringify(p),before,'rendering never changes bindings or timing');
+    }
+  }
+});
 const cue=(id,start,end,height=40)=>({id,start,end,text:id,items:[],height});
 const project=(main,extra={})=>core.migrate({segments:main,...extra});
 const measure=row=>({width:300,height:row.cue.height});

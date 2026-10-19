@@ -7453,8 +7453,8 @@
         <label class="wave-settings-field" data-option-help="REAPER 波形使用媒体旁的 .ReaPeaks 缓存，缺少时自动使用原生波形；选择只影响波形形状，不改变媒体。"><span class="msw-option-label">波形来源</span>
           <select id="waveform-shape-source"><option value="self">原生波形</option><option value="reapeaks" selected>REAPER 波形</option></select>
         </label>
-        <div class="wave-settings-field" data-option-help="只缩放波形的显示高度，不改变声音。响度适配会按整段音频的响度自动拟合；缺少响度缓存时无法适配。"><span class="msw-option-label" id="waveform-amplitude-title">显示振幅</span>
-          <div class="wave-settings-amplitude"><span class="editor-settings-stepper" role="group" aria-labelledby="waveform-amplitude-title"><button type="button" id="waveform-scale-down" title="减小波形振幅" aria-label="减小波形振幅">−</button><b id="waveform-scale-label" aria-live="polite">×1.0</b><button type="button" id="waveform-scale-up" title="增大波形振幅" aria-label="增大波形振幅">＋</button></span><button type="button" id="waveform-scale-fit" class="waveform-scale-fit">响度适配</button></div>
+        <div class="wave-settings-field" data-option-help="只缩放波形的显示高度，不改变声音。自动适配优先使用整段音频的响度；没有响度缓存时按波形峰值适配。手动调整后保持你的设置。"><span class="msw-option-label" id="waveform-amplitude-title">显示振幅</span>
+          <div class="wave-settings-amplitude"><span class="editor-settings-stepper" role="group" aria-labelledby="waveform-amplitude-title"><button type="button" id="waveform-scale-down" title="减小波形振幅" aria-label="减小波形振幅">−</button><b id="waveform-scale-label" aria-live="polite">×1.0</b><button type="button" id="waveform-scale-up" title="增大波形振幅" aria-label="增大波形振幅">＋</button></span><button type="button" id="waveform-scale-fit" class="waveform-scale-fit">自动适配</button></div>
         </div>
       </div>
       <div class="wave-settings-checks">
@@ -18081,7 +18081,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 8;
+  const layoutVersion = 9;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -20063,11 +20063,17 @@ export default MawDynamicCaptions;
       const rows = refs.map(r => lookup.get(core.key(r))).filter(Boolean);
       if (!rows.length) return;
       for (const row of rows) used.add(core.key(row));
-      const track = tracks.find(t => t.id === rows[0].subtitle_track_id), style = resolveStyle(track);
+      // Binding direction and list columns are editing relationships, not the
+      // physical main/secondary roles of a named track group.
+      const owners = rows.map(r => tracks.find(t => t.id === r.subtitle_track_id));
+      const primary = core.flatView(project) && owners.find(t => owners.some(other => other.secondary_for === t.id));
+      if (primary) rows.sort((a,b)=>Number(a.subtitle_track_id!==primary.id)-Number(b.subtitle_track_id!==primary.id));
+      const track = primary || owners[0], style = resolveStyle(track);
       const group = {id:core.key(rows[0]), trackId:track.id, kind:core.placement(track)==='fixed'?'annotation':'dialogue', rank:tracks.indexOf(track), rows, style};
       group.start = Math.min(...rows.map(r=>r.cue.start)); group.end = Math.max(...rows.map(r=>r.cue.end));
       const pair = global.MSWProjectStyle.pairSettings(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
-      rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1));
+      const pairRole = r => primary ? (r.subtitle_track_id === primary.id ? 'main' : 'extension') : r.role;
+      rows.sort((a,b)=>(pairRole(a)===upper?0:1)-(pairRole(b)===upper?0:1));
       for (const row of rows) {
         const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
         row.style = own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'];
@@ -22002,7 +22008,7 @@ export default MawDynamicCaptions;
     "波形与音量": "Waveform and volume",
     "REAPER 波形使用媒体旁的 .ReaPeaks 缓存，缺少时自动使用原生波形；选择只影响波形形状，不改变媒体。": "REAPER waveform uses the .ReaPeaks cache next to the media, falling back to the native waveform when unavailable. This only changes waveform display, not the media.",
     "波形来源": "Waveform source",
-    "只缩放波形的显示高度，不改变声音。响度适配会按整段音频的响度自动拟合；缺少响度缓存时无法适配。": "Scales waveform height without changing the sound. Loudness fit uses the overall audio loudness and requires a loudness cache.",
+    "只缩放波形的显示高度，不改变声音。自动适配优先使用整段音频的响度；没有响度缓存时按波形峰值适配。手动调整后保持你的设置。": "Scales waveform height without changing the sound. Auto fit uses overall loudness when available, otherwise waveform peaks. Manual adjustments are preserved.",
     "显示振幅": "Display amplitude",
     "按频谱缓存的主频为波形着色；关闭时使用主题波形色。需要媒体包含频谱缓存。": "Color the waveform by the dominant frequency in its spectral cache. Turn off to use the theme waveform color. A spectral cache is required.",
     "跟随原声试听音量": "Follow source playback gain",
@@ -22593,6 +22599,8 @@ export default MawDynamicCaptions;
     "使用说话人名称替代颜色后缀": "Use speaker name instead of the color suffix",
     "按移除静音空隙后的时间轴导出带样式的 ASS 字幕；原工程时间不变": "Export styled ASS subtitles on the gap-removed timeline; project timing stays unchanged",
     '响度适配': 'Fit loudness',
+    '自动适配': 'Auto fit',
+    '当前媒体没有可用于适配的波形或响度数据': 'No waveform or loudness data is available for fitting',
     '按整文件响度重新拟合振幅': 'Fit amplitude to media loudness',
     '当前媒体没有响度缓存，无法按响度适配': 'No loudness cache is available for this media',
     '带样式的 ASS 字幕': 'Styled ASS subtitles',
@@ -26242,17 +26250,37 @@ export default MawDynamicCaptions;
 
   function waveformScaleFromLoudness(stats, height) {
     const reference = Number(stats && stats.p95);
+    return waveformScaleForPeak(reference * LOUDNESS_CREST_FACTOR, height);
+  }
+
+  function waveformScaleForPeak(reference, height) {
     const rowHeight = Number(height);
-    // 全静音（p95<=0）或缺响度层时返回 null：宁可不猜，也不要把振幅拉到上限。
+    // 没有有效参考振幅时不猜测，避免把静音数据拉到缩放上限。
     if (!Number.isFinite(reference) || reference <= 0) return null;
     if (!Number.isFinite(rowHeight) || rowHeight <= 0) return null;
     // 削顶发生在上方：可用高度是 center - 2 = 0.46h - 2，比下方 0.54h - 2 更紧。
     const headroom = Math.max(1, rowHeight * 0.46 - 2);
     // 不钳到满量程的话，响素材会算出 >1 的「预测峰值」，把波形画得偏小。
-    const expectedPeak = Math.min(FULL_SCALE, reference * LOUDNESS_CREST_FACTOR);
+    const expectedPeak = Math.min(FULL_SCALE, reference);
     return clampWaveformScale(
       (LOUDNESS_TARGET_FILL * headroom) / (0.36 * rowHeight * expectedPeak),
     );
+  }
+
+  // Fresh media analysis and MPK caches may have no optional RMS layer. Use
+  // their actual peak envelope for display fitting, without pretending it is
+  // loudness or changing the audio. A histogram avoids sorting long media.
+  function waveformPeakReference(peaks) {
+    if (!peaks || peaks.length < 2) return null;
+    const bins = new Uint32Array(129), count = Math.floor(peaks.length / 2);
+    for (let i = 0; i < count; i++) bins[Math.min(128, Math.max(Math.abs(peaks[i*2]), Math.abs(peaks[i*2+1])))]++;
+    const target = Math.ceil(count * .95);
+    let cumulative = 0;
+    for (let i = 0; i < bins.length; i++) {
+      cumulative += bins[i];
+      if (cumulative >= target) return i > 0 ? Math.min(1, i / 127) : null;
+    }
+    return null;
   }
 
   function sampleInterpolatedPeak(peaks, position, peakCount, target = [0, 0]) {
@@ -26829,6 +26857,7 @@ export default MawDynamicCaptions;
       this.spectral = null;
       this.reapeaksPayload = null;
       this.loudnessStats = null;
+      this.peakReference = null;
       this.reapeaksPeaks = null;
       this.player = null;
       this.mediaAvailable = false;
@@ -27443,7 +27472,7 @@ export default MawDynamicCaptions;
       if (this.settings.rowHeight === next) return true;
       this.settings.rowHeight = next;
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(next);
-      if (this.settings.waveformScaleAuto !== false && this.loudnessStats) {
+      if (this.settings.waveformScaleAuto !== false) {
         this.setLoudnessStats(this.loudnessStats, { render: false });
       }
       saveSettings(this.settings);
@@ -28438,13 +28467,12 @@ export default MawDynamicCaptions;
 
     setLoudnessStats(stats, { render = true } = {}) {
       this.loudnessStats = stats && stats.schema === LOUDNESS_SCHEMA ? stats : null;
-      if (!this.loudnessStats) return false;
-      // 用户已手调过振幅就绝不覆盖；「按响度适配」按钮会先把这个标志翻回真。
+      // 用户已手调过振幅就绝不覆盖；「自动适配」按钮会先把这个标志翻回真。
       if (this.settings.waveformScaleAuto === false) return false;
       const fitted = waveformScaleFromLoudness(
         this.loudnessStats,
         this.settings.rowHeight,
-      );
+      ) ?? waveformScaleForPeak(this.peakReference, this.settings.rowHeight);
       if (fitted === null) return false;
       this.settings.waveformScale = fitted;
       // 自动值刻意不写 saveSettings()：localStorage 里的振幅是浏览器全局偏好，
@@ -28459,8 +28487,8 @@ export default MawDynamicCaptions;
       this.settings.waveformScaleAuto = true;
       if (this.setLoudnessStats(this.loudnessStats)) {
         this.setStatus(localizedWaveformMessage(
-          `已按响度适配振幅 ×${parseFloat(Number(this.settings.waveformScale).toFixed(2))}`,
-          `Amplitude fitted to loudness ×${parseFloat(Number(this.settings.waveformScale).toFixed(2))}`,
+          `已适配显示振幅 ×${parseFloat(Number(this.settings.waveformScale).toFixed(2))}`,
+          `Display amplitude fitted ×${parseFloat(Number(this.settings.waveformScale).toFixed(2))}`,
         ));
         return true;
       }
@@ -28695,6 +28723,11 @@ export default MawDynamicCaptions;
       const previousDuration = this.durationMs;
       const navigation = preserveView ? this.getNavigationSnapshot() : null;
       const decoded = decodePayload(payload);
+      if (payload !== this.payload) {
+        this.loudnessStats = null;
+        if (this.settings.waveformScaleAuto !== false) this.settings.waveformScale = 1;
+      }
+      this.peakReference = waveformPeakReference(decoded);
       if (!decoded) {
         this.payload = null;
         this.peaks = null;
@@ -28705,6 +28738,7 @@ export default MawDynamicCaptions;
       }
       this.payload = payload;
       this.peaks = decoded;
+      this.setLoudnessStats(this.loudnessStats, { render: false });
       this.waveformLoadState = '';
       this.empty.classList.add('hidden');
       this.refreshMediaReadout();
@@ -32927,6 +32961,8 @@ export default MawDynamicCaptions;
       wheelScrollDelta,
       waveformScaleAfterStep,
       waveformScaleFromLoudness,
+      waveformPeakReference,
+      waveformScaleForPeak,
       loudnessSchema: LOUDNESS_SCHEMA,
       setLoudnessStats: WaveformEditor.prototype.setLoudnessStats,
       fitWaveformScaleToLoudness: WaveformEditor.prototype.fitWaveformScaleToLoudness,
@@ -58134,7 +58170,7 @@ document.addEventListener('asr:waveform-scale-limit', (event) => {
 });
 
 document.addEventListener('asr:waveform-loudness-unavailable', () => {
-  flashHint('当前媒体没有响度缓存，无法按响度适配', 'warning');
+  flashHint('当前媒体没有可用于适配的波形或响度数据', 'warning');
 });
 
 function syncTimelineGroupRanges() {

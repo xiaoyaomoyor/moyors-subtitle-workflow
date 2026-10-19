@@ -26,11 +26,17 @@
       const rows = refs.map(r => lookup.get(core.key(r))).filter(Boolean);
       if (!rows.length) return;
       for (const row of rows) used.add(core.key(row));
-      const track = tracks.find(t => t.id === rows[0].subtitle_track_id), style = resolveStyle(track);
+      // Binding direction and list columns are editing relationships, not the
+      // physical main/secondary roles of a named track group.
+      const owners = rows.map(r => tracks.find(t => t.id === r.subtitle_track_id));
+      const primary = core.flatView(project) && owners.find(t => owners.some(other => other.secondary_for === t.id));
+      if (primary) rows.sort((a,b)=>Number(a.subtitle_track_id!==primary.id)-Number(b.subtitle_track_id!==primary.id));
+      const track = primary || owners[0], style = resolveStyle(track);
       const group = {id:core.key(rows[0]), trackId:track.id, kind:core.placement(track)==='fixed'?'annotation':'dialogue', rank:tracks.indexOf(track), rows, style};
       group.start = Math.min(...rows.map(r=>r.cue.start)); group.end = Math.max(...rows.map(r=>r.cue.end));
       const pair = global.MSWProjectStyle.pairSettings(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
-      rows.sort((a,b)=>(a.role===upper?0:1)-(b.role===upper?0:1));
+      const pairRole = r => primary ? (r.subtitle_track_id === primary.id ? 'main' : 'extension') : r.role;
+      rows.sort((a,b)=>(pairRole(a)===upper?0:1)-(pairRole(b)===upper?0:1));
       for (const row of rows) {
         const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
         row.style = own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'];

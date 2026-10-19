@@ -23561,7 +23561,7 @@ document.addEventListener('asr:waveform-scale-limit', (event) => {
 });
 
 document.addEventListener('asr:waveform-loudness-unavailable', () => {
-  flashHint('当前媒体没有响度缓存，无法按响度适配', 'warning');
+  flashHint('当前媒体没有可用于适配的波形或响度数据', 'warning');
 });
 
 function syncTimelineGroupRanges() {

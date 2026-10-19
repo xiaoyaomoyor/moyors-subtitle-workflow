@@ -19,6 +19,28 @@ test.beforeEach(async ({page}) => {
 
 const help = (page, control) => page.locator(control).locator('xpath=ancestor::label').locator('.msw-help-button');
 
+test('fresh peak-only media fits automatically and keeps manual amplitude across refreshes', async ({page}) => {
+  await expect.poll(()=>page.evaluate(()=>Boolean(waveformEditor.payload))).toBe(true);
+  const result=await page.evaluate(()=>{
+    const w=waveformEditor, payload={...w.payload,data:btoa(String.fromCharCode(...new Uint8Array([233,23,246,10,233,23,0,0]))),peak_count:4};
+    w.settings.waveformScaleAuto=true;
+    w.setLoudnessStats({schema:'moy.asr.loudness.v1',p95:.9});
+    w.setPayload(payload,{preserveView:true});
+    w.setLoudnessStats(null);
+    return {scale:w.settings.waveformScale,rms:w.loudnessStats};
+  });
+  expect(result.rms).toBeNull();expect(result.scale).toBeGreaterThan(5);
+  await page.locator('#waveform-scale-down').click();
+  const manual=await page.evaluate(()=>waveformEditor.settings.waveformScale);
+  await page.evaluate(()=>{waveformEditor.setPayload({...waveformEditor.payload});waveformEditor.setLoudnessStats(null);});
+  expect(await page.evaluate(()=>waveformEditor.settings.waveformScale)).toBe(manual);
+  await page.locator('#waveform-scale-fit').click();
+  expect(await page.evaluate(()=>waveformEditor.settings.waveformScaleAuto)).toBe(true);
+  expect(await page.evaluate(()=>waveformEditor.settings.waveformScale)).toBeGreaterThan(manual);
+  await page.evaluate(()=>waveformEditor.setPayload({...waveformEditor.payload,data:btoa('\0\0\0\0\0\0\0\0')}));
+  expect(await page.evaluate(()=>waveformEditor.settings.waveformScale)).toBe(1);
+});
+
 test('mode, amplitude and visibility controls still affect the waveform and survive reopening', async ({page}) => {
   await expect(page.locator('#waveform-settings-panel > section h4')).toHaveText(['显示与布局', '波形与音量', '编辑与试听']);
   await expect(page.locator('#msw-analysis-settings')).not.toHaveAttribute('open');

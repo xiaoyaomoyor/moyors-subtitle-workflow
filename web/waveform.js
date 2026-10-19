@@ -1172,17 +1172,37 @@
 
   function waveformScaleFromLoudness(stats, height) {
     const reference = Number(stats && stats.p95);
+    return waveformScaleForPeak(reference * LOUDNESS_CREST_FACTOR, height);
+  }
+
+  function waveformScaleForPeak(reference, height) {
     const rowHeight = Number(height);
-    // 全静音（p95<=0）或缺响度层时返回 null：宁可不猜，也不要把振幅拉到上限。
+    // 没有有效参考振幅时不猜测，避免把静音数据拉到缩放上限。
     if (!Number.isFinite(reference) || reference <= 0) return null;
     if (!Number.isFinite(rowHeight) || rowHeight <= 0) return null;
     // 削顶发生在上方：可用高度是 center - 2 = 0.46h - 2，比下方 0.54h - 2 更紧。
     const headroom = Math.max(1, rowHeight * 0.46 - 2);
     // 不钳到满量程的话，响素材会算出 >1 的「预测峰值」，把波形画得偏小。
-    const expectedPeak = Math.min(FULL_SCALE, reference * LOUDNESS_CREST_FACTOR);
+    const expectedPeak = Math.min(FULL_SCALE, reference);
     return clampWaveformScale(
       (LOUDNESS_TARGET_FILL * headroom) / (0.36 * rowHeight * expectedPeak),
     );
+  }
+
+  // Fresh media analysis and MPK caches may have no optional RMS layer. Use
+  // their actual peak envelope for display fitting, without pretending it is
+  // loudness or changing the audio. A histogram avoids sorting long media.
+  function waveformPeakReference(peaks) {
+    if (!peaks || peaks.length < 2) return null;
+    const bins = new Uint32Array(129), count = Math.floor(peaks.length / 2);
+    for (let i = 0; i < count; i++) bins[Math.min(128, Math.max(Math.abs(peaks[i*2]), Math.abs(peaks[i*2+1])))]++;
+    const target = Math.ceil(count * .95);
+    let cumulative = 0;
+    for (let i = 0; i < bins.length; i++) {
+      cumulative += bins[i];
+      if (cumulative >= target) return i > 0 ? Math.min(1, i / 127) : null;
+    }
+    return null;
   }
 
   function sampleInterpolatedPeak(peaks, position, peakCount, target = [0, 0]) {
@@ -1759,6 +1779,7 @@
       this.spectral = null;
       this.reapeaksPayload = null;
       this.loudnessStats = null;
+      this.peakReference = null;
       this.reapeaksPeaks = null;
       this.player = null;
       this.mediaAvailable = false;
@@ -2373,7 +2394,7 @@
       if (this.settings.rowHeight === next) return true;
       this.settings.rowHeight = next;
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(next);
-      if (this.settings.waveformScaleAuto !== false && this.loudnessStats) {
+      if (this.settings.waveformScaleAuto !== false) {
         this.setLoudnessStats(this.loudnessStats, { render: false });
       }
       saveSettings(this.settings);
@@ -3368,13 +3389,12 @@
 
     setLoudnessStats(stats, { render = true } = {}) {
       this.loudnessStats = stats && stats.schema === LOUDNESS_SCHEMA ? stats : null;
-      if (!this.loudnessStats) return false;
-      // 用户已手调过振幅就绝不覆盖；「按响度适配」按钮会先把这个标志翻回真。
+      // 用户已手调过振幅就绝不覆盖；「自动适配」按钮会先把这个标志翻回真。
       if (this.settings.waveformScaleAuto === false) return false;
       const fitted = waveformScaleFromLoudness(
         this.loudnessStats,
         this.settings.rowHeight,
-      );
+      ) ?? waveformScaleForPeak(this.peakReference, this.settings.rowHeight);
       if (fitted === null) return false;
       this.settings.waveformScale = fitted;
       // 自动值刻意不写 saveSettings()：localStorage 里的振幅是浏览器全局偏好，
@@ -3389,8 +3409,8 @@
       this.settings.waveformScaleAuto = true;
       if (this.setLoudnessStats(this.loudnessStats)) {
         this.setStatus(localizedWaveformMessage(
-          `已按响度适配振幅 ×${parseFloat(Number(this.settings.waveformScale).toFixed(2))}`,
-          `Amplitude fitted to loudness ×${parseFloat(Number(this.settings.waveformScale).toFixed(2))}`,
+          `已适配显示振幅 ×${parseFloat(Number(this.settings.waveformScale).toFixed(2))}`,
+          `Display amplitude fitted ×${parseFloat(Number(this.settings.waveformScale).toFixed(2))}`,
         ));
         return true;
       }
@@ -3625,6 +3645,11 @@
       const previousDuration = this.durationMs;
       const navigation = preserveView ? this.getNavigationSnapshot() : null;
       const decoded = decodePayload(payload);
+      if (payload !== this.payload) {
+        this.loudnessStats = null;
+        if (this.settings.waveformScaleAuto !== false) this.settings.waveformScale = 1;
+      }
+      this.peakReference = waveformPeakReference(decoded);
       if (!decoded) {
         this.payload = null;
         this.peaks = null;
@@ -3635,6 +3660,7 @@
       }
       this.payload = payload;
       this.peaks = decoded;
+      this.setLoudnessStats(this.loudnessStats, { render: false });
       this.waveformLoadState = '';
       this.empty.classList.add('hidden');
       this.refreshMediaReadout();
@@ -7857,6 +7883,8 @@
       wheelScrollDelta,
       waveformScaleAfterStep,
       waveformScaleFromLoudness,
+      waveformPeakReference,
+      waveformScaleForPeak,
       loudnessSchema: LOUDNESS_SCHEMA,
       setLoudnessStats: WaveformEditor.prototype.setLoudnessStats,
       fitWaveformScaleToLoudness: WaveformEditor.prototype.fitWaveformScaleToLoudness,
