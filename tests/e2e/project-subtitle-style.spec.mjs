@@ -23,10 +23,10 @@ test('project style renders in the player and proofreading does not alter output
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready),{timeout:30000}).toBe(true);
   expect(await page.evaluate(()=>repairedTimingCount)).toBe(0);
   expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject().subtitles.cues[0].content.text)).toBe('中文字幕，Sample。');
-  await toggleMediaSettings(page);
+  await page.evaluate(()=>MSWSubtitleStyle.open('track'));
   await expect(page.locator('#project-subtitle-style')).toBeVisible();
   await expect(page.locator('#style-preview-mode')).toHaveValue('project');
-  await page.locator('#media-settings-modal').screenshot({path:join(folder,'style-settings.png')});
+  await page.locator('#subtitle-properties').screenshot({path:join(folder,'style-settings.png')});
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer?.status),{timeout:45000}).toBe('libass');
   await page.locator('#style-field-primaryColor').fill('#ff0000');
   const saved=await page.evaluate(()=>fixedStyleValue());
@@ -35,6 +35,7 @@ test('project style renders in the player and proofreading does not alter output
   await expect(page.locator('#style-field-primaryColor')).not.toHaveValue('#ff0000');
   await page.evaluate(()=>performRedo());
   await expect(page.locator('#style-field-primaryColor')).toHaveValue('#ff0000');
+  await page.evaluate(()=>waveformEditor.activateModuleTab('panel'));await toggleMediaSettings(page);
   const proofRendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200&&r.request().postDataJSON()?.project?.subtitles?.tracks?.some(t=>t.style?.value?.main?.fontSize===72));
   await page.locator('#style-preview-mode').selectOption('large');
   const proofResponse=await proofRendered,proofPayload=await proofResponse.json();
@@ -73,7 +74,7 @@ test('portable editor keeps settings usable and labels approximate preview',asyn
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await disableOnboarding(page);await page.goto(pathToFileURL(resolve('blank-editor.html')).href);
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
-  await toggleMediaSettings(page);await page.locator('#style-project-preset').selectOption('large');
+  await page.evaluate(()=>MSWSubtitleStyle.open('track'));await page.locator('#style-project-preset').selectOption('large');
   await expect(page.locator('#style-field-fontSize')).toHaveValue('72');
   await expect(page.locator('#subtitle-render-status')).toContainText('近似预览');
   expect(errors).toEqual([]);
@@ -128,7 +129,7 @@ for(const legacy of [false,true])for(const bound of [true,false])test(`${bound?'
     productionCommitProject(flat,'Style fixture');h.commitProjectStyle(style);
   },{legacy,bound});
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
-  await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');
+  await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');await page.locator('#subtitle-properties-open').click();
   await page.evaluate(()=>{for(const id of ['overlay-toggle','extension-overlay-toggle']){const el=document.getElementById(id);el.checked=true;el.dispatchEvent(new Event('change'));}});
   await page.evaluate(()=>{const p=window.MSWE.resolve('processing-host').player;p.currentTime=1;p.pause();});
   const distances=new Map();
@@ -138,7 +139,7 @@ for(const legacy of [false,true])for(const bound of [true,false])test(`${bound?'
     await page.locator('#style-pair-gap').fill(String(gap));await page.locator('#style-pair-gap').dispatchEvent('change');
     await rendered;
     await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending)).toBe(true);
-    await page.locator('#media-settings-close').click();await page.evaluate(()=>window.MSWSubtitleRenderer.repaint());
+    await page.evaluate(()=>waveformEditor.activateModuleTab('panel'));await page.evaluate(()=>window.MSWSubtitleRenderer.repaint());
     const name=`${legacy?'legacy':'modern'}-${bound?'bound':'unbound'}-${order}-${gap}`;
     const png=join(folder,name+'.png');await page.locator('.JASSUB').screenshot({path:png});
     const payload=await page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');return window.MSWSubtitleStyle.request('subtitle-preview',{project:h.exportProject(),target:'both',video:{width:640,height:360}});});
@@ -161,14 +162,14 @@ print(json.dumps([rows(path) for path in sys.argv[1:]]))`,png,ref],{encoding:'ut
     for(let i=0;i<2;i++)expect(Math.abs(rows[0][i].y-rows[1][i].y)).toBeLessThan(3);
     const distance=Math.abs(rows[0][0].y-rows[0][1].y);
     if(bound&&gap<0)expect(distance).toBeLessThan(distances.get(order)-1);else distances.set(order,distance);
-    await toggleMediaSettings(page);
+    await page.evaluate(()=>MSWSubtitleStyle.open('track'));
   }
 });
 
 test('saved presets do not mutate project styles and the project survives reload',async({page})=>{
   await disableOnboarding(page);await page.goto(server.url);
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
-  await toggleMediaSettings(page);
+  await page.evaluate(()=>MSWSubtitleStyle.open('track'));
   await page.locator('#style-project-preset').selectOption('bilingual');
   await page.locator('#style-save-as').click();
   await page.locator('#style-preset-name').fill('测试双语预设');
@@ -189,14 +190,14 @@ test('saved presets do not mutate project styles and the project survives reload
   await page.locator('#style-delete-confirm-button').click();
   await expect(page.locator('#style-message')).toContainText('预设已删除');
   await expect(page.locator('#style-project-preset option')).not.toContainText(['测试双语预设']);
-  await page.locator('#media-settings-close').click();
+  await page.evaluate(()=>waveformEditor.activateModuleTab('panel'));
   const saved=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().endsWith('/api/msw/project'));
   await page.keyboard.press('Control+s');
   expect((await (await saved).json()).ok).toBe(true);
   await expect.poll(()=>page.evaluate(()=>projectSaveInFlight)).toBe(false);
   await page.reload();await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   expect(await page.evaluate(()=>fixedStyleValue().main.fontSize)).toBe(96);
-  await toggleMediaSettings(page);
+  await page.evaluate(()=>MSWSubtitleStyle.open('track'));
   await expect(page.locator('#style-delete-preset')).toBeDisabled();
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle.currentPreview().scope)).toBe('project');
   await expect(page.locator('#style-project-preset option[value="current"]')).toHaveCount(0);

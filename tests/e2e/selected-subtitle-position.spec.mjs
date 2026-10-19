@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {execFileSync} from 'node:child_process';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {disableOnboarding,findFreePort,generateWaveformPayload,makeTempDir,startServer} from './helpers.mjs';
+import {disableOnboarding,findFreePort,generateWaveformPayload,makeTempDir,startServer,toggleMediaSettings} from './helpers.mjs';
 let server,folder,project;
 test.beforeEach(async({page})=>{
   folder=makeTempDir('selected-position');project=join(folder,'project.mosp');
@@ -71,14 +71,14 @@ test('fullscreen arrow seek ignores hidden cue selection and stays consistent ac
 });
 async function open(page,both=false){
   await page.evaluate(both=>{selectOnly(0);if(both)addExtensionToSelection(0);MSWSubtitleStyle.editTrack(fixedTrack(DATA.segments[0]).id);},both);
-  await page.locator('#style-position-scope').selectOption('cue');await idle(page);
+  await page.locator('#style-edit-scope').selectOption('cue');await idle(page);
 }
 async function axis(page,key,value){await page.locator('#style-position-'+key).fill(String(value));await page.locator('#style-position-'+key).blur();await idle(page);}
 async function position(page){
   await page.setViewportSize({width:1920,height:1000});
   await page.locator('#media-settings-modal').evaluate(el=>{el.style.left='1350px';el.style.top='20px';});
   await page.locator('#style-position-drag').click();await idle(page);
-  await expect(page.locator('#media-settings-modal')).toBeVisible();
+  await expect(page.locator('#subtitle-properties')).toBeVisible();
   await expect(page.locator('#style-position-cancel')).toBeVisible();
   await expect(page.locator('#fixed-position-toolbar')).toHaveCount(0);
 }
@@ -150,7 +150,7 @@ test('multi selection preserves the pair gap, exposes mixed values and commits o
 });
 
 test('picture drag moves only the selected cue, preserves proof choice, cancels and undoes once',async({page})=>{
-  await open(page);await page.locator('#style-preview-mode').selectOption('default');
+  await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('default');await page.locator('#media-settings-close').click();await open(page);
   const before=await snap(page);await position(page);
   await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
   const row=page.locator('.fixed-subtitle-row.position-target').first(),box=await row.boundingBox();expect(box).toBeTruthy();
@@ -161,7 +161,7 @@ test('picture drag moves only the selected cue, preserves proof choice, cancels 
   expect((await snap(page)).subtitles).toEqual(before.subtitles);
   await page.getByRole('button',{name:'完成定位',exact:true}).click();await idle(page);
   const moved=await snap(page);expect(moved.subtitles.cues[0].content.subtitle_position).toBeTruthy();expect(moved.subtitles.cues[1]).toEqual(before.subtitles.cues[1]);
-  await expect(page.locator('#media-settings-modal')).toBeVisible();await page.locator('#media-settings-close').click();await idle(page);
+  await expect(page.locator('#subtitle-properties')).toBeVisible();await page.evaluate(()=>waveformEditor.activateModuleTab('panel'));await idle(page);
   expect(await page.evaluate(()=>MSWSubtitleStyle.currentPreview().scope)).toBe('proof');
   await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(before.subtitles);
 });
@@ -172,9 +172,9 @@ test('empty and locked selections disable positioning; track edits and presets k
   await page.evaluate(()=>fixedUpdateTrack(DATA.subtitle_tracks.tracks[1].id,{locked:true}));
   await axis(page,'x',30);const position=(await snap(page)).subtitles.cues[0].content.subtitle_position;
   expect(position?.x).toBe(.3);await page.evaluate(()=>fixedUpdateTrack(DATA.subtitle_tracks.tracks[1].id,{locked:false}));
-  await page.locator('#style-position-scope').selectOption('track');await page.locator('#style-track-placement').selectOption('fixed');await axis(page,'y',20);
+  await page.locator('#style-edit-scope').selectOption('track');await page.locator('#style-track-placement').selectOption('fixed');await axis(page,'y',20);
   await page.locator('#style-project-preset').selectOption('default');expect((await snap(page)).subtitles.cues[0].content.subtitle_position).toEqual(position);
-  await page.locator('#style-position-scope').selectOption('cue');await page.evaluate(()=>fixedUpdateTrack(fixedStyleTrackId,{locked:true}));
+  await page.locator('#style-edit-scope').selectOption('cue');await page.evaluate(()=>fixedUpdateTrack(fixedStyleTrackId,{locked:true}));
   await expect(page.locator('#style-position-x')).toBeDisabled();await expect(page.locator('#style-position-reset')).toBeDisabled();
 });
 
@@ -233,7 +233,7 @@ test('position arrows preview one pixel steps, cancel the whole session and fini
   expect((await events(page)).map(r=>r.Text)).toEqual(original.map(r=>r.Text));expect((await snap(page)).subtitles).toEqual(before.subtitles);
   await position(page);await page.keyboard.press('ArrowUp');await page.keyboard.press('ArrowRight');await page.keyboard.press('Enter');await idle(page);
   const after=await snap(page);expect(after.subtitles.cues.every(c=>c.content.subtitle_position)).toBe(true);
-  await expect(page.locator('#media-settings-modal')).toBeVisible();
+  await expect(page.locator('#subtitle-properties')).toBeVisible();
   await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
   await page.evaluate(()=>performRedo());await idle(page);expect((await snap(page)).subtitles).toEqual(after.subtitles);
   await position(page);await page.locator('#style-position-x').focus();await page.keyboard.press('ArrowLeft');

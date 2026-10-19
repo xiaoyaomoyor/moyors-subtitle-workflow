@@ -10,6 +10,18 @@
 
 v4 单条定位使用可选 `subtitles.cues[*].content.subtitle_position:{x,y,alignment}`：x/y 为相对视频内容（不含黑边）的 0–1 有限数字，alignment 为 ASS 九宫格锚点整数 1–9。锚点坐标在自动排布之后覆盖本条字幕，不扩大到绑定伙伴；未选中的伙伴保持原有排布槽位，移除覆盖即恢复继承。旧 `{x,y}` 位置继续采用字幕组中心／顶部语义；从旧覆盖转换时，新对象可携带 `base:{x,y}` 保存旧组的排布依据，避免未选中的伙伴跳位，base 不允许再嵌套。轨道 `position` 仍仅接受 `{x,y}`；不得给轨道写入 alignment/base。详见平级字幕契约中的定位说明。
 
+v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对象。缺省字段继续继承该物理轨道对应样式；工程默认 → 轨道快照 → 单条覆盖 → 轨道动画。对象只接受以下字段，未知字段、错误类型和越界值拒绝：
+
+- `fontName`：非空字符串，至多 128 字符，不含逗号、换行和 NUL；`fontSize`：1–512。
+- `primaryColor`、`outlineColor`、`backColor`：`#RRGGBB`；显式文字／描边颜色优先于字幕颜色标记的映射。
+- `bold`、`italic`、`underline`、`strikeOut`：布尔值；`borderStyle`：1 或 3。
+- `outline`、`shadow`：0–100；`spacing`：−100–100；`angle`：−360–360；`scaleX`、`scaleY`：0–1000，均为有限数字。
+- `wrapMode`：`auto` / `characters`；`charsPerLine`：1–200 的整数。
+
+可选 `content.subtitle_style_preset` 为非空、至多 160 字符的预设 ID，只记录编辑来源以显示“已修改”和恢复该预设；渲染始终使用已保存的覆盖字段，不依赖外部预设库。删除预设不改变工程外观，恢复轨道外观同时清除来源标识。
+
+单位沿用 1080p ASS 工程样式。位置、对齐与边距不写入外观覆盖，定位继续使用 `subtitle_position`；动画仍属于轨道。仅保存明确修改的字段，多选按字段分别写入，不复制首条的其他外观或自动扩展到绑定伙伴。应用预设写入该轨道角色的完整外观快照；另存预设仅保存合成后的外观，不改变原有继承字段。恢复外观删除覆盖字段而不删除定位。切分两半继承覆盖；合并采用每条轨道中时间最早一条的覆盖（缺省即继承），不合并互斥样式参数。预览、独立 ASS 与烧录共用解析与测量；校对／导出其他预设替换轨道基底，单条明确覆盖仍保留。SRT 正文和时间不因外观调整而改变。
+
 v4 字幕真源为 `subtitles`，普通编辑器内部使用可逆操作视图复用原有卡片及波形组件；视图不会写入文件或发送给处理服务。普通保存、另存为、恢复、任务快照、字幕预览、ASS／音视频渲染与工程音频包接受经验证的 v4。`subtitle_view` 记录双栏显示偏好（`display_mode`、`secondary_cue_ids`），不决定物理轨道身份或绑定方向。轨道可含 `split_mode: auto/word/continuous`，缺省自动判断；旧两侧切分方式在打开时迁入实际轨道，保存设置 `subtitle_view.track_split_modes_migrated: true` 并删除旧两侧切分字段，避免重开后重复套用。配音 `source_ref.subtitle_cue_id` 记录全局字幕 ID，`track_id` 记录物理轨道；旧来源通过迁移别名解析。旧专用 codec 继续拒绝 v4，不能只修改版本字段来转换数据。
 
 编辑器独立媒体工作流可在 `msw.source_audio_index` 保存所选源音轨的逻辑序号（整数 0–255），与容器 `stream_index` 区分；缺省沿用波形缓存的 `audio_track`，再缺省为 0。播放代理与后台分析任务保存在本机可重建缓存，不能替代工程的 `media` 原素材引用。

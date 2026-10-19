@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import tracks from '../web/msw-subtitle-tracks.js';
+import production from '../web/msw-production-project.js';
 
 const base=()=>{
   let p=core.migrate({segments:[{id:'a',start:0,end:2000,text:'hello world',items:[{start:0,end:1000,text:'hello '},{start:1000,end:2000,text:'world'}]}]});
@@ -11,6 +12,30 @@ const base=()=>{
   return core.bind(p,p.subtitles.cues[0].id,'b','binding');
 };
 let seq=0;const makeId=kind=>`${kind}-${++seq}`;
+test('appearance patches target actual cues only; roundtrip, split, merge, history and locks preserve inheritance',()=>{
+  const p=base(),id=p.subtitles.cues[0].id,history=new edit.History(p);
+  const styled=edit.updateAppearance(p,[id],{fontSize:72,primaryColor:'#12ab34'},{presetId:'saved-preset'});
+  assert.equal(edit.cue(styled,'b').content.subtitle_style,undefined);
+  assert.deepEqual(edit.cue(p,id).content.subtitle_style,undefined);
+  const both=edit.updateAppearance(styled,[id,'b'],{bold:true});
+  assert.deepEqual(edit.cue(both,id).content.subtitle_style,{fontSize:72,primaryColor:'#12ab34',bold:true});
+  assert.deepEqual(edit.cue(both,'b').content.subtitle_style,{bold:true});
+  assert.deepEqual(production.toProject(production.fromProject(both)).subtitles.cues.map(c=>c.content.subtitle_style),both.subtitles.cues.map(c=>c.content.subtitle_style));
+  const split=edit.split(both,id,1000,{makeId});
+  for(const c of split.project.subtitles.cues)assert.deepEqual(c.content.subtitle_style,c.track_id==='translation'?{bold:true}:{fontSize:72,primaryColor:'#12ab34',bold:true});
+  split.project.subtitles.cues.find(c=>c.id===split.ids[1]).content.subtitle_style={italic:true};
+  const merged=edit.merge(split.project,split.ids.slice(0,2).reverse(),{makeId}).project;
+  assert.deepEqual(merged.subtitles.cues.find(c=>c.track_id!=='translation').content.subtitle_style,edit.cue(both,id).content.subtitle_style);
+  const reset=edit.updateAppearance(both,[id],{}, {reset:['fontSize']});
+  assert.equal(edit.cue(reset,id).content.subtitle_style_preset,'saved-preset');
+  assert.deepEqual(edit.cue(reset,id).content.subtitle_style,{primaryColor:'#12ab34',bold:true});
+  const inherited=edit.updateAppearance(reset,[id],{}, {replace:true});assert.equal(edit.cue(inherited,id).content.subtitle_style,undefined);
+  assert.equal(edit.cue(inherited,id).content.subtitle_style_preset,undefined);
+  history.commit(both,'appearance',[id,'b']);history.step('undo');assert.deepEqual(history.project,p);history.step('redo');assert.deepEqual(history.project,both);
+  const locked=edit.updateTrack(both,'translation',{locked:true});
+  assert.throws(()=>edit.updateAppearance(locked,[id,'b'],{bold:false}),/锁定/);
+  for(const bad of [null,[],{fontSize:true},{fontSize:513},{charsPerLine:1.5},{fontName:'bad\nStyle: evil'},{primaryColor:'red'},{alignment:8},{animations:{}}])assert.throws(()=>edit.updateAppearance(p,[id],bad),/外观/);
+});
 test('individual anchors survive adapter roundtrip, linked split and merge without copying to the partner',()=>{
   const p=base(),id=p.subtitles.cues[0].id,position={x:.3,y:.7,alignment:2};
   p.subtitles.cues[0].content.subtitle_position=position;

@@ -11,6 +11,7 @@ from maw.msw.subtitle_tracks import TrackIndex, key, placement, style_kind
 from maw.msw.subtitle_fonts import family_metrics, installed_fonts
 from maw.project_subtitle_style import normalize_project_style, builtin_presets
 from maw.subtitle_wrapping import wrap_text, _characters
+from maw.msw import cue_style
 
 
 def measured_text(text, style, width, *, prefix=''):
@@ -129,7 +130,7 @@ def layout(project, width=1920):
         members.sort(key=lambda r: pair_role(r) != upper)
         for row in members:
             own_style = resolve_style(index.tracks[row['subtitle_track_id']]) if flat else style
-            row['style'] = own_style['main' if row['role']=='main' else 'secondary']
+            row['style'] = cue_style.apply(own_style['main' if row['role']=='main' else 'secondary'], row['cue'])
             row['animations'] = own_style['animations']
             cue = row['cue']
             if flat:
@@ -240,7 +241,7 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
     mode=(project.get('preview') or {}).get('subtitle',{}).get('ass_color_style','text')
     for i,r in enumerate(entries):
         style=dict(r['style']);color=palette.get(r['color'].get('name'))
-        if color and r['role']=='main' and mode in ('text','stroke'):
+        if color and r['role']=='main' and mode in ('text','stroke') and ('primaryColor' if mode=='text' else 'outlineColor') not in r['cue'].get('subtitle_style', {}):
             style['primaryColor' if mode=='text' else 'outlineColor']=color
         lines.append(ass_style_line(style,name=f'cue-{i}'))
     lines+=['','[Events]','Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']

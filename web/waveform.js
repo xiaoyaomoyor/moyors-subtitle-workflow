@@ -71,13 +71,14 @@
   const RENDERER_PRESETS = ['classic', 'wave-right', 'custom'];
   // 内置工作区 id：下拉框可选项；custom 预设都由各自的布局树渲染。
   const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'three-fold', 'cinema'];
-  const MODULE_IDS = ['player', 'panel', 'cues', 'wave', 'assets'];
-  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库' };
+  const MODULE_IDS = ['player', 'panel', 'cues', 'wave', 'assets', 'properties'];
+  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库', properties: '属性' };
   // 模块标签叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
   const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   // 工作区窗口图标：16x16 线性 SVG，stroke 跟随 currentColor（强调色）。
   // 字幕编辑区用 T 形文字图标，与字幕列表的多行列表图标区分。
   const MODULE_ICONS = {
+    properties: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12M5 2v4M11 6v4M7 10v4"/></svg>',
     assets: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4h5l1-2h7v12h-13z"/><path d="M5 8v3M8 6v6M11 8v3"/></svg>',
     player: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6.5 5.8v4.4L10.4 8z" class="dock-icon-fill"/></svg>',
     panel: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4h9M8 4v8"/></svg>',
@@ -202,7 +203,7 @@
     layoutColumnPercent: 30,
     layoutRows: [...DEFAULT_LAYOUT_ROWS],
     layoutTree: DEFAULT_RIGHT_LAYOUT_TREE,
-    hiddenModules: ['assets'],
+    hiddenModules: ['assets', 'properties'],
     layoutEditing: false,
     waveformScale: 1,
     waveformScaleAuto: true,
@@ -396,6 +397,7 @@
 
   function normalizeModuleOrder(value) {
     if (Array.isArray(value) && value.length === 4 && new Set(value).size === 4 && value.every(id => MODULE_IDS.includes(id) && id !== 'assets')) value = [...value, 'assets'];
+    if (Array.isArray(value) && value.length === 5 && new Set(value).size === 5 && value.every(id => MODULE_IDS.includes(id) && id !== 'properties')) value = [...value, 'properties'];
     return Array.isArray(value) && value.length === MODULE_IDS.length
       && value.every((id) => MODULE_IDS.includes(id))
       && new Set(value).size === MODULE_IDS.length
@@ -1844,6 +1846,7 @@
       this.cuesModule = document.getElementById('cues-module') || this.cues;
       this.pane = document.getElementById('waveform-pane');
       this.assetLibrary = document.getElementById('asset-library');
+      this.properties = document.getElementById('subtitle-properties');
       this.scroll = document.getElementById('waveform-scroll');
       this.content = document.getElementById('waveform-content');
       this.empty = document.getElementById('waveform-empty');
@@ -2353,7 +2356,7 @@
       this.settings.layoutTree = normalized.tree;
       this.settings.layoutEditing = false;
       // 预设布局固定展示全部四个模块：清掉标签/关闭留下的隐藏状态。
-      this.settings.hiddenModules = ['assets'];
+      this.settings.hiddenModules = ['assets', 'properties'];
       saveSettings(this.settings);
       this.applyLayout();
       this.render();
@@ -2476,7 +2479,19 @@
       if (!MODULE_IDS.includes(id)) return false;
       if (!this.getHiddenModules().includes(id)) return false;
       let nextTree;
-      if (id === 'assets') {
+      if (id === 'properties' && collectLayoutModules(this.settings.layoutTree).includes('panel')) {
+        nextTree = appendModuleAsTab(this.settings.layoutTree, 'panel', id);
+        // The text editor is often a very short strip. Give the new inspector
+        // usable room on first opening; existing larger/custom slots stay put.
+        if(this.panel?.getBoundingClientRect().height<180) {
+          const expand=node=>{
+            if(node?.type!=='split')return;
+            for(let i=0;i<2;i++)if(node.direction==='column'&&node.children[i]?.type==='tabs'
+              &&collectLayoutModules(node.children[i]).includes('properties'))node.ratio=i?Math.min(node.ratio,40):Math.max(node.ratio,60);
+            node.children.forEach(expand);
+          };expand(nextTree);
+        }
+      } else if (id === 'assets') {
         let corner = this.settings.layoutTree, direction = 'column';
         while (corner?.type === 'split') { direction = corner.direction === 'row' ? 'column' : 'row'; corner = corner.children[1]; }
         const target = corner?.type === 'tabs' ? corner.children[0].id : corner?.id;
@@ -2576,6 +2591,7 @@
         cues: this.cuesModule,
         wave: this.pane,
         assets: this.assetLibrary,
+        properties: this.properties,
       };
       MODULE_IDS.forEach((id) => {
         const element = elements[id];
@@ -2862,6 +2878,7 @@
         cues: this.cuesModule,
         wave: this.pane,
         assets: this.assetLibrary,
+        properties: this.properties,
       };
       Object.entries(elements).forEach(([id, element]) => {
         if (!element) return;
@@ -3088,12 +3105,13 @@
         cues: this.cuesModule,
         wave: this.pane,
         assets: this.assetLibrary,
+        properties: this.properties,
       };
       if (!this.customLayoutRoot?.isConnected) return;
       Object.entries(elements).forEach(([id, element]) => {
         if (element) {
           element.style.gridArea = '';
-          element.hidden = id === 'assets'; // 新素材模块在内置布局中默认隐藏
+          element.hidden = ['assets','properties'].includes(id);
           this.workspace.insertBefore(element, this.customLayoutRoot);
         }
       });
@@ -3109,6 +3127,7 @@
         cues: this.cuesModule,
         wave: this.pane,
         assets: this.assetLibrary,
+        properties: this.properties,
       };
       if (node.type === 'tabs') {
         const slot = document.createElement('div');
@@ -3235,6 +3254,7 @@
         cues: this.cuesModule,
         wave: this.pane,
         assets: this.assetLibrary,
+        properties: this.properties,
       };
       Object.entries(moduleElements).forEach(([id, element]) => {
         if (!renderedModules.has(id) && element?.isConnected) element.remove();

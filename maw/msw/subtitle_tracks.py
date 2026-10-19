@@ -11,6 +11,7 @@ from bisect import bisect_left
 from copy import deepcopy
 
 from maw.msw import subtitle_layers as layers
+from maw.msw import cue_style
 
 SCHEMA = "msw.project.v3"
 TRACK_SCHEMA = "msw.subtitle_tracks.v2"
@@ -96,6 +97,10 @@ def _records(project):
             if "subtitle_position" in cue and not _position_valid(cue["subtitle_position"], cue=True):
                 _fail("字幕位置必须是画面内的 x、y 比例")
             seen.add(cue["id"])
+            if "subtitle_style" in cue and not cue_style.valid(cue["subtitle_style"]):
+                _fail("字幕外观覆盖包含无效参数")
+            if "subtitle_style_preset" in cue and not _stable(cue["subtitle_style_preset"]):
+                _fail("字幕外观预设标识无效")
             rows.append(dict(role=role, track_id=track_id, cue_id=cue["id"], cue=cue, index=index))
     return rows
 

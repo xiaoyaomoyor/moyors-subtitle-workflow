@@ -35,6 +35,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "gap-remove-core.js",
                 "editor-utils.js",
                 "msw-project-style.js",
+                "msw-cue-style.js",
                 "msw-subtitle-layers.js",
                 "msw-subtitle-tracks.js",
                 "msw-flat-subtitles.js",

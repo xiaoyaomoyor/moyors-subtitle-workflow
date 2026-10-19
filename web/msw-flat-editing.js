@@ -4,6 +4,7 @@
   const core=typeof module!=='undefined'&&module.exports?require('./msw-flat-subtitles.js'):global.MSWFlatSubtitles;
   const layers=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-layers.js'):global.MSWSubtitleLayers;
   const copy=value=>JSON.parse(JSON.stringify(value));
+  const cueStyle=typeof module!=='undefined'&&module.exports?require('./msw-cue-style.js'):global.MSWCueStyle;
   const fail=message=>{throw Error(message);};
   const body=p=>p.subtitles;
   const cue=(p,id)=>body(p).cues.find(c=>c.id===id);
@@ -30,6 +31,21 @@
     }
   }
   function updateText(p,id,text) {return transaction(p,next=>{editable(next,[id]);const c=cue(next,id).content;if(c.text===text)return;c.text=text;c.items=[];c._dirty=true;});}
+  function updateAppearance(p,ids,patch,{reset=[] ,replace=false,presetId}={}) {
+    if(!cueStyle.valid(patch)||!Array.isArray(reset)||reset.some(k=>!cueStyle.fields.includes(k)))fail('字幕外观覆盖包含无效参数');
+    if(presetId!==undefined&&(typeof presetId!=='string'||!presetId.trim()||presetId.length>160))fail('字幕外观预设标识无效');
+    return transaction(p,next=>{
+      editable(next,ids);
+      for(const id of new Set(ids)) {
+        const content=cue(next,id).content,style=replace?{}:{...content.subtitle_style};
+        for(const k of reset)delete style[k];
+        Object.assign(style,patch);
+        if(Object.keys(style).length)content.subtitle_style=style;else delete content.subtitle_style;
+        if(presetId!==undefined)content.subtitle_style_preset=presetId;
+        else if(replace&&!Object.keys(patch).length)delete content.subtitle_style_preset;
+      }
+    });
+  }
   function updateRangesInternal(p,changes,{linked=true}={},inPlace=false) {
     const apply=next=>{
       const planned=new Map(changes.map(c=>[c.id,c]));
@@ -131,6 +147,10 @@
         const earliest=members.slice().sort((a,b)=>a.content.start-b.content.start||a.content.end-b.content.end||a.id.localeCompare(b.id))[0];
         if(earliest.content.subtitle_position)merged.subtitle_position=copy(earliest.content.subtitle_position);
         else delete merged.subtitle_position;
+        if(earliest.content.subtitle_style)merged.subtitle_style=copy(earliest.content.subtitle_style);
+        else delete merged.subtitle_style;
+        if(earliest.content.subtitle_style_preset)merged.subtitle_style_preset=earliest.content.subtitle_style_preset;
+        else delete merged.subtitle_style_preset;
         const out={...copy(members[0]),id:merged.id,content:merged};
         if(members.some(c=>Object.hasOwn(c,'hidden')))out.hidden=mode==='common'?members.every(c=>c.hidden):members.some(c=>c.hidden);
         delete out.content.id;frame(n,out.content);return out;
@@ -225,6 +245,6 @@
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateAppearance,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -23106,6 +23106,7 @@ function copySelectedSubtitlesToAssets() {
 }
 
 function appendSubtitleExtendedActions() {
+  if(productionFlatMode())ctxAppendSettingsEntry('字幕属性',()=>window.MSWSubtitleStyle?.open('cue'));
   ctxAppendExpandableSettings('扩展操作', [
     { label: '翻译所选字幕', action: openSelectedCueTranslation },
     { label: '配音所选字幕（TTS）', action: () => openSelectedCueTts() },
@@ -25482,7 +25483,7 @@ document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () 
 });
 
 // === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===
-const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库' };
+const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库', properties: '属性' };
 function rebuildShowModuleMenu() {
   const menu = document.getElementById('show-module-menu');
   const submenu = document.getElementById('show-module-submenu');

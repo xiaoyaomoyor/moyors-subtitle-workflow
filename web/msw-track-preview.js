@@ -148,6 +148,7 @@ function fixedRefreshSubtitlePreview(tMs) {
     text.style.cssText=size.css;
     const segments=entry.role==='main'?DATA.segments:getExtensionTrack(entry.track_id)?.segments||[];
     const variant=assPreviewStyleVariant(style,entry.cue,segments,getSubtitleAppearance());
+    for(const key of ['primaryColor','outlineColor'])if(entry.cue.subtitle_style?.[key])variant[key]=entry.cue.subtitle_style[key];
     const paletteColor=COLOR_BY_NAME[MULTI_SUBTITLE_UTILS.effectiveColorName(entry.cue,segments)]?.value;
     speaker.style.color=['text','speaker'].includes(getSubtitleAppearance().ass_color_style||DEFAULT_ASS_COLOR_STYLE)?paletteColor||'':'';
     const profile={animations:entry.group.style.animations};
@@ -222,7 +223,7 @@ function fixedPositionSelectedIds() {
 function fixedPositionPreviewActive() {
   return productionFlatMode()&&(fixedPositionEditing||fixedPositionScope==='cue'
     &&document.getElementById('style-track-position')?.open
-    &&document.getElementById('media-settings-modal')?.getAttribute('aria-hidden')==='false');
+    &&window.MSWSubtitleStyle?.propertiesVisible());
 }
 function fixedSchedulePositionSelectionSync() {
   if(fixedSchedulePositionSelectionSync.pending)return;
@@ -234,7 +235,7 @@ function fixedSchedulePositionSelectionSync() {
       const ids=fixedPositionSelectedIds();
       if(ids.size!==fixedPositionSession.ids.size||[...ids].some(id=>!fixedPositionSession.ids.has(id)))fixedStopPositioning(false);
     }
-    window.MSWSubtitleStyle?.syncPosition();
+    window.MSWSubtitleStyle?.syncSelection();
     if(fixedPositionEditing)refreshSubtitlePreview();
   });
 }

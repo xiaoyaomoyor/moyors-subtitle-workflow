@@ -5234,3 +5234,28 @@
 
 .player-stage.fixed-position-drag .JASSUB { visibility:hidden; }
 .player-stage.fixed-position-drag #fixed-subtitle-preview.positioning .fixed-subtitle-text { visibility:visible; }
+
+.msw-subtitle-properties { display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); background:var(--module-content-bg); color:var(--text-primary); container-type:inline-size; }
+.msw-subtitle-properties[hidden] { display:none; }
+#subtitle-properties-content { flex:1; min-height:0; overflow:auto; padding:12px; }
+#subtitle-properties .settings-panel-section { margin:0; padding:0; border:0; background:none; align-items:stretch; flex-wrap:nowrap; }
+#subtitle-properties .settings-panel-title { flex:0 0 auto; text-align:center; font-size:12px; }
+#subtitle-properties-content :where(input,select,button):not(.msw-help-button) { font:inherit; font-size:12px; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); min-height:28px; padding:4px 7px; box-sizing:border-box; }
+#subtitle-properties-content button:not(.msw-help-button) { cursor:pointer; background:var(--btn-bg); }
+#subtitle-properties-content button:not(.msw-help-button):hover { background:var(--btn-bg-hover); }
+#subtitle-properties :disabled { opacity:.45; cursor:default; }
+#subtitle-properties :is(input,select,button):focus-visible { outline:1px solid var(--selection-yellow); outline-offset:1px; }
+#subtitle-properties input[type=checkbox] { width:14px; height:14px; min-height:0; padding:0; accent-color:var(--accent); }
+.msw-properties-scope { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
+.msw-properties-scope label { flex:0 0 100px; }
+.msw-properties-scope label > span { display:none; }
+#style-selection-label { color:var(--text-muted); font-size:12px; overflow-wrap:anywhere; }
+#subtitle-properties .msw-style-selectors { align-items:end; }
+#subtitle-properties .msw-project-style:not(.editing-cues) .msw-style-selectors { grid-template-columns:minmax(0,1fr); }
+#subtitle-properties .msw-style-field { position:relative; }
+#subtitle-properties .msw-style-field.is-overridden > .msw-option-label::after { content:'•'; margin-left:5px; color:var(--accent); }
+#subtitle-properties .msw-style-field.is-mixed > .msw-option-label::after { content:' · 多个值'; color:var(--text-muted); font-size:10px; }
+#subtitle-properties .msw-style-field-reset { position:absolute; right:0; top:-2px; min-height:20px; width:20px; height:20px; padding:3px; border:0; background:transparent; }
+.msw-style-field-reset svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.7; }
+#subtitle-properties .msw-style-check .msw-style-field-reset { position:static; }
+@container (max-width:300px) { #subtitle-properties .msw-style-fields,#subtitle-properties .media-settings-grid { grid-template-columns:minmax(0,1fr); } }

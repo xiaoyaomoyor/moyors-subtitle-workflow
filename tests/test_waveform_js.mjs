@@ -800,7 +800,7 @@ test('swaps custom docking slots without mutating the source order', () => {
   const order = ['player', 'panel', 'cues', 'wave'];
   assert.deepEqual(
     JSON.parse(JSON.stringify(helpers.swapLayoutModuleOrder(order, 'wave', 'panel'))),
-    ['player', 'wave', 'cues', 'panel', 'assets'],
+    ['player', 'wave', 'cues', 'panel', 'assets', 'properties'],
   );
   assert.deepEqual(order, ['player', 'panel', 'cues', 'wave']);
 });

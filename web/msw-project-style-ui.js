@@ -2,11 +2,12 @@
   'use strict';
   const host=global.MSWE?.resolve('processing-host'), S=global.MSWProjectStyle;
   if(!host || !S) return;
-  const t=s=>global.MSWE_I18N?.translateText?.(s)||s, $=id=>document.getElementById(id);
+  const propertyRoot=waveformEditor?.properties||document.getElementById('subtitle-properties');
+  const t=s=>global.MSWE_I18N?.translateText?.(s)||s, $=id=>document.getElementById(id)||(id===propertyRoot.id?propertyRoot:propertyRoot.querySelector('#'+id));
   const old=document.querySelector('.subtitle-preview-settings-section');
   old.hidden=true;
   const panel=document.createElement('section');panel.className='settings-panel-section msw-project-style';
-  panel.id='project-subtitle-style';old.before(panel);
+  panel.id='project-subtitle-style';$('subtitle-properties-content').append(panel);
   const icons={save:'<path d="M14 21H3V3h14l4 4v6M7 3v6h10V3M7 21v-7h7m4 2v6m-3-3h6"/>',reset:'<path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/>',delete:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',fonts:'<path d="M3 6V3h18v3M12 3v18m-4 0h8"/>'};
   const iconButton=(id,name,icon)=>`<button type="button" id="${id}" class="msw-style-icon" title="${t(name)}" aria-label="${t(name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${icons[icon]}</svg></button>`;
   icons.swap='<path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/>';
@@ -14,7 +15,7 @@
   panel.innerHTML=`<span class="settings-panel-title">字幕样式</span>
     <div class="media-settings-grid msw-style-selectors">
       <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
-      <label class="media-settings-field" data-option-help="先选择要编辑的轨道组，预设作用于该组，默认使用默认白字。调整立即用于工程；覆盖预设才更新用户预设，内置预设需另存。恢复默认会恢复所选预设保存的参数。预览、ASS 和默认烧录使用工程样式，SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
+      <label class="media-settings-field" data-option-help="轨道默认：预设作用于所选轨道组。所选字幕：只应用外观，不改变时间、绑定、位置或动画；多选按各条字幕的轨道角色应用。调整立即用于工程，覆盖预设才更新用户预设。另存保存当前外观；多选外观不同时请先选择单条字幕。SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
     </div>
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
     <form id="style-save-form" class="msw-style-save-form" hidden><label class="media-settings-field"><span>预设名称</span><input id="style-preset-name" maxlength="80" required></label><button type="submit" id="style-save-preset">保存</button><button type="button" id="style-save-cancel">取消</button></form>
@@ -88,7 +89,75 @@
   $('style-field-t-tags').placeholder='\\fscx120\\fscy120';
   $('style-field-wrapMode').closest('label').dataset.optionHelp='自动按画面宽度换行；按字数为每行字幕正文设置上限（1–200）。汉字、英文字母、标点、空格各计 1，常见组合表情不拆开；保留手动换行。画面过窄时仍可能提前换行。仅影响预览、ASS 和烧录，不改写正文或 SRT。';
   global.MSWHelp?.hydrate(panel);
+  // Proofreading remains a player preference. Authoring lives in one dock.
+  const proofPanel=document.createElement('section');proofPanel.className='settings-panel-section msw-project-style';
+  proofPanel.innerHTML='<span class="settings-panel-title">字幕预览</span>';
+  proofPanel.append($('style-preview-mode').closest('label'));
+  const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofPanel.append(openProperties);old.before(proofPanel);
+  const scopeBar=document.createElement('div');scopeBar.className='msw-properties-scope';
+  scopeBar.innerHTML='<label class="media-settings-field"><span>作用范围</span><select id="style-edit-scope"><option value="cue">所选字幕</option><option value="track">轨道默认</option></select></label><span id="style-selection-label"></span>';
+  panel.prepend(scopeBar);
+  $('style-position-scope').closest('label').hidden=true;
+  const restoreAppearance=document.createElement('button');restoreAppearance.type='button';restoreAppearance.id='style-inherit-appearance';restoreAppearance.textContent='恢复轨道外观';
+  $('style-project-preset').closest('label').after(restoreAppearance);
+  for(const input of panel.querySelectorAll('[data-style-field]')) {
+    const reset=document.createElement('button');reset.type='button';reset.className='msw-style-field-reset';reset.dataset.resetStyle=input.dataset.styleField;
+    reset.title='此项跟随轨道';reset.setAttribute('aria-label',input.closest('label').querySelector('.msw-option-label').textContent+'跟随轨道');
+    reset.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+icons.reset+'</svg>';
+    input.closest('label').append(reset);
+    reset.onclick=event=>{event.preventDefault();commitCueAppearance({}, {reset:[input.dataset.styleField]});};
+  }
   let role='main',library=[],selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
+  let editScope='cue';fixedPositionScope='cue';
+  const cueScope=()=>editScope==='cue'&&productionFlatMode();
+  const selectedRows=()=>{
+    if(!productionFlatMode())return [];
+    const ids=fixedPositionSelectedIds();
+    return fixedTrackCore.createIndex(host.data).records({includeHidden:true}).filter(r=>ids.has(r.cue_id));
+  };
+  const rowAppearance=row=>{
+    const track=fixedTrack(row.cue,row.role,row.track_id),style=global.MSWTrackPresentation.styleFor(host.data,track);
+    return global.MSWCueStyle.apply(style[track.flat_style_slot||'main'],row.cue);
+  };
+  const presetMatches=(preset,rows=selectedRows())=>rows.length&&rows.every(row=>{
+    const track=fixedTrack(row.cue,row.role,row.track_id),candidate=S.forKind(preset,fixedTrackCore.styleKind(track))[track.flat_style_slot||'main'],effective=rowAppearance(row);
+    return global.MSWCueStyle.fields.every(k=>candidate[k]===effective[k]);
+  });
+  const selectionKey=()=>JSON.stringify([editScope,fixedStyleTrackId,...selectedRows().map(r=>r.cue_id).sort()]);
+  let lastSelectionKey='';
+  const propertiesVisible=()=>!!$('subtitle-properties').getClientRects().length;
+  function open(scope=editScope){
+    if(fixedPositionEditing)fixedStopPositioning(false);
+    editScope=scope;fixedPositionScope=scope;$('style-edit-scope').value=scope;
+    waveformEditor?.showModule('properties',{recordUndo:false});waveformEditor?.activateModuleTab('properties');rebuildShowModuleMenu();
+    global.MSWHelp?.hydrate(panel);
+    rebuild();sync();refresh();
+  }
+  openProperties.onclick=()=>{host.closeMediaSettings?.();if($('media-settings-modal').getAttribute('aria-hidden')==='false')$('media-settings-close')?.click();open('track');};
+  $('style-edit-scope').onchange=()=>{if(fixedPositionEditing)fixedStopPositioning(false);cancelAction();editScope=$('style-edit-scope').value;fixedPositionScope=editScope;rebuild();sync();refresh();};
+  restoreAppearance.onclick=()=>commitCueAppearance({}, {replace:true});
+  function commitCueAppearance(patch,options={}) {
+    if(!ready||styleGeneration!==host.generation||!cueScope())return;
+    try {
+      const rows=selectedRows(),ids=rows.map(r=>r.cue_id);if(!ids.length)return;
+      commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
+      let next=global.MSWFlatEditing.updateAppearance(before,ids,patch,options);
+      if(options.preset) {
+        const batches=new Map();
+        for(const row of rows) {
+          const track=fixedTrack(row.cue,row.role,row.track_id),slot=track.flat_style_slot||'main';
+          const appearance=global.MSWCueStyle.appearance(S.forKind(options.preset,fixedTrackCore.styleKind(track))[slot]),key=JSON.stringify(appearance);
+          if(!batches.has(key))batches.set(key,{appearance,ids:[]});
+          batches.get(key).ids.push(row.cue_id);
+        }
+        for(const batch of batches.values())next=global.MSWFlatEditing.updateAppearance(next,batch.ids,batch.appearance,{replace:true,presetId:options.presetId});
+      }
+      if(JSON.stringify(next)===JSON.stringify(before))return;
+      productionCommitProject(next,options.reset||options.replace&&!Object.keys(patch).length?'字幕恢复轨道外观':'修改所选字幕外观',ids);
+      fixedPreviewInvalidate();global.dispatchEvent(new Event('msw:burn-style'));
+      rebuild();sync();refresh();
+    }catch(error){message(error.message,true);sync();}
+  }
   let proof={mode:'project'};
   try {
     const saved=JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}');proof.mode=saved.mode||'project';
@@ -96,7 +165,23 @@
   const projectStyle=()=>host.data.preview?.project_style || S.defaults();
   const all=()=>[...S.presets(),...library];
   const find=id=>all().find(s=>s.id===id);
-  const value=()=>fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
+  const value=()=>{
+    if(cueScope()) {const style=S.normalize(projectStyle()),row=selectedRows()[0];delete style.annotation;if(row)style.main=style.secondary=rowAppearance(row);return style;}
+    return fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
+  };
+  function presetSnapshot(project) {
+    if(!cueScope())return S.presetSnapshot(project,value(),fixedTrackMode()&&fixedStyleTarget()?fixedTrackCore.styleKind(fixedStyleGroup()?.main||fixedStyleTarget()):'dialogue');
+    // A cue updates only its appearance slot, preserving the other role,
+    // positioning and animation of an existing preset.
+    const snapshot=S.normalize(project.preview?.project_style||S.defaults());
+    for(const row of selectedRows()) {
+      const track=fixedTrack(row.cue,row.role,row.track_id),kind=fixedTrackCore.styleKind(track),slot=track.flat_style_slot||'main';
+      if(kind==='annotation'&&!snapshot.annotation)snapshot.annotation=S.forKind(snapshot,'dialogue');
+      const target=kind==='annotation'?snapshot.annotation:snapshot;
+      target[slot]={...target[slot],...global.MSWCueStyle.appearance(rowAppearance(row))};
+    }
+    return snapshot;
+  }
   // A library preset may carry both dialogue and annotation styles. Compare
   // the part used by this group, just as the renderer does, not the envelope.
   const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedTrackCore.styleKind(fixedStyleGroup()?.main||fixedStyleTarget())):S.normalize(s);
@@ -127,9 +212,15 @@
     const chosen=track?fixedStyleGroup()?.main.style.selection||track.style.selection:host.data.preview?.project_style_selection;
     const group=fixedStyleGroup(),inherited=group?[group.main,group.secondary].filter(Boolean).every(t=>t.style.mode==='inherit'):track?.style.mode==='inherit';
     selectedPreset=find(chosen)?chosen:all().find(s=>same(s,value()))?.id||(inherited?'default':'');
-    fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!same(s,value())?' · '+t('已修改'):'')])],selectedPreset);
+    if(cueScope()) {
+      const rows=selectedRows();
+      const saved=rows[0]?.cue.subtitle_style_preset;
+      selectedPreset=find(saved)&&rows.every(r=>r.cue.subtitle_style_preset===saved)?saved:all().find(s=>presetMatches(s,rows))?.id||'';
+    }
+    fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!(cueScope()?presetMatches(s):same(s,value()))?' · '+t('已修改'):'')])],selectedPreset);
     if(!selectedPreset)$('style-project-preset').options[0].disabled=true;
-    $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent='工程样式';
+    if(cueScope()&&!selectedPreset)$('style-project-preset').options[0].textContent=selectedRows().some(r=>r.cue.subtitle_style)?'已单独调整':'跟随轨道';
+    $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent=cueScope()?'应用外观预设':'工程样式';
     const selected=$('video-export-style-source').value;
     fill($('video-export-style-source'),[['project','跟随工程样式'],...all().map(s=>['preset:'+s.id,s.name])],selected || 'project');
     if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
@@ -138,11 +229,18 @@
     const style=S.normalize(value()||S.defaults());
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const group=fixedStyleGroup();
-    const blocked=!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
-    $('style-track-position').hidden=!track||!fixedPresentationMode()||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed';
+    const rows=cueScope()?selectedRows():[],appearances=rows.map(rowAppearance);
+    panel.classList.toggle('editing-cues',cueScope());
+    const blocked=cueScope()?(!rows.length||rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked)):!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
+    $('style-edit-scope').value=editScope;$('style-edit-scope').disabled=fixedPositionEditing;
+    $('style-selection-label').textContent=cueScope()?(rows.length===1?fixedCueLabel(rows[0].cue,rows[0].role,rows[0].track_id):rows.length?`已选 ${rows.length} 条 · ${new Set(rows.map(r=>r.subtitle_track_id)).size} 轨`:'请选择字幕'):'未单独设置的字幕跟随轨道';
+    $('style-track-target').hidden=cueScope();
+    restoreAppearance.hidden=!cueScope();restoreAppearance.disabled=blocked||!rows.some(r=>r.cue.subtitle_style);
+    $('style-animation').hidden=cueScope();
+    $('style-track-position').hidden=!fixedPresentationMode()||!cueScope()&&(!track||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed');
     $('style-track-placement').value=track?fixedTrackCore.placement(track):'auto';$('style-track-placement').disabled=blocked;
-    $('style-position-fields').hidden=!track||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed';
-    if(track&&productionFlatMode())syncPosition();
+    $('style-position-fields').hidden=!productionFlatMode()&&(!track||fixedTrackCore.placement(track)!=='fixed');
+    if(productionFlatMode())syncPosition();
     else if(track&&fixedTrackCore.placement(track)==='fixed') {
       const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
       $('style-position-scope').value=fixedPositionScope;
@@ -152,28 +250,43 @@
       $('style-position-note').textContent=fixedPositionScope==='cue'?(group?'当前字幕：'+group.rows[0].cue.text:'点击“在画面中定位”，选择要调整的字幕。'):'轨道位置作用于未单独定位的字幕。';
     }
     const removable=library.find(s=>s.id===activePreset());
-    $('style-overwrite').disabled=saving||blocked||!removable||same(removable,style);
+    const mixed=cueScope()&&appearances.some(a=>global.MSWCueStyle.fields.some(k=>a[k]!==appearances[0][k]));
+    $('style-overwrite').disabled=saving||blocked||mixed||!removable||(cueScope()?presetMatches(removable):same(removable,style));
     $('style-overwrite').title=t(removable?'将当前样式覆盖到所选预设':'内置样式不能覆盖，请另存为新预设');
     $('style-delete-preset').disabled=saving||!removable;
     $('style-delete-preset').title=removable?t('删除预设')+': '+removable.name:t('只能删除当前选用的用户预设');
     for(const id of ['style-save-as','style-reset','style-save-preset','style-save-cancel','style-delete-confirm-button','style-delete-cancel'])$(id).disabled=saving;
+    $('style-save-as').disabled=saving||blocked||mixed;
+    $('style-save-as').title=mixed?'所选字幕外观不同，请选择单条字幕保存预设':'另存为新预设';
     for(const node of panel.querySelectorAll('[data-style-field],[data-animation],#style-project-preset,#style-pair-order,#style-pair-gap,#style-swap,#style-reset,#style-transform-preset'))node.disabled=saving||blocked;
     $('style-preset-name').disabled=saving;
     $('style-reset').disabled=saving||blocked||!find(selectedPreset);
     $('style-reset').title=find(selectedPreset)?t('恢复所选预设保存的参数')+'：'+find(selectedPreset).name:t('请先选择或保存预设');
-    if(blocked)message(track.locked||group?.main.locked||group?.secondary?.locked?'此轨道已锁定。':'切换为固定轨道排布后，可调整轨道样式与位置。');
-    else if(['此轨道已锁定。','切换为固定轨道排布后，可调整轨道样式与位置。'].some(text=>$('style-message').textContent===t(text)))message('');
-    const secondary=productionFlatMode()?!!group?.secondary:host.data.multi_subtitle?.enabled===true;
+    if(blocked)message(cueScope()?rows.length?'所选字幕包含锁定轨道。':'':track.locked||group?.main.locked||group?.secondary?.locked?'此轨道已锁定。':'切换为固定轨道排布后，可调整轨道样式与位置。');
+    else if(['此轨道已锁定。','所选字幕包含锁定轨道。','切换为固定轨道排布后，可调整轨道样式与位置。'].some(text=>$('style-message').textContent===t(text)))message('');
+    const secondary=!cueScope()&&(productionFlatMode()?!!group?.secondary:host.data.multi_subtitle?.enabled===true);
     $('style-secondary').hidden=!secondary;$('style-swap').hidden=!secondary;if(!secondary)role='main';
-    if(group)role=group.secondary?.id===track.id?'secondary':'main';
+    if(group&&!cueScope())role=group.secondary?.id===track.id?'secondary':'main';
     for(const r of ['main','secondary']) {
       $('style-'+r).textContent=t(r==='main'?'主字幕':'副字幕');
-      $('style-'+r).hidden=productionFlatMode()?!secondary:r==='secondary'&&!secondary;
+      $('style-'+r).hidden=cueScope()|| (productionFlatMode()?!secondary:r==='secondary'&&!secondary);
     }
 
     $('style-pair-controls').hidden=!secondary;const pair=S.pairSettings(style);$('style-pair-order').value=pair.order;$('style-pair-gap').value=pair.gap;
     for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-pressed',String(role===r));
     for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
+    for(const input of panel.querySelectorAll('[data-style-field]')) {
+      const field=input.dataset.styleField,label=input.closest('label'),reset=label.querySelector('[data-reset-style]');
+      label.hidden=cueScope()&&!global.MSWCueStyle.fields.includes(field);
+      const changed=cueScope()&&rows.some(r=>Object.hasOwn(r.cue.subtitle_style||{},field));
+      const different=cueScope()&&appearances.some(a=>a[field]!==appearances[0][field]);
+      label.classList.toggle('is-overridden',changed);label.classList.toggle('is-mixed',different);
+      input.setAttribute('aria-description',different?'多个值':changed?'已单独设置':'跟随轨道');
+      if(input.type==='checkbox')input.indeterminate=different;
+      else if(different){input.value='';input.placeholder='多个值';}
+      else input.placeholder='';
+      reset.hidden=!changed;reset.disabled=saving||blocked;
+    }
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
     $('style-preview-mode').value=proof.mode;
@@ -220,6 +333,7 @@
   }
   function change(style,selection=find(selectedPreset)?selectedPreset:'current',label='修改工程字幕样式') {
     if(!ready||styleGeneration!==host.generation)return;
+    if(cueScope()){commitCueAppearance({}, {preset:style,...(find(selection)?{presetId:selection}:{})});return;}
     if(fixedTrackMode()&&fixedStyleTarget()) {
       if(!fixedCommitStyle(style,selection)){sync();message(fixedLastMessage||'无法修改轨道样式',true);return;}
     }
@@ -228,7 +342,7 @@
   }
   function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
   $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
-  function editTrack(id,open=true){cancelAction();message('');fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(open)host.openMediaSettings();}
+  function editTrack(id,show=true){cancelAction();message('');editScope='track';fixedPositionScope='track';fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(show)open('track');}
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
   $('style-track-placement').onchange=()=>{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:$('style-track-placement').value});sync();refresh();};
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
@@ -259,6 +373,7 @@
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
     const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&field!=='wrapMode'?Number(input.value):input.value;
+    if(cueScope()){if(field)commitCueAppearance({[field]:v});return;}
     // Exact legacy burn parameters survive until the user deliberately edits them.
     if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){
       const mapped={fontName:'font_family',fontSize:'font_size',primaryColor:'color',outlineColor:'outline_color',outline:'outline',backColor:'background_color'}[field];
@@ -315,10 +430,10 @@
   $('style-overwrite').onclick=()=>{
     const previous=library.find(s=>s.id===activePreset());if(!previous||saving)return;
     cancelAction();const action=pendingAction={kind:'overwrite',generation:host.generation};
-    const savedStyle=S.normalize(value()),target=fixedStyleTrackId;
-    const preset={...S.presetSnapshot({preview:{project_style:previous}},savedStyle,fixedTrackMode()&&fixedStyleTarget()?fixedTrackCore.styleKind(fixedStyleGroup()?.main||fixedStyleTarget()):'dialogue'),id:previous.id,name:previous.name};
+    const savedStyle=S.normalize(value()),target=selectionKey();
+    const preset={...presetSnapshot({preview:{project_style:previous}}),id:previous.id,name:previous.name};
     void runLibraryAction(action,library.map(s=>s.id===preset.id?preset:s),()=>{
-      if(target===fixedStyleTrackId&&same(value(),savedStyle))change(savedStyle,preset.id,'覆盖字幕预设');
+      if(!cueScope()&&target===selectionKey()&&same(value(),savedStyle))change(savedStyle,preset.id,'覆盖字幕预设');
       message('预设已更新。');$('style-overwrite').focus();
     });
   };
@@ -338,10 +453,10 @@
     event.preventDefault();const action=pendingAction;if(action?.kind!=='save'||saving)return;
     const name=$('style-preset-name').value.trim();if(!name){$('style-preset-name').focus();message('请输入预设名称',true);return;}
     if(all().some(s=>s.name===name)){message('已有同名预设，请使用新名称',true);return;}
-    const preset={...S.presetSnapshot(host.data,value(),fixedTrackMode()&&fixedStyleTarget()?fixedTrackCore.styleKind(fixedStyleTarget()):'dialogue'),name,id:global.MSWProject.id('style')};
+    const preset={...presetSnapshot(host.data),name,id:global.MSWProject.id('style')};
     const savedStyle=S.normalize(value());
-    const target=fixedStyleTrackId;
-    void runLibraryAction(action,[...library,preset],()=>{if(target===fixedStyleTrackId&&same(value(),savedStyle))change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedTrackCore.styleKind(fixedStyleTarget())):preset,preset.id,'另存为字幕预设');message('预设已保存。');$('style-save-as').focus();});
+    const target=selectionKey();
+    void runLibraryAction(action,[...library,preset],()=>{if(target===selectionKey()&&same(value(),savedStyle)){if(cueScope())commitCueAppearance({}, {presetId:preset.id});else change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedTrackCore.styleKind(fixedStyleTarget())):preset,preset.id,'另存为字幕预设');}message('预设已保存。');$('style-save-as').focus();});
   };
   $('style-delete-preset').onclick=()=>{
     const preset=library.find(s=>s.id===activePreset());if(!preset)return;cancelAction();pendingAction={kind:'delete',id:preset.id,generation:host.generation};
@@ -370,12 +485,13 @@
   }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
   $('style-track-position').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
   function currentPreview() {
-    if(fixedPositionEditing||fixedPositionPreviewActive())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:fixedPositionEditing?'定位中：Esc取消，Enter完成':'定位预览：工程样式'};
+    if(fixedPositionEditing)return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'定位中：Esc取消，Enter完成'};
     if(override)return {...override,trackIds:global.MSWVideoSubtitleScope?.ids()??null,scope:'export',label:'导出预览：'+override.label};
+    if(propertiesVisible())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'属性预览：工程样式'};
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
-  global.MSWSubtitleStyle={currentPreview,editTrack,syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
+  global.MSWSubtitleStyle={currentPreview,editTrack,open,propertiesVisible,syncSelection:()=>{if(ready){const key=selectionKey();if(key!==lastSelectionKey){lastSelectionKey=key;cancelAction();rebuild();sync();}else syncPosition();}},syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');
@@ -383,6 +499,12 @@
       if(other)S.applyPreset(project,exportPreset()||S.defaults());else S.apply(project,projectStyle());
     },
     get ready(){return ready;},get error(){return loadError;},request};
+  let wasVisible=propertiesVisible();
+  new ResizeObserver(()=>{
+    const visible=propertiesVisible();if(visible===wasVisible)return;wasVisible=visible;
+    if(!visible){cancelAction();if(fixedPositionEditing)fixedStopPositioning(false);}
+    if(ready){global.MSWHelp?.hydrate(panel);rebuild();sync();fixedPreviewInvalidate();refresh();}
+  }).observe(propertyRoot);
   async function initialize() {
     ready=false;loadError='';panel.inert=true;$('style-retry').hidden=true;
     const generation=host.generation;
