@@ -77,3 +77,22 @@ class SubtitleAnimationTests(unittest.TestCase):
         self.assertIn('\\fad(200,300)',preview_ass(args)['ass'])
         p['subtitles']['cues'][0]['content']['subtitle_animation']=model()
         self.assertNotIn('\\fad(',preview_ass(args)['ass'])
+
+    def test_keyframes_share_browser_evaluation_and_compile_all_boundaries(self):
+        a=model(curves=dict(enabled=True,channels={
+            'x':[dict(time=0,value=-80,easing='smooth'),dict(time=40,value=80,easing='hold'),dict(time=80,value=0,easing='linear')],
+            'scale':[dict(time=0,value=80,easing='linear'),dict(time=100,value=120,easing='smooth')],
+            'opacity':[dict(time=0,value=50,easing='linear')]}),fade=dict(enabled=True),transform=dict(enabled=True))
+        times=[0,1,400,799,800,1000,1599,1600,2000]
+        script="const A=require('./web/msw-subtitle-animation.js'),a=JSON.parse(process.argv[1]);console.log(JSON.stringify(JSON.parse(process.argv[2]).map(t=>A.sample(a,t,2000))))"
+        actual=json.loads(subprocess.check_output(['node','-e',script,json.dumps(a),json.dumps(times)],cwd=ROOT,text=True))
+        for left,right in zip([animation.sample(a,t,2000) for t in times],actual):
+            for key in left:self.assertAlmostEqual(left[key],right[key],places=8)
+        cuts=animation.boundaries(a,2000,4)
+        self.assertIn(800,cuts);self.assertIn(1600,cuts);self.assertIn(40,cuts)
+        p=self.project(a);flat.validate(p)
+        self.assertIn('\\move(',preview_ass(dict(project=p,video=dict(width=640,height=360)))['ass'])
+        for points in ([],[dict(time=0,value=0,easing='invalid')],[dict(time=0,value=True,easing='linear')],
+                       [dict(time=0,value=0,easing='linear')]*2):
+            bad=copy.deepcopy(a);bad['effects']['curves']['channels']['x']=points
+            self.assertFalse(animation.valid(bad))

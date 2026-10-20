@@ -5292,3 +5292,16 @@
 .msw-motion-transform-row > span { color:var(--text-muted); font-size:11px; }
 .msw-motion-transform-head > span:not(:first-child) { text-align:center; }
 .msw-motion-transform .msw-style-field > .msw-option-label { display:none; }
+.msw-curves { display:grid; gap:8px; min-width:0; }
+.msw-curve-toolbar { display:flex; gap:6px; align-items:center; min-width:0; }
+.msw-curve-toolbar select { flex:1; min-width:0; }
+.msw-curve-toolbar label { flex:none; white-space:nowrap; }
+.msw-curve-plot { border:1px solid var(--border-subtle); border-radius:6px; background:var(--bg-input); }
+#curve-graph { display:block; width:100%; touch-action:none; user-select:none; }
+#curve-graph text { fill:var(--text-muted); font-size:10px; }
+#curve-graph .curve-grid { fill:none; stroke:var(--border-subtle); stroke-width:1; }
+#curve-graph .curve-line { fill:none; stroke:var(--accent); stroke-width:2; }
+#curve-graph .curve-handle { fill:var(--bg-panel); stroke:var(--accent); stroke-width:2; cursor:grab; }
+#curve-graph .curve-handle.selected { fill:var(--accent); }
+#curve-graph[aria-disabled=true] { opacity:.5; }
+#curve-note { margin:0; font-size:11px; }

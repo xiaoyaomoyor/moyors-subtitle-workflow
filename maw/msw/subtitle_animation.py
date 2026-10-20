@@ -8,11 +8,31 @@ DEFINITIONS = dict(
     typewriter=dict(enabled=False, unit='percent', start=0, end=40),
     blink=dict(enabled=False, unit='percent', start=0, end=100, period=600, opacity=0),
     transform=dict(enabled=False, unit='percent', start=0, end=25, fromX=0, fromY=0, toX=0, toY=0,
-                   fromScale=85, toScale=100, fromRotation=0, toRotation=0, fromOpacity=100, toOpacity=100, easing='smooth'))
+                   fromScale=85, toScale=100, fromRotation=0, toRotation=0, fromOpacity=100, toOpacity=100, easing='smooth'),
+    curves=dict(enabled=False, unit='percent', channels={}))
+CHANNELS = dict(x=(-4096,4096), y=(-4096,4096), scale=(1,1000), rotation=(-360,360), opacity=(0,100))
 
 
 def timings(name):
-    return ('in', 'out') if name == 'fade' else ('start', 'end')
+    return () if name == 'curves' else ('in', 'out') if name == 'fade' else ('start', 'end')
+
+
+def valid_channels(raw, unit):
+    if not isinstance(raw, dict):
+        return False
+    for key, points in raw.items():
+        if key not in CHANNELS or not isinstance(points, list) or not 1 <= len(points) <= 32:
+            return False
+        for i, p in enumerate(points):
+            if not isinstance(p, dict) or set(p) != {'time','value','easing'}:
+                return False
+            if any(type(p[k]) not in (int,float) or not math.isfinite(p[k]) for k in ('time','value')):
+                return False
+            if not (0 <= p['time'] <= (100 if unit == 'percent' else 60000)) or (i and p['time'] <= points[i-1]['time']):
+                return False
+            if not CHANNELS[key][0] <= p['value'] <= CHANNELS[key][1] or p['easing'] not in ('linear','smooth','hold'):
+                return False
+    return True
 
 
 def valid(raw):
@@ -29,6 +49,8 @@ def valid(raw):
                 ok = value in ('percent', 'ms')
             elif key == 'easing':
                 ok = value in ('linear', 'ease-in', 'ease-out', 'smooth')
+            elif key == 'channels':
+                ok = valid_channels(value, effect['unit'])
             else:
                 low, high = ((0, 100 if effect['unit'] == 'percent' else 60000) if key in timings(name)
                              else (80, 60000) if key == 'period' else (0, 100) if key.endswith('Opacity') or key == 'opacity'
@@ -36,7 +58,7 @@ def valid(raw):
                 ok = type(value) in (int, float) and math.isfinite(value) and low <= value <= high
             if not ok:
                 return False
-        if name != 'fade' and effect['end'] <= effect['start']:
+        if name not in ('fade','curves') and effect['end'] <= effect['start']:
             return False
     return True
 
@@ -61,8 +83,19 @@ def clamp(value, low=0, high=1):
     return max(low, min(high, value))
 
 
+def curve_value(points, time):
+    if time <= points[0]['time']:
+        return points[0]['value']
+    for a, b in zip(points, points[1:]):
+        if time < b['time']:
+            p = (time-a['time'])/(b['time']-a['time'])
+            p = 0 if a['easing'] == 'hold' else p*p*(3-2*p) if a['easing'] == 'smooth' else p
+            return a['value']+(b['value']-a['value'])*p
+    return points[-1]['value']
+
+
 def sample(raw, elapsed, duration, count=0):
-    f, w, b, t = (raw['effects'][key] for key in DEFINITIONS)
+    f, w, b, t = (raw['effects'][key] for key in ('fade','typewriter','blink','transform'))
     time = clamp(elapsed, 0, duration)
     state = dict(opacity=1, x=0, y=0, scale=100, rotation=0, revealed=count)
     if f['enabled']:
@@ -74,12 +107,22 @@ def sample(raw, elapsed, duration, count=0):
         state['opacity'] = min(time / a if a else 1, (duration-time) / z if z else 1, 1)
     if b['enabled'] and ms(b, 'start', duration) <= time < ms(b, 'end', duration) and math.floor((time-ms(b, 'start', duration))/(b['period']/2)) % 2:
         state['opacity'] *= b['opacity']/100
+    transform_opacity = 100
     if t['enabled']:
         p = clamp((time-ms(t, 'start', duration))/(ms(t, 'end', duration)-ms(t, 'start', duration)))
         p = p*p if t['easing'] == 'ease-in' else 1-(1-p)**2 if t['easing'] == 'ease-out' else p*p*(3-2*p) if t['easing'] == 'smooth' else p
         for key, suffix in [('x', 'X'), ('y', 'Y'), ('scale', 'Scale'), ('rotation', 'Rotation')]:
             state[key] = t['from'+suffix] + (t['to'+suffix]-t['from'+suffix])*p
-        state['opacity'] *= (t['fromOpacity']+(t['toOpacity']-t['fromOpacity'])*p)/100
+        transform_opacity = t['fromOpacity']+(t['toOpacity']-t['fromOpacity'])*p
+    c = raw['effects'].get('curves')
+    if c and c['enabled']:
+        for key, points in c['channels'].items():
+            value = curve_value(points, time*(100/duration if c['unit'] == 'percent' else 1))
+            if key == 'opacity':
+                transform_opacity = value
+            else:
+                state[key] = value
+    state['opacity'] *= transform_opacity/100
     if w['enabled']:
         state['revealed'] = math.floor(clamp((time-ms(w, 'start', duration))/(ms(w, 'end', duration)-ms(w, 'start', duration)))*count+1e-7)
     return state
@@ -90,6 +133,19 @@ def boundaries(raw, duration, count):
     cuts = {0, duration}
     for name, effect in raw['effects'].items():
         if not effect['enabled']:
+            continue
+        if name == 'curves':
+            ratio = duration/100 if effect['unit'] == 'percent' else 1
+            for points in effect['channels'].values():
+                cuts.update(p['time']*ratio for p in points)
+                for left, right in zip(points, points[1:]):
+                    if left['easing'] != 'smooth':
+                        continue
+                    a, b = left['time']*ratio, min(duration, right['time']*ratio)
+                    steps = math.ceil(max(0,b-a)/40)
+                    if steps > 4096:
+                        raise ValueError('字幕关键帧生成片段过多，请缩短动画时段')
+                    cuts.update(a+i*40 for i in range(1,steps))
             continue
         if name == 'fade':
             a, z = ms(effect, 'in', duration), ms(effect, 'out', duration)
@@ -110,8 +166,10 @@ def boundaries(raw, duration, count):
     if len(result) > 4096:
         raise ValueError('字幕动画生成片段过多，请减少效果或缩短动画时段')
     # Fade multiplied by a transform's opacity is nonlinear even with linear easing.
-    if raw['effects']['fade']['enabled'] and raw['effects']['transform']['enabled']:
+    if raw['effects']['fade']['enabled'] and (raw['effects']['transform']['enabled'] or raw['effects'].get('curves',{}).get('enabled')):
         result = sorted(set(result) | {a+(b-a)*i/4 for a, b in zip(result, result[1:]) for i in (1, 2, 3)})
+    if len(result) > 4096:
+        raise ValueError('字幕动画生成片段过多，请减少效果或缩短动画时段')
     return result
 
 
@@ -120,12 +178,19 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
     from maw.subtitle_wrapping import _characters
     from maw.msw.subtitle_style import ass_text
     from maw.msw import subtitle_background as background
+    from maw.msw import subtitle_gradient as gradient
     if drawing is not None:
         from copy import deepcopy
         raw = deepcopy(raw)
         raw['effects']['typewriter']['enabled'] = False
     units = _characters(text)
     count = sum(not unit.isspace() for unit in units)
+    use_gradient=drawing is None and gradient.enabled(style)
+    color_tags=[];color_index=0
+    for unit in units:
+        color_tags.append(gradient.tag(gradient.color(style,color_index,count)) if use_gradient and not unit.isspace() else '')
+        if not unit.isspace():
+            color_index+=1
     cuts = [lo] + [t for t in boundaries(raw, duration, count) if lo < t < hi] + [hi]
     def number(v):
         return f'{v:.4f}'.rstrip('0').rstrip('.') or '0'
@@ -156,18 +221,20 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
             yield a, b, tags, drawing
             continue
         parts, seen, prefix_count, hidden = [], 0, 0, False
-        if speaker_color and speaker_prefix:
+        if speaker_color and speaker_prefix and not use_gradient:
             parts.append(color_tag(speaker_color))
-        for unit in units:
+        for unit_index, unit in enumerate(units):
             if not unit.isspace():
                 seen += 1
             if seen > mid['revealed'] and not hidden:
                 # Override the alpha transform for the invisible tail too.
                 parts.append(r'{\alpha&HFF&\t(0,'+number(span)+r',1,\alpha&HFF&)}')
                 hidden = True
-            if speaker_color and speaker_prefix and prefix_count == len(speaker_prefix):
+            if speaker_color and speaker_prefix and prefix_count == len(speaker_prefix) and not use_gradient:
                 parts.append(color_tag(style['primaryColor']))
                 prefix_count += 1
+            if color_tags[unit_index]:
+                parts.append(color_tags[unit_index])
             parts.append(ass_text(unit))
             if unit != '\n':
                 prefix_count += len(unit)

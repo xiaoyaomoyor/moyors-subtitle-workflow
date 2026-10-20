@@ -17,7 +17,7 @@ from maw.msw.subtitle_layers import migrate_project
 
 class ProjectSubtitleStyleTests(unittest.TestCase):
     def test_default_spacing_matches_frontend_and_other_presets_keep_geometry(self):
-        script="const fs=require('fs'),vm=require('vm');const c={window:{}};for(const f of ['gap-remove-core','editor-utils','msw-subtitle-background','msw-project-style'])vm.runInNewContext(fs.readFileSync('web/'+f+'.js','utf8'),c);process.stdout.write(JSON.stringify(c.window.MSWProjectStyle.presets()));"
+        script="const fs=require('fs'),vm=require('vm');const c={window:{}};for(const f of ['gap-remove-core','editor-utils','msw-subtitle-background','msw-subtitle-gradient','msw-project-style'])vm.runInNewContext(fs.readFileSync('web/'+f+'.js','utf8'),c);process.stdout.write(JSON.stringify(c.window.MSWProjectStyle.presets()));"
         browser=json.loads(subprocess.check_output(['node','-e',script],cwd=Path(__file__).resolve().parents[1],text=True,encoding='utf-8'))
         backend=builtin_presets()
         self.assertEqual(backend[0]['pairLayout'],{'order':'main-above','gap':0})
@@ -70,7 +70,7 @@ class ProjectSubtitleStyleTests(unittest.TestCase):
         project['preview']['project_style'].pop('pairLayout',None)
         plan={'intervals':[{'start_ms':0,'end_ms':12000,'output_start_ms':0}]}
         script="""const fs=require('node:fs'),vm=require('node:vm');const c={window:{},TextEncoder,TextDecoder,Uint8Array};
-for(const f of ['gap-remove-core','editor-utils','msw-subtitle-background','msw-project-style','msw-subtitle-presentation'])vm.runInNewContext(fs.readFileSync('web/'+f+'.js','utf8'),c);
+for(const f of ['gap-remove-core','editor-utils','msw-subtitle-background','msw-subtitle-gradient','msw-project-style','msw-subtitle-presentation'])vm.runInNewContext(fs.readFileSync('web/'+f+'.js','utf8'),c);
 process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readFileSync(0,'utf8'))));"""
         def rows(text):
             return [line.lower() for line in text.splitlines() if line.startswith(('Style:', 'Dialogue:'))]
@@ -92,7 +92,7 @@ process.stdout.write(c.window.MSWProjectStyle.buildLegacyAss(JSON.parse(fs.readF
         before=copy.deepcopy(project)
         video={'width':1280,'height':720}
         result=preview_ass({'project':project,'target':'both','video':video})
-        self.assertEqual(result['layoutVersion'],12)
+        self.assertEqual(result['layoutVersion'],13)
         plan={'intervals':[{'start_ms':0,'end_ms':12*3600*1000,'output_start_ms':0}]}
         self.assertEqual(result['ass'],styled_ass(normalize_project(project),plan,'both',video))
         self.assertIn(r'\fad(120,200)',result['ass'])

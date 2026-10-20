@@ -5312,6 +5312,19 @@
 .msw-motion-transform-row > span { color:var(--text-muted); font-size:11px; }
 .msw-motion-transform-head > span:not(:first-child) { text-align:center; }
 .msw-motion-transform .msw-style-field > .msw-option-label { display:none; }
+.msw-curves { display:grid; gap:8px; min-width:0; }
+.msw-curve-toolbar { display:flex; gap:6px; align-items:center; min-width:0; }
+.msw-curve-toolbar select { flex:1; min-width:0; }
+.msw-curve-toolbar label { flex:none; white-space:nowrap; }
+.msw-curve-plot { border:1px solid var(--border-subtle); border-radius:6px; background:var(--bg-input); }
+#curve-graph { display:block; width:100%; touch-action:none; user-select:none; }
+#curve-graph text { fill:var(--text-muted); font-size:10px; }
+#curve-graph .curve-grid { fill:none; stroke:var(--border-subtle); stroke-width:1; }
+#curve-graph .curve-line { fill:none; stroke:var(--accent); stroke-width:2; }
+#curve-graph .curve-handle { fill:var(--bg-panel); stroke:var(--accent); stroke-width:2; cursor:grab; }
+#curve-graph .curve-handle.selected { fill:var(--accent); }
+#curve-graph[aria-disabled=true] { opacity:.5; }
+#curve-note { margin:0; font-size:11px; }
 /* The trial uses the existing dock, waveform and theme tokens. */
 .flat-processing-panel { position:fixed; inset:10vh auto auto 50%; transform:translateX(-50%); width:min(720px,94vw); max-height:80vh; overflow:auto; margin:0; padding:16px; border:1px solid var(--border); border-radius:var(--radius-md,8px); background:var(--bg-panel); color:var(--text-primary); box-shadow:0 8px 30px #0004; z-index:10050; }
 .flat-processing-panel>header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
@@ -18142,11 +18155,23 @@ export default MawDynamicCaptions;
     fade:{enabled:false,unit:'percent',in:10,out:10},
     typewriter:{enabled:false,unit:'percent',start:0,end:40},
     blink:{enabled:false,unit:'percent',start:0,end:100,period:600,opacity:0},
-    transform:{enabled:false,unit:'percent',start:0,end:25,fromX:0,fromY:0,toX:0,toY:0,fromScale:85,toScale:100,fromRotation:0,toRotation:0,fromOpacity:100,toOpacity:100,easing:'smooth'}
+    transform:{enabled:false,unit:'percent',start:0,end:25,fromX:0,fromY:0,toX:0,toY:0,fromScale:85,toScale:100,fromRotation:0,toRotation:0,fromOpacity:100,toOpacity:100,easing:'smooth'},
+    curves:{enabled:false,unit:'percent',channels:{}}
   };
+  const channels={x:{label:'横向位移 (px)',min:-4096,max:4096,initial:0},y:{label:'纵向位移 (px)',min:-4096,max:4096,initial:0},
+    scale:{label:'缩放 (%)',min:1,max:1000,initial:100},rotation:{label:'旋转 (°)',min:-360,max:360,initial:0},opacity:{label:'不透明度 (%)',min:0,max:100,initial:100}};
   const names=Object.keys(definitions),clone=v=>JSON.parse(JSON.stringify(v));
   const object=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
-  const timings=name=>name==='fade'?['in','out']:['start','end'];
+  const timings=name=>name==='curves'?[]:name==='fade'?['in','out']:['start','end'];
+  function validChannels(raw,unit){
+    return object(raw)&&Object.entries(raw).every(([key,points])=>{
+      const c=channels[key];return c&&Array.isArray(points)&&points.length>0&&points.length<=32&&points.every((p,i)=>
+        object(p)&&Object.keys(p).length===3&&['time','value','easing'].every(k=>Object.hasOwn(p,k))&&
+        typeof p.time==='number'&&Number.isFinite(p.time)&&p.time>=0&&p.time<=(unit==='percent'?100:60000)&&
+        (!i||p.time>points[i-1].time)&&typeof p.value==='number'&&Number.isFinite(p.value)&&p.value>=c.min&&p.value<=c.max&&
+        ['linear','smooth','hold'].includes(p.easing));
+    });
+  }
   function valid(raw){
     if(!object(raw)||raw.schema!==schema||!object(raw.effects)||Object.keys(raw).some(k=>!['schema','effects'].includes(k)))return false;
     return Object.entries(raw.effects).every(([name,e])=>{
@@ -18156,12 +18181,13 @@ export default MawDynamicCaptions;
         if(k==='enabled'){if(typeof v!=='boolean')return false;}
         else if(k==='unit'){if(!['percent','ms'].includes(v))return false;}
         else if(k==='easing'){if(!['linear','ease-in','ease-out','smooth'].includes(v))return false;}
+        else if(k==='channels'){if(!validChannels(v,e.unit))return false;}
         else{
           const bounds=timings(name).includes(k)?[0,e.unit==='percent'?100:60000]:k==='period'?[80,60000]:k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
           if(typeof v!=='number'||!Number.isFinite(v)||v<bounds[0]||v>bounds[1])return false;
         }
       }
-      return name==='fade'||e.end>e.start;
+      return name==='curves'||name==='fade'||e.end>e.start;
     });
   }
   function normalize(raw){if(!valid(raw))throw Error('字幕动画参数无效');return {schema,effects:{...clone(definitions),...clone(raw.effects)}};}
@@ -18170,23 +18196,52 @@ export default MawDynamicCaptions;
   const ms=(e,key,duration)=>e[key]*(e.unit==='percent'?duration/100:1);
   const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
   const ease=(p,mode)=>mode==='ease-in'?p*p:mode==='ease-out'?1-(1-p)**2:mode==='smooth'?p*p*(3-2*p):p;
+  function curveValue(points,time){
+    if(time<=points[0].time)return points[0].value;
+    for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(time<b.time){
+      const p=a.easing==='hold'?0:ease((time-a.time)/(b.time-a.time),a.easing);return a.value+(b.value-a.value)*p;
+    }}
+    return points.at(-1).value;
+  }
+  function convertUnit(effect,unit,duration){
+    const next=clone(effect);if(next.unit===unit)return next;
+    const limit=unit==='percent'?100:60000;
+    const convert=t=>{
+      const value=t*(effect.unit==='percent'?duration/100:1)*(unit==='percent'?100/duration:1);
+      if(!Number.isFinite(value)||value>limit+1e-8)throw Error('转换后的时间超出范围，请先调整关键帧或动画时段');
+      return Math.min(limit,value);
+    };
+    const times=effect.channels?Object.values(effect.channels).flat().map(p=>p.time):Object.keys(effect).filter(k=>['in','out','start','end'].includes(k)).map(k=>effect[k]);
+    times.forEach(convert);
+    if(effect.channels)for(const points of Object.values(next.channels))for(const p of points)p.time=convert(p.time);
+    else for(const k of ['in','out','start','end'])if(Object.hasOwn(next,k))next[k]=convert(next[k]);
+    next.unit=unit;return next;
+  }
   function sample(raw,elapsed,duration,count=0){
     const {fade:f,typewriter:w,blink:b,transform:t}=raw.effects;
     const time=clamp(elapsed,0,duration),state={opacity:1,x:0,y:0,scale:100,rotation:0,revealed:count};
     if(f.enabled){let a=ms(f,'in',duration),z=ms(f,'out',duration);if(a+z>duration){const ratio=duration/(a+z);a*=ratio;z*=ratio;}state.opacity=Math.min(a?time/a:1,z?(duration-time)/z:1,1);}
     if(b.enabled&&time>=ms(b,'start',duration)&&time<ms(b,'end',duration)&&Math.floor((time-ms(b,'start',duration))/(b.period/2))%2)state.opacity*=b.opacity/100;
-    if(t.enabled){const p=ease(clamp((time-ms(t,'start',duration))/(ms(t,'end',duration)-ms(t,'start',duration))),t.easing);for(const [key,suffix] of [['x','X'],['y','Y'],['scale','Scale'],['rotation','Rotation']])state[key]=t['from'+suffix]+(t['to'+suffix]-t['from'+suffix])*p;state.opacity*=(t.fromOpacity+(t.toOpacity-t.fromOpacity)*p)/100;}
+    let transformOpacity=100;
+    if(t.enabled){const p=ease(clamp((time-ms(t,'start',duration))/(ms(t,'end',duration)-ms(t,'start',duration))),t.easing);for(const [key,suffix] of [['x','X'],['y','Y'],['scale','Scale'],['rotation','Rotation']])state[key]=t['from'+suffix]+(t['to'+suffix]-t['from'+suffix])*p;transformOpacity=t.fromOpacity+(t.toOpacity-t.fromOpacity)*p;}
+    const c=raw.effects.curves;
+    if(c?.enabled)for(const [key,points] of Object.entries(c.channels)){
+      const v=curveValue(points,time*(c.unit==='percent'?100/duration:1));if(key==='opacity')transformOpacity=v;else state[key]=v;
+    }
+    state.opacity*=transformOpacity/100;
     if(w.enabled)state.revealed=Math.floor(clamp((time-ms(w,'start',duration))/(ms(w,'end',duration)-ms(w,'start',duration)))*count+1e-7);
     return state;
   }
   function envelope(row,width){
-    const t=row.motion?.effects.transform;if(!t?.enabled)return row;
-    const ax=row.position.x*width,ay=row.position.y*1080,s=Math.max(t.fromScale,t.toScale)/100;
+    const t=row.motion?.effects.transform,c=row.motion?.effects.curves;if(!t?.enabled&&!c?.enabled)return row;
+    const values=(key,suffix)=>c?.enabled&&c.channels[key]?c.channels[key].map(p=>p.value):t?.enabled?[t['from'+suffix],t['to'+suffix]]:[channels[key].initial];
+    const scales=values('scale','Scale'),dx=values('x','X'),dy=values('y','Y'),rotations=values('rotation','Rotation');
+    const ax=row.position.x*width,ay=row.position.y*1080,s=Math.max(...scales)/100;
     const corners=[[row.x-ax,row.y-ay],[row.x+row.width-ax,row.y-ay],[row.x-ax,row.y+row.height-ay],[row.x+row.width-ax,row.y+row.height-ay]];
-    const radius=Math.max(...corners.map(([x,y])=>Math.hypot(x,y)))*s,rotate=t.fromRotation||t.toRotation;
-    const xs=rotate?[-radius,radius]:corners.flatMap(([x])=>[x*t.fromScale/100,x*t.toScale/100]);
-    const ys=rotate?[-radius,radius]:corners.flatMap(([,y])=>[y*t.fromScale/100,y*t.toScale/100]);
-    return {...row,x:ax+Math.min(...xs)+Math.min(t.fromX,t.toX),y:ay+Math.min(...ys)+Math.min(t.fromY,t.toY),width:Math.max(...xs)-Math.min(...xs)+Math.abs(t.toX-t.fromX),height:Math.max(...ys)-Math.min(...ys)+Math.abs(t.toY-t.fromY)};
+    const radius=Math.max(...corners.map(([x,y])=>Math.hypot(x,y)))*s,rotate=rotations.some(Boolean);
+    const xs=rotate?[-radius,radius]:corners.flatMap(([x])=>scales.map(v=>x*v/100));
+    const ys=rotate?[-radius,radius]:corners.flatMap(([,y])=>scales.map(v=>y*v/100));
+    return {...row,x:ax+Math.min(...xs)+Math.min(...dx),y:ay+Math.min(...ys)+Math.min(...dy),width:Math.max(...xs)-Math.min(...xs)+Math.max(...dx)-Math.min(...dx),height:Math.max(...ys)-Math.min(...ys)+Math.max(...dy)-Math.min(...dy)};
   }
   // Extending the first exported event must hold its initial pose, then keep
   // the same source clock. Only tags emitted by our compiler are accepted.
@@ -18195,7 +18250,7 @@ export default MawDynamicCaptions;
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
   }
-  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags};
+  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);
 
@@ -18231,13 +18286,29 @@ export default MawDynamicCaptions;
   global.MSWSubtitleBackground=api;
 })(typeof window==='undefined'?globalThis:window);
 
+// ASS-native per-grapheme fill colors, never CSS-only glyph gradients.
+(function(global){
+  'use strict';
+  const defaults=Object.freeze({gradientMode:'none',gradientStart:'#ffffff',gradientEnd:'#b79cff'});
+  const fields=Object.keys(defaults);
+  function valid(style){return fields.every(k=>style[k]===undefined||(k==='gradientMode'?['none','characters'].includes(style[k]):typeof style[k]==='string'&&/^#[0-9a-f]{6}$/i.test(style[k])));}
+  function normalize(style={}){if(!valid(style))throw Error('字幕渐变参数无效');return Object.fromEntries(fields.map(k=>[k,style[k]??defaults[k]]));}
+  const enabled=style=>style.gradientMode==='characters';
+  function color(style,index,count){
+    const s=normalize(style),p=count>1?Math.max(0,Math.min(1,index/(count-1))):0;
+    return '#'+[1,3,5].map(i=>Math.round(parseInt(s.gradientStart.slice(i,i+2),16)*(1-p)+parseInt(s.gradientEnd.slice(i,i+2),16)*p).toString(16).padStart(2,'0')).join('');
+  }
+  const api={defaults,fields,valid,normalize,enabled,color};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleGradient=api;
+})(typeof window==='undefined'?globalThis:window);
+
 // Project styles are snapshots. Library presets and proofreading never mutate them.
 (function(global) {
   'use strict';
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 12;
+  const layoutVersion = 13;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -18281,8 +18352,8 @@ export default MawDynamicCaptions;
   function normalize(raw = {}) {
     if(raw.annotation!==undefined&&(!raw.annotation||typeof raw.annotation!=='object'||Array.isArray(raw.annotation)||raw.annotation.annotation!==undefined))throw Error('画面文字基础样式无效');
     return {schema, name: String(raw.name || '默认白字').slice(0, 80),
-      main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{}),...global.MSWSubtitleBackground.normalize(raw.main||{}),...(raw.main?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.main.animation)}:{})},
-      secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{}),...global.MSWSubtitleBackground.normalize(raw.secondary||{}),...(raw.secondary?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.secondary.animation)}:{})},
+      main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{}),...global.MSWSubtitleBackground.normalize(raw.main||{}),...global.MSWSubtitleGradient.normalize(raw.main||{}),...(raw.main?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.main.animation)}:{})},
+      secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{}),...global.MSWSubtitleBackground.normalize(raw.secondary||{}),...global.MSWSubtitleGradient.normalize(raw.secondary||{}),...(raw.secondary?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.secondary.animation)}:{})},
       animations: U.normalizeAssAnimations(raw.animations),
       ...(raw.annotation!==undefined?{annotation:normalize(raw.annotation)}:{}),
       ...(raw.pairLayout!==undefined?{pairLayout:normalizePair(raw.pairLayout)}:{}),
@@ -18452,10 +18523,12 @@ export default MawDynamicCaptions;
   const booleans=['bold','italic','underline','strikeOut'];
   const colors=['primaryColor','outlineColor','backColor'];
   const background=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground;
-  const fields=Object.freeze(['fontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields]);
+  const gradient=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-gradient.js'):global.MSWSubtitleGradient;
+  const fields=Object.freeze(['fontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
   function valid(value) {
     return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>{
       if(background.fields.includes(k))return background.valid({[k]:v});
+      if(gradient.fields.includes(k))return gradient.valid({[k]:v});
       if(numbers[k])return typeof v==='number'&&Number.isFinite(v)&&v>=numbers[k][0]&&v<=numbers[k][1]&&(k!=='charsPerLine'||Number.isInteger(v));
       if(booleans.includes(k))return typeof v==='boolean';
       if(colors.includes(k))return typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
@@ -18465,7 +18538,7 @@ export default MawDynamicCaptions;
       return false;
     });
   }
-  function apply(base,cue) {return {...base,...background.normalize(base),...(cue.subtitle_style||{})};}
+  function apply(base,cue) {return {...base,...background.normalize(base),...gradient.normalize(base),...(cue.subtitle_style||{})};}
   function appearance(style) {return Object.fromEntries(fields.filter(k=>style[k]!==undefined).map(k=>[k,style[k]]));}
   const api=Object.freeze({fields,valid,apply,appearance});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
@@ -34651,12 +34724,15 @@ function fixedRefreshSubtitlePreview(tMs) {
       {playResX:rect.referenceWidth,playResY:1080,stageWidth:rect.referenceWidth,stageHeight:1080});
     const animated=motion?{...variant,scaleX:variant.scaleX*motion.scale/100,scaleY:variant.scaleY*motion.scale/100,angle:variant.angle+motion.rotation}:assPreviewAnimatedStyle(variant,profile,animation);
     applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
-    if(motion){
+    const gradient=window.MSWSubtitleGradient.enabled(style);
+    if(motion||gradient){
       text.replaceChildren();let seen=0,prefix=0;
-      for(const unit of window.MSWProjectStyle.characters(size.text)){
+      const units=window.MSWProjectStyle.characters(size.text),count=units.filter(u=>u.trim()).length;
+      for(const unit of units){
         if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
-        if(seen>motion.revealed)span.style.visibility='hidden';
-        if(prefix<size.prefix.length)span.style.color=speaker.style.color;
+        if(motion&&seen>motion.revealed)span.style.visibility='hidden';
+        if(gradient)span.style.color=window.MSWSubtitleGradient.color(style,seen-1,count);
+        else if(prefix<size.prefix.length)span.style.color=speaker.style.color;
         text.append(span);if(unit!=='\n')prefix+=unit.length;
       }
     }
@@ -66721,16 +66797,146 @@ window.addEventListener('beforeunload', (e) => {
   }
 })(window);
 
+// One pointer gesture is one edit. Drafts stay local until release.
+(function(global){
+  'use strict';
+  const A=global.MSWSubtitleAnimation,clone=v=>JSON.parse(JSON.stringify(v));
+  function create(root,{context,commit,message}){
+    root.className='msw-curves msw-motion-wide';
+    root.innerHTML=`<div class="msw-curve-toolbar"><select id="curve-channel" aria-label="关键帧参数"></select>
+      <label class="msw-style-check"><input id="curve-active" type="checkbox"><span>使用曲线</span></label></div>
+      <div class="msw-curve-plot"><svg id="curve-graph" viewBox="0 0 320 180" tabindex="0" role="img" aria-label="关键帧曲线，拖动圆点调整时间与数值"></svg></div>
+      <p id="curve-note" class="msw-processing-hint"></p>
+      <div class="msw-curve-toolbar"><select id="curve-point" aria-label="当前关键帧"></select>
+      <button id="curve-add" type="button" class="msw-style-icon" title="添加关键帧" aria-label="添加关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
+      <button id="curve-delete" type="button" class="msw-style-icon" title="删除关键帧" aria-label="删除关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/></svg></button></div>
+      <div class="msw-style-fields"><label class="msw-style-field"><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" required></label>
+      <label class="msw-style-field"><span>数值</span><input id="curve-value" type="number" step="any" required></label>
+      <label class="msw-style-field msw-motion-wide" data-option-help="控制此关键帧到下一帧的过渡。平滑在两端减速且不超出端点数值；保持直到下一帧才跳变。"><span class="msw-option-label">过渡到下一帧</span><select id="curve-easing"><option value="linear">匀速</option><option value="smooth">平滑</option><option value="hold">保持</option></select></label></div>`;
+    const $=id=>root.querySelector('#'+id),graph=$('curve-graph');
+    $('curve-channel').replaceChildren(...Object.entries(A.channels).map(([key,c])=>new Option(c.label,key)));
+    let state,points=[],selected=0,drag=null,geometry,mixed=false,signature='',targetSignature='';
+    const channel=()=>$('curve-channel').value,number=v=>Math.round(v*1000)/1000;
+    function fingerprint(c){return JSON.stringify(c.items.map(i=>[i.row?.cue_id,i.track.id,i.value.effects.curves]));}
+    function save(next){
+      try{commit('curves','channel:'+channel(),next);message('');}catch(e){message(e.message,true);}sync();
+    }
+    function draw(){
+      const c=A.channels[channel()],duration=context().items[0]?.duration||1000;
+      let end=state.unit==='percent'?100:Math.min(60000,Math.max(duration,...points.map(p=>p.time),1));
+      const values=points.map(p=>p.value),pad=channel()==='opacity'?0:Math.max(10,((Math.max(c.initial,...values)-Math.min(c.initial,...values))*.15));
+      let low=Math.max(c.min,Math.min(c.initial,...values)-(values.length?pad:100));
+      let high=Math.min(c.max,Math.max(c.initial,...values)+(values.length?pad:100));
+      if(channel()==='opacity'){low=0;high=100;}if(high===low)high=low+1;
+      if(drag)({end,low,high}=drag.geometry);
+      const X=t=>38+t/end*270,Y=v=>150-(v-low)/(high-low)*130;
+      geometry={end,low,high,X,Y};
+      const ticks=[0,.5,1],commands=[];
+      if(points.length){
+        commands.push(`M${X(0)},${Y(points[0].value)}`,`L${X(points[0].time)},${Y(points[0].value)}`);
+        for(let i=1;i<points.length;i++){
+          const a=points[i-1],b=points[i],steps=a.easing==='smooth'?32:1;
+          if(a.easing==='hold')commands.push(`L${X(b.time)},${Y(a.value)}`);
+          for(let j=1;j<=steps;j++){const time=a.time+(b.time-a.time)*j/steps;commands.push(`L${X(time)},${Y(A.curveValue(points,time))}`);}
+        }
+        commands.push(`L${X(end)},${Y(points.at(-1).value)}`);
+      }
+      const path=commands.join(' ');
+      graph.innerHTML=ticks.map(p=>`<path class="curve-grid" d="M38 ${Y(low+(high-low)*p)}H308M${X(end*p)} 20V150"/>
+        <text x="33" y="${Y(low+(high-low)*p)+4}" text-anchor="end">${Math.round((low+(high-low)*p)*10)/10}</text>
+        <text x="${X(end*p)}" y="170" text-anchor="${p===1?'end':p===0?'start':'middle'}">${number(end*p)}${state.unit==='percent'?'%':''}</text>`).join('')+
+        `<path class="curve-line" d="${path}"/>`+points.map((p,i)=>`<circle class="curve-handle${i===selected?' selected':''}" data-point="${i}" cx="${X(p.time)}" cy="${Y(p.value)}" r="${i===selected?5:4}"/>`).join('');
+      $('curve-point').replaceChildren(...points.map((p,i)=>new Option(`${String(i+1).padStart(2,'0')} · ${number(p.time)}${state.unit==='percent'?'%':' ms'}`,String(i))));
+      $('curve-point').value=String(selected);const point=points[selected];
+      $('curve-time-label').textContent=state.unit==='percent'?'时间 (%)':'时间 (ms)';
+      $('curve-time').max=state.unit==='percent'?'100':'60000';
+      $('curve-value').min=String(c.min);$('curve-value').max=String(c.max);
+      $('curve-time').value=point?String(number(point.time)):'';
+      $('curve-value').value=point?String(number(point.value)):'';
+      $('curve-easing').value=point?.easing||'linear';
+      const blocked=context().blocked;
+      for(const id of ['curve-point','curve-time','curve-value','curve-easing','curve-delete'])$(id).disabled=blocked||!point;
+      $('curve-easing').disabled=blocked||!point||selected===points.length-1;
+      $('curve-add').disabled=blocked||!points.length||points.length>=32;
+      $('curve-note').textContent=mixed?'多个值：图表显示首条；编辑只统一当前参数。':!points.length?'启用当前参数后添加关键帧。':'拖动圆点调整；Esc 取消拖动。';
+      graph.setAttribute('aria-disabled',String(blocked||!points.length));
+    }
+    function sync(){
+      const c=context(),key=fingerprint(c);
+      if(drag){if(c.blocked||key!==signature)cancel();else return;}
+      signature=key;state=clone(c.items[0]?.value.effects.curves||A.defaults().effects.curves);
+      const target=JSON.stringify(c.items.map(i=>[i.row?.cue_id,i.track.id]));
+      if(target!==targetSignature){
+        targetSignature=target;
+        if(!state.channels[channel()]){
+          const used=Object.keys(state.channels)[0];if(used)$('curve-channel').value=used;
+        }
+        selected=0;
+      }
+      for(const option of $('curve-channel').options)option.textContent=A.channels[option.value].label+(state.channels[option.value]?' •':'');
+      points=clone(state.channels[channel()]||[]);
+      mixed=c.items.some(i=>JSON.stringify(i.value.effects.curves.channels[channel()]||[])!==JSON.stringify(points));
+      selected=Math.min(selected,Math.max(0,points.length-1));
+      $('curve-active').checked=!!points.length;$('curve-active').indeterminate=mixed;
+      $('curve-active').disabled=c.blocked;$('curve-channel').disabled=c.blocked;draw();
+    }
+    $('curve-channel').onchange=()=>{cancel();selected=0;sync();};
+    $('curve-active').onchange=e=>{
+      const value=A.channels[channel()].initial;
+      save(e.target.checked?[{time:0,value,easing:'smooth'},{time:state.unit==='percent'?100:Math.min(60000,context().items[0]?.duration||1000),value,easing:'smooth'}]:null);
+    };
+    $('curve-point').onchange=()=>{selected=Number($('curve-point').value);draw();};
+    $('curve-add').onclick=()=>{
+      const max=state.unit==='percent'?100:Math.min(60000,geometry.end),times=[0,...points.map(p=>p.time),max];
+      let a=0,b=0;for(let i=1;i<times.length;i++)if(times[i]-times[i-1]>b-a){a=times[i-1];b=times[i];}
+      if(b-a<.02){message('没有足够空间添加关键帧',true);return;}
+      const time=(a+b)/2,next=[...clone(points),{time,value:A.curveValue(points,time),easing:'smooth'}].sort((a,b)=>a.time-b.time);
+      selected=next.findIndex(p=>p.time===time);save(next);
+    };
+    $('curve-delete').onclick=()=>{const next=clone(points);next.splice(selected,1);selected=Math.max(0,selected-1);save(next.length?next:null);};
+    for(const key of ['time','value','easing'])$('curve-'+key).onchange=()=>{
+      const input=$('curve-'+key);if(!input.reportValidity()){draw();return;}
+      const next=clone(points),point=next[selected];if(!point)return;
+      point[key]=key==='easing'?input.value:Number(input.value);
+      if(key==='time'){next.sort((a,b)=>a.time-b.time);selected=next.indexOf(point);}
+      save(next);
+    };
+    function cancel(){if(!drag)return;const original=drag.original;drag=null;points=original;draw();}
+    graph.addEventListener('pointerdown',e=>{
+      const circle=e.target.closest('[data-point]');if(!circle||context().blocked||e.button!==0)return;
+      e.preventDefault();e.stopPropagation();selected=Number(circle.dataset.point);graph.focus({preventScroll:true});
+      drag={id:e.pointerId,original:clone(points),geometry:{...geometry}};graph.setPointerCapture(e.pointerId);draw();
+    });
+    graph.addEventListener('pointermove',e=>{
+      if(!drag||e.pointerId!==drag.id)return;e.preventDefault();
+      const rect=graph.getBoundingClientRect(),g=drag.geometry,c=A.channels[channel()],point=points[selected];
+      const time=((e.clientX-rect.left)*320/rect.width-38)/270*g.end;
+      point.time=number(Math.max(selected?points[selected-1].time+.001:0,Math.min(selected<points.length-1?points[selected+1].time-.001:state.unit==='percent'?100:60000,time)));
+      const value=g.low+(150-(e.clientY-rect.top)*180/rect.height)/130*(g.high-g.low);
+      point.value=number(Math.max(c.min,Math.min(c.max,value)));draw();
+    });
+    graph.addEventListener('pointerup',e=>{if(!drag||e.pointerId!==drag.id)return;const original=drag.original;drag=null;
+      if(fingerprint(context())!==signature){sync();return;}if(JSON.stringify(points)!==JSON.stringify(original))save(points);});
+    graph.addEventListener('pointercancel',cancel);
+    graph.addEventListener('lostpointercapture',cancel);
+    global.addEventListener('blur',cancel);
+    global.addEventListener('keydown',e=>{if(drag&&e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();cancel();}},true);
+    return {sync};
+  }
+  global.MSWAnimationCurvesUI={create};
+})(window);
+
 // Compact effect controls shared by track defaults and actual cue selections.
 (function(global){
   'use strict';
   const A=global.MSWSubtitleAnimation;
   function create(root,{context,commit,message,preview}){
-    const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展'};
+    const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展',curves:'关键帧'};
     const help={fade:'按字幕自身时长淡入淡出；两段相加超过字幕时长时等比缩短。',typewriter:'逐字显示，保留完整文字的换行与位置；空格和换行不占一次出字。',blink:'在指定时段内交替显示；间隔是一次完整亮暗循环的毫秒数。可与淡入淡出叠加。',transform:'从起始状态变化到结束状态，前后保持各自状态。位移相对字幕原位置，缩放相对原字号；坐标单位以 1080p 为基准。'};
+    help.curves='曲线接管已添加参数，未添加参数继续使用舒展；不透明度仍与淡入淡出、闪烁相乘。每参数最多 32 帧，首末帧之外保持端点值。位移以 1080p 为基准。多选只统一编辑的参数；拖动松手后一次提交。';
     const svg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg>';
     root.innerHTML='<div class="msw-motion-actions"><button type="button" id="motion-inherit">跟随轨道动画</button><button type="button" id="motion-clear">关闭全部</button><button type="button" id="motion-preview" aria-label="从字幕起点预览" title="从字幕起点预览"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg></button></div><div class="msw-motion-presets"></div><div class="msw-motion-effects"></div>';
-    const $=id=>root.querySelector('#'+id),controls=new Map();
+    const $=id=>root.querySelector('#'+id),controls=new Map();let curvesUI;
     for(const name of A.names){
       const label=document.createElement('label');label.className='msw-style-check';label.dataset.optionHelp=help[name];
       label.innerHTML=`<input type="checkbox" id="motion-${name}-enabled"><span class="msw-option-label">${labels[name]}</span>`;
@@ -66756,6 +66962,7 @@ window.addEventListener('beforeunload', (e) => {
       const unit=controls.get(name+'.unit');unit.input.closest('label').dataset.optionHelp='比例按每条字幕自己的时长计算；毫秒从字幕起点计算。切换单位按当前预览字幕换算，多选分别换算；空轨按 1 秒换算。超出字幕的部分不显示。';
       for(const key of A.timings(name))add(key,{in:'淡入',out:'淡出',start:'开始',end:'结束'}[key]);
       if(name==='blink'){add('period','循环间隔 (ms)');add('opacity','变暗时不透明度 (%)');}
+      if(name==='curves'){const editor=document.createElement('div');fields.append(editor);curvesUI=global.MSWAnimationCurvesUI.create(editor,{context,commit,message});}
       if(name==='transform'){
         add('easing','变化方式','select',[['linear','匀速'],['ease-in','先慢后快'],['ease-out','先快后慢'],['smooth','平滑']]);
         const table=document.createElement('div');table.className='msw-motion-transform msw-motion-wide';
@@ -66796,6 +67003,7 @@ window.addEventListener('beforeunload', (e) => {
         }
       }
       global.MSWHelp?.hydrate(root);
+      curvesUI.sync();
     }
     return {sync};
   }
@@ -66934,6 +67142,11 @@ window.addEventListener('beforeunload', (e) => {
     ['backgroundColor','填充颜色','color'],['backgroundOpacity','不透明度 %','number',0,100],
     ['backgroundPaddingX','左右内边距','number',0,240],['backgroundPaddingY','上下内边距','number',0,240],
     ['backgroundRadius','圆角半径','number',0,240]],'style-background-fields');
+  const gradientSection=document.createElement('details');gradientSection.id='style-gradient';gradientSection.className='msw-style-section msw-style-background';
+  gradientSection.innerHTML='<summary><span class="msw-option-label">文字渐变</span></summary><div id="style-gradient-fields" class="msw-style-fields"></div>';
+  gradientSection.querySelector('summary').dataset.optionHelp='双色按整条字幕阅读顺序逐字变化，空格不占步长、换行不重置；单个字内部保持纯色。开启后替代文字和说话人的填充颜色，不影响描边或背景。首尾颜色都支持视频取色，预览、ASS 和烧录一致。';
+  backgroundSection.before(gradientSection);
+  fields([['gradientMode','渐变方式','select',[['none','关闭'],['characters','双色逐字']]],['gradientStart','起始颜色','color'],['gradientEnd','结束颜色','color']],'style-gradient-fields');
   icons.pick='<path d="m14 5 5 5M12 7l5 5-9 9H3v-5l9-9Zm1-1 3-3a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3l-3 3"/>';
   for(const input of panel.querySelectorAll('[data-style-field][type=color]')) {
     const control=document.createElement('span');control.className='msw-style-color-control';input.before(control);control.append(input);
@@ -67067,15 +67280,18 @@ window.addEventListener('beforeunload', (e) => {
     const updates=context.items.map(item=>{
       const effects={};
       for(const effect of name==='all'?M.names:[name]){
-        const state=structuredClone(item.value.effects[effect]);
+        let state=structuredClone(item.value.effects[effect]);
         if(key==='disable')state.enabled=false;
         else if(key!=='reset'){
-          if(key==='unit'&&state.unit!==value)for(const time of M.timings(effect))state[time]=Math.min(value==='percent'?100:60000,Math.round(M.ms(state,time,item.duration)*(value==='percent'?100/item.duration:1)*1000)/1000);
-          state[key]=value;
+          if(key==='unit')state=M.convertUnit(state,value,item.duration);
+          else if(key.startsWith('channel:')){
+            state=M.convertUnit(state,context.items[0].value.effects.curves.unit,item.duration);
+            const channel=key.slice(8);if(value===null)delete state.channels[channel];else state.channels[channel]=structuredClone(value);
+          }else state[key]=value;
         }
         effects[effect]=state;
       }
-      const animation={schema:M.schema,effects};if(key!=='reset'&&!M.valid(animation))throw Error('动画结束必须晚于开始，且参数须在允许范围内');
+      const animation={schema:M.schema,effects};if(key!=='reset'&&!M.valid(animation))throw Error('动画参数无效：时间须递增且不能重合，数值须在允许范围内');
       return {id:item.row?.cue_id,animation,item};
     });
     let next;
@@ -67234,6 +67450,8 @@ window.addEventListener('beforeunload', (e) => {
       input.closest('label').hidden=!withBackground||(key==='backgroundRadius'&&!backgroundValues.some(s=>s.backgroundShape==='rounded'));
     }
     $('style-field-borderStyle').disabled ||= withBackground;
+    const withGradient=backgroundValues.some(s=>global.MSWSubtitleGradient.enabled(s));
+    for(const key of ['gradientStart','gradientEnd'])$('style-field-'+key).closest('label').hidden=!withGradient;
     for(const input of panel.querySelectorAll('[data-style-field][type=color]'))$('style-pick-'+input.dataset.styleField).disabled=input.disabled||fixedPositionEditing;
     $('style-preview-mode').value=proof.mode;
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
@@ -67318,7 +67536,7 @@ window.addEventListener('beforeunload', (e) => {
     if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
-    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape'].includes(field)?Number(input.value):input.value;
+    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape','gradientMode'].includes(field)?Number(input.value):input.value;
     if(cueScope()){if(field)commitCueAppearance({[field]:v});return;}
     // Exact legacy burn parameters survive until the user deliberately edits them.
     if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){

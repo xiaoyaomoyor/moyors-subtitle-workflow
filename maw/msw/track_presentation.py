@@ -249,6 +249,7 @@ def layout(project, width=1920):
 
 
 def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, frame_at=None):
+    from maw.msw import subtitle_gradient as gradient
     from maw.ass_styles import ass_style_line
     from maw.msw.subtitle_style import ass_time, ass_text
     from maw.speaker import COLOR_PALETTE
@@ -293,6 +294,8 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
                 if count>=len(r['prefix']):break
             def tag(hex):return r'{\c&H'+hex[5:7]+hex[3:5]+hex[1:3]+'&}'
             text=tag(color)+ass_text(r['size']['text'][:cut])+tag(r['style']['primaryColor'])+ass_text(r['size']['text'][cut:])
+        if gradient.enabled(r['style']):
+            text=gradient.ass(r['size']['text'],r['style'])
         for interval in plan['intervals']:
             lo,hi=max(r['cue']['start'],interval['start_ms']),min(r['cue']['end'],interval['end_ms'])
             if hi<=lo:continue

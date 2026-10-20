@@ -19,6 +19,7 @@ v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对
 - `wrapMode`：`auto` / `characters`；`charsPerLine`：1–200 的整数。
 - `backgroundShape`：`none` / `rect` / `rounded`，缺省 `none`；`backgroundColor`：`#RRGGBB`，缺省黑色；`backgroundOpacity`：0–100 的有限数值，缺省 75。
 - `backgroundPaddingX` / `backgroundPaddingY` / `backgroundRadius`：0–240 的有限数值，分别为左右／上下内边距及圆角半径，缺省 16 / 8 / 12，单位为 1080p 像素。半径渲染时不超过框宽／高的一半。
+- `gradientMode`：`none` / `characters`，缺省 `none`；`gradientStart` / `gradientEnd`：`#RRGGBB`，缺省 `#ffffff` / `#b79cff`。双色沿整条字幕可见字素的阅读顺序线性插值 RGB，四舍五入到整数通道；空格、换行不占步长，换行不重置，单字使用起始颜色。一个字素内部为纯色，组合音标、ZWJ 表情不拆开。渐变启用后覆盖文字填充和说话人颜色映射，不改描边、阴影或背景；关闭后恢复原文字颜色。字段同样用于轨道样式和预设。
 
 可选 `content.subtitle_style_preset` 为非空、至多 160 字符的预设 ID，只记录编辑来源以显示“已修改”和恢复该预设；渲染始终使用已保存的覆盖字段，不依赖外部预设库。删除预设不改变工程外观，恢复轨道外观同时清除来源标识。
 
@@ -36,8 +37,15 @@ v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对
 | `typewriter` | `enabled:false, unit:"percent", start:0, end:40` |
 | `blink` | `enabled:false, unit:"percent", start:0, end:100, period:600, opacity:0` |
 | `transform` | `enabled:false, unit:"percent", start:0, end:25, fromX:0, fromY:0, toX:0, toY:0, fromScale:85, toScale:100, fromRotation:0, toRotation:0, fromOpacity:100, toOpacity:100, easing:"smooth"` |
+| `curves` | `enabled:false, unit:"percent", channels:{}` |
 
 `in/out/start/end` 为 0–100% 或 0–60000ms，`end` 必须大于 `start`；淡入淡出总和超过字幕时长时等比缩短。`period` 为完整亮暗周期，80–60000ms；`opacity/fromOpacity/toOpacity` 为 0–100（100 为完全可见）。位移为相对原锚点的 1080p 坐标，−4096–4096；缩放为原样式的 1–1000%；旋转为相对原角度的 −360–360 度。缓动 `easing` 为 `linear/ease-in/ease-out/smooth`，分别为线性、平方、反向平方、三次平滑。
+
+`curves.channels` 仅接受 `x`、`y`（−4096–4096 px）、`scale`（1–1000%）、`rotation`（−360–360°）、`opacity`（0–100%）。每个存在的通道是 1–32 个 `{time,value,easing}` 的数组，字段必须完整且无额外字段。`time` 为该效果单位下的 0–100 或 0–60000，有序且严格递增；`value` 为通道范围内有限数。`easing` 为 `linear/smooth/hold`，控制本点至下一点的过渡；smooth 使用 `p²(3−2p)` 无过冲平滑，hold 在下一点时跳变。单点或首末点之外保持端点值。关闭曲线保留点数据；移除通道恢复该参数的舒展／默认值。曲线覆盖舒展的同名参数，不透明度再与淡入淡出、闪烁相乘。
+
+关键帧多选按当前通道统一点数据，其他通道和效果分别保留。混合单位时将各对象的其他通道先换算到首条显示单位；单位转换越界会拒绝，避免截断或合并关键帧。每次曲线拖动在松手时一次提交，Esc 取消；选区变更或锁定取消未提交拖动。保存仍按 `curves` 整个效果覆盖轨道基底，点选、选中的通道和图表范围不写入工程。
+
+渐变使用原生 ASS `\1c` 字素标签，不增加事件条数，字素颜色由完整文本确定，打字机隐藏尾部不重新计算颜色。关键帧使用相同源时钟编译成有界的 ASS `\move` / `\t` 片段，平滑曲线以最多 40ms 间隔近似，最终时间受 ASS 厘秒精度约束。精确浏览器预览、独立 ASS 和烧录共用编译器。未实现单字内部连续渐变或 CSS 专有渐变。
 
 淡入淡出、闪烁及变换不透明度相乘；打字机只控制可见字素，空格和换行不占一次出字，隐藏尾部保留全文排布，开始前隐藏、结束后全显。变换在时段前后保持起始/结束值，闪烁只在指定时段生效。渲染按原字幕起点求值，裁剪、去空隙及跳转不重播；缓动编译为标准 ASS 分段线性事件，时间受 ASS 厘秒精度约束。“首条从 0 开始”仅延长首个输出片段的初始画面，不提前播放其变换。单条关键边界超过 4096 或工程输出超过 200000 行时拒绝生成并给出错误，不静默裁掉效果。
 

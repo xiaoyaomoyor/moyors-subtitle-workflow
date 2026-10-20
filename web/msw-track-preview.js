@@ -164,12 +164,15 @@ function fixedRefreshSubtitlePreview(tMs) {
       {playResX:rect.referenceWidth,playResY:1080,stageWidth:rect.referenceWidth,stageHeight:1080});
     const animated=motion?{...variant,scaleX:variant.scaleX*motion.scale/100,scaleY:variant.scaleY*motion.scale/100,angle:variant.angle+motion.rotation}:assPreviewAnimatedStyle(variant,profile,animation);
     applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
-    if(motion){
+    const gradient=window.MSWSubtitleGradient.enabled(style);
+    if(motion||gradient){
       text.replaceChildren();let seen=0,prefix=0;
-      for(const unit of window.MSWProjectStyle.characters(size.text)){
+      const units=window.MSWProjectStyle.characters(size.text),count=units.filter(u=>u.trim()).length;
+      for(const unit of units){
         if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
-        if(seen>motion.revealed)span.style.visibility='hidden';
-        if(prefix<size.prefix.length)span.style.color=speaker.style.color;
+        if(motion&&seen>motion.revealed)span.style.visibility='hidden';
+        if(gradient)span.style.color=window.MSWSubtitleGradient.color(style,seen-1,count);
+        else if(prefix<size.prefix.length)span.style.color=speaker.style.color;
         text.append(span);if(unit!=='\n')prefix+=unit.length;
       }
     }

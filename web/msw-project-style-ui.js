@@ -71,6 +71,11 @@
     ['backgroundColor','填充颜色','color'],['backgroundOpacity','不透明度 %','number',0,100],
     ['backgroundPaddingX','左右内边距','number',0,240],['backgroundPaddingY','上下内边距','number',0,240],
     ['backgroundRadius','圆角半径','number',0,240]],'style-background-fields');
+  const gradientSection=document.createElement('details');gradientSection.id='style-gradient';gradientSection.className='msw-style-section msw-style-background';
+  gradientSection.innerHTML='<summary><span class="msw-option-label">文字渐变</span></summary><div id="style-gradient-fields" class="msw-style-fields"></div>';
+  gradientSection.querySelector('summary').dataset.optionHelp='双色按整条字幕阅读顺序逐字变化，空格不占步长、换行不重置；单个字内部保持纯色。开启后替代文字和说话人的填充颜色，不影响描边或背景。首尾颜色都支持视频取色，预览、ASS 和烧录一致。';
+  backgroundSection.before(gradientSection);
+  fields([['gradientMode','渐变方式','select',[['none','关闭'],['characters','双色逐字']]],['gradientStart','起始颜色','color'],['gradientEnd','结束颜色','color']],'style-gradient-fields');
   icons.pick='<path d="m14 5 5 5M12 7l5 5-9 9H3v-5l9-9Zm1-1 3-3a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3l-3 3"/>';
   for(const input of panel.querySelectorAll('[data-style-field][type=color]')) {
     const control=document.createElement('span');control.className='msw-style-color-control';input.before(control);control.append(input);
@@ -204,15 +209,18 @@
     const updates=context.items.map(item=>{
       const effects={};
       for(const effect of name==='all'?M.names:[name]){
-        const state=structuredClone(item.value.effects[effect]);
+        let state=structuredClone(item.value.effects[effect]);
         if(key==='disable')state.enabled=false;
         else if(key!=='reset'){
-          if(key==='unit'&&state.unit!==value)for(const time of M.timings(effect))state[time]=Math.min(value==='percent'?100:60000,Math.round(M.ms(state,time,item.duration)*(value==='percent'?100/item.duration:1)*1000)/1000);
-          state[key]=value;
+          if(key==='unit')state=M.convertUnit(state,value,item.duration);
+          else if(key.startsWith('channel:')){
+            state=M.convertUnit(state,context.items[0].value.effects.curves.unit,item.duration);
+            const channel=key.slice(8);if(value===null)delete state.channels[channel];else state.channels[channel]=structuredClone(value);
+          }else state[key]=value;
         }
         effects[effect]=state;
       }
-      const animation={schema:M.schema,effects};if(key!=='reset'&&!M.valid(animation))throw Error('动画结束必须晚于开始，且参数须在允许范围内');
+      const animation={schema:M.schema,effects};if(key!=='reset'&&!M.valid(animation))throw Error('动画参数无效：时间须递增且不能重合，数值须在允许范围内');
       return {id:item.row?.cue_id,animation,item};
     });
     let next;
@@ -371,6 +379,8 @@
       input.closest('label').hidden=!withBackground||(key==='backgroundRadius'&&!backgroundValues.some(s=>s.backgroundShape==='rounded'));
     }
     $('style-field-borderStyle').disabled ||= withBackground;
+    const withGradient=backgroundValues.some(s=>global.MSWSubtitleGradient.enabled(s));
+    for(const key of ['gradientStart','gradientEnd'])$('style-field-'+key).closest('label').hidden=!withGradient;
     for(const input of panel.querySelectorAll('[data-style-field][type=color]'))$('style-pick-'+input.dataset.styleField).disabled=input.disabled||fixedPositionEditing;
     $('style-preview-mode').value=proof.mode;
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
@@ -455,7 +465,7 @@
     if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
-    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape'].includes(field)?Number(input.value):input.value;
+    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape','gradientMode'].includes(field)?Number(input.value):input.value;
     if(cueScope()){if(field)commitCueAppearance({[field]:v});return;}
     // Exact legacy burn parameters survive until the user deliberately edits them.
     if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){

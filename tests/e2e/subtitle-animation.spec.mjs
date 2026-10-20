@@ -93,6 +93,14 @@ test('combined effects render the same source state after trimming and removing 
   await page.locator('#style-animation').evaluate(el=>el.open=true);
   for(const name of ['fade','typewriter','blink','transform'])await effect(page,name,'enabled',true);
   await effect(page,'blink','opacity',40);await effect(page,'transform','end',100);await effect(page,'transform','fromX',-80);await effect(page,'transform','toRotation',12);
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),c=p.subtitles.cues[0].content;
+    c.subtitle_animation.effects.curves={enabled:true,unit:'percent',channels:{
+      x:[{time:0,value:-40,easing:'smooth'},{time:60,value:40,easing:'linear'},{time:100,value:0,easing:'hold'}],
+      opacity:[{time:0,value:40,easing:'smooth'},{time:100,value:100,easing:'linear'}]}};
+    c.subtitle_style={...c.subtitle_style,gradientMode:'characters',gradientStart:'#ff0000',gradientEnd:'#00ff00',backgroundShape:'rounded',backgroundColor:'#442266'};
+    productionCommitProject(p,'curve gradient background',[p.subtitles.cues[0].id]);
+  });await idle(page);
   const p=await snap(page),script=`import json,sys
 from pathlib import Path
 from maw.msw.subtitle_style import styled_ass
@@ -139,4 +147,126 @@ import sys,json
 images=[Image.open(p).convert('RGB') for p in sys.argv[1:]]
 print(json.dumps([max(ImageStat.Stat(ImageChops.difference(images[i],images[i+2])).mean) for i in (0,1)]))`,...images],{encoding:'utf8',windowsHide:true}));
   for(const difference of differences)expect(difference).toBeLessThan(.05);
+});
+
+test('curve graph edits numeric points, drags atomically, cancels, converts units and saves',async({page},info)=>{
+  await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await effect(page,'curves','enabled',true);
+  await page.locator('#curve-channel').selectOption('scale');await page.locator('#curve-active').check();await idle(page);
+  await page.locator('#curve-value').fill('70');await page.locator('#curve-value').blur();await idle(page);
+  await page.locator('#curve-point').selectOption('1');await page.locator('#curve-value').fill('120');await page.locator('#curve-value').blur();await idle(page);
+  await page.locator('#curve-add').click();await idle(page);
+  await expect(page.locator('#curve-time')).toHaveValue('50');
+  await page.locator('#curve-value').fill('150');await page.locator('#curve-value').blur();await idle(page);
+  await page.locator('#curve-easing').selectOption('hold');await idle(page);
+  const before=await snap(page);
+  await page.locator('#curve-graph').scrollIntoViewIfNeeded();
+  const handle=await page.locator('.curve-handle.selected').boundingBox();
+  await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();
+  await page.mouse.move(handle.x+25,handle.y+25,{steps:8});await page.keyboard.press('Escape');await page.mouse.up();
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  const point=await page.locator('.curve-handle.selected').boundingBox();
+  await page.mouse.move(point.x+point.width/2,point.y+point.height/2);await page.mouse.down();await page.mouse.move(point.x+30,point.y+25,{steps:10});
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.mouse.up();await idle(page);
+  const after=await snap(page);expect(after.subtitles).not.toEqual(before.subtitles);
+  await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.evaluate(()=>performRedo());await idle(page);expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await effect(page,'curves','unit','ms');
+  const frames=(await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.curves.channels.scale;
+  expect(frames[2].time).toBe(2500);
+  await effect(page,'curves','unit','percent');
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);const saved=await snap(page);
+  await page.reload();await idle(page);expect((await snap(page)).subtitles).toEqual(saved.subtitles);
+  await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');Object.assign(document.getElementById('subtitle-properties').style,{position:'fixed',top:'20px',left:'10px',width:'310px',height:'740px',zIndex:'60'});});
+  await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-curves-card').scrollIntoViewIfNeeded();
+  await expect(page.locator('#curve-channel')).toHaveValue('scale');
+  await expect(page.locator('.curve-handle')).toHaveCount(3);
+  expect(await page.locator('#subtitle-properties-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('keyframe-controls.png')});
+});
+
+test('track curves are inherited and single-cue restoration preserves other effects',async({page})=>{
+  await page.evaluate(()=>MSWSubtitleStyle.open('track'));
+  await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await effect(page,'curves','enabled',true);await page.locator('#curve-channel').selectOption('opacity');await page.locator('#curve-active').check();await idle(page);
+  await page.locator('#curve-value').fill('50');await page.locator('#curve-value').blur();await idle(page);
+  await page.locator('#style-edit-scope').selectOption('cue');
+  await expect(page.locator('#curve-value')).toHaveValue('50');
+  await effect(page,'blink','enabled',true);
+  await page.locator('#curve-value').fill('80');await page.locator('#curve-value').blur();await idle(page);
+  await page.locator('#motion-curves-reset').click();await idle(page);
+  await expect(page.locator('#curve-value')).toHaveValue('50');
+  const p=await snap(page),a=p.subtitles.cues[0].content.subtitle_animation;
+  expect(a.effects.curves).toBeUndefined();expect(a.effects.blink.enabled).toBe(true);
+  expect(p.subtitles.tracks[0].style.value.main.animation.effects.curves.channels.opacity[0].value).toBe(50);
+});
+
+test('curve multiselect changes only current channel, preserves bindings and respects locks',async({page})=>{
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),[main]=p.subtitles.cues,sub=p.subtitles.cues.find(c=>c.content.text==='Translation');
+    for(const [c,key,value] of [[main,'x',30],[sub,'y',60]]){
+      const a=MSWSubtitleAnimation.defaults();a.effects.curves={enabled:true,unit:'percent',channels:{[key]:[{time:0,value,easing:'linear'}]}};
+      c.content.subtitle_animation=a;
+    }
+    productionCommitProject(p,'curves',[main.id,sub.id]);
+  });
+  await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await page.locator('#curve-channel').selectOption('scale');await page.locator('#curve-active').check();await idle(page);
+  await page.locator('#curve-value').fill('80');await page.locator('#curve-value').blur();await idle(page);
+  let p=await snap(page);const [main]=p.subtitles.cues,sub=p.subtitles.cues.find(c=>c.content.text==='Translation');
+  expect(main.content.subtitle_animation.effects.curves.channels.x[0].value).toBe(30);
+  expect(sub.content.subtitle_animation.effects.curves.channels.y[0].value).toBe(60);
+  for(const c of [main,sub])expect(c.content.subtitle_animation.effects.curves.channels.scale[0].value).toBe(80);
+  const bindings=p.subtitles.bindings;
+  await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks[1].locked=true;productionCommitProject(p,'lock',p.subtitles.cues.filter(c=>c.content.start===0).map(c=>c.id));});
+  await expect(page.locator('#curve-value')).toBeDisabled();expect((await snap(page)).subtitles.bindings).toEqual(bindings);
+});
+
+test('gradient colors, picker, presets and curve animation use the same ASS frame as burning',async({page},info)=>{
+  await field(page,'fontSize',96);
+  await page.locator('#style-more').evaluate(el=>el.open=true);await page.locator('#style-gradient').evaluate(el=>el.open=true);
+  await page.locator('#style-field-gradientMode').selectOption('characters');await idle(page);
+  await field(page,'gradientStart','#ff0000');await field(page,'gradientEnd','#00ff00');
+  await page.locator('#style-pick-gradientEnd').click();await expect(page.locator('.msw-video-color-picker')).toBeVisible();
+  await page.keyboard.press('Escape');await expect(page.locator('#style-field-gradientEnd')).toHaveValue('#00ff00');
+  await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('Gradient test');await page.locator('#style-save-preset').click();
+  await expect(page.locator('#style-message')).toContainText('预设已保存');
+  const preset=await page.locator('#style-project-preset').inputValue();
+  await page.locator('#style-field-gradientMode').selectOption('none');await idle(page);
+  await page.locator('#style-project-preset').selectOption(preset);await idle(page);
+  await expect(page.locator('#style-field-gradientMode')).toHaveValue('characters');
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),cue=p.subtitles.cues[0],motion=MSWSubtitleAnimation.defaults();
+    motion.effects.curves={enabled:true,unit:'percent',channels:{
+      x:[{time:0,value:-100,easing:'smooth'},{time:50,value:100,easing:'smooth'},{time:100,value:0,easing:'hold'}],
+      rotation:[{time:0,value:-12,easing:'linear'},{time:100,value:12,easing:'linear'}],
+      scale:[{time:0,value:75,easing:'smooth'},{time:100,value:125,easing:'linear'}]}};
+    cue.content.subtitle_animation=motion;productionCommitProject(p,'animated gradient',[cue.id]);
+    waveformEditor.activateModuleTab('panel');
+  });await idle(page);
+  const payload=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),target:'both',video:{width:640,height:360}}));
+  writeFileSync(join(folder,'gradient.ass'),payload.ass);expect(payload.ass).toContain('\\1c&H0000ff&');expect(payload.ass).toContain('\\1c&H00ff00&');
+  const canvas=page.locator('.JASSUB'),box=await canvas.boundingBox(),files=[];
+  for(const [i,time] of [.4,1.2,2.2].entries()){
+    await page.evaluate(async t=>{player.currentTime=t;await new Promise(r=>player.addEventListener('seeked',r,{once:true}));await MSWSubtitleRenderer.repaint();},time);
+    const preview=join(folder,`gradient-preview-${i}.png`),burn=join(folder,`gradient-burn-${i}.png`);
+    await canvas.screenshot({path:preview});
+    execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-i','video.mp4','-ss',String(time),'-vf',`ass=gradient.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',burn],{cwd:folder,windowsHide:true});files.push(preview,burn);
+  }
+  const stats=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON,['-c',`from PIL import Image
+import sys,json
+def colors(p):
+ im=Image.open(p).convert('RGB');out=[]
+ for axis in (0,1):
+  pts=[(x,y) for y in range(im.height) for x in range(im.width) if (lambda c:c[axis]>80 and c[axis]>c[1-axis]*1.8 and c[axis]>c[2]*1.8)(im.getpixel((x,y)))]
+  out.append([len(pts),sum(x for x,y in pts)/len(pts),sum(y for x,y in pts)/len(pts)])
+ return out
+print(json.dumps([colors(p) for p in sys.argv[1:]]))`,...files],{encoding:'utf8',windowsHide:true}));
+  for(let i=0;i<stats.length;i+=2)for(let color=0;color<2;color++){
+    expect(stats[i][color][0]).toBeGreaterThan(20);
+    for(const axis of [1,2])expect(Math.abs(stats[i][color][axis]-stats[i+1][color][axis])).toBeLessThan(3);
+  }
+  for(const s of stats)expect(s[0][1]).toBeLessThan(s[1][1]);
+  await page.screenshot({path:info.outputPath('gradient-animation.png')});
 });

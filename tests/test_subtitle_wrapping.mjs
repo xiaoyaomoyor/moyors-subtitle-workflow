@@ -3,7 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const c={window:{},TextEncoder,TextDecoder,Uint8Array};
-for(const f of ['gap-remove-core','editor-utils','msw-subtitle-background','msw-project-style','msw-subtitle-presentation'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+f+'.js',import.meta.url),'utf8'),c);
+for(const f of ['gap-remove-core','editor-utils','msw-subtitle-background','msw-subtitle-gradient','msw-project-style','msw-subtitle-presentation'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+f+'.js',import.meta.url),'utf8'),c);
 const S=c.window.MSWProjectStyle,U=c.window.AsrEditorUtils,P=c.window.MSWSubtitlePresentation;
 const cases=JSON.parse(fs.readFileSync(new URL('fixtures/subtitle-wrapping.json',import.meta.url),'utf8'));
 test('character wrapping keeps manual breaks, combining marks and common emoji intact',()=>{

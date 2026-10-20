@@ -23,6 +23,35 @@ test('animation contract rejects unknown fields, unsafe values and backwards ran
   assert.equal(A.valid(null),false);assert.equal(A.valid([]),false);
 });
 
+test('keyframes override only their channels and multiply fade opacity without overshoot',()=>{
+  const a=A.defaults();Object.assign(a.effects.transform,{enabled:true,fromX:10,toX:30,fromY:20,toY:20});
+  a.effects.fade.enabled=true;a.effects.fade.in=100;a.effects.fade.out=0;
+  a.effects.curves={enabled:true,unit:'percent',channels:{
+    x:[{time:10,value:-100,easing:'smooth'},{time:50,value:100,easing:'hold'},{time:90,value:0,easing:'linear'}],
+    opacity:[{time:0,value:50,easing:'linear'}]
+  }};
+  assert.equal(A.valid(a),true);
+  assert.equal(A.sample(a,600,2000).x,0);assert.equal(A.sample(a,600,2000).y,20);
+  assert.equal(A.sample(a,1000,2000).opacity,.25);
+  assert.equal(A.sample(a,1799,2000).x,100);assert.equal(A.sample(a,1800,2000).x,0);
+  for(let t=0;t<=2000;t+=13)assert.ok(Math.abs(A.sample(a,t,2000).x)<=100);
+  const ms=A.convertUnit(a.effects.curves,'ms',2000);
+  assert.equal(ms.channels.x[1].time,1000);assert.deepEqual(A.convertUnit(ms,'percent',2000),a.effects.curves);
+  assert.throws(()=>A.convertUnit(ms,'percent',500),/范围/);
+  for(const duration of [1733,3333,4407,9127]){
+    const effect={enabled:true,unit:'ms',channels:{x:[{time:0,value:0,easing:'linear'},{time:duration,value:100,easing:'linear'}]}};
+    const converted=A.convertUnit(effect,'percent',duration);
+    assert.ok(A.valid({schema:A.schema,effects:{curves:converted}}));
+    assert.ok(Math.abs(converted.channels.x[1].time-100)<1e-8);
+  }
+  for(const points of [[],[{time:0,value:Infinity,easing:'linear'}],[{time:0,value:0,easing:'bad'}],
+    [{time:0,value:0,easing:'linear'},{time:0,value:1,easing:'linear'}],Array.from({length:33},(_,i)=>({time:i,value:i,easing:'linear'}))]){
+    const b=structuredClone(a);b.effects.curves.channels.x=points;assert.equal(A.valid(b),false);
+  }
+  const row={x:400,y:800,width:200,height:100,position:{x:500/1920,y:900/1080},motion:a};
+  assert.equal(A.envelope(row,1920).x,300);assert.equal(A.envelope(row,1920).width,400);
+});
+
 test('control avoidance uses the whole motion envelope without changing the editable base geometry',()=>{
   const motion=A.defaults();Object.assign(motion.effects.transform,{enabled:true,fromX:-50,toX:30,fromY:40,toY:0,fromScale:100,toScale:150});
   const row={x:400,y:800,width:200,height:100,position:{x:500/1920,y:900/1080},motion};

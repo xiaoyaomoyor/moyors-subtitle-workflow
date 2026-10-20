@@ -1,7 +1,7 @@
 """Validated partial cue appearance, independent of position and animation."""
 import math
 import re
-from maw.msw import subtitle_background as background
+from maw.msw import subtitle_background as background, subtitle_gradient as gradient
 
 NUMBERS = dict(fontSize=(1, 512), outline=(0, 100), shadow=(0, 100), spacing=(-100, 100),
                angle=(-360, 360), scaleX=(0, 1000), scaleY=(0, 1000), charsPerLine=(1, 200))
@@ -15,6 +15,8 @@ def valid(value):
     for key, v in value.items():
         if key in background.DEFAULTS:
             ok = background.valid({key: v})
+        elif key in gradient.DEFAULTS:
+            ok = gradient.valid({key: v})
         elif key in NUMBERS:
             lo, hi = NUMBERS[key]
             ok = type(v) in (int, float) and math.isfinite(v) and lo <= v <= hi
@@ -38,4 +40,4 @@ def valid(value):
 
 
 def apply(base, cue):
-    return {**base, **background.normalize(base), **cue.get('subtitle_style', {})}
+    return {**base, **background.normalize(base), **gradient.normalize(base), **cue.get('subtitle_style', {})}

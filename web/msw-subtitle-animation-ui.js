@@ -3,11 +3,12 @@
   'use strict';
   const A=global.MSWSubtitleAnimation;
   function create(root,{context,commit,message,preview}){
-    const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展'};
+    const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展',curves:'关键帧'};
     const help={fade:'按字幕自身时长淡入淡出；两段相加超过字幕时长时等比缩短。',typewriter:'逐字显示，保留完整文字的换行与位置；空格和换行不占一次出字。',blink:'在指定时段内交替显示；间隔是一次完整亮暗循环的毫秒数。可与淡入淡出叠加。',transform:'从起始状态变化到结束状态，前后保持各自状态。位移相对字幕原位置，缩放相对原字号；坐标单位以 1080p 为基准。'};
+    help.curves='曲线接管已添加参数，未添加参数继续使用舒展；不透明度仍与淡入淡出、闪烁相乘。每参数最多 32 帧，首末帧之外保持端点值。位移以 1080p 为基准。多选只统一编辑的参数；拖动松手后一次提交。';
     const svg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg>';
     root.innerHTML='<div class="msw-motion-actions"><button type="button" id="motion-inherit">跟随轨道动画</button><button type="button" id="motion-clear">关闭全部</button><button type="button" id="motion-preview" aria-label="从字幕起点预览" title="从字幕起点预览"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg></button></div><div class="msw-motion-presets"></div><div class="msw-motion-effects"></div>';
-    const $=id=>root.querySelector('#'+id),controls=new Map();
+    const $=id=>root.querySelector('#'+id),controls=new Map();let curvesUI;
     for(const name of A.names){
       const label=document.createElement('label');label.className='msw-style-check';label.dataset.optionHelp=help[name];
       label.innerHTML=`<input type="checkbox" id="motion-${name}-enabled"><span class="msw-option-label">${labels[name]}</span>`;
@@ -33,6 +34,7 @@
       const unit=controls.get(name+'.unit');unit.input.closest('label').dataset.optionHelp='比例按每条字幕自己的时长计算；毫秒从字幕起点计算。切换单位按当前预览字幕换算，多选分别换算；空轨按 1 秒换算。超出字幕的部分不显示。';
       for(const key of A.timings(name))add(key,{in:'淡入',out:'淡出',start:'开始',end:'结束'}[key]);
       if(name==='blink'){add('period','循环间隔 (ms)');add('opacity','变暗时不透明度 (%)');}
+      if(name==='curves'){const editor=document.createElement('div');fields.append(editor);curvesUI=global.MSWAnimationCurvesUI.create(editor,{context,commit,message});}
       if(name==='transform'){
         add('easing','变化方式','select',[['linear','匀速'],['ease-in','先慢后快'],['ease-out','先快后慢'],['smooth','平滑']]);
         const table=document.createElement('div');table.className='msw-motion-transform msw-motion-wide';
@@ -73,6 +75,7 @@
         }
       }
       global.MSWHelp?.hydrate(root);
+      curvesUI.sync();
     }
     return {sync};
   }
