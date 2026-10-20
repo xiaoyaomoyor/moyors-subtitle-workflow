@@ -263,6 +263,7 @@
     const context=motionContext();if(context.blocked)return;
     commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
     const updates=context.items.map(item=>{
+      if(key==='author')return {id:item.row?.cue_id,animation:M.authorPatch(item.value,name,value,item.duration),item};
       if(key==='preset')return {id:item.row?.cue_id,animation:M.presetPatch(item.value,name,item.duration),item};
       if(key.startsWith('channel:')){
         const current=structuredClone(item.value);

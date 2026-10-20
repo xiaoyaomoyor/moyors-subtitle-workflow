@@ -5,6 +5,46 @@ import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import production from '../web/msw-production-project.js';
 
+test('authoring modes retain inactive effects and preset toggles retain edited values',()=>{
+  let a=A.defaults();
+  const patch=(name,action)=>a=A.resolve(a,A.authorPatch(a,name,action,2000));
+  patch('fade',{type:'toggle',value:true});
+  patch('fade',{type:'values',value:{start:10,in:20,out:10,end:90}});
+  patch('typewriter',{type:'toggle',value:true});
+  patch('curves',{type:'channel',channel:'opacity',points:[{time:0,value:70,easing:'linear'}]});
+  assert.equal(A.sample(a,100,2000,10).opacity,.7);assert.equal(A.sample(a,100,2000,10).revealed,10);
+  const stored=structuredClone(a.effects);
+  patch('all',{type:'mode',value:'presets'});
+  assert.equal(A.sample(a,100,2000,10).opacity,0);assert.equal(A.sample(a,100,2000,10).revealed,1);
+  assert.deepEqual(a.effects,stored);
+  patch('fade',{type:'toggle',value:false});patch('fade',{type:'toggle',value:true});
+  assert.equal(a.effects.fade.start,10);assert.equal(a.effects.fade.in,20);
+  patch('fade',{type:'reset'});assert.equal(a.effects.fade.enabled,true);assert.equal(a.effects.fade.start,0);
+  patch('all',{type:'mode',value:'custom'});assert.equal(A.sample(a,100,2000).opacity,.7);
+  assert.throws(()=>patch('fade',{type:'values',value:{in:90,out:20}}),/无效/);
+});
+
+test('four-point fading and percent blink run on each cue clock and ignore inactive geometry',()=>{
+  const a=A.defaults();a.mode='presets';
+  a.effects.fade={enabled:true,unit:'percent',start:10,in:20,out:10,end:90};
+  a.effects.blink={enabled:true,unit:'percent',start:0,end:100,period:20,periodUnit:'percent',opacity:50};
+  a.effects.curves={enabled:true,unit:'percent',channels:{y:[{time:0,value:2000,easing:'linear'}]}};
+  assert.ok(A.valid(a));
+  for(const duration of [1000,3000]){
+    assert.equal(A.sample(a,.05*duration,duration).opacity,0);
+    assert.ok(Math.abs(A.sample(a,.2*duration,duration).opacity-.5)<1e-8);
+    assert.equal(A.sample(a,.35*duration,duration).opacity,.5);
+    assert.equal(A.sample(a,.95*duration,duration).opacity,0);
+  }
+  const row={x:0,y:0,width:200,height:50,motion:a};
+  assert.equal(A.envelope(row,1920),row);
+  const p=production.toProject({segments:[{start:0,end:1000,text:'one'}]});
+  const id=p.subtitles.cues[0].id;
+  const next=edit.updateAnimation(p,[{id,animation:{schema:A.schema,mode:'custom',effects:{}}}]);
+  assert.equal(next.subtitles.cues[0].content.subtitle_animation.mode,'custom');
+  assert.equal(edit.updateAnimation(next,[{id}],{reset:'all'}).subtitles.cues[0].content.subtitle_animation,undefined);
+});
+
 test('recipes fill editable channels, preserve unrelated parameters and support channel removal',()=>{
   let a=A.defaults();a.effects.blink.enabled=true;a.effects.transform.enabled=true;a.effects.transform.fromX=-70;
   a=A.resolve(a,A.presetPatch(a,'fade'));

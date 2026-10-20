@@ -36,29 +36,36 @@ def valid_channels(raw, unit):
 
 
 def valid(raw):
-    if not isinstance(raw, dict) or set(raw) != {'schema', 'effects'} or raw['schema'] != SCHEMA or not isinstance(raw['effects'], dict):
+    if not isinstance(raw, dict) or not {'schema', 'effects'} <= set(raw) or set(raw)-{'schema','effects','mode'} or raw['schema'] != SCHEMA or not isinstance(raw['effects'], dict):
+        return False
+    if 'mode' in raw and raw['mode'] not in ('presets','custom'):
         return False
     for name, effect in raw['effects'].items():
         default = DEFINITIONS.get(name)
-        if not default or not isinstance(effect, dict) or set(effect) != set(default):
+        extra = {'start','end'} if name == 'fade' else {'periodUnit'} if name == 'blink' else set()
+        if not default or not isinstance(effect, dict) or not set(default) <= set(effect) or set(effect)-set(default)-extra:
+            return False
+        if name == 'fade' and ('start' in effect) != ('end' in effect):
             return False
         for key, value in effect.items():
             if key == 'enabled':
                 ok = type(value) is bool
-            elif key == 'unit':
+            elif key in ('unit','periodUnit'):
                 ok = value in ('percent', 'ms')
             elif key == 'easing':
                 ok = value in ('linear', 'ease-in', 'ease-out', 'smooth')
             elif key == 'channels':
                 ok = valid_channels(value, effect['unit'])
             else:
-                low, high = ((0, 100 if effect['unit'] == 'percent' else 60000) if key in timings(name)
-                             else (80, 60000) if key == 'period' else (0, 100) if key.endswith('Opacity') or key == 'opacity'
+                low, high = ((0, 100 if effect['unit'] == 'percent' else 60000) if key in (*timings(name),'start','end')
+                             else ((1,100) if effect.get('periodUnit') == 'percent' else (80,60000)) if key == 'period' else (0, 100) if key.endswith('Opacity') or key == 'opacity'
                              else (1, 1000) if key.endswith('Scale') else (-360, 360) if key.endswith('Rotation') else (-4096, 4096))
                 ok = type(value) in (int, float) and math.isfinite(value) and low <= value <= high
             if not ok:
                 return False
         if name not in ('fade','curves') and effect['end'] <= effect['start']:
+            return False
+        if name == 'fade' and 'start' in effect and (effect['end'] <= effect['start'] or effect['in']+effect['out'] > effect['end']-effect['start']+1e-8):
             return False
     return True
 
@@ -66,13 +73,21 @@ def valid(raw):
 def normalize(raw):
     if not valid(raw):
         raise ValueError('字幕动画参数无效')
-    return dict(schema=SCHEMA, effects={**deepcopy(DEFINITIONS), **deepcopy(raw['effects'])})
+    return dict(schema=SCHEMA, **({'mode':raw['mode']} if 'mode' in raw else {}), effects={**deepcopy(DEFINITIONS), **deepcopy(raw['effects'])})
 
 
 def resolve(base=None, override=None):
     if base is None and override is None:
         return None
-    return normalize(dict(schema=SCHEMA, effects={**(base or {}).get('effects', {}), **(override or {}).get('effects', {})}))
+    mode = (override or {}).get('mode',(base or {}).get('mode'))
+    return normalize(dict(schema=SCHEMA, **({'mode':mode} if mode else {}), effects={**(base or {}).get('effects', {}), **(override or {}).get('effects', {})}))
+
+
+def active(raw):
+    if 'mode' not in raw:
+        return raw
+    return {**raw, 'effects':{key:effect if (raw['mode']=='custom') == (key=='curves') else {**effect,'enabled':False}
+                             for key,effect in raw['effects'].items()}}
 
 
 def ms(effect, key, duration):
@@ -95,17 +110,21 @@ def curve_value(points, time):
 
 
 def sample(raw, elapsed, duration, count=0):
+    raw = active(raw)
     f, w, b, t = (raw['effects'][key] for key in ('fade','typewriter','blink','transform'))
     time = clamp(elapsed, 0, duration)
     state = dict(opacity=1, x=0, y=0, scale=100, rotation=0, revealed=count)
     if f['enabled']:
         a, z = ms(f, 'in', duration), ms(f, 'out', duration)
-        if a + z > duration:
-            ratio = duration / (a + z)
+        start = ms(f,'start',duration) if 'start' in f else 0
+        end = ms(f,'end',duration) if 'end' in f else duration
+        if a + z > end-start:
+            ratio = (end-start) / (a + z)
             a *= ratio
             z *= ratio
-        state['opacity'] = min(time / a if a else 1, (duration-time) / z if z else 1, 1)
-    if b['enabled'] and ms(b, 'start', duration) <= time < ms(b, 'end', duration) and math.floor((time-ms(b, 'start', duration))/(b['period']/2)) % 2:
+        state['opacity'] = 0 if time<start or time>end else clamp(min((time-start) / a if a else 1, (end-time) / z if z else 1, 1))
+    period = b['period']*(duration/100 if b.get('periodUnit')=='percent' else 1)
+    if b['enabled'] and ms(b, 'start', duration) <= time < ms(b, 'end', duration) and math.floor((time-ms(b, 'start', duration))/(period/2)) % 2:
         state['opacity'] *= b['opacity']/100
     transform_opacity = 100
     if t['enabled']:
@@ -130,6 +149,7 @@ def sample(raw, elapsed, duration, count=0):
 
 def boundaries(raw, duration, count):
     """Critical times plus bounded smooth interpolation; never a wall-clock timer."""
+    raw = active(raw)
     cuts = {0, duration}
     for name, effect in raw['effects'].items():
         if not effect['enabled']:
@@ -149,12 +169,14 @@ def boundaries(raw, duration, count):
             continue
         if name == 'fade':
             a, z = ms(effect, 'in', duration), ms(effect, 'out', duration)
-            ratio = min(1, duration/(a+z)) if a+z else 1
-            cuts.update((a*ratio, duration-z*ratio))
+            start = ms(effect,'start',duration) if 'start' in effect else 0
+            end = ms(effect,'end',duration) if 'end' in effect else duration
+            ratio = min(1, (end-start)/(a+z)) if a+z else 1
+            cuts.update((start,start+a*ratio,end-z*ratio,end))
             continue
         a, b = ms(effect, 'start', duration), ms(effect, 'end', duration)
         cuts.update((a, b))
-        step = effect['period']/2 if name == 'blink' else (b-a)/max(1, count) if name == 'typewriter' else 40
+        step = effect['period']*(duration/100 if effect.get('periodUnit')=='percent' else 1)/2 if name == 'blink' else (b-a)/max(1, count) if name == 'typewriter' else 40
         end = min(b, duration)
         if name == 'transform' and effect['easing'] == 'linear':
             continue

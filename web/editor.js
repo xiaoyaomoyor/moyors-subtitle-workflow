@@ -12756,7 +12756,7 @@ function isPlaybackKeyboardTarget(event) {
 
 function isNativeKeyboardControl(event) {
   const target = event.target instanceof Element ? event.target : document.activeElement;
-  return Boolean(target?.closest?.('button, input, select, textarea, a, [role="menuitem"], [role="menuitemcheckbox"]'));
+  return Boolean(target?.closest?.('button, input, select, textarea, a, [role="menuitem"], [role="menuitemcheckbox"], #subtitle-motion-controls svg'));
 }
 
 function subtitleTemporalOverlap(left, right) {

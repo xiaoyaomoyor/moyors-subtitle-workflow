@@ -5341,3 +5341,36 @@
 #curve-note { margin:0; font-size:11px; }
 #curve-note:empty { display:none; }
 #subtitle-properties .msw-curves .msw-motion-wide { grid-column:auto; }
+
+/* Animation: compact presets and a distinct, channel-based custom editor. */
+#subtitle-motion-controls [hidden] { display:none !important; }
+#subtitle-properties .msw-motion-custom { margin-left:auto; }
+.msw-motion-effect { margin-top:8px; padding-top:6px; }
+.msw-motion-heading { margin-bottom:0; }
+.msw-motion-heading > span::before { content:none; }
+.msw-motion-range-graph { display:block; width:100%; height:68px; touch-action:none; user-select:none; }
+.msw-motion-range-graph text { fill:var(--text-muted); font-size:10px; pointer-events:none; }
+.motion-range-fill { cursor:ew-resize; stroke-width:7; }
+.motion-range-hit { fill:transparent; stroke:none; }
+.motion-range-node { cursor:ew-resize; }
+.motion-range-node .motion-range-handle { fill:var(--accent); stroke:var(--accent); stroke-width:1; }
+.msw-motion-strength { display:grid; grid-template-columns:92px minmax(0,1fr) 42px; align-items:center; gap:8px; margin:4px 0; font-size:11px; color:var(--text-secondary); }
+#subtitle-properties .msw-motion-strength input[type=range] { padding:0; border:0; min-height:22px; width:100%; accent-color:var(--accent); background:transparent; }
+.msw-motion-strength output { text-align:right; font-variant-numeric:tabular-nums; }
+#motion-curve-editor { margin-top:10px; }
+.msw-curve-values { display:flex; flex-wrap:wrap; align-items:end; gap:6px; }
+.msw-curve-values label { display:grid; gap:4px; flex:1 1 70px; min-width:65px; max-width:160px; color:var(--text-secondary); font-size:11px; }
+.msw-curve-values input { width:100%; min-width:0; }
+.msw-curve-values > .msw-option-label { align-self:center; }
+.msw-curve-values .msw-style-icon { flex:none; }
+#curve-graph { height:200px; }
+#curve-graph .curve-line.is-empty { stroke-dasharray:4 4; opacity:.5; }
+#curve-graph .curve-hit { fill:transparent; stroke:none; }
+#curve-graph .curve-other-frame { fill:none; stroke:var(--text-muted); opacity:.45; stroke-width:2; }
+#curve-graph .curve-crosshair path { stroke:var(--text-muted); stroke-width:1; stroke-dasharray:3 3; fill:none; }
+#curve-graph .curve-crosshair text { fill:var(--accent); stroke:var(--bg-input); stroke-width:3; paint-order:stroke; }
+#curve-graph .curve-handle { outline:none; }
+#curve-graph .curve-handle:focus-visible path,.motion-range-node:focus-visible path { stroke:var(--selection-yellow); stroke-width:3; }
+#subtitle-properties :is(#curve-graph,.motion-range-node,input[type=range]):focus:not(:focus-visible) { outline:none; box-shadow:none; }
+.curve-menu-icon { flex:0 0 14px; width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.4; }
+#ctxmenu .item:has(.curve-menu-icon) { gap:8px; }

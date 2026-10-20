@@ -18,6 +18,33 @@ def model(**effects):
 
 
 class SubtitleAnimationTests(unittest.TestCase):
+    def test_authoring_modes_four_point_fade_and_percentage_cycle(self):
+        a=model(fade=dict(enabled=True,start=10,end=90,**{'in':20,'out':10}),
+                blink=dict(enabled=True,period=20,periodUnit='percent',opacity=40),
+                typewriter=dict(enabled=True),
+                curves=dict(enabled=True,channels={'opacity':[dict(time=0,value=70,easing='linear')]}))
+        for mode in ('presets','custom'):
+            a['mode']=mode
+            self.assertTrue(animation.valid(a))
+            self.assertEqual(animation.normalize(a),a)
+            times=[0,100,200,400,600,700,1000,1600,1750,1900,2000]
+            script="const A=require('./web/msw-subtitle-animation.js'),a=JSON.parse(process.argv[1]);console.log(JSON.stringify(JSON.parse(process.argv[2]).map(t=>A.sample(a,t,2000,10))))"
+            actual=json.loads(subprocess.check_output(['node','-e',script,json.dumps(a),json.dumps(times)],cwd=ROOT,text=True))
+            for left,right in zip([animation.sample(a,t,2000,10) for t in times],actual):
+                for key in left:self.assertAlmostEqual(left[key],right[key],places=8)
+            p=self.project(a);flat.validate(p)
+            result=preview_ass(dict(project=p,video=dict(width=640,height=360)))
+            plan=dict(intervals=[dict(start_ms=0,end_ms=43200000,output_start_ms=0)])
+            self.assertEqual(result['ass'],styled_ass(p,plan,'both',dict(width=640,height=360)))
+            if mode=='custom':
+                self.assertEqual(animation.boundaries(a,2000,10),[0,2000])
+                self.assertEqual(animation.sample(a,50,2000,10)['revealed'],10)
+            else:
+                cuts=animation.boundaries(a,2000,10)
+                for t in [200,600,1600,1800]:self.assertIn(t,cuts)
+        for update in [dict(start=90,end=10),dict(start=0,end=10),dict(start=True,end=100)]:
+            bad=copy.deepcopy(a);bad['effects']['fade'].update(update);self.assertFalse(animation.valid(bad))
+
     def project(self, motion):
         p=flat.migrate_project(dict(segments=[dict(id='a',start=1000,end=5000,text='ABCD')]))
         p['subtitles']['cues'][0]['content']['subtitle_animation']=motion

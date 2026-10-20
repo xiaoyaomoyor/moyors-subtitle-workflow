@@ -1,129 +1,190 @@
-// One pointer gesture is one edit. Drafts stay local until release.
+// Channel curves share a cue clock, but retain independent values and keyframes.
 (function(global){
   'use strict';
-  const A=global.MSWSubtitleAnimation,clone=v=>JSON.parse(JSON.stringify(v));
+  const A=global.MSWSubtitleAnimation,clone=v=>JSON.parse(JSON.stringify(v)),number=v=>Math.round(v*1000)/1000;
+  const labels={opacity:'不透明度',x:'水平偏移',y:'垂直偏移',rotation:'旋转',scale:'缩放'};
+  const icons={linear:'M-5 0L0-5L5 0L0 5Z',smooth:'M-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0',hold:'M-5-5H5V5H-5Z'};
   function create(root,{context,commit,message}){
-    root.className='msw-curves msw-motion-wide';
-    root.innerHTML=`<div class="msw-curve-toolbar"><select id="curve-channel" aria-label="关键帧参数"></select>
-      <label class="msw-style-check"><input id="curve-active" type="checkbox"><span>使用曲线</span></label></div>
-      <div class="msw-curve-plot"><svg id="curve-graph" viewBox="0 0 320 180" tabindex="0" role="img" aria-label="关键帧曲线，拖动圆点调整时间与数值"></svg></div>
-      <p id="curve-note" class="msw-processing-hint"></p>
-      <div class="msw-curve-toolbar"><select id="curve-point" aria-label="当前关键帧"></select>
-      <button id="curve-add" type="button" class="msw-style-icon" title="添加关键帧" aria-label="添加关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
-      <button id="curve-delete" type="button" class="msw-style-icon" title="删除关键帧" aria-label="删除关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/></svg></button></div>
-      <div class="msw-style-fields"><label class="msw-style-field"><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" required></label>
-      <label class="msw-style-field"><span>数值</span><input id="curve-value" type="number" step="any" required></label>
-      <label class="msw-style-field msw-motion-wide" data-option-help="控制此关键帧到下一帧的过渡。平滑在两端减速且不超出端点数值；保持直到下一帧才跳变。"><span class="msw-option-label">过渡到下一帧</span><select id="curve-easing"><option value="linear">匀速</option><option value="smooth">平滑</option><option value="hold">保持</option></select></label></div>`;
+    root.className='msw-curves';
+    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击图表选择时间与数值，＋新建关键帧；选中已有关键帧后可直接输入数值或拖动。右键设置过渡、删除、切换坐标。菱形为匀速，圆形为平滑，方形为定格；底部短线表示其他参数的关键帧时间，切换参数不会丢失它们。Esc 取消拖动。">
+      <label><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" value="0" required></label>
+      <label><span id="curve-value-label">不透明度 (%)</span><input id="curve-value" type="number" step="any" value="100" required></label>
+      <button id="curve-add" type="button" class="msw-style-icon" title="在此时间新建关键帧" aria-label="在此时间新建关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
+      <button id="curve-reset" type="button" class="msw-style-icon" title="恢复自定义默认值" aria-label="恢复自定义默认值"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg></button></div>
+      <div class="msw-curve-plot"><svg id="curve-graph" viewBox="0 0 320 200" preserveAspectRatio="none" tabindex="0" role="group" aria-label="自定义动画图表，右键切换坐标及编辑关键帧"></svg></div>
+      <p id="curve-note" class="msw-processing-hint"></p>`;
     const $=id=>root.querySelector('#'+id),graph=$('curve-graph');
-    $('curve-channel').replaceChildren(...Object.entries(A.channels).map(([key,c])=>new Option(c.label,key)));
-    let state,points=[],selected=0,drag=null,geometry,mixed=false,signature='',targetSignature='';
-    const channel=()=>$('curve-channel').value,number=v=>Math.round(v*1000)/1000;
-    function fingerprint(c){return JSON.stringify(c.items.map(i=>[i.row?.cue_id,i.track.id,i.value]));}
-    function save(next){
-      try{commit('curves','channel:'+channel(),next);message('');}catch(e){message(e.message,true);}sync();
+    let channel='opacity',state,points=[],selected=-1,drag=null,geometry,signature='',targetSignature='',cursor={time:0,value:100},mixed=false;
+    const fingerprint=()=>JSON.stringify(context().items.map(i=>[i.row?.cue_id,i.track.id,i.value]));
+    const blocked=()=>context().blocked||A.authoringMode(context().items[0]?.value||A.defaults())!=='custom';
+    function apply(action){
+      try{commit('curves','author',action);message('');}catch(e){message(e.message,true);}sync();
+    }
+    function save(next){apply({type:'channel',channel,points:next.length?next:null,unit:state.unit});}
+    function controls(){
+      const c=A.channels[channel],off=blocked();
+      $('curve-time-label').textContent=state.unit==='percent'?'时间 (%)':'时间 (ms)';
+      $('curve-value-label').textContent=labels[channel]+(channel==='rotation'?' (°)':['x','y'].includes(channel)?' (px)':' (%)');
+      $('curve-time').max=state.unit==='percent'?'100':'60000';
+      $('curve-value').min=String(c.min);$('curve-value').max=String(c.max);
+      $('curve-time').value=String(number(cursor.time));$('curve-value').value=String(number(cursor.value));
+      $('curve-time').disabled=$('curve-value').disabled=$('curve-reset').disabled=off;
+      $('curve-add').disabled=off||points.length>=32||points.some(p=>Math.abs(p.time-cursor.time)<.001);
+      $('curve-note').textContent=mixed?'多个值：显示首条，编辑仅统一当前参数。':'';
+      graph.setAttribute('aria-disabled',String(off));
     }
     function draw(){
-      const c=A.channels[channel()],duration=context().items[0]?.duration||1000;
-      let end=state.unit==='percent'?100:Math.min(60000,Math.max(duration,...points.map(p=>p.time),1));
-      const values=points.map(p=>p.value),pad=channel()==='opacity'?0:Math.max(10,((Math.max(c.initial,...values)-Math.min(c.initial,...values))*.15));
-      let low=Math.max(c.min,Math.min(c.initial,...values)-(values.length?pad:100));
-      let high=Math.min(c.max,Math.max(c.initial,...values)+(values.length?pad:100));
-      if(channel()==='opacity'){low=0;high=100;}if(high===low)high=low+1;
+      const c=A.channels[channel],duration=context().items[0]?.duration||1000;
+      let end=state.unit==='percent'?100:Math.min(60000,Math.max(duration,...Object.values(state.channels).flat().map(p=>p.time),cursor.time,1));
+      const values=points.map(p=>p.value),pad=Math.max(20,(Math.max(c.initial,...values)-Math.min(c.initial,...values))*.15);
+      let low=Math.max(c.min,Math.min(c.initial,...values)-pad),high=Math.min(c.max,Math.max(c.initial,...values)+pad);
+      if(channel==='opacity'){low=0;high=100;}if(high===low)high=low+1;
       if(drag)({end,low,high}=drag.geometry);
-      const width=Math.max(200,graph.clientWidth||320);
-      graph.setAttribute('viewBox',`0 0 ${width} 180`);
-      const X=t=>38+t/end*(width-50),Y=v=>150-(v-low)/(high-low)*130;
-      geometry={end,low,high,X,Y};
-      const ticks=[0,.5,1],commands=[];
+      const width=Math.max(200,graph.clientWidth||320),X=t=>44+t/end*(width-60),Y=v=>164-(v-low)/(high-low)*140;
+      geometry={end,low,high,X,Y,width};
+      graph.setAttribute('viewBox',`0 0 ${width} 200`);
+      const commands=[];
       if(points.length){
         commands.push(`M${X(0)},${Y(points[0].value)}`,`L${X(points[0].time)},${Y(points[0].value)}`);
         for(let i=1;i<points.length;i++){
           const a=points[i-1],b=points[i],steps=a.easing==='smooth'?32:1;
           if(a.easing==='hold')commands.push(`L${X(b.time)},${Y(a.value)}`);
-          for(let j=1;j<=steps;j++){const time=a.time+(b.time-a.time)*j/steps;commands.push(`L${X(time)},${Y(A.curveValue(points,time))}`);}
+          for(let j=1;j<=steps;j++){const t=a.time+(b.time-a.time)*j/steps;commands.push(`L${X(t)},${Y(A.curveValue(points,t))}`);}
         }
         commands.push(`L${X(end)},${Y(points.at(-1).value)}`);
-      }
-      const path=commands.join(' ');
-      graph.innerHTML=ticks.map(p=>`<path class="curve-grid" d="M38 ${Y(low+(high-low)*p)}H${width-12}M${X(end*p)} 20V150"/>
-        <text x="33" y="${Y(low+(high-low)*p)+4}" text-anchor="end">${Math.round((low+(high-low)*p)*10)/10}</text>
-        <text x="${X(end*p)}" y="170" text-anchor="${p===1?'end':p===0?'start':'middle'}">${number(end*p)}${state.unit==='percent'?'%':''}</text>`).join('')+
-        `<path class="curve-line" d="${path}"/>`+points.map((p,i)=>`<circle class="curve-handle${i===selected?' selected':''}" data-point="${i}" cx="${X(p.time)}" cy="${Y(p.value)}" r="${i===selected?5:4}"/>`).join('');
-      $('curve-point').replaceChildren(...points.map((p,i)=>new Option(`${String(i+1).padStart(2,'0')} · ${number(p.time)}${state.unit==='percent'?'%':' ms'}`,String(i))));
-      $('curve-point').value=String(selected);const point=points[selected];
-      $('curve-time-label').textContent=state.unit==='percent'?'时间 (%)':'时间 (ms)';
-      $('curve-time').max=state.unit==='percent'?'100':'60000';
-      $('curve-value').min=String(c.min);$('curve-value').max=String(c.max);
-      $('curve-time').value=point?String(number(point.time)):'';
-      $('curve-value').value=point?String(number(point.value)):'';
-      $('curve-easing').value=point?.easing||'linear';
-      const blocked=context().blocked;
-      for(const id of ['curve-point','curve-time','curve-value','curve-easing','curve-delete'])$(id).disabled=blocked||!point;
-      $('curve-easing').disabled=blocked||!point||selected===points.length-1;
-      $('curve-add').disabled=blocked||!points.length||points.length>=32;
-      $('curve-note').textContent=mixed?'多个值：图表显示首条；编辑只统一当前参数。':'';
-      graph.setAttribute('aria-disabled',String(blocked||!points.length));
+      }else commands.push(`M${X(0)},${Y(c.initial)}H${X(end)}`);
+      const other=[...new Set(Object.entries(state.channels).filter(([key])=>key!==channel).flatMap(([,p])=>p.map(v=>v.time)))];
+      graph.innerHTML=[0,.5,1].map(p=>`<path class="curve-grid" d="M44 ${Y(low+(high-low)*p)}H${width-16}M${X(end*p)} 24V164"/>
+        <text x="39" y="${Y(low+(high-low)*p)+4}" text-anchor="end">${number(low+(high-low)*p)}</text>
+        <text x="${X(end*p)}" y="188" text-anchor="${p===1?'end':p===0?'start':'middle'}">${number(end*p)}${state.unit==='percent'?'%':'ms'}</text>`).join('')+
+        `<text x="46" y="14">${labels[channel]}</text><path class="curve-line${points.length?'':' is-empty'}" d="${commands.join(' ')}"/>`+
+        other.map(t=>`<path class="curve-other-frame" d="M${X(t)} 161V169"><title>其他参数的关键帧：${number(t)}${state.unit==='percent'?'%':'ms'}</title></path>`).join('')+
+        points.map((p,i)=>`<g data-point="${i}" class="curve-handle${selected===i?' selected':''}" tabindex="${blocked()?-1:0}" role="button" aria-label="关键帧 ${i+1}，${number(p.time)}${state.unit==='percent'?'%':'ms'}，${number(p.value)}" transform="translate(${X(p.time)} ${Y(p.value)})">
+          <circle class="curve-hit" r="10"/><path d="${icons[p.easing]}"/><title>${{linear:'匀速',smooth:'平滑',hold:'定格'}[p.easing]}</title></g>`).join('')+
+        '<g class="curve-crosshair" pointer-events="none" visibility="hidden"><path/><text class="curve-hover-y" text-anchor="end"/><text class="curve-hover-x" text-anchor="middle"/></g>';
     }
     function sync(){
-      const c=context(),key=fingerprint(c);
-      if(drag){if(c.blocked||key!==signature)cancel();else return;}
+      if(!context().items.length&&!state)state=clone(A.defaults().effects.curves);
+      const c=context(),key=fingerprint();
+      if(drag){if(blocked()||key!==signature)cancel();else return;}
       signature=key;state=clone(c.items[0]?.value.effects.curves||A.defaults().effects.curves);
       const target=JSON.stringify(c.items.map(i=>[i.row?.cue_id,i.track.id]));
-      if(target!==targetSignature){
-        targetSignature=target;
-        selected=0;
-      }
-      for(const option of $('curve-channel').options)option.textContent=A.channels[option.value].label+(state.channels[option.value]?' •':'');
-      points=A.editablePoints(c.items[0]?.value||A.defaults(),channel(),c.items[0]?.duration||1000);
-      mixed=c.items.some(i=>JSON.stringify(A.editablePoints(i.value,channel(),i.duration))!==JSON.stringify(points));
-      selected=Math.min(selected,Math.max(0,points.length-1));
-      $('curve-active').checked=state.enabled&&!!state.channels[channel()];$('curve-active').indeterminate=mixed;
-      $('curve-active').disabled=c.blocked;$('curve-channel').disabled=c.blocked;draw();
+      if(target!==targetSignature){targetSignature=target;selected=-1;cursor={time:0,value:A.channels[channel].initial};}
+      points=clone(state.channels[channel]||[]);
+      mixed=c.items.some(i=>JSON.stringify(i.value.effects.curves.channels[channel]||[])!==JSON.stringify(points)||i.value.effects.curves.unit!==state.unit);
+      selected=points.findIndex(p=>Math.abs(p.time-cursor.time)<.001);
+      if(selected>=0)cursor={...points[selected]};
+      controls();draw();
     }
-    $('curve-channel').onchange=()=>{cancel();selected=0;sync();};
-    $('curve-active').onchange=e=>{
-      save(e.target.checked?points:null);
+    function selectChannel(key){cancel();channel=key;selected=-1;cursor.value=A.channels[key].initial;sync();}
+    function changeUnit(unit){
+      try{
+        for(const i of context().items)A.convertUnit(i.value.effects.curves,unit,i.duration);
+        if(unit!==state.unit)cursor.time*=unit==='ms'?(context().items[0]?.duration||1000)/100:100/(context().items[0]?.duration||1000);
+        apply({type:'unit',value:unit});
+      }catch(e){message(e.message,true);}
+    }
+    function at(e){
+      const r=graph.getBoundingClientRect(),g=geometry,c=A.channels[channel];
+      const time=Math.max(0,Math.min(g.end,(e.clientX-r.left-44)/Math.max(1,r.width-60)*g.end));
+      const value=Math.max(c.min,Math.min(c.max,g.low+(164-(e.clientY-r.top)*200/r.height)/140*(g.high-g.low)));
+      return {time:number(time),value:number(value)};
+    }
+    function add(point=cursor){
+      if(blocked()||points.length>=32)return;
+      const old=points.findIndex(p=>Math.abs(p.time-point.time)<.001);
+      if(old>=0){selected=old;cursor={...points[old]};controls();draw();return;}
+      cursor={...point};
+      save([...points,{time:point.time,value:point.value,easing:'linear'}].sort((a,b)=>a.time-b.time));
+    }
+    $('curve-add').onclick=()=>{if($('curve-time').reportValidity()&&$('curve-value').reportValidity())add();};
+    $('curve-reset').onclick=()=>{cursor={time:0,value:A.channels[channel].initial};apply({type:'reset'});};
+    $('curve-time').onchange=()=>{
+      if(!$('curve-time').reportValidity()){controls();return;}
+      cursor.time=Number($('curve-time').value);selected=points.findIndex(p=>p.time===cursor.time);
+      if(selected>=0)cursor.value=points[selected].value;
+      controls();draw();
     };
-    $('curve-point').onchange=()=>{selected=Number($('curve-point').value);draw();};
-    $('curve-add').onclick=()=>{
-      const max=state.unit==='percent'?100:Math.min(60000,geometry.end),times=[0,...points.map(p=>p.time),max];
-      let a=0,b=0;for(let i=1;i<times.length;i++)if(times[i]-times[i-1]>b-a){a=times[i-1];b=times[i];}
-      if(b-a<.02){message('没有足够空间添加关键帧',true);return;}
-      const time=(a+b)/2,next=[...clone(points),{time,value:A.curveValue(points,time),easing:'smooth'}].sort((a,b)=>a.time-b.time);
-      selected=next.findIndex(p=>p.time===time);save(next);
+    $('curve-value').onchange=()=>{
+      if(!$('curve-value').reportValidity()){controls();return;}
+      cursor.value=Number($('curve-value').value);
+      if(selected>=0){const next=clone(points);next[selected].value=cursor.value;save(next);}else controls();
     };
-    $('curve-delete').onclick=()=>{const next=clone(points);next.splice(selected,1);selected=Math.max(0,selected-1);save(next.length?next:null);};
-    for(const key of ['time','value','easing'])$('curve-'+key).onchange=()=>{
-      const input=$('curve-'+key);if(!input.reportValidity()){draw();return;}
-      const next=clone(points),point=next[selected];if(!point)return;
-      point[key]=key==='easing'?input.value:Number(input.value);
-      if(key==='time'){next.sort((a,b)=>a.time-b.time);selected=next.indexOf(point);}
-      save(next);
+    function menu(e){
+      e.preventDefault();e.stopPropagation();if(blocked())return;
+      const index=Number(e.target.closest('[data-point]')?.dataset.point??-1),here=at(e),stamp=fingerprint();
+      if(index>=0){selected=index;cursor={...points[index]};controls();draw();}
+      const safe=fn=>()=>{if(stamp===fingerprint()&&!blocked())fn();};
+      document.getElementById('ctxmenu').replaceChildren();
+      if(index>=0){
+        for(const [easing,label] of Object.entries({linear:'匀速',smooth:'平滑',hold:'定格'})){
+          const item=global.ctxAppendItem(label,safe(()=>{const next=clone(points);next[index].easing=easing;save(next);}));
+          item.classList.toggle('ctx-choice-selected',points[index].easing===easing);
+          item.insertAdjacentHTML('afterbegin',`<svg class="curve-menu-icon" viewBox="-8 -8 16 16" aria-hidden="true"><path d="${icons[easing]}"/></svg>`);
+        }
+        global.ctxAppendSeparator();
+        global.ctxAppendItem('删除关键帧',safe(()=>{const next=clone(points);next.splice(index,1);save(next);}));
+      }else{
+        global.ctxAppendItem('在这里新建关键帧',safe(()=>add(here)),{disabled:points.length>=32});
+        global.ctxAppendSeparator();
+        global.ctxAppendExpandableSettings('X 轴 · 时间',[
+          {label:'时间百分比',selected:state.unit==='percent',action:safe(()=>changeUnit('percent'))},
+          {label:'毫秒',selected:state.unit==='ms',action:safe(()=>changeUnit('ms'))}
+        ]);
+        global.ctxAppendExpandableSettings('Y 轴 · 参数',Object.entries(labels).map(([key,label])=>({label,selected:channel===key,action:safe(()=>selectChannel(key))})));
+      }
+      global.ctxShowAt(e.clientX,e.clientY);
+    }
+    graph.oncontextmenu=menu;
+    function cancel(){if(!drag)return;const d=drag;drag=null;points=d.original;cursor=d.cursor;selected=points.findIndex(p=>p.time===cursor.time);controls();draw();}
+    graph.onpointerdown=e=>{
+      if(e.button!==0||blocked())return;
+      e.preventDefault();e.stopPropagation();
+      const node=e.target.closest('[data-point]');
+      if(!node){cursor=at(e);selected=-1;controls();draw();return;}
+      selected=Number(node.dataset.point);cursor={...points[selected]};
+      drag={id:e.pointerId,original:clone(points),cursor:{...cursor},geometry:{...geometry}};
+      graph.setPointerCapture(e.pointerId);controls();draw();
     };
-    function cancel(){if(!drag)return;const original=drag.original;drag=null;points=original;draw();}
-    graph.addEventListener('pointerdown',e=>{
-      const circle=e.target.closest('[data-point]');if(!circle||context().blocked||e.button!==0)return;
-      e.preventDefault();e.stopPropagation();selected=Number(circle.dataset.point);graph.focus({preventScroll:true});
-      drag={id:e.pointerId,original:clone(points),geometry:{...geometry}};graph.setPointerCapture(e.pointerId);draw();
-    });
-    graph.addEventListener('pointermove',e=>{
-      if(!drag||e.pointerId!==drag.id)return;e.preventDefault();
-      const rect=graph.getBoundingClientRect(),g=drag.geometry,c=A.channels[channel()],point=points[selected];
-      const time=(e.clientX-rect.left-38)/Math.max(1,rect.width-50)*g.end;
-      point.time=number(Math.max(selected?points[selected-1].time+.001:0,Math.min(selected<points.length-1?points[selected+1].time-.001:state.unit==='percent'?100:60000,time)));
-      const value=g.low+(150-(e.clientY-rect.top)*180/rect.height)/130*(g.high-g.low);
-      point.value=number(Math.max(c.min,Math.min(c.max,value)));draw();
-    });
-    graph.addEventListener('pointerup',e=>{if(!drag||e.pointerId!==drag.id)return;const original=drag.original;drag=null;
-      if(fingerprint(context())!==signature){sync();return;}if(JSON.stringify(points)!==JSON.stringify(original))save(points);});
-    graph.addEventListener('pointercancel',cancel);
-    graph.addEventListener('lostpointercapture',cancel);
+    graph.onpointermove=e=>{
+      if(!state)return;
+      if(!drag){
+        const v=at(e),g=geometry,group=graph.querySelector('.curve-crosshair');
+        group.setAttribute('visibility','visible');group.querySelector('path').setAttribute('d',`M44 ${g.Y(v.value)}H${g.width-16}M${g.X(v.time)} 24V164`);
+        const y=group.querySelector('.curve-hover-y'),x=group.querySelector('.curve-hover-x');
+        y.setAttribute('x','39');y.setAttribute('y',String(g.Y(v.value)+4));y.textContent=number(v.value);
+        x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=number(v.time)+(state.unit==='percent'?'%':'ms');
+        return;
+      }
+      if(e.pointerId!==drag.id)return;
+      if(fingerprint()!==signature||blocked()){cancel();sync();return;}
+      e.preventDefault();const v=at(e),p=points[selected];
+      p.time=number(Math.max(selected?points[selected-1].time+.001:0,Math.min(selected<points.length-1?points[selected+1].time-.001:geometry.end,v.time)));
+      p.value=v.value;cursor={...p};controls();draw();
+    };
+    graph.onpointerleave=()=>graph.querySelector('.curve-crosshair')?.setAttribute('visibility','hidden');
+    graph.onpointerup=e=>{
+      if(!drag||e.pointerId!==drag.id)return;
+      const original=drag.original;drag=null;
+      if(signature!==fingerprint()||blocked()){sync();return;}
+      if(JSON.stringify(original)!==JSON.stringify(points))save(points);
+    };
+    graph.onpointercancel=cancel;graph.onlostpointercapture=cancel;
+    graph.onkeydown=e=>{
+      if(blocked())return;
+      if(e.key==='ContextMenu'||e.shiftKey&&e.key==='F10'){const r=e.target.getBoundingClientRect();menu({target:e.target,clientX:r.x+r.width/2,clientY:r.y+r.height/2,preventDefault:()=>e.preventDefault(),stopPropagation:()=>e.stopPropagation()});return;}
+      const i=Number(e.target.closest('[data-point]')?.dataset.point??-1);
+      if(i<0||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Delete'].includes(e.key))return;
+      e.preventDefault();e.stopPropagation();const next=clone(points),p=next[i],c=A.channels[channel];
+      if(e.key==='Delete')next.splice(i,1);
+      else if(e.key==='ArrowUp'||e.key==='ArrowDown')p.value=Math.max(c.min,Math.min(c.max,p.value+(e.key==='ArrowUp'?1:-1)));
+      else p.time=Math.max(i?next[i-1].time+.001:0,Math.min(i<next.length-1?next[i+1].time-.001:geometry.end,p.time+(e.key==='ArrowLeft'?-1:1)*(state.unit==='ms'?10:1)));
+      cursor={...p};save(next);graph.querySelector(`[data-point="${i}"]`)?.focus({preventScroll:true});
+    };
     global.addEventListener('blur',cancel);
-    new ResizeObserver(()=>{if(state&&!drag)draw();}).observe(graph);
     global.addEventListener('keydown',e=>{if(drag&&e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();cancel();}},true);
-    root.querySelector('.msw-curve-toolbar').dataset.optionHelp='横轴为字幕内时间，纵轴为当前参数。直接拖动圆点或输入数值即可设置关键帧；Esc 取消本次拖动。位移相对基础位置，以 1080p 为基准。平滑不产生过冲，每参数最多 32 帧。';
-    graph.setAttribute('preserveAspectRatio','none');
-    return {sync,selectChannel:key=>{cancel();$('curve-channel').value=key;selected=0;sync();},cancel};
+    new ResizeObserver(()=>{if(state&&!drag)draw();}).observe(graph);
+    return {sync,cancel,selectChannel};
   }
   global.MSWAnimationCurvesUI={create};
 })(window);

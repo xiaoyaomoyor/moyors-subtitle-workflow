@@ -45,7 +45,8 @@
           if(!motion.valid(change.animation))fail('字幕动画覆盖包含无效参数');
           Object.assign(effects,change.animation.effects);
         }
-        if(Object.keys(effects).length)c.subtitle_animation={schema:motion.schema,effects};else delete c.subtitle_animation;
+        const mode=change.animation?.mode??c.subtitle_animation?.mode;
+        if(Object.keys(effects).length||mode)c.subtitle_animation={schema:motion.schema,...(mode?{mode}:{}),effects};else delete c.subtitle_animation;
       }
     });
   }
