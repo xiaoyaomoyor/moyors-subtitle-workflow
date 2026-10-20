@@ -87,18 +87,47 @@ async function position(page){
 test('track percentage position persists through redraw, ASS rendering, save and reopen',async({page})=>{
   await page.evaluate(()=>MSWSubtitleStyle.editTrack(fixedTrack(DATA.segments[0]).id));
   await page.locator('#style-more').evaluate(el=>el.open=true);
-  await page.locator('#style-track-placement').selectOption('fixed');
-  await idle(page);const prior=pos((await events(page))[0].Text)[1];
+  await expect(page.locator('#style-track-placement')).toHaveCount(0);
+  await idle(page);
   await axis(page,'y',45);
   const changed=await snap(page);
   expect(changed.subtitles.tracks[0].position).toEqual({x:.5,y:.45});
   await expect(page.locator('#style-position-y')).toHaveValue('45');
-  expect(pos((await events(page))[0].Text)[1]-prior).toBeCloseTo((.45-.08)*1080,3);
+  expect(changed.subtitles.tracks[0].layout).toBe('fixed');
+  const at45=pos((await events(page))[0].Text)[1];
+  await axis(page,'y',55);expect(pos((await events(page))[0].Text)[1]-at45).toBeCloseTo(108,3);
+  await axis(page,'y',45);
   await page.evaluate(()=>renderAll());await idle(page);
   expect((await snap(page)).subtitles.tracks[0].position).toEqual({x:.5,y:.45});
   expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
   await page.reload();await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');await idle(page);
   expect((await snap(page)).subtitles.tracks[0].position).toEqual({x:.5,y:.45});
+});
+
+test('automatic track can be positioned directly, cancelled, committed once and restored from its label',async({page})=>{
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson());p.subtitles.bindings=[];
+    productionCommitProject(p,'unbound fixture',[p.subtitles.cues[0].id]);
+    MSWSubtitleStyle.editTrack(fixedTrack(DATA.segments[0]).id);
+  });await page.locator('#style-more').evaluate(el=>el.open=true);await idle(page);
+  const before=await snap(page);await position(page);
+  await page.locator('#style-position-y').fill('40');await page.locator('#style-position-y').blur();await idle(page);
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.locator('#style-position-cancel').click();await idle(page);
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await position(page);
+  const row=page.locator('.fixed-subtitle-row.position-target').first(),box=await row.boundingBox();
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
+  await page.mouse.move(box.x+box.width/2-20,box.y+box.height/2-25,{steps:4});await page.mouse.up();
+  await page.locator('#style-position-finish').click();await idle(page);
+  expect((await snap(page)).subtitles.tracks[0].layout).toBe('fixed');
+  await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.evaluate(()=>performRedo());await idle(page);
+  await page.locator('#style-edit-scope').selectOption({label:'S1'});
+  await page.locator('#style-position-y-name').click();await idle(page);
+  const restored=await snap(page);expect(restored.subtitles.tracks[0].layout).toBe('auto');
+  expect(restored.subtitles.tracks[0].position).toBeUndefined();
+  expect(restored.subtitles.cues).toEqual(before.subtitles.cues);expect(restored.subtitles.bindings).toEqual(before.subtitles.bindings);
 });
 
 test('selected cue percentage keeps typed decimals during refresh and commits with Enter',async({page})=>{
@@ -111,7 +140,7 @@ test('selected cue percentage keeps typed decimals during refresh and commits wi
   expect(pos((await events(page))[0].Text)[1]).toBeCloseTo(488.7,3);
   await y.fill('101');await y.press('Tab');
   expect((await snap(page)).subtitles.cues[0].content.subtitle_position.y).toBeCloseTo(.4525,5);
-  await page.locator('#style-position-reset').click();await idle(page);
+  await page.locator('#style-position-y-name').click();await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_position).toBeUndefined();
   expect(Number(await y.inputValue())).toBeLessThanOrEqual(100);
 });
@@ -136,7 +165,7 @@ test('single auto cue positioning preserves its bound partner, saves, reopens an
   expect((await snap(page)).subtitles).toEqual(moved.subtitles);
   const ass=await page.evaluate(()=>fixedAssDocument('both'));expect(ass).toContain('\\pos(960.0000,540.0000)');
   await open(page);await page.locator('#style-position-x').scrollIntoViewIfNeeded();await page.screenshot({path:info.outputPath('selected-position-panel.png')});
-  await page.locator('#style-position-reset').click();await idle(page);
+  await page.locator('#style-position-y-name').click();await idle(page);
   expect((await snap(page)).subtitles).toEqual(before.subtitles);expect((await events(page)).map(r=>r.Text)).toEqual(original.map(r=>r.Text));
   expect(errors).toEqual([]);
 });
@@ -174,10 +203,10 @@ test('empty and locked selections disable positioning; track edits and presets k
   await page.evaluate(()=>fixedUpdateTrack(DATA.subtitle_tracks.tracks[1].id,{locked:true}));
   await axis(page,'x',30);const position=(await snap(page)).subtitles.cues[0].content.subtitle_position;
   expect(position?.x).toBe(.3);await page.evaluate(()=>fixedUpdateTrack(DATA.subtitle_tracks.tracks[1].id,{locked:false}));
-  await page.locator('#style-edit-scope').selectOption({label:'S1'});await page.locator('#style-track-placement').selectOption('fixed');await axis(page,'y',20);
+  await page.locator('#style-edit-scope').selectOption({label:'S1'});await axis(page,'y',20);
   await page.locator('#style-project-preset').selectOption('default');expect((await snap(page)).subtitles.cues[0].content.subtitle_position).toEqual(position);
   await page.locator('#style-edit-scope').selectOption('cue');await page.evaluate(()=>fixedUpdateTrack(fixedStyleTrackId,{locked:true}));
-  await expect(page.locator('#style-position-x')).toBeDisabled();await expect(page.locator('#style-position-reset')).toBeDisabled();
+  await expect(page.locator('#style-position-x')).toBeDisabled();await expect(page.locator('#style-position-x-name')).toBeDisabled();
 });
 
 test('editing one member of a legacy positioned pair does not move or rewrite its partner',async({page})=>{

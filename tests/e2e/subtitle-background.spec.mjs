@@ -36,10 +36,10 @@ test('backgrounds inherit per field, support cross-track edits, undo and saving'
   let p=await snap(page);expect(p.subtitles.cues[0].content.subtitle_style).toEqual({backgroundColor:'#882244'});
   await page.evaluate(()=>addExtensionToSelection(0));
   await expect(page.locator('#style-field-backgroundShape')).toHaveValue('');
-  await page.locator('#style-field-backgroundShape').selectOption('rect');await idle(page);
+  await page.locator('#style-field-backgroundShape').selectOption('rounded');await idle(page);
   p=await snap(page);const secondary=p.subtitles.cues.find(c=>c.content.text==='Translation');
-  expect(secondary.content.subtitle_style).toEqual({backgroundShape:'rect'});
-  expect(p.subtitles.cues[0].content.subtitle_style).toEqual({backgroundColor:'#882244',backgroundShape:'rect'});
+  expect(secondary.content.subtitle_style).toEqual({backgroundShape:'rounded'});
+  expect(p.subtitles.cues[0].content.subtitle_style).toEqual({backgroundColor:'#882244',backgroundShape:'rounded'});
   await page.evaluate(()=>performUndo());await idle(page);
   expect((await snap(page)).subtitles.cues.find(c=>c.content.text==='Translation').content.subtitle_style).toBeUndefined();
   await page.evaluate(()=>performRedo());await idle(page);
@@ -61,7 +61,7 @@ test('backgrounds inherit per field, support cross-track edits, undo and saving'
 });
 
 test('picker reads the original paused frame, supports cancel and undo, ignores UI',async({page},info)=>{
-  await openBackground(page);await page.locator('#style-field-backgroundShape').selectOption('rect');await idle(page);
+  await openBackground(page);await page.locator('#style-field-backgroundShape').selectOption('rounded');await field(page,'backgroundRadius',0);
   await field(page,'backgroundColor','#ff0000');await field(page,'backgroundOpacity',100);
   const before=await snap(page);
   await page.locator('#style-pick-backgroundColor').click();
@@ -87,6 +87,28 @@ test('picker reads the original paused frame, supports cancel and undo, ignores 
   await page.evaluate(()=>selectOnly(1));
   await expect(page.locator('.msw-video-color-picker')).toHaveCount(0);
   expect((await snap(page)).subtitles.cues[1].content.subtitle_style).toBeUndefined();
+});
+
+test('one rectangle option preserves old square backgrounds until edited and restores radius inheritance',async({page})=>{
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),track=p.subtitles.tracks[0],s=MSWProjectStyle.defaults();
+    s.main.backgroundShape='rect';s.main.backgroundRadius=35;
+    track.style={...track.style,mode:'snapshot',value:s};productionCommitProject(p,'rect fixture',[p.subtitles.cues[0].id]);
+  });await idle(page);await openBackground(page);
+  const before=await snap(page);
+  await expect(page.locator('#style-field-backgroundShape option')).toHaveText(['无','矩形']);
+  await expect(page.locator('#style-field-backgroundShape')).toHaveValue('rounded');
+  await expect(page.locator('#style-field-backgroundRadius')).toHaveValue('0');
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await field(page,'backgroundRadius',24);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({backgroundRadius:24,backgroundShape:'rounded'});
+  await page.locator('[data-reset-style=backgroundRadius]').click();await idle(page);
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.locator('#style-edit-scope').selectOption({label:'S1'});
+  await field(page,'backgroundRadius',18);
+  expect((await snap(page)).subtitles.tracks[0].style.value.main).toMatchObject({backgroundShape:'rounded',backgroundRadius:18});
+  await page.evaluate(()=>performUndo());await idle(page);
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
 });
 
 test('rounded multiline backdrop is stable during typing; ASS preview matches burned pixels',async({page},info)=>{

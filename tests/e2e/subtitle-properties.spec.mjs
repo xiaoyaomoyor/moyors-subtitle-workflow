@@ -166,15 +166,49 @@ test('three property categories reflow to wide columns and use one target select
   expect(Math.max(...row)-Math.min(...row)).toBeLessThan(2);
   await page.locator('#style-edit-scope').selectOption({label:'S1'});
   await expect(page.locator('#style-main')).toBeVisible();
-  await expect(page.locator('#style-position-fields')).toBeHidden();
+  await expect(page.locator('#style-position-y')).toBeVisible();
   await expect(page.locator('#style-field-marginV')).toBeVisible();
-  await page.locator('#style-track-placement').selectOption('fixed');
+  await page.locator('#style-position-y').fill('40');await page.locator('#style-position-y').blur();await idle(page);
   await expect(page.locator('#style-position-y')).toBeVisible();await expect(page.locator('#style-field-marginV')).toBeHidden();
   await page.evaluate(()=>selectOnly(1));
   await expect(page.locator('#style-edit-scope')).toHaveValue('cue');await expect(page.locator('#style-main')).toBeHidden();
   await page.locator('#style-position-y').fill('42.5');await page.locator('#style-position-y').blur();await idle(page);
   expect((await snap(page)).subtitles.cues.find(c=>c.content.text==='Second subtitle').content.subtitle_position.y).toBe(.425);
-  await page.locator('#style-track-placement').selectOption('inherit');await idle(page);
+  await page.locator('#style-position-y-name').click();await idle(page);
   expect((await snap(page)).subtitles.cues.find(c=>c.content.text==='Second subtitle').content.subtitle_position).toBeUndefined();
   await page.locator('#subtitle-properties').screenshot({path:info.outputPath('properties-wide.png')});
+});
+
+test('object row aligns, roles stay visible and field names restore overrides without extra icons',async({page},info)=>{
+  await page.evaluate(()=>Object.assign(document.getElementById('subtitle-properties').style,{position:'fixed',left:'20px',top:'30px',width:'800px',height:'850px',zIndex:'60'}));
+  await page.locator('#style-edit-scope').selectOption({label:'S1'});
+  await expect(page.locator('#style-selection-label')).toBeEmpty();
+  for(const role of ['main','secondary']){
+    await page.locator('#style-'+role).click();await expect(page.locator('#style-'+role)).toHaveAttribute('aria-pressed','true');
+    const alignment=await page.locator('#style-edit-scope,#style-main,#style-secondary,#style-swap').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.top,r.bottom];}));
+    expect(Math.max(...alignment.map(r=>r[0]))-Math.min(...alignment.map(r=>r[0]))).toBeLessThan(1);
+    expect(Math.max(...alignment.map(r=>r[1]))-Math.min(...alignment.map(r=>r[1]))).toBeLessThan(1);
+    const colors=await page.locator('#style-main,#style-secondary').evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n).color));
+    expect(colors[0]).not.toBe(colors[1]);
+  }
+  await page.locator('#style-edit-scope').selectOption('cue');
+  const centers=await page.locator('#style-edit-scope,#style-selection-label').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return r.top+r.height/2;}));
+  expect(Math.abs(centers[0]-centers[1])).toBeLessThan(1);
+  await expect(page.locator('#style-position-reset,#style-track-placement,.msw-style-field-reset')).toHaveCount(0);
+  await field(page,'fontSize',77);const name=page.locator('[data-reset-style=fontSize]');
+  await expect(name).toBeEnabled();await expect(name).toHaveClass(/is-overridden/);
+  const size=(await snap(page)).subtitles.cues[0].content.subtitle_style.fontSize;expect(size).toBe(77);
+  await page.locator('#style-general .msw-help-button').first().click();
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style.fontSize).toBe(77);
+  await page.keyboard.press('Escape');await name.focus();await name.press('Enter');await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toBeUndefined();await expect(name).toBeDisabled();await expect(name).not.toHaveClass(/is-overridden/);
+  await page.evaluate(()=>performUndo());await idle(page);await expect(name).toHaveClass(/is-overridden/);
+  await page.locator('#style-field-bold').uncheck();await idle(page);
+  await page.locator('[data-reset-style=bold]').click();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({fontSize:77});
+  const y=await page.locator('#style-position-y').boundingBox(),decoration=await page.locator('#style-decoration-fields').boundingBox();
+  expect(decoration.y).toBeGreaterThan(y.y+y.height);
+  const x=await page.locator('#style-position-x').boundingBox(),button=await page.locator('#style-position-drag').boundingBox();
+  expect(x.y).toBeLessThanOrEqual(y.y);expect(button.y).toBeGreaterThanOrEqual(y.y);
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('properties-polished.png')});
 });

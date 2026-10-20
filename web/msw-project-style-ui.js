@@ -33,13 +33,13 @@
   const targetTabs=document.createElement('div');targetTabs.className='msw-style-target-tabs';
   const tabs=panel.querySelector('.msw-style-tabs');tabs.before(targetTabs);targetTabs.innerHTML='<select id="style-track-target" aria-label="字幕轨道组"></select>';targetTabs.append(tabs);
   panel.querySelector('#style-more').insertAdjacentHTML('beforeend',`<div id="style-track-position" class="msw-position-group" hidden>
-    <div id="style-position-layout" class="msw-style-fields"><label class="media-settings-field"><span>位置方式</span><select id="style-track-placement"><option value="auto">自动排布</option><option value="fixed">固定位置</option></select></label></div>
+    <div id="style-position-layout" class="msw-style-fields"></div>
     <div id="style-position-fields"><div class="media-settings-grid">
       <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
-      <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="any" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="any" required></label>
-    </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p></div>
+      <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
+    </div><p id="style-position-note" class="msw-processing-hint"></p></div>
   </div>`);
   panel.querySelector('#style-general').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
@@ -54,6 +54,7 @@
       const label=document.createElement('label');label.className='msw-style-field';
       const title=document.createElement('span');title.className='msw-option-label';title.textContent=t(caption);
       const input=document.createElement(type==='select'?'select':'input'); input.id=`style-field-${key.replaceAll('.','-')}`;
+      label.htmlFor=input.id;
       input.dataset[animation?'animation':'styleField']=key;
       if(type==='select') for(const [value,name] of min) input.add(new Option(t(name),String(value)));
       else { input.type=type;if(type==='number'){input.min=min;input.max=max;input.step=step||1;}if(type==='text')input.maxLength=128; }
@@ -65,7 +66,7 @@
   const backgroundSection=document.createElement('div');backgroundSection.id='style-background';backgroundSection.className='msw-property-group';
   backgroundSection.innerHTML='<div id="style-background-fields" class="msw-style-fields"></div>';
   $('style-more').append(backgroundSection);
-  fields([['backgroundShape','文字背景','select',[['none','无'],['rect','矩形'],['rounded','圆角矩形']]],
+  fields([['backgroundShape','文字背景','select',[['none','无'],['rounded','矩形']]],
     ['backgroundColor','填充颜色','color'],['backgroundOpacity','不透明度 %','number',0,100],
     ['backgroundPaddingX','左右内边距','number',0,240],['backgroundPaddingY','上下内边距','number',0,240],
     ['backgroundRadius','圆角半径','number',0,240]],'style-background-fields');
@@ -73,8 +74,9 @@
   gradientSection.innerHTML='<div id="style-gradient-fields" class="msw-style-fields"></div>';
   backgroundSection.before(gradientSection);
   fields([['gradientMode','文字渐变','select',[['none','关闭'],['characters','双色逐字']]],['gradientStart','起始颜色','color'],['gradientEnd','结束颜色','color']],'style-gradient-fields');
-  $('style-advanced-fields').append(gradientSection,backgroundSection);
-  $('style-field-backgroundShape').closest('label').dataset.optionHelp='背景随全文伸缩，打字机保留完整背景。内边距和圆角以 1080p 为基准；启用后替代旧背景框，描边和阴影仍保留。';
+  const decorationFields=document.createElement('div');decorationFields.className='msw-style-fields msw-decoration-fields';decorationFields.id='style-decoration-fields';
+  $('style-more').append(decorationFields);decorationFields.append(gradientSection,backgroundSection);
+  $('style-field-backgroundShape').closest('label').dataset.optionHelp='矩形背景随全文伸缩，圆角半径为 0 时使用直角。打字机保留完整背景。内边距和圆角以 1080p 为基准；启用后替代旧背景框，描边和阴影仍保留。';
   $('style-field-gradientMode').closest('label').dataset.optionHelp='沿阅读顺序逐字变化，换行不重置；单字内部保持纯色。替代文字填充颜色，不影响描边与背景。';
   icons.pick='<path d="m14 5 5 5M12 7l5 5-9 9H3v-5l9-9Zm1-1 3-3a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3l-3 3"/>';
   for(const input of panel.querySelectorAll('[data-style-field][type=color]')) {
@@ -122,7 +124,7 @@
   proofPanel.append($('style-preview-mode').closest('label'));
   const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofPanel.append(openProperties);old.before(proofPanel);
   const scopeBar=document.createElement('div');scopeBar.className='msw-properties-scope';
-  scopeBar.innerHTML='<label class="media-settings-field"><span>对象</span><select id="style-edit-scope" aria-label="属性对象"></select></label><span id="style-selection-label"></span>';
+  scopeBar.innerHTML='<select id="style-edit-scope" aria-label="属性对象"></select><span id="style-selection-label"></span>';
   const general=$('style-general'),basicFields=$('style-basic-fields'),presetRow=panel.querySelector('.msw-style-selectors');
   general.insertBefore(scopeBar,basicFields);
   scopeBar.insertBefore(tabs,$('style-selection-label'));
@@ -130,8 +132,7 @@
   presetRow.append(panel.querySelector('.msw-style-actions'));
   targetTabs.hidden=true;panel.querySelector('.msw-style-toolbar').hidden=true;
   for(const node of [$('style-save-form'),$('style-delete-confirm'),$('style-track-controls')])general.insertBefore(node,basicFields);
-  $('style-more').append($('style-track-position'));
-  $('style-track-position').open=true;
+  $('style-advanced-fields').append($('style-track-position'));
   $('style-position-layout').append($('style-pair-controls'));
   const anchor=$('style-field-alignment').closest('label');
   anchor.querySelector('.msw-option-label').textContent='对齐锚点';$('style-position-layout').append(anchor);
@@ -141,14 +142,36 @@
   $('style-position-scope').closest('label').hidden=true;
   const restoreAppearance=document.createElement('button');restoreAppearance.type='button';restoreAppearance.id='style-inherit-appearance';restoreAppearance.className='msw-style-icon';
   restoreAppearance.title='恢复轨道外观';restoreAppearance.setAttribute('aria-label','恢复轨道外观');
-  restoreAppearance.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v11h13M14 11l4 4-4 4M9 4h11M9 8h11"/></svg>';
+  restoreAppearance.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V4h12v3M14 4v14m-3 0h6M7 11H3V7m0 4a6 6 0 1 1-1 7"/></svg>';
   presetRow.querySelector('.msw-style-actions').prepend(restoreAppearance);
   for(const input of panel.querySelectorAll('[data-style-field]')) {
-    const reset=document.createElement('button');reset.type='button';reset.className='msw-style-field-reset';reset.dataset.resetStyle=input.dataset.styleField;
-    reset.title='此项跟随轨道';reset.setAttribute('aria-label',input.closest('label').querySelector('.msw-option-label').textContent+'跟随轨道');
-    reset.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+icons.reset+'</svg>';
-    input.closest('label').append(reset);
-    reset.onclick=event=>{event.preventDefault();commitCueAppearance({}, {reset:[input.dataset.styleField]});};
+    const caption=input.closest('label').querySelector('.msw-option-label');
+    const reset=fieldName(caption,()=>resetAppearanceField(input.dataset.styleField));
+    reset.dataset.resetStyle=input.dataset.styleField;
+  }
+  // The field name is the recovery control; help icons stay separate.
+  function fieldName(caption,restore) {
+    const name=document.createElement('button');name.type='button';name.className='msw-style-field-name';name.textContent=caption.textContent;
+    caption.replaceChildren(name);name.disabled=true;
+    name.onclick=event=>{event.preventDefault();event.stopPropagation();if(!name.disabled)restore();};
+    return name;
+  }
+  function recoveryState(name,changed,blocked,hint='点击恢复轨道参数') {
+    name.disabled=!changed||blocked;name.classList.toggle('is-overridden',!!changed);
+    name.title=changed?hint:'';
+    name.setAttribute('aria-label',name.textContent+(changed?'，'+hint:''));
+  }
+  for(const key of ['x','y']){
+    const input=$('style-position-'+key),caption=input.closest('label').firstElementChild;caption.classList.add('msw-option-label');
+    input.closest('label').htmlFor=input.id;
+    fieldName(caption,()=>{positionDrafts.clear();fixedCommitPosition(null);sync();refresh();}).id='style-position-'+key+'-name';
+  }
+  function resetAppearanceField(field) {
+    const options={reset:[field]};
+    // Rectangle/rounded are one control now. Its radius also owns the legacy
+    // shape switch; restoring a radius must recover a straight track rectangle.
+    if(field==='backgroundRadius')options.restoreRadius=true;
+    commitCueAppearance({},options);
   }
   let role='main',library=[],selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
   let editScope='cue';fixedPositionScope='cue';
@@ -159,10 +182,13 @@
     const ids=fixedPositionSelectedIds();
     return fixedTrackCore.createIndex(host.data).records({includeHidden:true}).filter(r=>ids.has(r.cue_id));
   };
-  const rowAppearance=row=>{
+  const trackAppearance=row=>{
     const track=fixedTrack(row.cue,row.role,row.track_id),style=global.MSWTrackPresentation.styleFor(host.data,track);
-    return global.MSWCueStyle.apply(style[track.flat_style_slot||'main'],row.cue);
+    return global.MSWCueStyle.apply(style[track.flat_style_slot||'main'],{});
   };
+  const rowAppearance=row=>global.MSWCueStyle.apply(trackAppearance(row),row.cue);
+  const displayedAppearance=(style,field)=>field==='backgroundShape'&&style.backgroundShape==='rect'?'rounded':
+    field==='backgroundRadius'&&style.backgroundShape==='rect'?0:style[field];
   const presetMatches=(preset,rows=selectedRows())=>rows.length&&rows.every(row=>{
     const track=fixedTrack(row.cue,row.role,row.track_id),candidate=S.forKind(preset,fixedTrackCore.styleKind(track))[track.flat_style_slot||'main'],effective=rowAppearance(row);
     return global.MSWCueStyle.fields.every(k=>candidate[k]===effective[k]);
@@ -192,6 +218,14 @@
       const rows=selectedRows(),ids=rows.map(r=>r.cue_id);if(!ids.length)return;
       commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
       let next=global.MSWFlatEditing.updateAppearance(before,ids,patch,options);
+      if(patch.backgroundRadius>0) {
+        const rectIds=rows.filter(r=>rowAppearance(r).backgroundShape==='rect').map(r=>r.cue_id);
+        if(rectIds.length)next=global.MSWFlatEditing.updateAppearance(next,rectIds,{backgroundShape:'rounded'});
+      }
+      if(options.restoreRadius) {
+        const rectIds=rows.filter(r=>trackAppearance(r).backgroundShape==='rect'&&r.cue.subtitle_style?.backgroundShape==='rounded').map(r=>r.cue_id);
+        if(rectIds.length)next=global.MSWFlatEditing.updateAppearance(next,rectIds,{}, {reset:['backgroundShape']});
+      }
       if(options.preset) {
         const batches=new Map();
         for(const row of rows) {
@@ -343,21 +377,19 @@
     panel.classList.toggle('editing-cues',cueScope());
     const blocked=cueScope()?(!rows.length||rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked)):!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
     $('style-edit-scope').value=cueScope()?'cue':group?.main.id||track?.id||'';$('style-edit-scope').disabled=fixedPositionEditing;
-    $('style-selection-label').textContent=cueScope()?(rows.length===1?fixedCueLabel(rows[0].cue,rows[0].role,rows[0].track_id):rows.length?`已选 ${rows.length} 条 · ${new Set(rows.map(r=>r.subtitle_track_id)).size} 轨`:'请选择字幕'):'未单独设置的字幕跟随轨道';
+    $('style-selection-label').textContent=cueScope()?(rows.length===1?fixedCueLabel(rows[0].cue,rows[0].role,rows[0].track_id):rows.length?`已选 ${rows.length} 条 · ${new Set(rows.map(r=>r.subtitle_track_id)).size} 轨`:'请选择字幕'):'';
     $('style-track-target').hidden=cueScope();
     restoreAppearance.hidden=!cueScope();restoreAppearance.disabled=blocked||!rows.some(r=>r.cue.subtitle_style);
     $('style-animation').hidden=false;
     legacyAnimation.hidden=cueScope()||!motionContext().items.some(i=>i.legacy);
     $('style-track-position').hidden=!fixedPresentationMode();
-    $('style-track-placement').value=track?fixedTrackCore.placement(track):'auto';$('style-track-placement').disabled=blocked;
     $('style-position-fields').hidden=!productionFlatMode()&&(!track||fixedTrackCore.placement(track)!=='fixed');
     if(productionFlatMode())syncPosition();
     else if(track&&fixedTrackCore.placement(track)==='fixed') {
       const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
       $('style-position-scope').value=fixedPositionScope;
       for(const key of ['x','y']){$('style-position-'+key).value=Math.round(p[key]*1000)/10;$('style-position-'+key).disabled=blocked||fixedPositionScope==='cue'&&!group;}
-      $('style-position-drag').disabled=blocked;$('style-position-reset').disabled=blocked||fixedPositionScope==='cue'&&!group;
-      $('style-position-reset').textContent=fixedPositionScope==='cue'?'跟随轨道位置':'恢复默认位置';
+      $('style-position-drag').disabled=blocked;
       $('style-position-note').textContent=fixedPositionScope==='cue'?(group?'当前字幕：'+group.rows[0].cue.text:'点击“在画面中定位”，选择要调整的字幕。'):'轨道位置作用于未单独定位的字幕。';
     }
     const removable=library.find(s=>s.id===activePreset());
@@ -385,18 +417,18 @@
 
     $('style-pair-controls').hidden=!secondary;const pair=S.pairSettings(style);$('style-pair-order').value=pair.order;$('style-pair-gap').value=pair.gap;
     for(const r of ['main','secondary'])$('style-'+r).setAttribute('aria-pressed',String(role===r));
-    for(const input of panel.querySelectorAll('[data-style-field]')) {const v=style[role][input.dataset.styleField];if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
+    for(const input of panel.querySelectorAll('[data-style-field]')) {const v=displayedAppearance(style[role],input.dataset.styleField);if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
     for(const input of panel.querySelectorAll('[data-style-field]')) {
       const field=input.dataset.styleField,label=input.closest('label'),reset=label.querySelector('[data-reset-style]');
       label.hidden=cueScope()&&!global.MSWCueStyle.fields.includes(field);
       const changed=cueScope()&&rows.some(r=>Object.hasOwn(r.cue.subtitle_style||{},field));
-      const different=cueScope()&&appearances.some(a=>a[field]!==appearances[0][field]);
+      const different=cueScope()&&appearances.some(a=>displayedAppearance(a,field)!==displayedAppearance(appearances[0],field));
       label.classList.toggle('is-overridden',changed);label.classList.toggle('is-mixed',different);
       input.setAttribute('aria-description',different?'多个值':changed?'已单独设置':'跟随轨道');
       if(input.type==='checkbox')input.indeterminate=different;
       else if(different){input.value='';input.placeholder='多个值';}
       else input.placeholder='';
-      reset.hidden=!changed;reset.disabled=saving||blocked;
+      recoveryState(reset,changed,saving||blocked);
     }
     for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=cueScope()||track&&fixedTrackCore.placement(track)==='fixed';
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
@@ -405,7 +437,7 @@
     const withBackground=backgroundValues.some(s=>global.MSWSubtitleBackground.enabled(s));
     for(const key of global.MSWSubtitleBackground.fields.filter(k=>k!=='backgroundShape')) {
       const input=$('style-field-'+key);
-      input.closest('label').hidden=!withBackground||(key==='backgroundRadius'&&!backgroundValues.some(s=>s.backgroundShape==='rounded'));
+      input.closest('label').hidden=!withBackground;
     }
     $('style-field-borderStyle').disabled ||= withBackground;
     const withGradient=backgroundValues.some(s=>global.MSWSubtitleGradient.enabled(s));
@@ -436,23 +468,19 @@
     }
     const track=fixedStyleTarget(),selected=fixedPositionScope==='cue',rows=selected?fixedPositionSelection():[];
     const locked=selected?rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked):track?.locked;
-    const enabled=!locked&&(selected?rows.length>0&&rows.every(r=>r.position):track&&fixedTrackCore.placement(track)==='fixed');
+    const enabled=!locked&&(selected?rows.length>0&&rows.every(r=>r.position):!!track);
     const p=fixedPositionCurrent();$('style-position-scope').value=fixedPositionScope;
     for(const key of ['x','y']) {
       const input=$('style-position-'+key);input.disabled=!enabled;
       positionValue(key,p[key],enabled);
       input.placeholder=enabled&&p[key]===null?'多个值':'';
     }
-    const placement=$('style-track-placement');
-    placement.replaceChildren(...(selected?[['inherit','跟随轨道'],['fixed','单独定位']]:[['auto','自动排布'],['fixed','固定位置']]).map(([id,label])=>new Option(label,id)));
     const custom=rows.filter(r=>r.cue.subtitle_position).length;
-    if(selected&&custom&&custom!==rows.length)placement.add(new Option('多个值','mixed'));
-    placement.value=selected?(custom===rows.length&&custom?'fixed':custom?'mixed':'inherit'):track?fixedTrackCore.placement(track):'auto';
-    placement.disabled=!!locked||fixedPositionEditing||selected&&!enabled;
-    $('style-position-fields').hidden=!selected&&track&&fixedTrackCore.placement(track)==='auto';
+    for(const key of ['x','y'])recoveryState($('style-position-'+key+'-name'),
+      selected?custom>0:track&&fixedTrackCore.placement(track)==='fixed',
+      fixedPositionEditing||locked||!track,selected?'点击恢复轨道位置（横纵坐标一起）':'点击恢复自动排布（横纵坐标一起）');
+    $('style-position-fields').hidden=false;
     $('style-position-drag').disabled=!enabled||selected&&rows.some(r=>!r.entry);
-    $('style-position-reset').disabled=fixedPositionEditing||locked||!track||(selected?!rows.some(r=>r.cue.subtitle_position):!enabled||!track.position);
-    $('style-position-reset').textContent=selected?'跟随轨道位置':'恢复默认位置';
     $('style-position-note').textContent=locked?'所选轨道已锁定':selected&&rows.length&&!enabled?'请先启用字幕及轨道':'';
   }
   function refresh() {
@@ -472,19 +500,10 @@
   $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
   function editTrack(id,show=true){cancelAction();message('');editScope='track';fixedPositionScope='track';fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(show)open('track');}
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
-  $('style-track-placement').onchange=()=>{
-    const mode=$('style-track-placement').value;
-    if(cueScope()){
-      if(mode==='inherit')fixedCommitPosition(null);
-      else if(mode==='fixed'){const p=fixedPositionSelection()[0]?.position;if(p)fixedCommitPosition({x:p.x,y:p.y});}
-    }else{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:mode});}
-    sync();refresh();
-  };
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
   $('style-position-cancel').onclick=()=>fixedStopPositioning(false);
   $('style-position-finish').onclick=()=>fixedStopPositioning(true);
-  $('style-position-reset').onclick=()=>{positionDrafts.clear();fixedCommitPosition(null);sync();refresh();};
   for(const key of ['x','y']) {
     const input=$('style-position-'+key);
     input.oninput=()=>positionDrafts.set(key,positionContext());
@@ -515,7 +534,7 @@
       if(mapped && !(field==='fontSize'&&(v<8||v>200)) && !(field==='outline'&&v>12)) {style.legacyBurn[role] ||= {};style.legacyBurn[role][mapped]=v;}
       else {delete style.legacyBurn;message('已转换为工程 ASS 样式，请在播放器确认背景与位置。');}
     }
-    if(field)style[role][field]=v;else{
+    if(field){style[role][field]=v;if(field==='backgroundRadius'&&v>0&&style[role].backgroundShape==='rect')style[role].backgroundShape='rounded';}else{
       const [g,k]=animation.split('.');style.animations[g][k]=v;
       if(k==='enabled'&&v){
         if(g==='fad')style.animations.fade.enabled=false;

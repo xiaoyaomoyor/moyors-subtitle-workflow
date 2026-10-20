@@ -195,10 +195,10 @@ function fixedRefreshSubtitlePreview(tMs) {
     if(!motion&&profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
     if(fixedPositionDragAffects(entry)){const offset=fixedPositionDrag||fixedPositionSession;dx+=offset.dx;dy+=offset.dy;}
     Object.assign(element.style,{left:entry.x+dx+'px',top:entry.y+dy+'px',width:entry.width+'px',height:entry.height+'px'});
-    const selected=fixedPositionScope==='track'?entry.group.trackId===fixedStyleTrackId:productionFlatMode()?fixedPositionSelectedIds().has(entry.cue_id):entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));
+    const selected=fixedPositionScope==='track'?(productionFlatMode()?entry.subtitle_track_id:entry.group.trackId)===fixedStyleTrackId:productionFlatMode()?fixedPositionSelectedIds().has(entry.cue_id):entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));
     element.classList.toggle('selected-position',fixedPositionEditing&&selected);
     element.classList.toggle('annotation',entry.group.kind==='annotation');
-    element.classList.toggle('position-target',fixedPositionEditing&&selected&&(fixedPositionScope==='cue'||entry.group.kind==='annotation'));
+    element.classList.toggle('position-target',fixedPositionEditing&&selected);
     element.dataset.groupId=entry.group.id;element.dataset.trackId=entry.group.trackId;
   }
   fixedApplyPositionOffsets(layout);renderStickerOverlay(tMs);
@@ -219,19 +219,30 @@ function fixedPositionCurrent() {
     return Object.fromEntries(['x','y'].map(k=>[k,values.length&&values.every(p=>Math.abs(p[k]-values[0][k])<.00001)?values[0][k]:null]));
   }
   const group=fixedSelectedPositionGroup(),track=fixedStyleTarget();
+  if(productionFlatMode()&&fixedPositionScope==='track'&&track&&fixedTrackCore.placement(track)==='auto') {
+    const {layout}=fixedPreviewLayout(),now=player.currentTime*1000;
+    const entries=layout.entries.filter(e=>e.subtitle_track_id===track.id&&!e.cue.subtitle_position);
+    const entry=entries.find(e=>e.cue.start<=now&&now<e.cue.end)||entries[0];
+    // Track coordinates anchor the top centre of its text block. Start from
+    // its actual automatic placement so typing one axis does not jump the other.
+    if(entry)return {x:Math.max(0,Math.min(1,(entry.x+entry.width/2)/layout.width)),y:Math.max(0,Math.min(1,entry.y/1080))};
+    const style=window.MSWTrackPresentation.styleFor(DATA,track)[track.flat_style_slot||'main'],a=style.alignment||2;
+    return {x:((a-1)%3)/2,y:Math.floor((a-1)/3)===2?style.marginV/1080:Math.floor((a-1)/3)===1?.5:1-style.marginV/1080};
+  }
   return fixedPositionScope==='cue'?(group?.rows.find(r=>r.cue.subtitle_position)?.cue.subtitle_position||track?.position||{x:.5,y:.08}):track?.position||{x:.5,y:.08};
 }
 function fixedCommitPosition(value) {
   if(fixedPositionSession)return value?fixedStagePosition(value):false;
   if(productionFlatMode()&&fixedPositionScope==='cue')return fixedCommitSelectedPosition(value);
-  const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed')return false;
+  const track=fixedStyleTarget();if(!track||!fixedPresentationMode())return false;
   if(pendingLinkedSplit){fixedStatus('请先确认或取消当前切分');return false;}
   try {
     if(track.locked)throw Error('轨道已锁定，请先解锁');
     const next=fixedContent();
     if(fixedPositionScope==='track') {
       const target=next.subtitle_tracks.tracks.find(t=>t.id===track.id);
-      if(value)target.position=value;else delete target.position;
+      if(value){target.position=value;target.layout='fixed';}
+      else {delete target.position;target.layout='auto';}
     } else {
       if(!fixedPositionRef)throw Error('请先在播放器中选择字幕');
       const refs=fixedTrackCore.boundRefs(next,[fixedPositionRef]);fixedTrackCore.assertEditable(next,refs);
@@ -327,7 +338,7 @@ function fixedCommitSelectedPosition(value,rows=fixedPositionSelection()) {
 }
 function fixedPositionDragAffects(entry) {
   const offset=fixedPositionDrag||fixedPositionSession;
-  return offset&&(offset.rows?offset.ids.has(entry.cue_id):offset.groupIds.has(entry.group.id));
+  return offset&&(offset.rows||productionFlatMode()?offset.ids.has(entry.cue_id):offset.groupIds.has(entry.group.id));
 }
 function fixedApplyPositionOffsets(layout) {
   const exact=window.MSWSubtitleRenderer;if(!exact?.applyPositionOffsets||exact.status!=='libass')return;
@@ -363,7 +374,7 @@ function fixedBeginPositionSession() {
   const {layout}=fixedPreviewLayout(),rows=productionFlatMode()&&fixedPositionScope==='cue'?fixedPositionSelection():null;
   const start=rows?rows[0].position:fixedPositionCurrent(),group=fixedSelectedPositionGroup();
   const groups=fixedPositionScope==='track'?layout.groups.filter(g=>g.trackId===fixedStyleTrackId&&!g.rows.some(r=>r.cue.subtitle_position)):[group].filter(Boolean);
-  const groupIds=new Set(groups.map(g=>g.id)),ids=new Set(rows?rows.map(r=>r.cue_id):layout.entries.filter(e=>groupIds.has(e.group.id)).map(e=>e.cue_id));
+  const groupIds=new Set(groups.map(g=>g.id)),ids=new Set(rows?rows.map(r=>r.cue_id):layout.entries.filter(e=>productionFlatMode()&&fixedPositionScope==='track'?e.subtitle_track_id===fixedStyleTrackId&&!e.cue.subtitle_position:groupIds.has(e.group.id)).map(e=>e.cue_id));
   fixedPositionSession={rows,ids,groupIds,start:{...start},value:{...start},dx:0,dy:0,rect:fixedVideoRect()};
   window.MSWSubtitleStyle?.syncPosition();window.dispatchEvent(new Event('msw:burn-style'));refreshSubtitlePreview();
 }
@@ -376,11 +387,11 @@ function fixedStartPositioning() {
     const now=player.currentTime*1000;if(!rows.some(r=>r.cue.start<=now&&now<r.cue.end))player.currentTime=rows[0].cue.start/1000;
     fixedBeginPositionSession();return;
   }
-  const track=fixedStyleTarget();if(!track||fixedTrackCore.placement(track)!=='fixed'||track.locked||!fixedPresentationMode())return;
+  const track=fixedStyleTarget();if(!track||track.locked||!fixedPresentationMode())return;
   const role=currentCuePanelKind==='extension'?'extension':'main',source=role==='main'?DATA.segments:getExtensionTrack(currentCuePanelTrackId)?.segments||[];
   const cue=source[currentCuePanelIdx];
   if(cue&&fixedOwner(cue,role,currentCuePanelTrackId)===track.id)fixedPositionRef=fixedRef(cue,role,currentCuePanelTrackId);
-  const now=player.currentTime*1000,groups=fixedPreviewLayout().layout.groups.filter(g=>g.kind==='annotation'&&g.trackId===track.id);
+  const now=player.currentTime*1000,groups=fixedPreviewLayout().layout.groups.filter(g=>g.rows.some(r=>r.subtitle_track_id===track.id));
   const chosen=fixedSelectedPositionGroup()||groups.find(g=>g.rows.some(r=>r.cue.start<=now&&now<r.cue.end))||groups[0];
   if(chosen){fixedPositionRef=fixedRef(chosen.rows[0].cue,chosen.rows[0].role,chosen.rows[0].track_id);if(!chosen.rows.some(r=>r.cue.start<=now&&now<r.cue.end))player.currentTime=chosen.start/1000;}
   player.pause();fixedBeginPositionSession();

@@ -5261,9 +5261,11 @@
 #subtitle-properties :is(input,select,button):focus-visible { outline:1px solid var(--selection-yellow); outline-offset:1px; }
 #subtitle-properties input[type=checkbox] { width:14px; height:14px; min-height:0; padding:0; accent-color:var(--accent); }
 .msw-properties-scope { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
-.msw-properties-scope label { flex:0 1 130px; }
-.msw-properties-scope label > span { display:none; }
+#subtitle-properties #style-edit-scope { flex:0 1 130px; width:130px; min-width:90px; height:30px; }
 #style-selection-label { color:var(--text-muted); font-size:12px; overflow-wrap:anywhere; }
+#style-selection-label:empty { display:none; }
+#subtitle-properties .msw-properties-scope .msw-style-tabs { align-items:center; }
+#subtitle-properties .msw-style-tabs button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); background:var(--accent-tint); box-shadow:inset 0 0 0 1px var(--accent); font-weight:600; }
 #subtitle-properties .msw-style-selectors { display:flex; flex-wrap:wrap; align-items:end; gap:8px; margin:10px 0; }
 #subtitle-properties .msw-style-selectors > label { flex:1 1 150px; max-width:320px; min-width:0; }
 #subtitle-properties .msw-style-selectors .msw-style-actions { flex-wrap:wrap; gap:4px; }
@@ -5277,24 +5279,20 @@
 #subtitle-properties #style-basic-fields { padding-top:6px; }
 #subtitle-properties .msw-property-font { grid-column:1 / -1; }
 #subtitle-properties .msw-property-group,#subtitle-properties .msw-property-group > .msw-style-fields { display:contents; }
-#subtitle-properties .msw-position-group { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,130px),1fr)); gap:8px 12px; border-top:1px solid var(--border-subtle); margin-top:6px; padding-top:10px; }
+#subtitle-properties .msw-position-group { display:contents; }
 #subtitle-properties :is(#style-position-layout,#style-position-fields,#style-position-fields > .media-settings-grid) { display:contents; }
-#subtitle-properties .msw-properties-scope label > span { display:none; }
+#subtitle-properties .msw-decoration-fields { border-top:1px solid var(--border-subtle); margin-top:8px; padding-top:12px; }
 #subtitle-properties .msw-style-color-control { max-width:180px; }
 #subtitle-properties .msw-style-color-control input[type=color] { width:100%; }
-#subtitle-properties .msw-style-field.is-overridden > .msw-option-label { padding-right:24px; }
-#subtitle-properties .msw-style-field-reset { z-index:1; }
 #subtitle-properties #style-pair-controls { grid-column:1 / -1; }
 #subtitle-properties #style-position-note:empty,#subtitle-properties #style-message:empty { display:none; }
 #subtitle-properties .style-position-actions { display:flex; flex-wrap:wrap; gap:4px; align-self:end; }
-#subtitle-properties .msw-position-group .msw-processing-actions { margin:6px 0 0; }
-#subtitle-properties .msw-position-group .msw-processing-actions { align-self:end; justify-content:flex-start; }
 #subtitle-properties .msw-style-field { position:relative; }
-#subtitle-properties .msw-style-field.is-overridden > .msw-option-label::after { content:'•'; margin-left:5px; color:var(--accent); }
 #subtitle-properties .msw-style-field.is-mixed > .msw-option-label::after { content:' · 多个值'; color:var(--text-muted); font-size:10px; }
-#subtitle-properties .msw-style-field-reset { position:absolute; right:0; top:-2px; min-height:20px; width:20px; height:20px; padding:3px; border:0; background:transparent; }
-.msw-style-field-reset svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.7; }
-#subtitle-properties .msw-style-check .msw-style-field-reset { position:static; }
+#subtitle-properties-content button.msw-style-field-name { display:inline; min-height:0; height:auto; padding:0; border:0; border-radius:0; background:none; color:inherit; font:inherit; text-align:left; opacity:1; cursor:default; }
+#subtitle-properties-content button.msw-style-field-name.is-overridden { color:var(--accent); cursor:pointer; }
+#subtitle-properties-content button.msw-style-field-name:disabled { cursor:default; }
+#subtitle-properties-content button.msw-style-field-name.is-overridden:not(:disabled):hover { color:var(--accent); text-decoration:underline; text-underline-offset:3px; }
 @container (min-width:500px) { #subtitle-properties .msw-property-font { grid-column:span 2; } }
 
 .msw-motion-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:2px 0 10px; }
