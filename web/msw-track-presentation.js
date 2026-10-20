@@ -8,11 +8,16 @@
   const finite = n => typeof n === 'number' && Number.isFinite(n);
   const cueStyle = typeof module !== 'undefined' && module.exports ? require('./msw-cue-style.js') : global.MSWCueStyle;
   const motion = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-animation.js') : global.MSWSubtitleAnimation;
+  const background = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-background.js') : global.MSWSubtitleBackground;
   const groupPosition = cue => cue.subtitle_position?.alignment ? cue.subtitle_position.base : cue.subtitle_position;
   function positionOf(entry,width) {
     if(entry.position)return {...entry.position};
     const horizontal=((Number(entry.style.alignment)||2)-1)%3;
     const vertical=entry.group.position?2:Math.floor(((Number(entry.group.rows.at(-1).style.alignment)||2)-1)/3);
+    if(background.enabled(entry.style)) {
+      const alignment=1+vertical*3+horizontal,b=background.bounds(entry.style,entry.size,alignment);
+      return {x:(entry.x-b.x)/width,y:(entry.y-b.y)/1080,alignment};
+    }
     return {x:(entry.x+horizontal*entry.width/2)/width,y:(entry.y+(2-vertical)*entry.height/2)/1080,alignment:1+vertical*3+horizontal};
   }
   function position(value) { return value && Object.keys(value).length === 2 && ['x','y'].every(k => finite(value[k]) && value[k] >= 0 && value[k] <= 1); }
@@ -42,6 +47,7 @@
       for (const row of rows) {
         const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
         row.style = cueStyle.apply(own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'], row.cue);
+        if(background.enabled(row.style))row.style.borderStyle=1;
         row.motion = motion.resolve(row.style.animation,row.cue.subtitle_animation);
         row.animations = own.animations;
         row.size = measure(row,{...own,[row.role==='main'?'main':'secondary']:row.style},width);
@@ -100,6 +106,10 @@
         entry.position={...p};entry.style={...entry.style,alignment:p.alignment};
         entry.x=p.x*width-((p.alignment-1)%3)*entry.width/2;
         entry.y=p.y*1080-(2-Math.floor((p.alignment-1)/3))*entry.height/2;
+        if(background.enabled(entry.style)) {
+          const b=background.bounds(entry.style,entry.size,p.alignment);
+          entry.x=p.x*width+b.x;entry.y=p.y*1080+b.y;
+        }
       }
       entries.push(entry);
     }

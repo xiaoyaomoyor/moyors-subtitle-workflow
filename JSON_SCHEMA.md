@@ -17,10 +17,16 @@ v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对
 - `bold`、`italic`、`underline`、`strikeOut`：布尔值；`borderStyle`：1 或 3。
 - `outline`、`shadow`：0–100；`spacing`：−100–100；`angle`：−360–360；`scaleX`、`scaleY`：0–1000，均为有限数字。
 - `wrapMode`：`auto` / `characters`；`charsPerLine`：1–200 的整数。
+- `backgroundShape`：`none` / `rect` / `rounded`，缺省 `none`；`backgroundColor`：`#RRGGBB`，缺省黑色；`backgroundOpacity`：0–100 的有限数值，缺省 75。
+- `backgroundPaddingX` / `backgroundPaddingY` / `backgroundRadius`：0–240 的有限数值，分别为左右／上下内边距及圆角半径，缺省 16 / 8 / 12，单位为 1080p 像素。半径渲染时不超过框宽／高的一半。
 
 可选 `content.subtitle_style_preset` 为非空、至多 160 字符的预设 ID，只记录编辑来源以显示“已修改”和恢复该预设；渲染始终使用已保存的覆盖字段，不依赖外部预设库。删除预设不改变工程外观，恢复轨道外观同时清除来源标识。
 
 单位沿用 1080p ASS 工程样式。位置、对齐与边距不写入外观覆盖，定位继续使用 `subtitle_position`；动画另存于下述动画对象。仅保存明确修改的字段，多选按字段分别写入，不复制首条的其他外观或自动扩展到绑定伙伴。应用预设写入该轨道角色的完整外观快照；另存预设仅保存合成后的外观，不改变原有继承字段。恢复外观删除覆盖字段而不删除定位或动画。切分两半继承覆盖；合并采用每条轨道中时间最早一条的覆盖（缺省即继承），不合并互斥样式参数。预览、独立 ASS 与烧录共用解析与测量；校对／导出其他预设替换轨道基底，单条明确覆盖仍保留。SRT 正文和时间不因外观调整而改变。
+
+背景字段也用于 `msw.subtitle-style.v1` 的 `main` / `secondary` 及轨道快照。开启背景时，文字渲染采用描边模式，原 `borderStyle` 值仍保存，关闭背景后恢复原边框模式。背景按全文（含说话人前缀、换行、描边／阴影外延）生成单独 ASS 矢量事件，不新增字幕块；内边距参与换行、组间避让与播放器控制条避让。绘图使用文字的相同锚点与时钟，跟随位移、缩放、旋转及透明度动画；背景不透明度与新动画的不透明度相乘。打字机不裁短背景。独立定位保持锚点不变，自动排布使用含背景的外框。“首条从 0 开始”同时延长该字幕的背景和文字初始片段。缺省背景关闭，不改变已有工程的外观。
+
+视频取色仅在本机浏览器读取暂停原帧，颜色按 `#RRGGBB` 写入目标外观字段；不将截图、像素缓存或取色状态写入工程，也不上传画面。取消或切换操作对象不提交修改。
 
 字幕动画：工程样式的 `main.animation` / `secondary.animation` 保存该角色的默认动画，轨道快照使用自己的物理 `style.slot`。单条 `content.subtitle_animation` 按效果覆盖，不自动扩展到绑定伙伴。结构为 `{schema:"msw.subtitle-animation.v1", effects:{...}}`，仅接受以下效果；省略效果为继承，轨道基底缺省则使用关闭的默认参数。每个出现的效果必须包含自身完整字段；`enabled` 是布尔值，`unit` 为 `percent` 或 `ms`，数值必须有限，未知字段拒绝。
 

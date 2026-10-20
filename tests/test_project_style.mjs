@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import trackCore from '../web/msw-subtitle-tracks.js';
 const context={window:{MSWSubtitleTracks:trackCore},TextEncoder,TextDecoder,Uint8Array};
-for(const file of ['gap-remove-core.js','editor-utils.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
+for(const file of ['gap-remove-core.js','editor-utils.js','msw-subtitle-background.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const S=context.window.MSWProjectStyle,U=context.window.AsrEditorUtils;
 
 test('v4 preview and alternate export presets override snapshots without losing track roles or positions',()=>{

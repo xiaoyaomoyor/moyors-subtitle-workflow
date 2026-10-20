@@ -5057,6 +5057,21 @@
 #fixed-subtitle-preview { position:absolute; transform-origin:0 0; pointer-events:none; z-index:3; overflow:hidden; }
 .fixed-subtitle-row { position:absolute; box-sizing:border-box; translate:0 var(--controls-offset, 0px); }
 .fixed-subtitle-text { box-sizing:border-box; width:max-content; white-space:pre-wrap; overflow-wrap:anywhere; }
+.fixed-subtitle-background { position:absolute; z-index:-1; pointer-events:none; }
+.fixed-subtitle-row { isolation:isolate; }
+.player-stage[data-subtitle-renderer=libass] #fixed-subtitle-preview.positioning .fixed-subtitle-background { visibility:hidden; }
+.player-stage.fixed-position-drag #fixed-subtitle-preview.positioning .fixed-subtitle-background { visibility:visible; }
+.msw-style-background { margin-top:10px; }
+.msw-style-color-control { display:flex; align-items:center; gap:6px; min-width:0; }
+.msw-style-color-control input { flex:1; }
+.msw-style-color-control .msw-style-icon { width:30px; height:30px; min-height:30px; flex:0 0 30px; padding:5px; }
+.msw-video-color-picker { position:absolute; z-index:90; cursor:crosshair; outline:none; touch-action:none; }
+.msw-video-color-picker canvas { display:block; width:100%; height:100%; pointer-events:none; }
+.msw-video-color-hint,.msw-video-color-sample { position:absolute; pointer-events:none; font:12px/1.5 sans-serif; color:white; background:#151515e6; border-radius:5px; padding:5px 8px; }
+.msw-video-color-hint { left:8px; top:8px; }
+.msw-video-color-sample { display:flex; align-items:center; gap:7px; }
+.msw-video-color-sample[hidden] { display:none; }
+.msw-video-color-sample::before { content:''; width:16px; height:16px; border:1px solid #ffffff80; background:var(--sample-color); border-radius:3px; }
 .fixed-subtitle-measure { position:fixed; left:-100000px; top:0; height:1080px; visibility:hidden; pointer-events:none; }
 #fixed-subtitle-preview.positioning .annotation { pointer-events:auto; cursor:move; touch-action:none; outline:2px dashed var(--selection-yellow); outline-offset:3px; }
 #fixed-subtitle-preview.positioning .position-target { pointer-events:auto; cursor:move; touch-action:none; outline:2px solid var(--selection-yellow); outline-offset:3px; }
@@ -18184,13 +18199,45 @@ export default MawDynamicCaptions;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);
 
+// Background geometry shares the text anchor, including rotation and animation.
+(function(global) {
+  'use strict';
+  const defaults=Object.freeze({backgroundShape:'none',backgroundColor:'#000000',backgroundOpacity:75,backgroundPaddingX:16,backgroundPaddingY:8,backgroundRadius:12});
+  const fields=Object.keys(defaults);
+  function valid(style) {
+    return fields.every(k=>style[k]===undefined||(k==='backgroundShape'?['none','rect','rounded'].includes(style[k]):
+      k==='backgroundColor'?typeof style[k]==='string'&&/^#[0-9a-f]{6}$/i.test(style[k]):
+      typeof style[k]==='number'&&Number.isFinite(style[k])&&style[k]>=0&&style[k]<=(k==='backgroundOpacity'?100:240)));
+  }
+  function normalize(style={}) {
+    if(!valid(style))throw Error('字幕背景参数无效');
+    return Object.fromEntries(fields.map(k=>[k,style[k]??defaults[k]]));
+  }
+  const enabled=style=>['rect','rounded'].includes(style.backgroundShape);
+  function box(style,size,alignment=style.alignment) {
+    const s=normalize(style),horizontal=(alignment-1)%3,vertical=Math.floor((alignment-1)/3);
+    const px=size.padding+s.backgroundPaddingX,py=size.padding+s.backgroundPaddingY;
+    return {x:-horizontal*size.textWidth/2-px,y:-(2-vertical)*size.textHeight/2-py,
+      width:size.textWidth+2*px,height:size.textHeight+2*py};
+  }
+  function bounds(style,size,alignment=style.alignment) {
+    const b=box(style,size,alignment),angle=style.angle*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
+    const points=[b.x,b.x+b.width].flatMap(x=>[b.y,b.y+b.height].map(y=>({x:x*c+y*s,y:-x*s+y*c})));
+    const x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));
+    return {x,y,width:Math.max(...points.map(p=>p.x))-x,height:Math.max(...points.map(p=>p.y))-y};
+  }
+  const api=Object.freeze({defaults,fields,valid,normalize,enabled,box,bounds});
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  global.MSWSubtitleBackground=api;
+})(typeof window==='undefined'?globalThis:window);
+
 // Project styles are snapshots. Library presets and proofreading never mutate them.
 (function(global) {
   'use strict';
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 11;
+  const layoutVersion = 12;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -18234,8 +18281,8 @@ export default MawDynamicCaptions;
   function normalize(raw = {}) {
     if(raw.annotation!==undefined&&(!raw.annotation||typeof raw.annotation!=='object'||Array.isArray(raw.annotation)||raw.annotation.annotation!==undefined))throw Error('画面文字基础样式无效');
     return {schema, name: String(raw.name || '默认白字').slice(0, 80),
-      main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{}),...(raw.main?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.main.animation)}:{})},
-      secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{}),...(raw.secondary?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.secondary.animation)}:{})},
+      main: {...U.normalizeAssStyle(raw.main || {}, U.ASS_DEFAULT_ASS_STYLE, 'main'),...normalizeWrapping(raw.main||{}),...global.MSWSubtitleBackground.normalize(raw.main||{}),...(raw.main?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.main.animation)}:{})},
+      secondary: {...U.normalizeAssStyle(raw.secondary || {}, U.ASS_DEFAULT_EXTENSION_STYLE, 'secondary'),...normalizeWrapping(raw.secondary||{}),...global.MSWSubtitleBackground.normalize(raw.secondary||{}),...(raw.secondary?.animation!==undefined?{animation:global.MSWSubtitleAnimation.normalize(raw.secondary.animation)}:{})},
       animations: U.normalizeAssAnimations(raw.animations),
       ...(raw.annotation!==undefined?{annotation:normalize(raw.annotation)}:{}),
       ...(raw.pairLayout!==undefined?{pairLayout:normalizePair(raw.pairLayout)}:{}),
@@ -18404,9 +18451,11 @@ export default MawDynamicCaptions;
   const numbers={fontSize:[1,512],outline:[0,100],shadow:[0,100],spacing:[-100,100],angle:[-360,360],scaleX:[0,1000],scaleY:[0,1000],charsPerLine:[1,200]};
   const booleans=['bold','italic','underline','strikeOut'];
   const colors=['primaryColor','outlineColor','backColor'];
-  const fields=Object.freeze(['fontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode']);
+  const background=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground;
+  const fields=Object.freeze(['fontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields]);
   function valid(value) {
     return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>{
+      if(background.fields.includes(k))return background.valid({[k]:v});
       if(numbers[k])return typeof v==='number'&&Number.isFinite(v)&&v>=numbers[k][0]&&v<=numbers[k][1]&&(k!=='charsPerLine'||Number.isInteger(v));
       if(booleans.includes(k))return typeof v==='boolean';
       if(colors.includes(k))return typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
@@ -18416,7 +18465,7 @@ export default MawDynamicCaptions;
       return false;
     });
   }
-  function apply(base,cue) {return {...base,...(cue.subtitle_style||{})};}
+  function apply(base,cue) {return {...base,...background.normalize(base),...(cue.subtitle_style||{})};}
   function appearance(style) {return Object.fromEntries(fields.filter(k=>style[k]!==undefined).map(k=>[k,style[k]]));}
   const api=Object.freeze({fields,valid,apply,appearance});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
@@ -18777,6 +18826,7 @@ export default MawDynamicCaptions;
   const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
     && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
     && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
+      && (typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground).valid(value[k])
       && (value[k].animation === undefined || motion.valid(value[k].animation))
       && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
       && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))
@@ -20221,11 +20271,16 @@ export default MawDynamicCaptions;
   const finite = n => typeof n === 'number' && Number.isFinite(n);
   const cueStyle = typeof module !== 'undefined' && module.exports ? require('./msw-cue-style.js') : global.MSWCueStyle;
   const motion = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-animation.js') : global.MSWSubtitleAnimation;
+  const background = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-background.js') : global.MSWSubtitleBackground;
   const groupPosition = cue => cue.subtitle_position?.alignment ? cue.subtitle_position.base : cue.subtitle_position;
   function positionOf(entry,width) {
     if(entry.position)return {...entry.position};
     const horizontal=((Number(entry.style.alignment)||2)-1)%3;
     const vertical=entry.group.position?2:Math.floor(((Number(entry.group.rows.at(-1).style.alignment)||2)-1)/3);
+    if(background.enabled(entry.style)) {
+      const alignment=1+vertical*3+horizontal,b=background.bounds(entry.style,entry.size,alignment);
+      return {x:(entry.x-b.x)/width,y:(entry.y-b.y)/1080,alignment};
+    }
     return {x:(entry.x+horizontal*entry.width/2)/width,y:(entry.y+(2-vertical)*entry.height/2)/1080,alignment:1+vertical*3+horizontal};
   }
   function position(value) { return value && Object.keys(value).length === 2 && ['x','y'].every(k => finite(value[k]) && value[k] >= 0 && value[k] <= 1); }
@@ -20255,6 +20310,7 @@ export default MawDynamicCaptions;
       for (const row of rows) {
         const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
         row.style = cueStyle.apply(own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'], row.cue);
+        if(background.enabled(row.style))row.style.borderStyle=1;
         row.motion = motion.resolve(row.style.animation,row.cue.subtitle_animation);
         row.animations = own.animations;
         row.size = measure(row,{...own,[row.role==='main'?'main':'secondary']:row.style},width);
@@ -20313,6 +20369,10 @@ export default MawDynamicCaptions;
         entry.position={...p};entry.style={...entry.style,alignment:p.alignment};
         entry.x=p.x*width-((p.alignment-1)%3)*entry.width/2;
         entry.y=p.y*1080-(2-Math.floor((p.alignment-1)/3))*entry.height/2;
+        if(background.enabled(entry.style)) {
+          const b=background.bounds(entry.style,entry.size,p.alignment);
+          entry.x=p.x*width+b.x;entry.y=p.y*1080+b.y;
+        }
       }
       entries.push(entry);
     }
@@ -33900,12 +33960,18 @@ async function fixedAssDocument(target='both',removeGaps=false) {
   const stamp=value=>value.split(':').reduce((sum,part)=>sum*60+Number(part),0);
   events.sort((a,b)=>stamp(a.fields[1])-stamp(b.fields[1]));
   if(events.length){
-    const first=events[0],delay=stamp(first.fields[1])*1000;
-    if(result.geometry?.some(row=>row.style===first.fields[3]&&row.motion)){
-      const text=window.MSWSubtitleAnimation.delayAssTags(first.fields.slice(9).join(','),delay);
-      first.fields.splice(9,first.fields.length-9,text);
+    // A vector backdrop and its text are separate events of the same cue.
+    const head=events[0],sameCue=events.filter(e=>e.fields[3]===head.fields[3]);
+    const earliest=new Map();
+    for(const event of sameCue)if(!earliest.has(event.fields[0]))earliest.set(event.fields[0],event);
+    for(const first of earliest.values()){
+      const delay=stamp(first.fields[1])*1000;
+      if(result.geometry?.some(row=>row.style===first.fields[3]&&row.motion)){
+        const text=window.MSWSubtitleAnimation.delayAssTags(first.fields.slice(9).join(','),delay);
+        first.fields.splice(9,first.fields.length-9,text);
+      }
+      first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');
     }
-    first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');
   }
   return lines.join('\n');
 }
@@ -34505,13 +34571,19 @@ function fixedMeasureText(row, projectStyle, width) {
   const metrics={resolution:{width,height:1080},stageWidth:width,stageHeight:1080,scaleX:1,scaleY:1};
   applyAssPreviewElement(node,style,{opacity:1},metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
   const padding=(Math.max(0,style.outline)+Math.max(0,style.shadow))*Math.max(1,(style.scaleX||100)/100,(style.scaleY||100)/100);
-  const maxWidth=Math.max(1,(width-style.marginL-style.marginR-2*padding)/Math.max(.01,(style.scaleX||100)/100));
+  const background=window.MSWSubtitleBackground,bg=background.enabled(style);
+  const maxWidth=Math.max(1,(width-style.marginL-style.marginR-2*(padding+(bg?style.backgroundPaddingX:0)))/Math.max(.01,(style.scaleX||100)/100));
   Object.assign(node.style,{width:'max-content',maxWidth:maxWidth+'px',
     textAlign:['left','center','right'][((style.alignment||2)-1)%3],whiteSpace:'pre-wrap',overflowWrap:'anywhere'});
   fixedMeasureRoot.replaceChildren(node);
   const rect=node.getBoundingClientRect(),root=fixedMeasureRoot.getBoundingClientRect();
   const result={width:rect.width+2*padding,height:rect.height+2*padding,css:node.style.cssText,text,prefix,maxWidth,
-    innerX:padding-(rect.left-root.left),innerY:padding-(rect.top-root.top)};
+    innerX:padding-(rect.left-root.left),innerY:padding-(rect.top-root.top),padding,
+    textWidth:node.offsetWidth*style.scaleX/100,textHeight:node.offsetHeight*style.scaleY/100};
+  if(bg) {
+    const b=background.bounds(style,result,style.alignment);
+    result.width=b.width;result.height=b.height;
+  }
   fixedMeasureRoot.replaceChildren();
   if(fixedTextMeasures.size>=3000)fixedTextMeasures.clear();fixedTextMeasures.set(key,result);return result;
 }
@@ -34527,6 +34599,7 @@ function fixedPreviewLayout(rect=fixedVideoRect()) {
       for(const entry of layout.entries) {
         const exact=measured.get(entry.key);if(!exact)continue;
         Object.assign(entry,{x:exact.x,y:exact.y,width:exact.width,height:exact.height,position:exact.position});
+        if(exact.backgroundSize)Object.assign(entry.size,exact.backgroundSize);
       }
       for(const group of layout.groups) {
         const rows=layout.entries.filter(e=>e.group===group);if(!rows.length)continue;
@@ -34588,6 +34661,20 @@ function fixedRefreshSubtitlePreview(tMs) {
       }
     }
     Object.assign(text.style,{position:'absolute',left:size.innerX+'px',top:size.innerY+'px',maxWidth:size.maxWidth+'px'});
+    let backdrop=element.querySelector('.fixed-subtitle-background');
+    if(window.MSWSubtitleBackground.enabled(style)) {
+      if(!backdrop){backdrop=document.createElement('div');backdrop.className='fixed-subtitle-background';element.append(backdrop);}
+      const p=window.MSWTrackPresentation.positionOf(entry,rect.referenceWidth),b=window.MSWSubtitleBackground.box(style,size,p.alignment);
+      const ax=p.x*rect.referenceWidth-entry.x,ay=p.y*1080-entry.y,scale=motion?.scale/100||1,angle=animated.angle||0;
+      Object.assign(backdrop.style,{left:ax+b.x+'px',top:ay+b.y+'px',width:b.width+'px',height:b.height+'px',
+        background:style.backgroundColor,opacity:style.backgroundOpacity/100*animation.opacity,
+        borderRadius:style.backgroundShape==='rounded'?Math.min(style.backgroundRadius,b.width/2,b.height/2)+'px':'0',
+        transformOrigin:`${-b.x}px ${-b.y}px`,transform:`rotate(${-angle}deg) scale(${scale})`});
+      // Keep the CSS fallback anchored to the same point while exact ASS loads.
+      const horizontal=(p.alignment-1)%3,vertical=Math.floor((p.alignment-1)/3);
+      Object.assign(text.style,{left:ax-horizontal*size.textWidth/2+'px',top:ay-(2-vertical)*size.textHeight/2+'px',
+        transformOrigin:`${horizontal*50}% ${(2-vertical)*50}%`});
+    } else backdrop?.remove();
     let dx=motion?.x||0,dy=motion?.y||0;
     if(!motion&&profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
     if(fixedPositionDragAffects(entry)){const offset=fixedPositionDrag||fixedPositionSession;dx+=offset.dx;dy+=offset.dy;}
@@ -66715,6 +66802,65 @@ window.addEventListener('beforeunload', (e) => {
   global.MSWSubtitleAnimationUI={create};
 })(window);
 
+// Samples a paused video frame, never the composited subtitle/UI screenshot.
+(function(global) {
+  'use strict';
+  let active=null;
+  function cancel(){active?.();}
+  function pick({video,stage,rect,valid=()=>true,onPick,onError}) {
+    cancel();
+    if(video.readyState<2||!video.videoWidth||!video.videoHeight||video.seeking){onError('请先载入视频并暂停在要取色的画面');return;}
+    const previous=document.activeElement,source=video.currentSrc,time=video.currentTime;
+    video.pause();
+    const canvas=document.createElement('canvas');canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    try{ctx.drawImage(video,0,0);ctx.getImageData(0,0,1,1);}catch(_){onError('无法读取此视频的画面，请使用本机编辑器打开本地视频');return;}
+    const overlay=document.createElement('div');overlay.className='msw-video-color-picker';overlay.tabIndex=0;
+    overlay.setAttribute('role','group');overlay.setAttribute('aria-label','视频取色，点击画面选择颜色，Esc 取消');
+    const hint=document.createElement('span');hint.className='msw-video-color-hint';hint.textContent='取色中：点击画面，Esc 取消';
+    const sample=document.createElement('span');sample.className='msw-video-color-sample';sample.hidden=true;
+    overlay.append(canvas,hint,sample);stage.append(overlay);
+    let frame=0,closed=false;
+    function finish() {
+      if(closed)return;closed=true;cancelAnimationFrame(frame);overlay.remove();
+      global.removeEventListener('keydown',keydown,true);video.removeEventListener('play',finish);
+      if(active===finish)active=null;
+      if(previous?.isConnected)previous.focus({preventScroll:true});
+      canvas.width=canvas.height=0;
+    }
+    function keydown(event){if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();finish();}}
+    function update() {
+      if(!valid()||video.currentSrc!==source||Math.abs(video.currentTime-time)>.001||!stage.isConnected){finish();return;}
+      const b=rect();
+      if(!b.width||!b.height){finish();return;}
+      Object.assign(overlay.style,{left:b.left+'px',top:b.top+'px',width:b.width+'px',height:b.height+'px'});
+      frame=requestAnimationFrame(update);
+    }
+    function color(event) {
+      const b=canvas.getBoundingClientRect(),x=Math.min(canvas.width-1,Math.max(0,Math.floor((event.clientX-b.left)/b.width*canvas.width)));
+      const y=Math.min(canvas.height-1,Math.max(0,Math.floor((event.clientY-b.top)/b.height*canvas.height)));
+      const pixel=ctx.getImageData(x,y,1,1).data;
+      return '#'+[...pixel].slice(0,3).map(v=>v.toString(16).padStart(2,'0')).join('');
+    }
+    overlay.onpointerdown=event=>{event.preventDefault();event.stopPropagation();};
+    overlay.onpointermove=event=>{
+      event.stopPropagation();const value=color(event),b=overlay.getBoundingClientRect();
+      sample.hidden=false;sample.textContent=value.toUpperCase();sample.style.setProperty('--sample-color',value);
+      sample.style.left=Math.max(0,Math.min(b.width-112,event.clientX-b.left+14))+'px';
+      sample.style.top=Math.max(0,Math.min(b.height-30,event.clientY-b.top+14))+'px';
+    };
+    overlay.onclick=event=>{
+      event.preventDefault();event.stopPropagation();
+      if(!valid()){finish();return;}
+      const value=color(event);finish();onPick(value);
+    };
+    overlay.oncontextmenu=event=>{event.preventDefault();event.stopPropagation();finish();};
+    video.addEventListener('play',finish);global.addEventListener('keydown',keydown,true);
+    active=finish;update();if(!closed)overlay.focus({preventScroll:true});
+  }
+  global.MSWVideoColorPicker=Object.freeze({pick,cancel,get active(){return !!active;}});
+})(window);
+
 (function(global) {
   'use strict';
   const host=global.MSWE?.resolve('processing-host'), S=global.MSWProjectStyle;
@@ -66780,6 +66926,28 @@ window.addEventListener('beforeunload', (e) => {
     }
   }
   fields(basic,'style-basic-fields');fields(advanced.filter(r=>r[2]==='checkbox'),'style-emphasis-fields');fields(advanced.filter(r=>r[2]!=='checkbox'),'style-advanced-fields');
+  const backgroundSection=document.createElement('details');backgroundSection.id='style-background';backgroundSection.className='msw-style-section msw-style-background';
+  backgroundSection.innerHTML='<summary><span class="msw-option-label">文字背景</span></summary><div id="style-background-fields" class="msw-style-fields"></div>';
+  backgroundSection.querySelector('summary').dataset.optionHelp='矩形或圆角背景随整条字幕自动伸缩，包含所有换行；打字机动画保留完整背景。内边距和圆角以 1080p 为基准。开启后替代原有背景框，文字描边与阴影仍保留；预览、ASS 和烧录使用同一背景。';
+  $('style-more').append(backgroundSection);
+  fields([['backgroundShape','背景形状','select',[['none','无'],['rect','矩形'],['rounded','圆角矩形']]],
+    ['backgroundColor','填充颜色','color'],['backgroundOpacity','不透明度 %','number',0,100],
+    ['backgroundPaddingX','左右内边距','number',0,240],['backgroundPaddingY','上下内边距','number',0,240],
+    ['backgroundRadius','圆角半径','number',0,240]],'style-background-fields');
+  icons.pick='<path d="m14 5 5 5M12 7l5 5-9 9H3v-5l9-9Zm1-1 3-3a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3l-3 3"/>';
+  for(const input of panel.querySelectorAll('[data-style-field][type=color]')) {
+    const control=document.createElement('span');control.className='msw-style-color-control';input.before(control);control.append(input);
+    control.insertAdjacentHTML('beforeend',iconButton('style-pick-'+input.dataset.styleField,'从视频画面取色','pick'));
+    const button=control.lastElementChild;
+    button.onclick=event=>{
+      event.preventDefault();if(input.disabled||fixedPositionEditing)return;
+      const context=JSON.stringify([host.generation,selectionKey(),role]);
+      global.MSWVideoColorPicker.pick({video:player,stage:playerStage,rect:fixedVideoRect,
+        valid:()=>ready&&propertiesVisible()&&!input.disabled&&!fixedPositionEditing&&JSON.stringify([host.generation,selectionKey(),role])===context,
+        onPick:color=>{input.value=color;input.dispatchEvent(new Event('change',{bubbles:true}));},
+        onError:text=>message(text,true)});
+    };
+  }
   $('style-field-fontSize').closest('label').dataset.optionHelp='字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。';
   const fontList=document.createElement('datalist');fontList.id='style-local-fonts';panel.append(fontList);
   $('style-field-fontName').setAttribute('list',fontList.id);
@@ -66992,6 +67160,9 @@ window.addEventListener('beforeunload', (e) => {
     if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
   }
   function sync() {
+    // Undo/project reload can clear selection without passing syncSelection.
+    // Cache the selection actually rendered, not the one from before undo.
+    lastSelectionKey=selectionKey();
     const style=S.normalize(value()||S.defaults());
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const group=fixedStyleGroup();
@@ -67056,6 +67227,14 @@ window.addEventListener('beforeunload', (e) => {
     }
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
+    const backgroundValues=cueScope()?selectedRows().map(rowAppearance):[style[role]];
+    const withBackground=backgroundValues.some(s=>global.MSWSubtitleBackground.enabled(s));
+    for(const key of global.MSWSubtitleBackground.fields.filter(k=>k!=='backgroundShape')) {
+      const input=$('style-field-'+key);
+      input.closest('label').hidden=!withBackground||(key==='backgroundRadius'&&!backgroundValues.some(s=>s.backgroundShape==='rounded'));
+    }
+    $('style-field-borderStyle').disabled ||= withBackground;
+    for(const input of panel.querySelectorAll('[data-style-field][type=color]'))$('style-pick-'+input.dataset.styleField).disabled=input.disabled||fixedPositionEditing;
     $('style-preview-mode').value=proof.mode;
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
     $('style-transform-preset').value=transformTags.some(([tags])=>tags===style.animations.t.tags)?style.animations.t.tags:'custom';
@@ -67139,7 +67318,7 @@ window.addEventListener('beforeunload', (e) => {
     if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
-    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&field!=='wrapMode'?Number(input.value):input.value;
+    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape'].includes(field)?Number(input.value):input.value;
     if(cueScope()){if(field)commitCueAppearance({[field]:v});return;}
     // Exact legacy burn parameters survive until the user deliberately edits them.
     if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){

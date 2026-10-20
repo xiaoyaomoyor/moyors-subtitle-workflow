@@ -25,6 +25,7 @@
   const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
     && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
     && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
+      && (typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground).valid(value[k])
       && (value[k].animation === undefined || motion.valid(value[k].animation))
       && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
       && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))

@@ -12,7 +12,7 @@ from copy import deepcopy
 
 from maw.msw import subtitle_layers as layers
 from maw.msw import cue_style
-from maw.msw import subtitle_animation
+from maw.msw import subtitle_animation, subtitle_background
 
 SCHEMA = "msw.project.v3"
 TRACK_SCHEMA = "msw.subtitle_tracks.v2"
@@ -54,6 +54,8 @@ def _snapshot_valid(value):
         return False
     for role in ("main", "secondary"):
         style = value[role]
+        if not subtitle_background.valid(style):
+            return False
         if 'animation' in style and not subtitle_animation.valid(style['animation']):
             return False
         if (style.get("wrapMode", "auto") not in ("auto", "characters")

@@ -986,6 +986,40 @@
 <div id="toast" aria-live="polite"></div>
 
 <script>
+// Background geometry shares the text anchor, including rotation and animation.
+(function(global) {
+  'use strict';
+  const defaults=Object.freeze({backgroundShape:'none',backgroundColor:'#000000',backgroundOpacity:75,backgroundPaddingX:16,backgroundPaddingY:8,backgroundRadius:12});
+  const fields=Object.keys(defaults);
+  function valid(style) {
+    return fields.every(k=>style[k]===undefined||(k==='backgroundShape'?['none','rect','rounded'].includes(style[k]):
+      k==='backgroundColor'?typeof style[k]==='string'&&/^#[0-9a-f]{6}$/i.test(style[k]):
+      typeof style[k]==='number'&&Number.isFinite(style[k])&&style[k]>=0&&style[k]<=(k==='backgroundOpacity'?100:240)));
+  }
+  function normalize(style={}) {
+    if(!valid(style))throw Error('字幕背景参数无效');
+    return Object.fromEntries(fields.map(k=>[k,style[k]??defaults[k]]));
+  }
+  const enabled=style=>['rect','rounded'].includes(style.backgroundShape);
+  function box(style,size,alignment=style.alignment) {
+    const s=normalize(style),horizontal=(alignment-1)%3,vertical=Math.floor((alignment-1)/3);
+    const px=size.padding+s.backgroundPaddingX,py=size.padding+s.backgroundPaddingY;
+    return {x:-horizontal*size.textWidth/2-px,y:-(2-vertical)*size.textHeight/2-py,
+      width:size.textWidth+2*px,height:size.textHeight+2*py};
+  }
+  function bounds(style,size,alignment=style.alignment) {
+    const b=box(style,size,alignment),angle=style.angle*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
+    const points=[b.x,b.x+b.width].flatMap(x=>[b.y,b.y+b.height].map(y=>({x:x*c+y*s,y:-x*s+y*c})));
+    const x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));
+    return {x,y,width:Math.max(...points.map(p=>p.x))-x,height:Math.max(...points.map(p=>p.y))-y};
+  }
+  const api=Object.freeze({defaults,fields,valid,normalize,enabled,box,bounds});
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  global.MSWSubtitleBackground=api;
+})(typeof window==='undefined'?globalThis:window);
+
+</script>
+<script>
 // Shared animation contract. Time is always relative to the original cue.
 (function(global){
   'use strict';
@@ -1059,9 +1093,11 @@
   const numbers={fontSize:[1,512],outline:[0,100],shadow:[0,100],spacing:[-100,100],angle:[-360,360],scaleX:[0,1000],scaleY:[0,1000],charsPerLine:[1,200]};
   const booleans=['bold','italic','underline','strikeOut'];
   const colors=['primaryColor','outlineColor','backColor'];
-  const fields=Object.freeze(['fontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode']);
+  const background=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground;
+  const fields=Object.freeze(['fontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields]);
   function valid(value) {
     return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>{
+      if(background.fields.includes(k))return background.valid({[k]:v});
       if(numbers[k])return typeof v==='number'&&Number.isFinite(v)&&v>=numbers[k][0]&&v<=numbers[k][1]&&(k!=='charsPerLine'||Number.isInteger(v));
       if(booleans.includes(k))return typeof v==='boolean';
       if(colors.includes(k))return typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
@@ -1071,7 +1107,7 @@
       return false;
     });
   }
-  function apply(base,cue) {return {...base,...(cue.subtitle_style||{})};}
+  function apply(base,cue) {return {...base,...background.normalize(base),...(cue.subtitle_style||{})};}
   function appearance(style) {return Object.fromEntries(fields.filter(k=>style[k]!==undefined).map(k=>[k,style[k]]));}
   const api=Object.freeze({fields,valid,apply,appearance});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
@@ -1436,6 +1472,7 @@
   const snapshotValid = value => value?.schema === 'msw.subtitle-style.v1'
     && (value.annotation===undefined || value.annotation?.annotation===undefined && snapshotValid(value.annotation))
     && ['main', 'secondary'].every(k => value[k] && typeof value[k] === 'object' && !Array.isArray(value[k])
+      && (typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground).valid(value[k])
       && (value[k].animation === undefined || motion.valid(value[k].animation))
       && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
       && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))

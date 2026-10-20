@@ -115,10 +115,15 @@ def boundaries(raw, duration, count):
     return result
 
 
-def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefix='', speaker_color=None):
+def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefix='', speaker_color=None, *, drawing=None):
     """Yield source-relative fragments. Hidden text retains its original geometry."""
     from maw.subtitle_wrapping import _characters
     from maw.msw.subtitle_style import ass_text
+    from maw.msw import subtitle_background as background
+    if drawing is not None:
+        from copy import deepcopy
+        raw = deepcopy(raw)
+        raw['effects']['typewriter']['enabled'] = False
     units = _characters(text)
     count = sum(not unit.isspace() for unit in units)
     cuts = [lo] + [t for t in boundaries(raw, duration, count) if lo < t < hi] + [hi]
@@ -127,9 +132,10 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
     def alpha(v):
         return f'{math.floor(clamp(1-v)*255+.5):02X}'
     def props(state):
-        return (rf'\fscx{number(style["scaleX"]*state["scale"]/100)}'
-                rf'\fscy{number(style["scaleY"]*state["scale"]/100)}'
-                rf'\frz{number(style["angle"]+state["rotation"])}\alpha&H{alpha(state["opacity"])}&')
+        opacity = state['opacity']*(background.normalize(style)['backgroundOpacity']/100 if drawing is not None else 1)
+        return (rf'\fscx{number((100 if drawing is not None else style["scaleX"])*state["scale"]/100)}'
+                rf'\fscy{number((100 if drawing is not None else style["scaleY"])*state["scale"]/100)}'
+                rf'\frz{number(style["angle"]+state["rotation"])}\alpha&H{alpha(opacity)}&')
     def color_tag(color):
         return r'{\c&H'+color[5:7]+color[3:5]+color[1:3]+'&}'
     for a, b in zip(cuts, cuts[1:]):
@@ -143,9 +149,12 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
         xy = [x+left['x'], y+left['y'], x+right['x'], y+right['y']]
         position = ('\\move('+','.join(number(v) for v in [*xy, 0, span])+')' if movement
                     else '\\pos('+','.join(number(v) for v in xy[:2])+')')
-        tags = rf'\an{alignment}\q2'+position+props(left)
+        tags = (background.tags(style) if drawing is not None else '')+rf'\an{alignment}\q2'+position+props(left)
         if props(left) != props(right):
             tags += r'\t(0,'+number(span)+',1,'+props(right)+')'
+        if drawing is not None:
+            yield a, b, tags, drawing
+            continue
         parts, seen, prefix_count, hidden = [], 0, 0, False
         if speaker_color and speaker_prefix:
             parts.append(color_tag(speaker_color))

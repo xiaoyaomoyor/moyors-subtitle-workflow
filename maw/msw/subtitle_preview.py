@@ -12,7 +12,7 @@ _lock = threading.RLock()
 _files = {}
 # Bump together with MSWProjectStyle.layoutVersion when the shared layout
 # contract changes. A page refresh cannot reload an already running Python VM.
-LAYOUT_VERSION = 11
+LAYOUT_VERSION = 12
 
 
 def preview_ass(payload):
@@ -53,7 +53,8 @@ def preview_ass(payload):
                                  groupId=r['groupId'],style=f'cue-{i}',start=r['cue']['start'],end=r['cue']['end'],
                                  visible=target in ('both',role) and bool(r['size']['text'].strip()),
                                  position=position_anchor(r,round(1080*video['width']/video['height'])),
-                                 move={'enabled':False} if r['motion'] is not None else r['animations']['move'],motion=r['motion']))
+                                 move={'enabled':False} if r['motion'] is not None else r['animations']['move'],motion=r['motion'],
+                                 backgroundSize={k:r['size'][k] for k in ('padding','textWidth','textHeight')}))
     return {'ass':styled_ass(project,plan,target,video), 'geometry':geometry, 'layoutVersion':LAYOUT_VERSION}
 
 

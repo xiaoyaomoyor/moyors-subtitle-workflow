@@ -13,6 +13,7 @@ from maw.project_subtitle_style import normalize_project_style, builtin_presets
 from maw.subtitle_wrapping import wrap_text, _characters
 from maw.msw import cue_style
 from maw.msw import subtitle_animation
+from maw.msw import subtitle_background as background
 
 
 def measured_text(text, style, width, *, prefix=''):
@@ -22,7 +23,8 @@ def measured_text(text, style, width, *, prefix=''):
     fallback = family_metrics(fallback_name, style['bold'], style['italic']) if fallback_name else {}
     sx, sy = style['scaleX']/100, style['scaleY']/100
     padding = (style['outline']+style['shadow'])*max(1, sx, sy)
-    available = max(1, width-style['marginL']-style['marginR']-padding*2)
+    pad_x = background.normalize(style)['backgroundPaddingX'] if background.enabled(style) else 0
+    available = max(1, width-style['marginL']-style['marginR']-(padding+pad_x)*2)
     def advance(token):
         return sum((metrics.get(ord(c), fallback.get(ord(c), 1.1 if ord(c)>255 else .55))*style['fontSize']+style['spacing'])*sx for c in token)
     lines = []
@@ -46,8 +48,12 @@ def measured_text(text, style, width, *, prefix=''):
     angle=math.radians(style['angle']);c,s=math.cos(angle),math.sin(angle)
     corners=[((x-anchor)*c+y*s,-(x-anchor)*s+y*c) for x in (-padding,w+padding) for y in (-padding,h+padding)]
     left=min(x for x,y in corners);top=min(y for x,y in corners)
-    return dict(text='\n'.join(lines),width=max(x for x,y in corners)-left,height=max(y for x,y in corners)-top,
-                padding=padding,originX=-left,originY=-top)
+    size = dict(text='\n'.join(lines),width=max(x for x,y in corners)-left,height=max(y for x,y in corners)-top,
+                padding=padding,originX=-left,originY=-top,textWidth=w,textHeight=h)
+    if background.enabled(style):
+        bounds = background.bounds(style, size, style['alignment'])
+        size.update(width=bounds['width'], height=bounds['height'])
+    return size
 
 
 def pair_settings(style):
@@ -69,6 +75,13 @@ def group_position(cue):
 
 def position_anchor(row, width):
     """Use the same anchor for editing and ASS, without estimating glyph height."""
+    if background.enabled(row['style']):
+        p = row['cue'].get('subtitle_position')
+        if p and 'alignment' in p:
+            return {k: p[k] for k in ('x', 'y', 'alignment')}
+        alignment = 1+(2 if row['anchor'] is None else row['anchor'])*3+(row['style']['alignment']-1)%3
+        bounds = background.bounds(row['style'], row['size'], alignment)
+        return dict(x=(row['x']-bounds['x'])/width, y=(row['y']-bounds['y'])/1080, alignment=alignment)
     horizontal = (row['style']['alignment']-1)%3
     vertical = row['anchor']
     if vertical is None:
@@ -132,6 +145,8 @@ def layout(project, width=1920):
         for row in members:
             own_style = resolve_style(index.tracks[row['subtitle_track_id']]) if flat else style
             row['style'] = cue_style.apply(own_style['main' if row['role']=='main' else 'secondary'], row['cue'])
+            if background.enabled(row['style']):
+                row['style']['borderStyle'] = 1
             row['animations'] = own_style['animations']
             row['motion'] = subtitle_animation.resolve(row['style'].get('animation'), row['cue'].get('subtitle_animation'))
             cue = row['cue']
@@ -225,6 +240,9 @@ def layout(project, width=1920):
                 entry['style'] = dict(entry['style'], alignment=p['alignment'])
                 entry['x'] = p['x']*width-((p['alignment']-1)%3)*entry['width']/2
                 entry['y'] = p['y']*1080-(2-entry['anchor'])*entry['height']/2
+                if background.enabled(entry['style']):
+                    bounds = background.bounds(entry['style'], entry['size'], p['alignment'])
+                    entry['x'], entry['y'] = p['x']*width+bounds['x'], p['y']*1080+bounds['y']
                 entry['groupId'] = 'position:'+entry['key']
             entries.append(entry)
     return entries
@@ -236,6 +254,7 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
     from maw.speaker import COLOR_PALETTE
     width=max(1,round(1080*video['width']/max(1,video['height'])))
     entries=layout(project,width)
+    has_background = any(background.enabled(r['style']) for r in entries)
     lines=['[Script Info]','ScriptType: v4.00+',f'PlayResX: {width}','PlayResY: 1080','ScaledBorderAndShadow: yes','WrapStyle: 2','',
            '[V4+ Styles]','Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding']
     palette=dict(COLOR_PALETTE)
@@ -254,6 +273,7 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
         if target not in ('both',role) or not r['size']['text'].strip():continue
         position = position_anchor(r, width)
         x, y, alignment = position['x']*width, position['y']*1080, position['alignment']
+        drawing = background.drawing(r['style'], r['size'], alignment) if background.enabled(r['style']) else None
         base=rf'\an{alignment}\q2'
         animations=r['animations']
         move=animations['move']
@@ -277,7 +297,8 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
             lo,hi=max(r['cue']['start'],interval['start_ms']),min(r['cue']['end'],interval['end_ms'])
             if hi<=lo:continue
             start=interval['output_start_ms']+lo-interval['start_ms'];end=start+hi-lo
-            layer=r['rank']*2+(r['role']=='extension')
+            layer=(r['rank']*2+(r['role']=='extension'))*(2 if has_background else 1)
+            text_layer = layer+int(has_background)
             if r['motion'] is not None:
                 # Clip in source time first. Seeking/trimming must never restart effects.
                 offset=start-lo
@@ -288,20 +309,28 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
                     clip_lo,clip_hi=max(lo,start_ms-offset),min(hi,end_ms-offset)
                 if clip_hi<=clip_lo:continue
                 origin=r['cue']['start']
-                for a,b,tags,body in subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
-                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if mode=='speaker' else None):
-                    event_start,event_end=a+origin+offset,b+origin+offset
-                    if frame_at is not None:
-                        if not event_start<=frame_at<event_end:continue
-                    else:event_start-=start_ms;event_end-=start_ms
-                    if ass_time(event_start)==ass_time(event_end):continue
-                    lines.append(f'Dialogue: {layer},{ass_time(event_start)},{ass_time(event_end)},cue-{i},,0,0,0,,{{{tags}}}{body}')
-                    if len(lines)>200000:raise ValueError('字幕动画事件过多，请缩短动画时段或减少效果')
+                streams = [(text_layer, subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
+                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if mode=='speaker' else None))]
+                if drawing:
+                    streams.insert(0, (layer, subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
+                        clip_lo-origin,clip_hi-origin,x,y,7,drawing=drawing)))
+                for event_layer, stream in streams:
+                    for a,b,tags,body in stream:
+                        event_start,event_end=a+origin+offset,b+origin+offset
+                        if frame_at is not None:
+                            if not event_start<=frame_at<event_end:continue
+                        else:event_start-=start_ms;event_end-=start_ms
+                        if ass_time(event_start)==ass_time(event_end):continue
+                        lines.append(f'Dialogue: {event_layer},{ass_time(event_start)},{ass_time(event_end)},cue-{i},,0,0,0,,{{{tags}}}{body}')
+                        if len(lines)>200000:raise ValueError('字幕动画事件过多，请缩短动画时段或减少效果')
                 continue
             if frame_at is not None:
                 if not start<=frame_at<end:continue
             else:start,end=max(start,start_ms)-start_ms,min(end,end_ms)-start_ms
             if end<=start:continue
             # Explicit positions suppress libass's implicit collision re-stacking.
-            lines.append(f'Dialogue: {layer},{ass_time(start)},{ass_time(end)},cue-{i},,0,0,0,,{{{base}}}{text}')
+            if drawing:
+                bg = background.legacy_tags(r['style'], animations, x, y)
+                lines.append(f'Dialogue: {layer},{ass_time(start)},{ass_time(end)},cue-{i},,0,0,0,,{{{bg}}}{drawing}')
+            lines.append(f'Dialogue: {text_layer},{ass_time(start)},{ass_time(end)},cue-{i},,0,0,0,,{{{base}}}{text}')
     return '\n'.join(lines)+'\n'

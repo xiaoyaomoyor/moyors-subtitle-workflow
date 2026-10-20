@@ -4,6 +4,7 @@ editor-runtime.js
 gap-remove-core.js
 editor-utils.js
 msw-subtitle-animation.js
+msw-subtitle-background.js
 msw-project-style.js
 msw-cue-style.js
 msw-subtitle-layers.js
@@ -51,6 +52,7 @@ msw-audio.js
 msw-audio-actions.js
 msw-audio-export.js
 msw-subtitle-animation-ui.js
+msw-video-color-picker.js
 msw-project-style-ui.js
 msw-preview-avoidance.js
 msw-subtitle-renderer.js

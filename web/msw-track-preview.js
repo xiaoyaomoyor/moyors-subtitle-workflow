@@ -84,13 +84,19 @@ function fixedMeasureText(row, projectStyle, width) {
   const metrics={resolution:{width,height:1080},stageWidth:width,stageHeight:1080,scaleX:1,scaleY:1};
   applyAssPreviewElement(node,style,{opacity:1},metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
   const padding=(Math.max(0,style.outline)+Math.max(0,style.shadow))*Math.max(1,(style.scaleX||100)/100,(style.scaleY||100)/100);
-  const maxWidth=Math.max(1,(width-style.marginL-style.marginR-2*padding)/Math.max(.01,(style.scaleX||100)/100));
+  const background=window.MSWSubtitleBackground,bg=background.enabled(style);
+  const maxWidth=Math.max(1,(width-style.marginL-style.marginR-2*(padding+(bg?style.backgroundPaddingX:0)))/Math.max(.01,(style.scaleX||100)/100));
   Object.assign(node.style,{width:'max-content',maxWidth:maxWidth+'px',
     textAlign:['left','center','right'][((style.alignment||2)-1)%3],whiteSpace:'pre-wrap',overflowWrap:'anywhere'});
   fixedMeasureRoot.replaceChildren(node);
   const rect=node.getBoundingClientRect(),root=fixedMeasureRoot.getBoundingClientRect();
   const result={width:rect.width+2*padding,height:rect.height+2*padding,css:node.style.cssText,text,prefix,maxWidth,
-    innerX:padding-(rect.left-root.left),innerY:padding-(rect.top-root.top)};
+    innerX:padding-(rect.left-root.left),innerY:padding-(rect.top-root.top),padding,
+    textWidth:node.offsetWidth*style.scaleX/100,textHeight:node.offsetHeight*style.scaleY/100};
+  if(bg) {
+    const b=background.bounds(style,result,style.alignment);
+    result.width=b.width;result.height=b.height;
+  }
   fixedMeasureRoot.replaceChildren();
   if(fixedTextMeasures.size>=3000)fixedTextMeasures.clear();fixedTextMeasures.set(key,result);return result;
 }
@@ -106,6 +112,7 @@ function fixedPreviewLayout(rect=fixedVideoRect()) {
       for(const entry of layout.entries) {
         const exact=measured.get(entry.key);if(!exact)continue;
         Object.assign(entry,{x:exact.x,y:exact.y,width:exact.width,height:exact.height,position:exact.position});
+        if(exact.backgroundSize)Object.assign(entry.size,exact.backgroundSize);
       }
       for(const group of layout.groups) {
         const rows=layout.entries.filter(e=>e.group===group);if(!rows.length)continue;
@@ -167,6 +174,20 @@ function fixedRefreshSubtitlePreview(tMs) {
       }
     }
     Object.assign(text.style,{position:'absolute',left:size.innerX+'px',top:size.innerY+'px',maxWidth:size.maxWidth+'px'});
+    let backdrop=element.querySelector('.fixed-subtitle-background');
+    if(window.MSWSubtitleBackground.enabled(style)) {
+      if(!backdrop){backdrop=document.createElement('div');backdrop.className='fixed-subtitle-background';element.append(backdrop);}
+      const p=window.MSWTrackPresentation.positionOf(entry,rect.referenceWidth),b=window.MSWSubtitleBackground.box(style,size,p.alignment);
+      const ax=p.x*rect.referenceWidth-entry.x,ay=p.y*1080-entry.y,scale=motion?.scale/100||1,angle=animated.angle||0;
+      Object.assign(backdrop.style,{left:ax+b.x+'px',top:ay+b.y+'px',width:b.width+'px',height:b.height+'px',
+        background:style.backgroundColor,opacity:style.backgroundOpacity/100*animation.opacity,
+        borderRadius:style.backgroundShape==='rounded'?Math.min(style.backgroundRadius,b.width/2,b.height/2)+'px':'0',
+        transformOrigin:`${-b.x}px ${-b.y}px`,transform:`rotate(${-angle}deg) scale(${scale})`});
+      // Keep the CSS fallback anchored to the same point while exact ASS loads.
+      const horizontal=(p.alignment-1)%3,vertical=Math.floor((p.alignment-1)/3);
+      Object.assign(text.style,{left:ax-horizontal*size.textWidth/2+'px',top:ay-(2-vertical)*size.textHeight/2+'px',
+        transformOrigin:`${horizontal*50}% ${(2-vertical)*50}%`});
+    } else backdrop?.remove();
     let dx=motion?.x||0,dy=motion?.y||0;
     if(!motion&&profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
     if(fixedPositionDragAffects(entry)){const offset=fixedPositionDrag||fixedPositionSession;dx+=offset.dx;dy+=offset.dy;}

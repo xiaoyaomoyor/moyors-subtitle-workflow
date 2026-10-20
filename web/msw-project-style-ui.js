@@ -63,6 +63,28 @@
     }
   }
   fields(basic,'style-basic-fields');fields(advanced.filter(r=>r[2]==='checkbox'),'style-emphasis-fields');fields(advanced.filter(r=>r[2]!=='checkbox'),'style-advanced-fields');
+  const backgroundSection=document.createElement('details');backgroundSection.id='style-background';backgroundSection.className='msw-style-section msw-style-background';
+  backgroundSection.innerHTML='<summary><span class="msw-option-label">文字背景</span></summary><div id="style-background-fields" class="msw-style-fields"></div>';
+  backgroundSection.querySelector('summary').dataset.optionHelp='矩形或圆角背景随整条字幕自动伸缩，包含所有换行；打字机动画保留完整背景。内边距和圆角以 1080p 为基准。开启后替代原有背景框，文字描边与阴影仍保留；预览、ASS 和烧录使用同一背景。';
+  $('style-more').append(backgroundSection);
+  fields([['backgroundShape','背景形状','select',[['none','无'],['rect','矩形'],['rounded','圆角矩形']]],
+    ['backgroundColor','填充颜色','color'],['backgroundOpacity','不透明度 %','number',0,100],
+    ['backgroundPaddingX','左右内边距','number',0,240],['backgroundPaddingY','上下内边距','number',0,240],
+    ['backgroundRadius','圆角半径','number',0,240]],'style-background-fields');
+  icons.pick='<path d="m14 5 5 5M12 7l5 5-9 9H3v-5l9-9Zm1-1 3-3a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3l-3 3"/>';
+  for(const input of panel.querySelectorAll('[data-style-field][type=color]')) {
+    const control=document.createElement('span');control.className='msw-style-color-control';input.before(control);control.append(input);
+    control.insertAdjacentHTML('beforeend',iconButton('style-pick-'+input.dataset.styleField,'从视频画面取色','pick'));
+    const button=control.lastElementChild;
+    button.onclick=event=>{
+      event.preventDefault();if(input.disabled||fixedPositionEditing)return;
+      const context=JSON.stringify([host.generation,selectionKey(),role]);
+      global.MSWVideoColorPicker.pick({video:player,stage:playerStage,rect:fixedVideoRect,
+        valid:()=>ready&&propertiesVisible()&&!input.disabled&&!fixedPositionEditing&&JSON.stringify([host.generation,selectionKey(),role])===context,
+        onPick:color=>{input.value=color;input.dispatchEvent(new Event('change',{bubbles:true}));},
+        onError:text=>message(text,true)});
+    };
+  }
   $('style-field-fontSize').closest('label').dataset.optionHelp='字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。';
   const fontList=document.createElement('datalist');fontList.id='style-local-fonts';panel.append(fontList);
   $('style-field-fontName').setAttribute('list',fontList.id);
@@ -275,6 +297,9 @@
     if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
   }
   function sync() {
+    // Undo/project reload can clear selection without passing syncSelection.
+    // Cache the selection actually rendered, not the one from before undo.
+    lastSelectionKey=selectionKey();
     const style=S.normalize(value()||S.defaults());
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const group=fixedStyleGroup();
@@ -339,6 +364,14 @@
     }
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
+    const backgroundValues=cueScope()?selectedRows().map(rowAppearance):[style[role]];
+    const withBackground=backgroundValues.some(s=>global.MSWSubtitleBackground.enabled(s));
+    for(const key of global.MSWSubtitleBackground.fields.filter(k=>k!=='backgroundShape')) {
+      const input=$('style-field-'+key);
+      input.closest('label').hidden=!withBackground||(key==='backgroundRadius'&&!backgroundValues.some(s=>s.backgroundShape==='rounded'));
+    }
+    $('style-field-borderStyle').disabled ||= withBackground;
+    for(const input of panel.querySelectorAll('[data-style-field][type=color]'))$('style-pick-'+input.dataset.styleField).disabled=input.disabled||fixedPositionEditing;
     $('style-preview-mode').value=proof.mode;
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
     $('style-transform-preset').value=transformTags.some(([tags])=>tags===style.animations.t.tags)?style.animations.t.tags:'custom';
@@ -422,7 +455,7 @@
     if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
-    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&field!=='wrapMode'?Number(input.value):input.value;
+    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape'].includes(field)?Number(input.value):input.value;
     if(cueScope()){if(field)commitCueAppearance({[field]:v});return;}
     // Exact legacy burn parameters survive until the user deliberately edits them.
     if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){

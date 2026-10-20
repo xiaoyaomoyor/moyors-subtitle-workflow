@@ -7,7 +7,7 @@ import P from '../web/msw-track-presentation.js';
 import flat from '../web/msw-flat-subtitles.js';
 import production from '../web/msw-production-project.js';
 const context={window:{},TextEncoder,TextDecoder,Uint8Array};
-for(const file of ['gap-remove-core.js','editor-utils.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
+for(const file of ['gap-remove-core.js','editor-utils.js','msw-subtitle-background.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 globalThis.MSWProjectStyle=context.window.MSWProjectStyle;
 const S=globalThis.MSWProjectStyle;
 test('group order belongs to physical tracks, independent of binding direction and list columns',()=>{

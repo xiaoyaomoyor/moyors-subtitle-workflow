@@ -706,12 +706,18 @@ async function fixedAssDocument(target='both',removeGaps=false) {
   const stamp=value=>value.split(':').reduce((sum,part)=>sum*60+Number(part),0);
   events.sort((a,b)=>stamp(a.fields[1])-stamp(b.fields[1]));
   if(events.length){
-    const first=events[0],delay=stamp(first.fields[1])*1000;
-    if(result.geometry?.some(row=>row.style===first.fields[3]&&row.motion)){
-      const text=window.MSWSubtitleAnimation.delayAssTags(first.fields.slice(9).join(','),delay);
-      first.fields.splice(9,first.fields.length-9,text);
+    // A vector backdrop and its text are separate events of the same cue.
+    const head=events[0],sameCue=events.filter(e=>e.fields[3]===head.fields[3]);
+    const earliest=new Map();
+    for(const event of sameCue)if(!earliest.has(event.fields[0]))earliest.set(event.fields[0],event);
+    for(const first of earliest.values()){
+      const delay=stamp(first.fields[1])*1000;
+      if(result.geometry?.some(row=>row.style===first.fields[3]&&row.motion)){
+        const text=window.MSWSubtitleAnimation.delayAssTags(first.fields.slice(9).join(','),delay);
+        first.fields.splice(9,first.fields.length-9,text);
+      }
+      first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');
     }
-    first.fields[1]='0:00:00.00';lines[first.index]=first.fields.join(',');
   }
   return lines.join('\n');
 }

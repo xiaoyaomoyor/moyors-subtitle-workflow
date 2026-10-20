@@ -1,6 +1,7 @@
 """Validated partial cue appearance, independent of position and animation."""
 import math
 import re
+from maw.msw import subtitle_background as background
 
 NUMBERS = dict(fontSize=(1, 512), outline=(0, 100), shadow=(0, 100), spacing=(-100, 100),
                angle=(-360, 360), scaleX=(0, 1000), scaleY=(0, 1000), charsPerLine=(1, 200))
@@ -12,7 +13,9 @@ def valid(value):
     if not isinstance(value, dict):
         return False
     for key, v in value.items():
-        if key in NUMBERS:
+        if key in background.DEFAULTS:
+            ok = background.valid({key: v})
+        elif key in NUMBERS:
             lo, hi = NUMBERS[key]
             ok = type(v) in (int, float) and math.isfinite(v) and lo <= v <= hi
             if key == 'charsPerLine':
@@ -35,4 +38,4 @@ def valid(value):
 
 
 def apply(base, cue):
-    return {**base, **cue.get('subtitle_style', {})}
+    return {**base, **background.normalize(base), **cue.get('subtitle_style', {})}
