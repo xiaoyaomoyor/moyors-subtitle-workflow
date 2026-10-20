@@ -159,8 +159,9 @@
       if(e.pointerId!==drag.id)return;
       if(fingerprint()!==signature||blocked()){cancel();sync();return;}
       e.preventDefault();const v=at(e),p=points[selected];
-      p.time=number(Math.max(selected?points[selected-1].time+.001:0,Math.min(selected<points.length-1?points[selected+1].time-.001:geometry.end,v.time)));
-      p.value=v.value;cursor={...p};controls();draw();
+      p.time=A.snapValue(v.time,e,selected?points[selected-1].time+.001:0,selected<points.length-1?points[selected+1].time-.001:geometry.end,.001);
+      const bounds=A.channels[channel];
+      p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();
     };
     graph.onpointerleave=()=>graph.querySelector('.curve-crosshair')?.setAttribute('visibility','hidden');
     graph.onpointerup=e=>{

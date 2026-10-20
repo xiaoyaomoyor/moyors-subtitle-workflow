@@ -43,7 +43,12 @@ async function frame(page,time,value){
   await idle(page);
 }
 async function rangeValue(page,id,value){
-  await page.locator(id).evaluate((el,value)=>{el.value=String(value);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));},value);await idle(page);
+  const node=page.locator(id);await node.scrollIntoViewIfNeeded();
+  const hit=await node.locator('rect').boundingBox(),graph=await node.locator('xpath=..').boundingBox(),max=Number(await node.getAttribute('aria-valuemax'));
+  await page.keyboard.down('Control');
+  await page.mouse.move(hit.x+hit.width/2,hit.y+hit.height/2);await page.mouse.down();
+  await page.mouse.move(graph.x+26+(graph.width-52)*value/max,hit.y+hit.height/2,{steps:8});
+  await page.mouse.up();await page.keyboard.up('Control');await idle(page);
 }
 
 test('preset toggles preserve parameters, interval dragging is atomic, and custom pauses all presets',async({page},info)=>{
@@ -52,7 +57,7 @@ test('preset toggles preserve parameters, interval dragging is atomic, and custo
   await expect(page.locator('#motion-fade-graph [data-edge]')).toHaveCount(4);
   await page.locator('#motion-preset-typewriter').click();await idle(page);
   const graph=page.locator('#motion-typewriter-graph');await graph.scrollIntoViewIfNeeded();
-  const before=await snap(page),box=await graph.boundingBox(),x=box.x+26+(box.width-52)*.2,y=box.y+20;
+  const before=await snap(page),box=await graph.boundingBox(),x=box.x+26+(box.width-52)*.2,y=box.y+28;
   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+30,y,{steps:8});
   expect((await snap(page)).subtitles).toEqual(before.subtitles);
   await page.mouse.up();await idle(page);
@@ -85,7 +90,7 @@ test('track presets are role-specific, cues restore inheritance, and modes survi
   await page.locator('#motion-inherit').click();await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_animation).toBeUndefined();
   await expect(page.locator('#motion-preset-blink')).toHaveAttribute('aria-pressed','true');
-  await expect(page.locator('#motion-blink-opacity')).toHaveValue('40');
+  await expect(page.locator('#motion-blink-opacity')).toHaveAttribute('aria-valuenow','40');
 });
 
 test('cross-track preset edits preserve other effects and locks reject edits atomically',async({page})=>{
@@ -107,7 +112,7 @@ test('cross-track preset edits preserve other effects and locks reject edits ato
   expect(moved.subtitles.cues.find(c=>c.content.text==='Translation').content.subtitle_animation.effects.blink).toMatchObject({end:99,opacity:65});
   await page.keyboard.press('Delete');expect((await snap(page)).subtitles).toEqual(moved.subtitles);
   await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks[1].locked=true;productionCommitProject(p,'lock',[p.subtitles.cues[0].id,p.subtitles.cues.find(c=>c.content.text==='Translation').id]);});
-  await expect(page.locator('#motion-blink-period')).toBeDisabled();
+  await expect(page.locator('#motion-blink-period')).toHaveAttribute('aria-disabled','true');
 });
 
 test('presets and custom graphs stay compact in a narrow dock without duplicate controls',async({page},info)=>{
@@ -126,6 +131,64 @@ test('presets and custom graphs stay compact in a narrow dock without duplicate 
   await page.locator('#ctxmenu .item').filter({hasText:/^在这里新建关键帧$/}).click();await idle(page);
   await expect(page.locator('.curve-handle')).toHaveCount(3);
   await page.locator('#subtitle-properties').screenshot({path:info.outputPath('animation-narrow-custom.png')});
+});
+
+test('single-rail strength and curve drags snap with Ctrl, cancel and undo without crossing frames',async({page})=>{
+  await page.locator('#style-animation').evaluate(el=>el.open=true);
+  expect(await page.locator('#style-inherit-appearance svg').innerHTML()).toBe(await page.locator('#motion-inherit svg').innerHTML());
+  await page.locator('#motion-preset-blink').click();await idle(page);
+  await expect(page.locator('#motion-blink input[type=range]')).toHaveCount(0);
+  await rangeValue(page,'#motion-blink-period',20);await rangeValue(page,'#motion-blink-opacity',20);
+  // Coincident parameter values remain individually reachable on the same rail.
+  await rangeValue(page,'#motion-blink-period',35);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.blink).toMatchObject({period:35,opacity:20});
+  await page.locator('#motion-preset-transform').click();await idle(page);
+  await expect(page.locator('#motion-transform [data-parameter]')).toHaveCount(1);
+  await rangeValue(page,'#motion-transform-fromScale',125);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.transform).toMatchObject({fromScale:125,toScale:100});
+  await page.evaluate(()=>performUndo());await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.transform.fromScale).toBe(85);
+  const dragEdge=async(modifiers,time,cancel=false)=>{
+    const graph=page.locator('#motion-blink-graph');await graph.scrollIntoViewIfNeeded();
+    const hit=await graph.locator('[data-edge="1"] rect').boundingBox(),box=await graph.boundingBox();
+    for(const key of modifiers)await page.keyboard.down(key);
+    await page.mouse.move(hit.x+10,hit.y+9);await page.mouse.down();
+    await page.mouse.move(box.x+26+(box.width-52)*time/100,hit.y+9,{steps:5});
+    if(cancel)await page.keyboard.press('Escape');
+    await page.mouse.up();for(const key of modifiers.reverse())await page.keyboard.up(key);await idle(page);
+  };
+  await dragEdge(['Control'],82.7);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.blink.end).toBe(83);
+  await dragEdge(['Control','Shift'],72.7);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.blink.end).toBe(75);
+  const before=await snap(page);await dragEdge(['Control'],30,true);expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.locator('#motion-custom').click();await frame(page,10,20);await frame(page,90,90);
+  const graph=page.locator('#curve-graph');
+  const dragFrame=async(modifiers,time,value)=>{
+    await graph.scrollIntoViewIfNeeded();const box=await graph.boundingBox(),node=await graph.locator('[data-point="0"]').boundingBox();
+    for(const key of modifiers)await page.keyboard.down(key);
+    await page.mouse.move(node.x+node.width/2,node.y+node.height/2);await page.mouse.down();
+    await page.mouse.move(box.x+44+(box.width-60)*time/100,box.y+164-1.4*value,{steps:8});
+    await page.mouse.up();for(const key of modifiers.reverse())await page.keyboard.up(key);await idle(page);
+  };
+  await dragFrame(['Control'],23.7,42.6);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.curves.channels.opacity[0]).toMatchObject({time:24,value:43});
+  await dragFrame(['Control','Shift'],32.7,57.8);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.curves.channels.opacity[0]).toMatchObject({time:35,value:60});
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+});
+
+test('old running backend is distinguished from invalid animation data',async({page})=>{
+  const project=await snap(page);
+  await page.route('**/subtitle-preview',r=>r.fulfill({status:400,contentType:'application/json',body:JSON.stringify({ok:false,error:'平级字幕：字幕动画覆盖包含无效参数'})}));
+  const error=()=>page.evaluate(async project=>{
+    try{await MSWSubtitleStyle.request('subtitle-preview',{project,target:'both',video:{width:640,height:360}});return '';}catch(e){return e.message;}
+  },project);
+  // Current service advertises its validator version: genuine data errors stay visible.
+  expect(await error()).toBe('平级字幕：字幕动画覆盖包含无效参数');
+  await page.route('**/capabilities',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,flatSubtitles:1})}));
+  expect(await error()).toContain('重启编辑器服务并刷新页面');
+  expect((await snap(page)).subtitles).toEqual(project.subtitles);
 });
 
 test('typewriter keeps the first glyph fixed; mid-animation seek and ASS burn use identical frames',async({page},info)=>{

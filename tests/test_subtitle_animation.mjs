@@ -5,6 +5,29 @@ import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import production from '../web/msw-production-project.js';
 
+test('drag snapping stays inside bounds and preserves a moved interval without invalid animation data',()=>{
+  assert.equal(A.snapValue(12.34,{}),12.3);
+  assert.equal(A.snapValue(12.8,{ctrlKey:true}),13);
+  assert.equal(A.snapValue(12.8,{ctrlKey:true,shiftKey:true}),15);
+  assert.equal(A.snapValue(-12.8,{ctrlKey:true,shiftKey:true},-360,360),-15);
+  assert.equal(A.snapValue(100,{ctrlKey:true},0,99.4),99);
+  assert.equal(A.snapValue(9,{ctrlKey:true},9.1,9.4),9.1);
+  const band=A.dragPreset('typewriter',{start:3.3,end:33.3},{band:'range'},0,11.1,{ctrlKey:true,shiftKey:true});
+  assert.equal(band.start,15);assert.equal(band.end,45);
+  const bounded=A.dragPreset('typewriter',{start:3.3,end:33.3},{edge:1},3.3,0,{ctrlKey:true,shiftKey:true});
+  assert.equal(bounded.end,5);
+  // Repeat fractional drags, including almost coincident fade nodes and edges.
+  for(const name of ['fade','typewriter','blink','transform']){
+    let state=A.presetDefault(name);
+    for(let i=0;i<300;i++){
+      const p=A.presetTimes(name,state),edge=i%p.length;
+      const change=A.dragPreset(name,state,i%3?{edge}:{band:name==='fade'?(i%2?'in':'out'):'range'},(i*13.127)%120-10,(i*7.232)%120-60,{ctrlKey:i%2===0,shiftKey:i%4===0});
+      state={...state,...change};
+      assert.ok(A.valid({schema:A.schema,mode:'presets',effects:{[name]:state}}),`${name} drag ${i}: ${JSON.stringify(state)}`);
+    }
+  }
+});
+
 test('authoring modes retain inactive effects and preset toggles retain edited values',()=>{
   let a=A.defaults();
   const patch=(name,action)=>a=A.resolve(a,A.authorPatch(a,name,action,2000));

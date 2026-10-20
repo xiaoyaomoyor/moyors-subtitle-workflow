@@ -1093,6 +1093,28 @@
       (raw.mode==='custom')===(key==='curves')?e:{...e,enabled:false}]))};
   }
   const authoringMode=raw=>raw.mode||(raw.effects.curves?.enabled&&Object.keys(raw.effects.curves.channels).length?'custom':'presets');
+  // Snap within legal bounds, never across a neighbouring keyframe. If a very
+  // narrow interval contains no grid point, keep its valid boundary instead.
+  function snapValue(value,modifiers={},min=0,max=100,precision=.1){
+    const step=modifiers.ctrlKey?(modifiers.shiftKey?5:1):precision;
+    const low=Math.ceil((min-1e-9)/step)*step,high=Math.floor((max+1e-9)/step)*step;
+    const bounded=low<=high?Math.max(low,Math.min(high,Math.round(value/step)*step)):Math.max(min,Math.min(max,value));
+    return Math.max(min,Math.min(max,Math.round(bounded*1e9)/1e9));
+  }
+  function presetTimes(name,e){return name==='fade'?[e.start,e.start+e.in,e.end-e.out,e.end]:[e.start,e.end];}
+  function dragPreset(name,original,{edge,band},value,delta,modifiers={}){
+    const p=presetTimes(name,original),round=v=>Math.round(v*1e9)/1e9;
+    if(band!==undefined){
+      const [a,b]=name==='fade'?(band==='in'?[0,1]:[2,3]):[0,1];
+      delta=snapValue(p[a]+delta,modifiers,a?p[a-1]:0,(b<p.length-1?p[b+1]:100)-(p[b]-p[a]))-p[a];
+      for(let i=a;i<=b;i++)p[i]=round(p[i]+delta);
+    }else{
+      const i=Number(edge),gap=name==='fade'?0:.1;
+      p[i]=snapValue(value,modifiers,i?p[i-1]+gap:0,i<p.length-1?p[i+1]-gap:100);
+    }
+    if(p.at(-1)-p[0]<.099999999)return {};
+    return {start:p[0],end:p.at(-1),...(name==='fade'?{in:round(p[1]-p[0]),out:round(p[3]-p[2])}:{})};
+  }
   function presetDefault(name){
     const e=clone(definitions[name]);
     if(name==='fade')Object.assign(e,{start:0,end:100});
@@ -1261,7 +1283,7 @@
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
   }
-  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch};
+  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);
 

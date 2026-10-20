@@ -142,7 +142,7 @@
   $('style-position-scope').closest('label').hidden=true;
   const restoreAppearance=document.createElement('button');restoreAppearance.type='button';restoreAppearance.id='style-inherit-appearance';restoreAppearance.className='msw-style-icon';
   restoreAppearance.title='恢复轨道外观';restoreAppearance.setAttribute('aria-label','恢复轨道外观');
-  restoreAppearance.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V4h12v3M14 4v14m-3 0h6M7 11H3V7m0 4a6 6 0 1 1-1 7"/></svg>';
+  restoreAppearance.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v11h13M14 11l4 4-4 4M9 4h11M9 8h11"/></svg>';
   presetRow.querySelector('.msw-style-actions').prepend(restoreAppearance);
   for(const input of panel.querySelectorAll('[data-style-field]')) {
     const caption=input.closest('label').querySelector('.msw-option-label');
@@ -331,7 +331,17 @@
   const persistProof=()=>{try{localStorage.setItem('msw.subtitle-proof.v1',JSON.stringify(proof));}catch(_){message('无法保存本机预览偏好',true);}};
   async function request(route,payload) {
     const response=await fetch(`${host.config.processingUrl}/${route}`,{method:payload?'POST':'GET',headers:{'X-MSW-Token':host.config.requestToken,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{})});
-    const result=await response.json();if(!response.ok || !result.ok)throw Error(result.error||'样式请求失败');return result;
+    const result=await response.json();
+    if(!response.ok || !result.ok){
+      // Older running Python processes can serve the latest JS while retaining
+      // an older animation validator. Diagnose that mismatch, not corrupt data.
+      if(route==='subtitle-preview'&&/字幕动画.*无效参数/.test(result.error||'')){
+        const capability=await request('capabilities').catch(()=>null);
+        if(capability&&!(capability.subtitleAnimation>=2))throw Error('编辑器服务仍使用旧版动画规则，请重启编辑器服务并刷新页面；当前动画设置已保留');
+      }
+      throw Error(result.error||'样式请求失败');
+    }
+    return result;
   }
   function rebuild() {
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
