@@ -293,7 +293,7 @@ test('custom graph context menu, hover, keyframe dragging, units, undo and save 
   const after=await snap(page);expect(after.subtitles).not.toEqual(before.subtitles);
   await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
   await page.evaluate(()=>performRedo());await idle(page);expect((await snap(page)).subtitles).toEqual(after.subtitles);
-  await axis(page,'X 轴','毫秒');expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.curves.channels.scale[2].time).toBe(2500);
+  await axis(page,'X 轴','精确时间（秒）');expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.curves.channels.scale[2].time).toBe(2500);
   await axis(page,'X 轴','时间百分比');await axis(page,'Y 轴','旋转');
   await expect(page.locator('.curve-other-frame')).toHaveCount(3);await frame(page,20,-12);
   await axis(page,'Y 轴','缩放');await expect(page.locator('.curve-handle')).toHaveCount(3);
@@ -330,6 +330,31 @@ test('custom multiselect changes one channel, retains other channels and respect
   const bindings=p.subtitles.bindings;
   await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks[1].locked=true;productionCommitProject(p,'lock',p.subtitles.cues.filter(c=>c.content.start===0).map(c=>c.id));});
   await expect(page.locator('#curve-value')).toBeDisabled();expect((await snap(page)).subtitles.bindings).toEqual(bindings);
+});
+
+test('seconds display and input preserve milliseconds and allow equal-time curves on unequal-length cues',async({page})=>{
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),ids=p.subtitles.cues.filter(c=>['First subtitle','Second subtitle'].includes(c.content.text)).map(c=>c.id);
+    productionCommitProject(p,'select two durations',ids);
+  });
+  await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-custom').click();
+  await axis(page,'X 轴','精确时间（秒）');await frame(page,0,0);await frame(page,.3,100);
+  await expect(page.locator('#curve-time')).toHaveValue('0.300');
+  await expect(page.locator('#curve-time-label')).toHaveText('时间 (秒)');
+  const changed=(await snap(page)).subtitles.cues.filter(c=>c.content.subtitle_animation);
+  expect(changed).toHaveLength(2);
+  for(const c of changed){
+    expect(c.content.subtitle_animation.effects.curves).toMatchObject({unit:'ms',channels:{opacity:[{time:0,value:0},{time:300,value:100}]}});
+  }
+  await expect(page.locator('#curve-graph')).toContainText('3.000 s');
+  await page.locator('#curve-graph').hover({position:{x:100,y:90}});
+  await expect(page.locator('.curve-hover-x')).toHaveText(/^\d+\.\d{3} s$/);
+  await axis(page,'X 轴','时间百分比');
+  const converted=(await snap(page)).subtitles.cues.filter(c=>c.content.subtitle_animation);
+  expect(converted.map(c=>c.content.subtitle_animation.effects.curves.channels.opacity[1].time)).toEqual([12,10]);
+  await axis(page,'X 轴','精确时间（秒）');
+  const saved=await snap(page);expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+  await page.reload();await idle(page);expect((await snap(page)).subtitles).toEqual(saved.subtitles);
 });
 
 test('gradient colors, picker, presets and curve animation use the same ASS frame as burning',async({page},info)=>{

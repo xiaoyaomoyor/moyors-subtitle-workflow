@@ -6,7 +6,7 @@
   const icons={linear:'M-5 0L0-5L5 0L0 5Z',smooth:'M-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0',hold:'M-5-5H5V5H-5Z'};
   function create(root,{context,commit,message}){
     root.className='msw-curves';
-    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击图表选择时间与数值，＋新建关键帧；选中已有关键帧后可直接输入数值或拖动。右键设置过渡、删除、切换坐标。菱形为匀速，圆形为平滑，方形为定格；底部短线表示其他参数的关键帧时间，切换参数不会丢失它们。Esc 取消拖动。">
+    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击图表选择时间与数值，＋新建关键帧；选中已有关键帧后可直接输入数值或拖动。右键设置过渡、删除、切换坐标。精确时间显示秒，保留三位小数（0.300 s = 300 毫秒），相对于每条字幕的起点。多选和整轨也可使用；切换单位保留各条原有时序，编辑当前参数才统一。菱形为匀速，圆形为平滑，方形为定格；底部短线表示其他参数的关键帧。Ctrl 吸附当前单位整数，Ctrl+Shift 吸附 5 的倍数，Esc 取消拖动。">
       <label><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" value="0" required></label>
       <label><span id="curve-value-label">不透明度 (%)</span><input id="curve-value" type="number" step="any" value="100" required></label>
       <button id="curve-add" type="button" class="msw-style-icon" title="在此时间新建关键帧" aria-label="在此时间新建关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
@@ -15,6 +15,8 @@
       <p id="curve-note" class="msw-processing-hint"></p>`;
     const $=id=>root.querySelector('#'+id),graph=$('curve-graph');
     let channel='opacity',state,points=[],selected=-1,drag=null,geometry,signature='',targetSignature='',cursor={time:0,value:100},mixed=false;
+    const timeScale=()=>state.unit==='ms'?1000:1;
+    const timeText=t=>state.unit==='ms'?(t/1000).toFixed(3)+' s':number(t)+'%';
     const fingerprint=()=>JSON.stringify(context().items.map(i=>[i.row?.cue_id,i.track.id,i.value]));
     const blocked=()=>context().blocked||A.authoringMode(context().items[0]?.value||A.defaults())!=='custom';
     function apply(action){
@@ -23,18 +25,19 @@
     function save(next){apply({type:'channel',channel,points:next.length?next:null,unit:state.unit});}
     function controls(){
       const c=A.channels[channel],off=blocked();
-      $('curve-time-label').textContent=state.unit==='percent'?'时间 (%)':'时间 (ms)';
+      $('curve-time-label').textContent=state.unit==='percent'?'时间 (%)':'时间 (秒)';
       $('curve-value-label').textContent=labels[channel]+(channel==='rotation'?' (°)':['x','y'].includes(channel)?' (px)':' (%)');
-      $('curve-time').max=state.unit==='percent'?'100':'60000';
+      $('curve-time').max=state.unit==='percent'?'100':'60';
+      $('curve-time').step=state.unit==='percent'?'any':'0.001';
       $('curve-value').min=String(c.min);$('curve-value').max=String(c.max);
-      $('curve-time').value=String(number(cursor.time));$('curve-value').value=String(number(cursor.value));
+      $('curve-time').value=state.unit==='ms'?(cursor.time/1000).toFixed(3):String(number(cursor.time));$('curve-value').value=String(number(cursor.value));
       $('curve-time').disabled=$('curve-value').disabled=$('curve-reset').disabled=off;
       $('curve-add').disabled=off||points.length>=32||points.some(p=>Math.abs(p.time-cursor.time)<.001);
       $('curve-note').textContent=mixed?'多个值：显示首条，编辑仅统一当前参数。':'';
       graph.setAttribute('aria-disabled',String(off));
     }
     function draw(){
-      const c=A.channels[channel],duration=context().items[0]?.duration||1000;
+      const c=A.channels[channel],duration=Math.max(1,...context().items.map(i=>i.duration||1000));
       let end=state.unit==='percent'?100:Math.min(60000,Math.max(duration,...Object.values(state.channels).flat().map(p=>p.time),cursor.time,1));
       const values=points.map(p=>p.value),pad=Math.max(20,(Math.max(c.initial,...values)-Math.min(c.initial,...values))*.15);
       let low=Math.max(c.min,Math.min(c.initial,...values)-pad),high=Math.min(c.max,Math.max(c.initial,...values)+pad);
@@ -56,10 +59,10 @@
       const other=[...new Set(Object.entries(state.channels).filter(([key])=>key!==channel).flatMap(([,p])=>p.map(v=>v.time)))];
       graph.innerHTML=[0,.5,1].map(p=>`<path class="curve-grid" d="M44 ${Y(low+(high-low)*p)}H${width-16}M${X(end*p)} 24V164"/>
         <text x="39" y="${Y(low+(high-low)*p)+4}" text-anchor="end">${number(low+(high-low)*p)}</text>
-        <text x="${X(end*p)}" y="188" text-anchor="${p===1?'end':p===0?'start':'middle'}">${number(end*p)}${state.unit==='percent'?'%':'ms'}</text>`).join('')+
+        <text x="${X(end*p)}" y="188" text-anchor="${p===1?'end':p===0?'start':'middle'}">${timeText(end*p)}</text>`).join('')+
         `<text x="46" y="14">${labels[channel]}</text><path class="curve-line${points.length?'':' is-empty'}" d="${commands.join(' ')}"/>`+
-        other.map(t=>`<path class="curve-other-frame" d="M${X(t)} 161V169"><title>其他参数的关键帧：${number(t)}${state.unit==='percent'?'%':'ms'}</title></path>`).join('')+
-        points.map((p,i)=>`<g data-point="${i}" class="curve-handle${selected===i?' selected':''}" tabindex="${blocked()?-1:0}" role="button" aria-label="关键帧 ${i+1}，${number(p.time)}${state.unit==='percent'?'%':'ms'}，${number(p.value)}" transform="translate(${X(p.time)} ${Y(p.value)})">
+        other.map(t=>`<path class="curve-other-frame" d="M${X(t)} 161V169"><title>其他参数的关键帧：${timeText(t)}</title></path>`).join('')+
+        points.map((p,i)=>`<g data-point="${i}" class="curve-handle${selected===i?' selected':''}" tabindex="${blocked()?-1:0}" role="button" aria-label="关键帧 ${i+1}，${timeText(p.time)}，${number(p.value)}" transform="translate(${X(p.time)} ${Y(p.value)})">
           <circle class="curve-hit" r="10"/><path d="${icons[p.easing]}"/><title>${{linear:'匀速',smooth:'平滑',hold:'定格'}[p.easing]}</title></g>`).join('')+
         '<g class="curve-crosshair" pointer-events="none" visibility="hidden"><path/><text class="curve-hover-y" text-anchor="end"/><text class="curve-hover-x" text-anchor="middle"/></g>';
     }
@@ -88,7 +91,7 @@
       const r=graph.getBoundingClientRect(),g=geometry,c=A.channels[channel];
       const time=Math.max(0,Math.min(g.end,(e.clientX-r.left-44)/Math.max(1,r.width-60)*g.end));
       const value=Math.max(c.min,Math.min(c.max,g.low+(164-(e.clientY-r.top)*200/r.height)/140*(g.high-g.low)));
-      return {time:number(time),value:number(value)};
+      return {time:state.unit==='ms'?Math.round(time):number(time),value:number(value)};
     }
     function add(point=cursor){
       if(blocked()||points.length>=32)return;
@@ -101,7 +104,7 @@
     $('curve-reset').onclick=()=>{cursor={time:0,value:A.channels[channel].initial};apply({type:'reset'});};
     $('curve-time').onchange=()=>{
       if(!$('curve-time').reportValidity()){controls();return;}
-      cursor.time=Number($('curve-time').value);selected=points.findIndex(p=>p.time===cursor.time);
+      cursor.time=number(Number($('curve-time').value)*timeScale());selected=points.findIndex(p=>p.time===cursor.time);
       if(selected>=0)cursor.value=points[selected].value;
       controls();draw();
     };
@@ -129,7 +132,7 @@
         global.ctxAppendSeparator();
         global.ctxAppendExpandableSettings('X 轴 · 时间',[
           {label:'时间百分比',selected:state.unit==='percent',action:safe(()=>changeUnit('percent'))},
-          {label:'毫秒',selected:state.unit==='ms',action:safe(()=>changeUnit('ms'))}
+          {label:'精确时间（秒）',selected:state.unit==='ms',action:safe(()=>changeUnit('ms'))}
         ]);
         global.ctxAppendExpandableSettings('Y 轴 · 参数',Object.entries(labels).map(([key,label])=>({label,selected:channel===key,action:safe(()=>selectChannel(key))})));
       }
@@ -153,13 +156,14 @@
         group.setAttribute('visibility','visible');group.querySelector('path').setAttribute('d',`M44 ${g.Y(v.value)}H${g.width-16}M${g.X(v.time)} 24V164`);
         const y=group.querySelector('.curve-hover-y'),x=group.querySelector('.curve-hover-x');
         y.setAttribute('x','39');y.setAttribute('y',String(g.Y(v.value)+4));y.textContent=number(v.value);
-        x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=number(v.time)+(state.unit==='percent'?'%':'ms');
+        x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=timeText(v.time);
         return;
       }
       if(e.pointerId!==drag.id)return;
       if(fingerprint()!==signature||blocked()){cancel();sync();return;}
       e.preventDefault();const v=at(e),p=points[selected];
-      p.time=A.snapValue(v.time,e,selected?points[selected-1].time+.001:0,selected<points.length-1?points[selected+1].time-.001:geometry.end,.001);
+      const scale=timeScale(),lo=selected?points[selected-1].time+.001:0,hi=selected<points.length-1?points[selected+1].time-.001:geometry.end;
+      if(lo<=hi)p.time=number(A.snapValue(v.time/scale,e,lo/scale,hi/scale,.001)*scale);
       const bounds=A.channels[channel];
       p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();
     };

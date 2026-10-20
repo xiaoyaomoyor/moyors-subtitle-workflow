@@ -121,8 +121,9 @@
   // Proofreading remains a player preference. Authoring lives in one dock.
   const proofPanel=document.createElement('section');proofPanel.className='settings-panel-section msw-project-style';
   proofPanel.innerHTML='<span class="settings-panel-title">字幕预览</span>';
-  proofPanel.append($('style-preview-mode').closest('label'));
-  const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofPanel.append(openProperties);old.before(proofPanel);
+  const proofControls=document.createElement('div');proofControls.className='msw-proof-controls';proofPanel.append(proofControls);
+  proofControls.append($('style-preview-mode').closest('label'));
+  const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofControls.append(openProperties);old.before(proofPanel);
   const scopeBar=document.createElement('div');scopeBar.className='msw-properties-scope';
   scopeBar.innerHTML='<select id="style-edit-scope" aria-label="属性对象"></select><span id="style-selection-label"></span>';
   const general=$('style-general'),basicFields=$('style-basic-fields'),presetRow=panel.querySelector('.msw-style-selectors');

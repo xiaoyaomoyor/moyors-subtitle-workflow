@@ -134,13 +134,13 @@
     --selection-yellow-soft:  color-mix(in srgb, var(--gap-accent, #ffd54a) 10%, transparent);
     --selection-yellow-glow:  color-mix(in srgb, var(--gap-accent, #ffd54a) 45%, transparent);
 
-    /* 布局编辑落点提示 —— 金色（落点）/ 绿色（插入位） */
-    --layout-drop-outline: #f0c66e;
-    --layout-drop-bg:      rgba(240, 198, 110, 0.14);
-    --layout-drop-fg:      #ffe0a1;
-    --layout-insert-outline: #80d8ae;
-    --layout-insert-bg:      rgba(128, 216, 174, 0.16);
-    --layout-insert-fg:      #b9f1d2;
+    /* 布局编辑落点与插入位统一使用当前主题强调色。 */
+    --layout-drop-outline: var(--accent);
+    --layout-drop-bg:      var(--accent-tint);
+    --layout-drop-fg:      var(--text-primary);
+    --layout-insert-outline: var(--layout-drop-outline);
+    --layout-insert-bg:      var(--layout-drop-bg);
+    --layout-insert-fg:      var(--layout-drop-fg);
 
     /* 波形画布 —— 供 waveform.js 通过 getComputedStyle 读取以跟随主题 */
     --wave-row-bg:          var(--module-content-bg, #22262e);
@@ -342,13 +342,13 @@
     --selection-yellow-soft:  color-mix(in srgb, var(--gap-accent, #8f6a08) 12%, transparent);
     --selection-yellow-glow:  rgba(143, 106, 8, 0.40);
 
-    /* 布局编辑落点提示 —— 亮底加深，跟随 --amber 基色 */
-    --layout-drop-outline: #9a6a1e;
-    --layout-drop-bg:      rgba(154, 106, 30, 0.16);
-    --layout-drop-fg:      #6a4a14;
-    --layout-insert-outline: #2f9e5f;
-    --layout-insert-bg:      rgba(47, 158, 95, 0.16);
-    --layout-insert-fg:      #1f6b3f;
+    /* 浅色主题同样使用主题强调色，不另设插入位配色。 */
+    --layout-drop-outline: var(--accent);
+    --layout-drop-bg:      var(--accent-tint);
+    --layout-drop-fg:      var(--text-primary);
+    --layout-insert-outline: var(--layout-drop-outline);
+    --layout-insert-bg:      var(--layout-drop-bg);
+    --layout-insert-fg:      var(--layout-drop-fg);
 
     /* 波形画布 */
     --wave-row-bg:          var(--module-content-bg, #dfe4ea);
@@ -5092,6 +5092,10 @@
 .media-settings-field select,.msw-style-fields select { text-overflow:ellipsis; }
 .media-settings-field .gap-remove-number-control { width:100%; min-width:0; }
 .media-settings-field .gap-remove-number-control input { flex:1; width:0; }
+.msw-proof-controls { display:flex; align-items:flex-end; gap:8px; }
+.msw-proof-controls > label { flex:1 1 0; }
+.msw-proof-controls > button { flex:0 1 auto; max-width:52%; min-height:34px; margin:0; padding:6px 10px; font-size:12px; }
+.msw-proof-controls select { min-height:34px; }
 .media-settings-body .msw-option-label { display:inline-flex; align-items:center; gap:4px; min-width:0; overflow-wrap:anywhere; }
 .media-settings-body [hidden] { display:none !important; }
 .media-settings-subgroup { margin:0; padding:8px 10px 10px; min-width:0; border:1px solid var(--border); border-radius:var(--radius-sm); }
@@ -28258,7 +28262,7 @@ export default MawDynamicCaptions;
         const addBtn = document.createElement('button');
         addBtn.type = 'button';
         addBtn.className = 'module-tab-add';
-        addBtn.setAttribute('aria-label', '复制当前窗口为新标签');
+        addBtn.setAttribute('aria-label', '添加窗口到此标签组');
         addBtn.textContent = '+';
         addBtn.dataset.basePath = JSON.stringify(basePath || []);
         addBtn.dataset.moduleId = id;
@@ -28306,7 +28310,9 @@ export default MawDynamicCaptions;
       const present = new Set(collectLayoutModules(this.settings.layoutTree));
       const candidates = MODULE_IDS.filter((mid) => !present.has(mid));
       if (!candidates.length) return;
-      this.openTabAddMenu(moduleId, addBtn, candidates);
+      // Preset -> custom rebuilds tab strips: the clicked button is detached.
+      const liveAnchor = document.querySelector(`[data-dock-module="${moduleId}"] .module-tab-add`);
+      if (liveAnchor) this.openTabAddMenu(moduleId, liveAnchor, candidates);
     }
 
     openTabAddMenu(anchorId, anchorEl, candidates) {
@@ -28336,43 +28342,8 @@ export default MawDynamicCaptions;
         panel.appendChild(item);
       });
       document.body.appendChild(panel);
-      const rect = anchorEl.getBoundingClientRect();
-      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, rect.left))}px`;
-      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, rect.bottom + 4))}px`;
-
-      // 组合范围收起：指针同时离开标签与下拉才计时关闭（简单 leave 会在移动途中误关）。
-      let leaveTimer = null;
-      const inZone = (x, y) => {
-        const pr = panel.getBoundingClientRect();
-        const tr = tabEl.getBoundingClientRect();
-        return (x >= pr.left - 2 && x <= pr.right + 2 && y >= pr.top - 2 && y <= pr.bottom + 2)
-          || (x >= tr.left - 2 && x <= tr.right + 2 && y >= tr.top - 2 && y <= tr.bottom + 2)
-          || (x >= pr.left && x <= tr.right && y >= tr.top && y <= pr.bottom);
-      };
-      const onMove = (event) => {
-        if (inZone(event.clientX, event.clientY)) {
-          clearTimeout(leaveTimer);
-          leaveTimer = null;
-        } else if (!leaveTimer) {
-          leaveTimer = setTimeout(() => this.closeTabAddMenu(), 220);
-        }
-      };
-      document.addEventListener('pointermove', onMove);
-      this._tabConvertMoveGuard = onMove;
-      this.tabAddMenuCancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
-      const dismiss = (event) => {
-        if (panel.contains(event.target) || tabEl.contains(event.target)) return;
-        this.closeTabAddMenu();
-      };
-      this.tabAddMenuDismiss = dismiss;
-      document.addEventListener('pointerdown', dismiss, true);
-      this.tabAddMenuKeydown = (event) => {
-        if (event.key !== 'Escape') return;
-        event.preventDefault();
-        this.closeTabAddMenu();
-      };
-      document.addEventListener('keydown', this.tabAddMenuKeydown, true);
-      this.tabAddMenu = panel;
+      this.positionTabMenu(panel, anchorEl.getBoundingClientRect());
+      this.bindTabMenuDismiss(panel, anchorEl);
     }
 
     // 点单标签 → 按名称内容展开下拉，窄标签不能挤压模块名称。
@@ -28422,61 +28393,51 @@ export default MawDynamicCaptions;
       });
       document.body.appendChild(panel);
       panel.style.minWidth = `${Math.min(window.innerWidth - 16, Math.max(128, Math.round(anchorRect.width)))}px`;
-      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, anchorRect.left))}px`;
-      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, anchorRect.bottom + 4))}px`;
+      this.positionTabMenu(panel, anchorRect);
+      this.bindTabMenuDismiss(panel, tabEl);
+    }
 
-      // 定位后重新解析真实标签节点（可能已被重建），供组合范围判定使用。
-      const liveTab = document.querySelector(`[data-dock-module="${currentId}"] .module-tab`) || tabEl;
-      const tabElRef = liveTab;
+    positionTabMenu(panel, rect) {
+      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, rect.left))}px`;
+      const below = rect.bottom + 4;
+      const top = below + panel.offsetHeight <= window.innerHeight - 8 ? below : rect.top - panel.offsetHeight - 4;
+      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, top))}px`;
+    }
 
-      // 组合范围收起：指针同时离开标签与下拉才计时关闭（简单 leave 会在移动途中误关）。
+    bindTabMenuDismiss(panel, anchorEl) {
       let leaveTimer = null;
-      const inZone = (x, y) => {
-        const pr = panel.getBoundingClientRect();
-        const tr = tabElRef.getBoundingClientRect();
-        return (x >= pr.left - 2 && x <= pr.right + 2 && y >= pr.top - 2 && y <= pr.bottom + 2)
-          || (x >= tr.left - 2 && x <= tr.right + 2 && y >= tr.top - 2 && y <= tr.bottom + 2)
-          || (x >= pr.left && x <= tr.right && y >= tr.top && y <= pr.bottom);
-      };
+      const cancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
+      const close = () => { if (this.tabAddMenu === panel) this.closeTabAddMenu(); };
+      const anchorId = anchorEl.dataset.moduleId || anchorEl.dataset.tabFor;
+      const anchorSelector = anchorEl.classList.contains('module-tab-add') ? '.module-tab-add' : `.module-tab[data-tab-for="${anchorId}"]`;
+      const liveAnchor = () => anchorEl.isConnected ? anchorEl : document.querySelector(`[data-dock-module="${anchorId}"] ${anchorSelector}`);
       const onMove = (event) => {
-        if (inZone(event.clientX, event.clientY)) {
-          clearTimeout(leaveTimer);
-          leaveTimer = null;
-        } else if (!leaveTimer) {
-          leaveTimer = setTimeout(() => this.closeTabAddMenu(), 220);
-        }
+        const pr = panel.getBoundingClientRect(), ar = liveAnchor()?.getBoundingClientRect();
+        const inside = r => r?.width > 0 && r.height > 0 && event.clientX >= r.left - 4 && event.clientX <= r.right + 4
+          && event.clientY >= r.top - 4 && event.clientY <= r.bottom + 4;
+        // The four-pixel bridge keeps movement from the button into the menu safe.
+        if (inside(pr) || inside(ar)) cancelLeave();
+        else if (!leaveTimer) leaveTimer = setTimeout(close, 220);
       };
+      const dismiss = event => { if (!panel.contains(event.target) && !liveAnchor()?.contains(event.target)) close(); };
+      const keydown = event => { if (event.key === 'Escape') { event.preventDefault(); close(); } };
       document.addEventListener('pointermove', onMove);
-      this._tabConvertMoveGuard = onMove;
-      this.tabAddMenuCancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
-      const dismiss = (event) => {
-        if (panel.contains(event.target) || tabElRef.contains(event.target)) return;
-        this.closeTabAddMenu();
-      };
-      this.tabAddMenuDismiss = dismiss;
       document.addEventListener('pointerdown', dismiss, true);
-      this.tabAddMenuKeydown = (event) => {
-        if (event.key !== 'Escape') return;
-        event.preventDefault();
-        this.closeTabAddMenu();
+      document.addEventListener('keydown', keydown, true);
+      window.addEventListener('resize', close);
+      window.addEventListener('blur', close);
+      this.tabAddMenuCancelLeave = () => {
+        cancelLeave();
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerdown', dismiss, true);
+        document.removeEventListener('keydown', keydown, true);
+        window.removeEventListener('resize', close);
+        window.removeEventListener('blur', close);
       };
-      document.addEventListener('keydown', this.tabAddMenuKeydown, true);
       this.tabAddMenu = panel;
     }
 
     closeTabAddMenu() {
-      if (this._tabConvertMoveGuard) {
-        document.removeEventListener('pointermove', this._tabConvertMoveGuard);
-        this._tabConvertMoveGuard = null;
-      }
-      if (this.tabAddMenuDismiss) {
-        document.removeEventListener('pointerdown', this.tabAddMenuDismiss, true);
-        this.tabAddMenuDismiss = null;
-      }
-      if (this.tabAddMenuKeydown) {
-        document.removeEventListener('keydown', this.tabAddMenuKeydown, true);
-        this.tabAddMenuKeydown = null;
-      }
       this.tabAddMenuCancelLeave?.();
       this.tabAddMenuCancelLeave = null;
       this.tabAddMenu?.remove();
@@ -30362,11 +30323,9 @@ export default MawDynamicCaptions;
         }
         if (event.button !== 0 || event.target.closest('.waveform-cue-block, .waveform-gap-block')) return;
         event.preventDefault();
-        // 清除选中会提交当前字幕面板编辑，而提交可能同步重建虚拟行。
-        // 在调用外部回调前保存坐标，后续 seek 不依赖可能已脱离 DOM 的 row。
+        // Seeking and subtitle selection are independent. Keep the editing target
+        // while scrubbing; only a cue-selection gesture changes that selection.
         const geometry = this.captureRowGeometry(row);
-        // 普通左键点击空白波形：清除字幕选中并跳转播放头
-        this.options.clearSelection?.();
         // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
         if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row, geometry);
         this.seekFromPointer(event, row, false, geometry);
@@ -67037,7 +66996,7 @@ window.addEventListener('beforeunload', (e) => {
   const icons={linear:'M-5 0L0-5L5 0L0 5Z',smooth:'M-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0',hold:'M-5-5H5V5H-5Z'};
   function create(root,{context,commit,message}){
     root.className='msw-curves';
-    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击图表选择时间与数值，＋新建关键帧；选中已有关键帧后可直接输入数值或拖动。右键设置过渡、删除、切换坐标。菱形为匀速，圆形为平滑，方形为定格；底部短线表示其他参数的关键帧时间，切换参数不会丢失它们。Esc 取消拖动。">
+    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击图表选择时间与数值，＋新建关键帧；选中已有关键帧后可直接输入数值或拖动。右键设置过渡、删除、切换坐标。精确时间显示秒，保留三位小数（0.300 s = 300 毫秒），相对于每条字幕的起点。多选和整轨也可使用；切换单位保留各条原有时序，编辑当前参数才统一。菱形为匀速，圆形为平滑，方形为定格；底部短线表示其他参数的关键帧。Ctrl 吸附当前单位整数，Ctrl+Shift 吸附 5 的倍数，Esc 取消拖动。">
       <label><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" value="0" required></label>
       <label><span id="curve-value-label">不透明度 (%)</span><input id="curve-value" type="number" step="any" value="100" required></label>
       <button id="curve-add" type="button" class="msw-style-icon" title="在此时间新建关键帧" aria-label="在此时间新建关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
@@ -67046,6 +67005,8 @@ window.addEventListener('beforeunload', (e) => {
       <p id="curve-note" class="msw-processing-hint"></p>`;
     const $=id=>root.querySelector('#'+id),graph=$('curve-graph');
     let channel='opacity',state,points=[],selected=-1,drag=null,geometry,signature='',targetSignature='',cursor={time:0,value:100},mixed=false;
+    const timeScale=()=>state.unit==='ms'?1000:1;
+    const timeText=t=>state.unit==='ms'?(t/1000).toFixed(3)+' s':number(t)+'%';
     const fingerprint=()=>JSON.stringify(context().items.map(i=>[i.row?.cue_id,i.track.id,i.value]));
     const blocked=()=>context().blocked||A.authoringMode(context().items[0]?.value||A.defaults())!=='custom';
     function apply(action){
@@ -67054,18 +67015,19 @@ window.addEventListener('beforeunload', (e) => {
     function save(next){apply({type:'channel',channel,points:next.length?next:null,unit:state.unit});}
     function controls(){
       const c=A.channels[channel],off=blocked();
-      $('curve-time-label').textContent=state.unit==='percent'?'时间 (%)':'时间 (ms)';
+      $('curve-time-label').textContent=state.unit==='percent'?'时间 (%)':'时间 (秒)';
       $('curve-value-label').textContent=labels[channel]+(channel==='rotation'?' (°)':['x','y'].includes(channel)?' (px)':' (%)');
-      $('curve-time').max=state.unit==='percent'?'100':'60000';
+      $('curve-time').max=state.unit==='percent'?'100':'60';
+      $('curve-time').step=state.unit==='percent'?'any':'0.001';
       $('curve-value').min=String(c.min);$('curve-value').max=String(c.max);
-      $('curve-time').value=String(number(cursor.time));$('curve-value').value=String(number(cursor.value));
+      $('curve-time').value=state.unit==='ms'?(cursor.time/1000).toFixed(3):String(number(cursor.time));$('curve-value').value=String(number(cursor.value));
       $('curve-time').disabled=$('curve-value').disabled=$('curve-reset').disabled=off;
       $('curve-add').disabled=off||points.length>=32||points.some(p=>Math.abs(p.time-cursor.time)<.001);
       $('curve-note').textContent=mixed?'多个值：显示首条，编辑仅统一当前参数。':'';
       graph.setAttribute('aria-disabled',String(off));
     }
     function draw(){
-      const c=A.channels[channel],duration=context().items[0]?.duration||1000;
+      const c=A.channels[channel],duration=Math.max(1,...context().items.map(i=>i.duration||1000));
       let end=state.unit==='percent'?100:Math.min(60000,Math.max(duration,...Object.values(state.channels).flat().map(p=>p.time),cursor.time,1));
       const values=points.map(p=>p.value),pad=Math.max(20,(Math.max(c.initial,...values)-Math.min(c.initial,...values))*.15);
       let low=Math.max(c.min,Math.min(c.initial,...values)-pad),high=Math.min(c.max,Math.max(c.initial,...values)+pad);
@@ -67087,10 +67049,10 @@ window.addEventListener('beforeunload', (e) => {
       const other=[...new Set(Object.entries(state.channels).filter(([key])=>key!==channel).flatMap(([,p])=>p.map(v=>v.time)))];
       graph.innerHTML=[0,.5,1].map(p=>`<path class="curve-grid" d="M44 ${Y(low+(high-low)*p)}H${width-16}M${X(end*p)} 24V164"/>
         <text x="39" y="${Y(low+(high-low)*p)+4}" text-anchor="end">${number(low+(high-low)*p)}</text>
-        <text x="${X(end*p)}" y="188" text-anchor="${p===1?'end':p===0?'start':'middle'}">${number(end*p)}${state.unit==='percent'?'%':'ms'}</text>`).join('')+
+        <text x="${X(end*p)}" y="188" text-anchor="${p===1?'end':p===0?'start':'middle'}">${timeText(end*p)}</text>`).join('')+
         `<text x="46" y="14">${labels[channel]}</text><path class="curve-line${points.length?'':' is-empty'}" d="${commands.join(' ')}"/>`+
-        other.map(t=>`<path class="curve-other-frame" d="M${X(t)} 161V169"><title>其他参数的关键帧：${number(t)}${state.unit==='percent'?'%':'ms'}</title></path>`).join('')+
-        points.map((p,i)=>`<g data-point="${i}" class="curve-handle${selected===i?' selected':''}" tabindex="${blocked()?-1:0}" role="button" aria-label="关键帧 ${i+1}，${number(p.time)}${state.unit==='percent'?'%':'ms'}，${number(p.value)}" transform="translate(${X(p.time)} ${Y(p.value)})">
+        other.map(t=>`<path class="curve-other-frame" d="M${X(t)} 161V169"><title>其他参数的关键帧：${timeText(t)}</title></path>`).join('')+
+        points.map((p,i)=>`<g data-point="${i}" class="curve-handle${selected===i?' selected':''}" tabindex="${blocked()?-1:0}" role="button" aria-label="关键帧 ${i+1}，${timeText(p.time)}，${number(p.value)}" transform="translate(${X(p.time)} ${Y(p.value)})">
           <circle class="curve-hit" r="10"/><path d="${icons[p.easing]}"/><title>${{linear:'匀速',smooth:'平滑',hold:'定格'}[p.easing]}</title></g>`).join('')+
         '<g class="curve-crosshair" pointer-events="none" visibility="hidden"><path/><text class="curve-hover-y" text-anchor="end"/><text class="curve-hover-x" text-anchor="middle"/></g>';
     }
@@ -67119,7 +67081,7 @@ window.addEventListener('beforeunload', (e) => {
       const r=graph.getBoundingClientRect(),g=geometry,c=A.channels[channel];
       const time=Math.max(0,Math.min(g.end,(e.clientX-r.left-44)/Math.max(1,r.width-60)*g.end));
       const value=Math.max(c.min,Math.min(c.max,g.low+(164-(e.clientY-r.top)*200/r.height)/140*(g.high-g.low)));
-      return {time:number(time),value:number(value)};
+      return {time:state.unit==='ms'?Math.round(time):number(time),value:number(value)};
     }
     function add(point=cursor){
       if(blocked()||points.length>=32)return;
@@ -67132,7 +67094,7 @@ window.addEventListener('beforeunload', (e) => {
     $('curve-reset').onclick=()=>{cursor={time:0,value:A.channels[channel].initial};apply({type:'reset'});};
     $('curve-time').onchange=()=>{
       if(!$('curve-time').reportValidity()){controls();return;}
-      cursor.time=Number($('curve-time').value);selected=points.findIndex(p=>p.time===cursor.time);
+      cursor.time=number(Number($('curve-time').value)*timeScale());selected=points.findIndex(p=>p.time===cursor.time);
       if(selected>=0)cursor.value=points[selected].value;
       controls();draw();
     };
@@ -67160,7 +67122,7 @@ window.addEventListener('beforeunload', (e) => {
         global.ctxAppendSeparator();
         global.ctxAppendExpandableSettings('X 轴 · 时间',[
           {label:'时间百分比',selected:state.unit==='percent',action:safe(()=>changeUnit('percent'))},
-          {label:'毫秒',selected:state.unit==='ms',action:safe(()=>changeUnit('ms'))}
+          {label:'精确时间（秒）',selected:state.unit==='ms',action:safe(()=>changeUnit('ms'))}
         ]);
         global.ctxAppendExpandableSettings('Y 轴 · 参数',Object.entries(labels).map(([key,label])=>({label,selected:channel===key,action:safe(()=>selectChannel(key))})));
       }
@@ -67184,13 +67146,14 @@ window.addEventListener('beforeunload', (e) => {
         group.setAttribute('visibility','visible');group.querySelector('path').setAttribute('d',`M44 ${g.Y(v.value)}H${g.width-16}M${g.X(v.time)} 24V164`);
         const y=group.querySelector('.curve-hover-y'),x=group.querySelector('.curve-hover-x');
         y.setAttribute('x','39');y.setAttribute('y',String(g.Y(v.value)+4));y.textContent=number(v.value);
-        x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=number(v.time)+(state.unit==='percent'?'%':'ms');
+        x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=timeText(v.time);
         return;
       }
       if(e.pointerId!==drag.id)return;
       if(fingerprint()!==signature||blocked()){cancel();sync();return;}
       e.preventDefault();const v=at(e),p=points[selected];
-      p.time=A.snapValue(v.time,e,selected?points[selected-1].time+.001:0,selected<points.length-1?points[selected+1].time-.001:geometry.end,.001);
+      const scale=timeScale(),lo=selected?points[selected-1].time+.001:0,hi=selected<points.length-1?points[selected+1].time-.001:geometry.end;
+      if(lo<=hi)p.time=number(A.snapValue(v.time/scale,e,lo/scale,hi/scale,.001)*scale);
       const bounds=A.channels[channel];
       p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();
     };
@@ -67538,8 +67501,9 @@ window.addEventListener('beforeunload', (e) => {
   // Proofreading remains a player preference. Authoring lives in one dock.
   const proofPanel=document.createElement('section');proofPanel.className='settings-panel-section msw-project-style';
   proofPanel.innerHTML='<span class="settings-panel-title">字幕预览</span>';
-  proofPanel.append($('style-preview-mode').closest('label'));
-  const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofPanel.append(openProperties);old.before(proofPanel);
+  const proofControls=document.createElement('div');proofControls.className='msw-proof-controls';proofPanel.append(proofControls);
+  proofControls.append($('style-preview-mode').closest('label'));
+  const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofControls.append(openProperties);old.before(proofPanel);
   const scopeBar=document.createElement('div');scopeBar.className='msw-properties-scope';
   scopeBar.innerHTML='<select id="style-edit-scope" aria-label="属性对象"></select><span id="style-selection-label"></span>';
   const general=$('style-general'),basicFields=$('style-basic-fields'),presetRow=panel.querySelector('.msw-style-selectors');

@@ -114,13 +114,13 @@
     --selection-yellow-soft:  color-mix(in srgb, var(--gap-accent, #ffd54a) 10%, transparent);
     --selection-yellow-glow:  color-mix(in srgb, var(--gap-accent, #ffd54a) 45%, transparent);
 
-    /* 布局编辑落点提示 —— 金色（落点）/ 绿色（插入位） */
-    --layout-drop-outline: #f0c66e;
-    --layout-drop-bg:      rgba(240, 198, 110, 0.14);
-    --layout-drop-fg:      #ffe0a1;
-    --layout-insert-outline: #80d8ae;
-    --layout-insert-bg:      rgba(128, 216, 174, 0.16);
-    --layout-insert-fg:      #b9f1d2;
+    /* 布局编辑落点与插入位统一使用当前主题强调色。 */
+    --layout-drop-outline: var(--accent);
+    --layout-drop-bg:      var(--accent-tint);
+    --layout-drop-fg:      var(--text-primary);
+    --layout-insert-outline: var(--layout-drop-outline);
+    --layout-insert-bg:      var(--layout-drop-bg);
+    --layout-insert-fg:      var(--layout-drop-fg);
 
     /* 波形画布 —— 供 waveform.js 通过 getComputedStyle 读取以跟随主题 */
     --wave-row-bg:          var(--module-content-bg, #22262e);
@@ -322,13 +322,13 @@
     --selection-yellow-soft:  color-mix(in srgb, var(--gap-accent, #8f6a08) 12%, transparent);
     --selection-yellow-glow:  rgba(143, 106, 8, 0.40);
 
-    /* 布局编辑落点提示 —— 亮底加深，跟随 --amber 基色 */
-    --layout-drop-outline: #9a6a1e;
-    --layout-drop-bg:      rgba(154, 106, 30, 0.16);
-    --layout-drop-fg:      #6a4a14;
-    --layout-insert-outline: #2f9e5f;
-    --layout-insert-bg:      rgba(47, 158, 95, 0.16);
-    --layout-insert-fg:      #1f6b3f;
+    /* 浅色主题同样使用主题强调色，不另设插入位配色。 */
+    --layout-drop-outline: var(--accent);
+    --layout-drop-bg:      var(--accent-tint);
+    --layout-drop-fg:      var(--text-primary);
+    --layout-insert-outline: var(--layout-drop-outline);
+    --layout-insert-bg:      var(--layout-drop-bg);
+    --layout-insert-fg:      var(--layout-drop-fg);
 
     /* 波形画布 */
     --wave-row-bg:          var(--module-content-bg, #dfe4ea);
@@ -5072,6 +5072,10 @@
 .media-settings-field select,.msw-style-fields select { text-overflow:ellipsis; }
 .media-settings-field .gap-remove-number-control { width:100%; min-width:0; }
 .media-settings-field .gap-remove-number-control input { flex:1; width:0; }
+.msw-proof-controls { display:flex; align-items:flex-end; gap:8px; }
+.msw-proof-controls > label { flex:1 1 0; }
+.msw-proof-controls > button { flex:0 1 auto; max-width:52%; min-height:34px; margin:0; padding:6px 10px; font-size:12px; }
+.msw-proof-controls select { min-height:34px; }
 .media-settings-body .msw-option-label { display:inline-flex; align-items:center; gap:4px; min-width:0; overflow-wrap:anywhere; }
 .media-settings-body [hidden] { display:none !important; }
 .media-settings-subgroup { margin:0; padding:8px 10px 10px; min-width:0; border:1px solid var(--border); border-radius:var(--radius-sm); }

@@ -2646,7 +2646,7 @@
         const addBtn = document.createElement('button');
         addBtn.type = 'button';
         addBtn.className = 'module-tab-add';
-        addBtn.setAttribute('aria-label', '复制当前窗口为新标签');
+        addBtn.setAttribute('aria-label', '添加窗口到此标签组');
         addBtn.textContent = '+';
         addBtn.dataset.basePath = JSON.stringify(basePath || []);
         addBtn.dataset.moduleId = id;
@@ -2694,7 +2694,9 @@
       const present = new Set(collectLayoutModules(this.settings.layoutTree));
       const candidates = MODULE_IDS.filter((mid) => !present.has(mid));
       if (!candidates.length) return;
-      this.openTabAddMenu(moduleId, addBtn, candidates);
+      // Preset -> custom rebuilds tab strips: the clicked button is detached.
+      const liveAnchor = document.querySelector(`[data-dock-module="${moduleId}"] .module-tab-add`);
+      if (liveAnchor) this.openTabAddMenu(moduleId, liveAnchor, candidates);
     }
 
     openTabAddMenu(anchorId, anchorEl, candidates) {
@@ -2724,43 +2726,8 @@
         panel.appendChild(item);
       });
       document.body.appendChild(panel);
-      const rect = anchorEl.getBoundingClientRect();
-      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, rect.left))}px`;
-      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, rect.bottom + 4))}px`;
-
-      // 组合范围收起：指针同时离开标签与下拉才计时关闭（简单 leave 会在移动途中误关）。
-      let leaveTimer = null;
-      const inZone = (x, y) => {
-        const pr = panel.getBoundingClientRect();
-        const tr = tabEl.getBoundingClientRect();
-        return (x >= pr.left - 2 && x <= pr.right + 2 && y >= pr.top - 2 && y <= pr.bottom + 2)
-          || (x >= tr.left - 2 && x <= tr.right + 2 && y >= tr.top - 2 && y <= tr.bottom + 2)
-          || (x >= pr.left && x <= tr.right && y >= tr.top && y <= pr.bottom);
-      };
-      const onMove = (event) => {
-        if (inZone(event.clientX, event.clientY)) {
-          clearTimeout(leaveTimer);
-          leaveTimer = null;
-        } else if (!leaveTimer) {
-          leaveTimer = setTimeout(() => this.closeTabAddMenu(), 220);
-        }
-      };
-      document.addEventListener('pointermove', onMove);
-      this._tabConvertMoveGuard = onMove;
-      this.tabAddMenuCancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
-      const dismiss = (event) => {
-        if (panel.contains(event.target) || tabEl.contains(event.target)) return;
-        this.closeTabAddMenu();
-      };
-      this.tabAddMenuDismiss = dismiss;
-      document.addEventListener('pointerdown', dismiss, true);
-      this.tabAddMenuKeydown = (event) => {
-        if (event.key !== 'Escape') return;
-        event.preventDefault();
-        this.closeTabAddMenu();
-      };
-      document.addEventListener('keydown', this.tabAddMenuKeydown, true);
-      this.tabAddMenu = panel;
+      this.positionTabMenu(panel, anchorEl.getBoundingClientRect());
+      this.bindTabMenuDismiss(panel, anchorEl);
     }
 
     // 点单标签 → 按名称内容展开下拉，窄标签不能挤压模块名称。
@@ -2810,61 +2777,51 @@
       });
       document.body.appendChild(panel);
       panel.style.minWidth = `${Math.min(window.innerWidth - 16, Math.max(128, Math.round(anchorRect.width)))}px`;
-      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, anchorRect.left))}px`;
-      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, anchorRect.bottom + 4))}px`;
+      this.positionTabMenu(panel, anchorRect);
+      this.bindTabMenuDismiss(panel, tabEl);
+    }
 
-      // 定位后重新解析真实标签节点（可能已被重建），供组合范围判定使用。
-      const liveTab = document.querySelector(`[data-dock-module="${currentId}"] .module-tab`) || tabEl;
-      const tabElRef = liveTab;
+    positionTabMenu(panel, rect) {
+      panel.style.left = `${Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, rect.left))}px`;
+      const below = rect.bottom + 4;
+      const top = below + panel.offsetHeight <= window.innerHeight - 8 ? below : rect.top - panel.offsetHeight - 4;
+      panel.style.top = `${Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 8, top))}px`;
+    }
 
-      // 组合范围收起：指针同时离开标签与下拉才计时关闭（简单 leave 会在移动途中误关）。
+    bindTabMenuDismiss(panel, anchorEl) {
       let leaveTimer = null;
-      const inZone = (x, y) => {
-        const pr = panel.getBoundingClientRect();
-        const tr = tabElRef.getBoundingClientRect();
-        return (x >= pr.left - 2 && x <= pr.right + 2 && y >= pr.top - 2 && y <= pr.bottom + 2)
-          || (x >= tr.left - 2 && x <= tr.right + 2 && y >= tr.top - 2 && y <= tr.bottom + 2)
-          || (x >= pr.left && x <= tr.right && y >= tr.top && y <= pr.bottom);
-      };
+      const cancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
+      const close = () => { if (this.tabAddMenu === panel) this.closeTabAddMenu(); };
+      const anchorId = anchorEl.dataset.moduleId || anchorEl.dataset.tabFor;
+      const anchorSelector = anchorEl.classList.contains('module-tab-add') ? '.module-tab-add' : `.module-tab[data-tab-for="${anchorId}"]`;
+      const liveAnchor = () => anchorEl.isConnected ? anchorEl : document.querySelector(`[data-dock-module="${anchorId}"] ${anchorSelector}`);
       const onMove = (event) => {
-        if (inZone(event.clientX, event.clientY)) {
-          clearTimeout(leaveTimer);
-          leaveTimer = null;
-        } else if (!leaveTimer) {
-          leaveTimer = setTimeout(() => this.closeTabAddMenu(), 220);
-        }
+        const pr = panel.getBoundingClientRect(), ar = liveAnchor()?.getBoundingClientRect();
+        const inside = r => r?.width > 0 && r.height > 0 && event.clientX >= r.left - 4 && event.clientX <= r.right + 4
+          && event.clientY >= r.top - 4 && event.clientY <= r.bottom + 4;
+        // The four-pixel bridge keeps movement from the button into the menu safe.
+        if (inside(pr) || inside(ar)) cancelLeave();
+        else if (!leaveTimer) leaveTimer = setTimeout(close, 220);
       };
+      const dismiss = event => { if (!panel.contains(event.target) && !liveAnchor()?.contains(event.target)) close(); };
+      const keydown = event => { if (event.key === 'Escape') { event.preventDefault(); close(); } };
       document.addEventListener('pointermove', onMove);
-      this._tabConvertMoveGuard = onMove;
-      this.tabAddMenuCancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
-      const dismiss = (event) => {
-        if (panel.contains(event.target) || tabElRef.contains(event.target)) return;
-        this.closeTabAddMenu();
-      };
-      this.tabAddMenuDismiss = dismiss;
       document.addEventListener('pointerdown', dismiss, true);
-      this.tabAddMenuKeydown = (event) => {
-        if (event.key !== 'Escape') return;
-        event.preventDefault();
-        this.closeTabAddMenu();
+      document.addEventListener('keydown', keydown, true);
+      window.addEventListener('resize', close);
+      window.addEventListener('blur', close);
+      this.tabAddMenuCancelLeave = () => {
+        cancelLeave();
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerdown', dismiss, true);
+        document.removeEventListener('keydown', keydown, true);
+        window.removeEventListener('resize', close);
+        window.removeEventListener('blur', close);
       };
-      document.addEventListener('keydown', this.tabAddMenuKeydown, true);
       this.tabAddMenu = panel;
     }
 
     closeTabAddMenu() {
-      if (this._tabConvertMoveGuard) {
-        document.removeEventListener('pointermove', this._tabConvertMoveGuard);
-        this._tabConvertMoveGuard = null;
-      }
-      if (this.tabAddMenuDismiss) {
-        document.removeEventListener('pointerdown', this.tabAddMenuDismiss, true);
-        this.tabAddMenuDismiss = null;
-      }
-      if (this.tabAddMenuKeydown) {
-        document.removeEventListener('keydown', this.tabAddMenuKeydown, true);
-        this.tabAddMenuKeydown = null;
-      }
       this.tabAddMenuCancelLeave?.();
       this.tabAddMenuCancelLeave = null;
       this.tabAddMenu?.remove();
@@ -4750,11 +4707,9 @@
         }
         if (event.button !== 0 || event.target.closest('.waveform-cue-block, .waveform-gap-block')) return;
         event.preventDefault();
-        // 清除选中会提交当前字幕面板编辑，而提交可能同步重建虚拟行。
-        // 在调用外部回调前保存坐标，后续 seek 不依赖可能已脱离 DOM 的 row。
+        // Seeking and subtitle selection are independent. Keep the editing target
+        // while scrubbing; only a cue-selection gesture changes that selection.
         const geometry = this.captureRowGeometry(row);
-        // 普通左键点击空白波形：清除字幕选中并跳转播放头
-        this.options.clearSelection?.();
         // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
         if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row, geometry);
         this.seekFromPointer(event, row, false, geometry);
