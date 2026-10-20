@@ -9,6 +9,11 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '属性列表': 'Properties', '基础': 'Basic', '对象': 'Target', '样式预设': 'Style preset',
+    '对齐锚点': 'Anchor', '位置方式': 'Positioning', '单独定位': 'Custom position',
+    '动画参数': 'Animation parameter', '文字显现': 'Text reveal', '使用关键帧': 'Use keyframes',
+    '恢复轨道动画': 'Restore track animation', '最低不透明度 (%)': 'Minimum opacity (%)',
+    '横向位移': 'Horizontal offset', '纵向位移': 'Vertical offset', '百分比': 'Percentage',
     '参考轨道字幕外': 'Outside reference-track subtitles',
     '参考轨道字幕外（手动调整）': 'Outside reference-track subtitles (manually adjusted)',
     '未选择': 'None selected', '已删除的轨道': 'Deleted track',

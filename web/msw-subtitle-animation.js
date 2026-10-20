@@ -68,6 +68,60 @@
     else for(const k of ['in','out','start','end'])if(Object.hasOwn(next,k))next[k]=convert(next[k]);
     next.unit=unit;return next;
   }
+  // Editing uses the existing ASS contract. Presets write parameters once;
+  // they never become a second stack of render-time switches.
+  function editablePoints(raw,key,duration=1000){
+    const a=normalize(raw),c=a.effects.curves,t=a.effects.transform,f=a.effects.fade;
+    if(c.enabled&&c.channels[key]&&!(key==='opacity'&&f.enabled))return clone(c.channels[key]);
+    const end=c.unit==='percent'?100:Math.min(60000,duration);
+    const sampleAt=time=>{
+      const plain=clone(a);plain.effects.blink.enabled=false;
+      return sample(plain,time*(c.unit==='percent'?duration/100:1),duration)[key]*(key==='opacity'?100:1);
+    };
+    const times=new Set([0,end]);
+    const toTime=ms=>clamp(ms*(c.unit==='percent'?100/duration:1),0,end);
+    if(t.enabled&&!(c.enabled&&c.channels[key])){
+      const start=ms(t,'start',duration),finish=ms(t,'end',duration);
+      for(let i=0;i<=12;i++)times.add(toTime(start+(finish-start)*i/12));
+    }
+    if(key==='opacity'&&f.enabled){
+      let start=ms(f,'in',duration),out=ms(f,'out',duration);
+      if(start+out>duration){const ratio=duration/(start+out);start*=ratio;out*=ratio;}
+      times.add(toTime(start));times.add(toTime(duration-out));
+      // Combined envelopes are sampled only when the user edits this channel.
+      if(c.enabled&&c.channels.opacity)for(let i=0;i<=24;i++)times.add(end*i/24);
+    }
+    let sorted=[...times].sort((a,b)=>a-b);
+    if(sorted.length>32)sorted=Array.from({length:32},(_,i)=>end*i/31);
+    return sorted.map(time=>({time,value:sampleAt(time),easing:'linear'}));
+  }
+  function editChannel(raw,key,points){
+    const a=normalize(raw),effects={curves:clone(a.effects.curves)};
+    effects.curves.enabled=true;
+    if(points===null)delete effects.curves.channels[key];else effects.curves.channels[key]=clone(points);
+    if(key==='opacity')effects.fade={...a.effects.fade,enabled:false};
+    // Disabling a channel must not reveal a hidden older transform beneath it.
+    if(points===null&&a.effects.transform.enabled){
+      const suffix={x:'X',y:'Y',scale:'Scale',rotation:'Rotation',opacity:'Opacity'}[key];
+      effects.transform={...a.effects.transform,['from'+suffix]:channels[key].initial,['to'+suffix]:channels[key].initial};
+    }
+    return {schema,effects};
+  }
+  function presetPatch(raw,name,duration=1000){
+    const a=normalize(raw);
+    if(name==='typewriter'||name==='blink')return {schema,effects:{[name]:{...clone(definitions[name]),enabled:true}}};
+    const key=name==='fade'?'opacity':'scale',unit=a.effects.curves.unit;
+    const time=p=>{
+      const value=unit==='percent'?p:duration*p/100;
+      if(value>60000)throw Error('此预设超过毫秒时间上限，请先切换为百分比');
+      return value;
+    };
+    const points=name==='fade'?
+      [{time:0,value:0,easing:'linear'},{time:time(10),value:100,easing:'linear'},{time:time(90),value:100,easing:'linear'},{time:time(100),value:0,easing:'linear'}]:
+      [{time:0,value:85,easing:'smooth'},{time:time(25),value:100,easing:'linear'}];
+    if(!['fade','transform'].includes(name))throw Error('未知动画预设');
+    return editChannel(a,key,points);
+  }
   function sample(raw,elapsed,duration,count=0){
     const {fade:f,typewriter:w,blink:b,transform:t}=raw.effects;
     const time=clamp(elapsed,0,duration),state={opacity:1,x:0,y:0,scale:100,rotation:0,revealed:count};
@@ -101,6 +155,6 @@
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
   }
-  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit};
+  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);

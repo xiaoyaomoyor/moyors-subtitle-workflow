@@ -5,6 +5,34 @@ import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import production from '../web/msw-production-project.js';
 
+test('recipes fill editable channels, preserve unrelated parameters and support channel removal',()=>{
+  let a=A.defaults();a.effects.blink.enabled=true;a.effects.transform.enabled=true;a.effects.transform.fromX=-70;
+  a=A.resolve(a,A.presetPatch(a,'fade'));
+  assert.equal(A.valid(a),true);assert.equal(a.effects.fade.enabled,false);
+  assert.equal(A.sample(a,100,2000).opacity,.5);
+  assert.equal(a.effects.transform.fromX,-70);
+  const fade=structuredClone(a.effects.curves.channels.opacity);
+  a=A.resolve(a,A.presetPatch(a,'transform'));
+  assert.deepEqual(a.effects.curves.channels.opacity,fade);
+  assert.equal(A.sample(a,0,2000).scale,85);
+  a=A.resolve(a,A.editChannel(a,'x',null));
+  assert.equal(A.sample(a,0,2000).x,0);
+  assert.equal(a.effects.blink.enabled,true);
+  a.effects.curves.unit='ms';
+  assert.throws(()=>A.presetPatch(a,'fade',120000),/百分比/);
+});
+
+test('editing shows existing envelopes without mutating them or activating unrelated curves',()=>{
+  const a=A.defaults();a.effects.fade={enabled:true,unit:'percent',in:20,out:10};
+  const before=structuredClone(a),points=A.editablePoints(a,'opacity',2000);
+  assert.deepEqual(a,before);assert.equal(points[0].value,0);
+  assert.equal(points.find(p=>p.time===20).value,100);
+  const edited=A.resolve(a,A.editChannel(a,'opacity',points));
+  for(const time of [0,100,400,1000,1850,2000])assert.ok(Math.abs(A.sample(edited,time,2000).opacity-A.sample(a,time,2000).opacity)<1e-8);
+  assert.deepEqual(Object.keys(edited.effects.curves.channels),['opacity']);
+  assert.equal(A.editablePoints(A.defaults(),'scale')[0].value,100);
+});
+
 test('animation timing composes fade, blink, transform and grapheme reveal on a cue clock',()=>{
   const a=A.defaults();for(const v of Object.values(a.effects))v.enabled=true;
   assert.equal(A.sample(a,0,2000,8).opacity,0);

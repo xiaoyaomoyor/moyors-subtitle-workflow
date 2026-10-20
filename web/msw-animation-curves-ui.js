@@ -18,7 +18,7 @@
     $('curve-channel').replaceChildren(...Object.entries(A.channels).map(([key,c])=>new Option(c.label,key)));
     let state,points=[],selected=0,drag=null,geometry,mixed=false,signature='',targetSignature='';
     const channel=()=>$('curve-channel').value,number=v=>Math.round(v*1000)/1000;
-    function fingerprint(c){return JSON.stringify(c.items.map(i=>[i.row?.cue_id,i.track.id,i.value.effects.curves]));}
+    function fingerprint(c){return JSON.stringify(c.items.map(i=>[i.row?.cue_id,i.track.id,i.value]));}
     function save(next){
       try{commit('curves','channel:'+channel(),next);message('');}catch(e){message(e.message,true);}sync();
     }
@@ -30,7 +30,9 @@
       let high=Math.min(c.max,Math.max(c.initial,...values)+(values.length?pad:100));
       if(channel()==='opacity'){low=0;high=100;}if(high===low)high=low+1;
       if(drag)({end,low,high}=drag.geometry);
-      const X=t=>38+t/end*270,Y=v=>150-(v-low)/(high-low)*130;
+      const width=Math.max(200,graph.clientWidth||320);
+      graph.setAttribute('viewBox',`0 0 ${width} 180`);
+      const X=t=>38+t/end*(width-50),Y=v=>150-(v-low)/(high-low)*130;
       geometry={end,low,high,X,Y};
       const ticks=[0,.5,1],commands=[];
       if(points.length){
@@ -43,7 +45,7 @@
         commands.push(`L${X(end)},${Y(points.at(-1).value)}`);
       }
       const path=commands.join(' ');
-      graph.innerHTML=ticks.map(p=>`<path class="curve-grid" d="M38 ${Y(low+(high-low)*p)}H308M${X(end*p)} 20V150"/>
+      graph.innerHTML=ticks.map(p=>`<path class="curve-grid" d="M38 ${Y(low+(high-low)*p)}H${width-12}M${X(end*p)} 20V150"/>
         <text x="33" y="${Y(low+(high-low)*p)+4}" text-anchor="end">${Math.round((low+(high-low)*p)*10)/10}</text>
         <text x="${X(end*p)}" y="170" text-anchor="${p===1?'end':p===0?'start':'middle'}">${number(end*p)}${state.unit==='percent'?'%':''}</text>`).join('')+
         `<path class="curve-line" d="${path}"/>`+points.map((p,i)=>`<circle class="curve-handle${i===selected?' selected':''}" data-point="${i}" cx="${X(p.time)}" cy="${Y(p.value)}" r="${i===selected?5:4}"/>`).join('');
@@ -59,7 +61,7 @@
       for(const id of ['curve-point','curve-time','curve-value','curve-easing','curve-delete'])$(id).disabled=blocked||!point;
       $('curve-easing').disabled=blocked||!point||selected===points.length-1;
       $('curve-add').disabled=blocked||!points.length||points.length>=32;
-      $('curve-note').textContent=mixed?'多个值：图表显示首条；编辑只统一当前参数。':!points.length?'启用当前参数后添加关键帧。':'拖动圆点调整；Esc 取消拖动。';
+      $('curve-note').textContent=mixed?'多个值：图表显示首条；编辑只统一当前参数。':'';
       graph.setAttribute('aria-disabled',String(blocked||!points.length));
     }
     function sync(){
@@ -69,22 +71,18 @@
       const target=JSON.stringify(c.items.map(i=>[i.row?.cue_id,i.track.id]));
       if(target!==targetSignature){
         targetSignature=target;
-        if(!state.channels[channel()]){
-          const used=Object.keys(state.channels)[0];if(used)$('curve-channel').value=used;
-        }
         selected=0;
       }
       for(const option of $('curve-channel').options)option.textContent=A.channels[option.value].label+(state.channels[option.value]?' •':'');
-      points=clone(state.channels[channel()]||[]);
-      mixed=c.items.some(i=>JSON.stringify(i.value.effects.curves.channels[channel()]||[])!==JSON.stringify(points));
+      points=A.editablePoints(c.items[0]?.value||A.defaults(),channel(),c.items[0]?.duration||1000);
+      mixed=c.items.some(i=>JSON.stringify(A.editablePoints(i.value,channel(),i.duration))!==JSON.stringify(points));
       selected=Math.min(selected,Math.max(0,points.length-1));
-      $('curve-active').checked=!!points.length;$('curve-active').indeterminate=mixed;
+      $('curve-active').checked=state.enabled&&!!state.channels[channel()];$('curve-active').indeterminate=mixed;
       $('curve-active').disabled=c.blocked;$('curve-channel').disabled=c.blocked;draw();
     }
     $('curve-channel').onchange=()=>{cancel();selected=0;sync();};
     $('curve-active').onchange=e=>{
-      const value=A.channels[channel()].initial;
-      save(e.target.checked?[{time:0,value,easing:'smooth'},{time:state.unit==='percent'?100:Math.min(60000,context().items[0]?.duration||1000),value,easing:'smooth'}]:null);
+      save(e.target.checked?points:null);
     };
     $('curve-point').onchange=()=>{selected=Number($('curve-point').value);draw();};
     $('curve-add').onclick=()=>{
@@ -111,7 +109,7 @@
     graph.addEventListener('pointermove',e=>{
       if(!drag||e.pointerId!==drag.id)return;e.preventDefault();
       const rect=graph.getBoundingClientRect(),g=drag.geometry,c=A.channels[channel()],point=points[selected];
-      const time=((e.clientX-rect.left)*320/rect.width-38)/270*g.end;
+      const time=(e.clientX-rect.left-38)/Math.max(1,rect.width-50)*g.end;
       point.time=number(Math.max(selected?points[selected-1].time+.001:0,Math.min(selected<points.length-1?points[selected+1].time-.001:state.unit==='percent'?100:60000,time)));
       const value=g.low+(150-(e.clientY-rect.top)*180/rect.height)/130*(g.high-g.low);
       point.value=number(Math.max(c.min,Math.min(c.max,value)));draw();
@@ -121,8 +119,11 @@
     graph.addEventListener('pointercancel',cancel);
     graph.addEventListener('lostpointercapture',cancel);
     global.addEventListener('blur',cancel);
+    new ResizeObserver(()=>{if(state&&!drag)draw();}).observe(graph);
     global.addEventListener('keydown',e=>{if(drag&&e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();cancel();}},true);
-    return {sync};
+    root.querySelector('.msw-curve-toolbar').dataset.optionHelp='横轴为字幕内时间，纵轴为当前参数。直接拖动圆点或输入数值即可设置关键帧；Esc 取消本次拖动。位移相对基础位置，以 1080p 为基准。平滑不产生过冲，每参数最多 32 帧。';
+    graph.setAttribute('preserveAspectRatio','none');
+    return {sync,selectChannel:key=>{cancel();$('curve-channel').value=key;selected=0;sync();},cancel};
   }
   global.MSWAnimationCurvesUI={create};
 })(window);

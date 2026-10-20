@@ -22,44 +22,86 @@ async function idle(page){await expect.poll(()=>page.evaluate(()=>MSWSubtitleRen
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 async function field(page,name,value){await page.locator('#style-field-'+name).fill(String(value));await page.locator('#style-field-'+name).blur();await idle(page);}
 
-async function effect(page,name,key,value){const node=page.locator('#motion-'+name+'-'+key);if(typeof value==='boolean')await node.setChecked(value);else if(key==='unit'||key==='easing')await node.selectOption(value);else {await node.fill(String(value));await node.blur();}await idle(page);}
+// Legacy effect fixtures exercise unchanged ASS rendering; new authoring uses
+// presets and the parameter editor below.
+async function effect(page,name,key,value){
+  if(['typewriter','blink'].includes(name)){
+    await page.locator('#motion-parameter').selectOption(name);
+    const node=page.locator(key==='unit'?'#motion-unit':'#motion-range-'+key);
+    if(typeof value==='boolean')await node.setChecked(value);
+    else if(key==='unit')await node.selectOption(value);
+    else{await node.fill(String(value));await node.blur();}
+  }else if(name==='curves'&&key==='unit')await page.locator('#motion-unit').selectOption(value);
+  else{
+    await page.evaluate(({name,key,value})=>{
+      const p=JSON.parse(buildJson()),cue=p.subtitles.cues[0],a=MSWSubtitleAnimation.resolve(undefined,cue.content.subtitle_animation)||MSWSubtitleAnimation.defaults();
+      a.effects[name][key]=value;cue.content.subtitle_animation=a;productionCommitProject(p,'legacy animation fixture',[cue.id]);
+    },{name,key,value});
+  }
+  await idle(page);
+}
+async function curveValue(page,value){await page.locator('#curve-value').fill(String(value));await page.locator('#curve-value').blur();await idle(page);}
+
+test('parameters edit without presets; recipe fills only its parameter and a range drag is one undo',async({page},info)=>{
+  await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await page.locator('#motion-parameter').selectOption('x');await curveValue(page,-50);
+  const x=(await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.curves.channels.x;
+  await page.locator('#motion-preset-fade').click();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.curves.channels.x).toEqual(x);
+  await expect(page.locator('#motion-preset-fade')).toHaveAttribute('aria-pressed','true');
+  await curveValue(page,20);await expect(page.locator('#motion-preset-fade')).toHaveAttribute('aria-pressed','false');
+  await page.locator('#motion-preset-fade').click();await idle(page);await expect(page.locator('#curve-value')).toHaveValue('0');
+  await page.locator('#motion-preset-typewriter').click();await idle(page);
+  await page.locator('#motion-range-graph').scrollIntoViewIfNeeded();
+  const before=await snap(page),handle=await page.locator('[data-edge=end]').boundingBox();
+  await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();
+  await page.mouse.move(handle.x+45,handle.y+10,{steps:8});
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.mouse.up();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.typewriter.end).toBeGreaterThan(40);
+  await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('animation-range.png')});
+});
 
 test('track animation is role-specific; cues override only the edited effect with undo and reload',async({page})=>{
   await page.evaluate(()=>MSWSubtitleStyle.open('track'));
   await page.locator('#style-animation').evaluate(el=>el.open=true);
-  await effect(page,'fade','enabled',true);await effect(page,'fade','unit','ms');await effect(page,'fade','in',400);
+  await page.locator('#motion-preset-fade').click();await page.locator('#motion-unit').selectOption('ms');
+  await page.locator('#curve-point').selectOption('1');await page.locator('#curve-time').fill('400');await page.locator('#curve-time').blur();await idle(page);
   const trackSet=await snap(page),main=trackSet.subtitles.tracks[0],secondary=trackSet.subtitles.tracks[1];
-  expect(main.style.value.main.animation.effects.fade.in).toBe(400);expect(secondary.style.value?.secondary.animation).toBeUndefined();
-  await page.locator('#style-edit-scope').selectOption('cue');await expect(page.locator('#motion-fade-enabled')).toBeChecked();
-  await effect(page,'fade','enabled',false);await effect(page,'typewriter','enabled',true);
-  let p=await snap(page);expect(Object.keys(p.subtitles.cues[0].content.subtitle_animation.effects)).toEqual(['fade','typewriter']);
+  expect(main.style.value.main.animation.effects.curves.channels.opacity[1].time).toBe(400);expect(secondary.style.value?.secondary.animation).toBeUndefined();
+  await page.locator('#style-edit-scope').selectOption('cue');await expect(page.locator('#curve-active')).toBeChecked();
+  await page.locator('#curve-active').uncheck();await effect(page,'typewriter','enabled',true);
+  let p=await snap(page);expect(Object.keys(p.subtitles.cues[0].content.subtitle_animation.effects).sort()).toEqual(['curves','fade','typewriter']);
   expect(p.subtitles.cues.find(c=>c.content.text==='Translation').content.subtitle_animation).toBeUndefined();
   await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.typewriter).toBeUndefined();
   await page.evaluate(()=>performRedo());await idle(page);
   expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);const saved=await snap(page);
   await page.reload();await idle(page);expect((await snap(page)).subtitles).toEqual(saved.subtitles);
   await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});await page.locator('#style-animation').evaluate(el=>el.open=true);
-  await page.locator('#motion-inherit').click();await idle(page);await expect(page.locator('#motion-fade-enabled')).toBeChecked();
+  await page.locator('#motion-inherit').click();await idle(page);await page.locator('#motion-parameter').selectOption('opacity');await expect(page.locator('#curve-active')).toBeChecked();
   expect((await snap(page)).subtitles.cues[0].content.subtitle_animation).toBeUndefined();
 });
 
 test('cross-track selections preserve mixed effects and reject locked targets atomically',async({page})=>{
-  await page.locator('#style-animation').evaluate(el=>el.open=true);await effect(page,'fade','enabled',true);
-  await page.evaluate(()=>addExtensionToSelection(0));await expect(page.locator('#motion-fade-enabled')).toHaveJSProperty('indeterminate',true);
+  await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-preset-fade').click();await idle(page);
+  await page.evaluate(()=>addExtensionToSelection(0));await expect(page.locator('#curve-active')).toHaveJSProperty('indeterminate',true);
   await effect(page,'blink','enabled',true);await effect(page,'blink','period',800);
   const p=await snap(page),a=p.subtitles.cues[0],b=p.subtitles.cues.find(c=>c.content.text==='Translation');
-  expect(a.content.subtitle_animation.effects.fade.enabled).toBe(true);expect(b.content.subtitle_animation.effects.fade).toBeUndefined();
+  expect(a.content.subtitle_animation.effects.curves.channels.opacity).toHaveLength(4);expect(b.content.subtitle_animation.effects.fade).toBeUndefined();
   expect(b.content.subtitle_animation.effects.blink.period).toBe(800);expect(a.content.subtitle_animation.effects.blink.period).toBe(800);
   await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks[1].locked=true;productionCommitProject(p,'lock',[p.subtitles.cues[0].id,p.subtitles.cues.find(c=>c.content.text==='Translation').id]);});
-  await expect(page.locator('#motion-blink-period')).toBeDisabled();
+  await expect(page.locator('#motion-range-period')).toBeDisabled();
 });
 
 test('animation controls remain compact in a narrow dock and unit changes preserve duration',async({page},info)=>{
-  await page.locator('#style-animation').evaluate(el=>el.open=true);await effect(page,'transform','enabled',true);
-  await effect(page,'transform','unit','ms');await expect(page.locator('#motion-transform-end')).toHaveValue('625');
-  await effect(page,'transform','unit','percent');await expect(page.locator('#motion-transform-end')).toHaveValue('25');
+  await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-preset-transform').click();
+  await page.locator('#curve-point').selectOption('1');
+  await page.locator('#motion-unit').selectOption('ms');await expect(page.locator('#curve-time')).toHaveValue('625');
+  await page.locator('#motion-unit').selectOption('percent');await expect(page.locator('#curve-time')).toHaveValue('25');
   await page.evaluate(()=>Object.assign(document.getElementById('subtitle-properties').style,{position:'fixed',top:'30px',left:'10px',width:'300px',height:'730px',zIndex:'60'}));
   await page.locator('#style-animation').scrollIntoViewIfNeeded();
+  await expect(page.locator('#motion-clear,#motion-preview')).toHaveCount(0);
   expect(await page.locator('#subtitle-properties-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
   await page.locator('#subtitle-properties').screenshot({path:info.outputPath('animation-controls.png')});
 });
@@ -151,8 +193,7 @@ print(json.dumps([max(ImageStat.Stat(ImageChops.difference(images[i],images[i+2]
 
 test('curve graph edits numeric points, drags atomically, cancels, converts units and saves',async({page},info)=>{
   await page.locator('#style-animation').evaluate(el=>el.open=true);
-  await effect(page,'curves','enabled',true);
-  await page.locator('#curve-channel').selectOption('scale');await page.locator('#curve-active').check();await idle(page);
+  await page.locator('#motion-parameter').selectOption('scale');await page.locator('#curve-active').check();await idle(page);
   await page.locator('#curve-value').fill('70');await page.locator('#curve-value').blur();await idle(page);
   await page.locator('#curve-point').selectOption('1');await page.locator('#curve-value').fill('120');await page.locator('#curve-value').blur();await idle(page);
   await page.locator('#curve-add').click();await idle(page);
@@ -179,8 +220,8 @@ test('curve graph edits numeric points, drags atomically, cancels, converts unit
   expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);const saved=await snap(page);
   await page.reload();await idle(page);expect((await snap(page)).subtitles).toEqual(saved.subtitles);
   await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');Object.assign(document.getElementById('subtitle-properties').style,{position:'fixed',top:'20px',left:'10px',width:'310px',height:'740px',zIndex:'60'});});
-  await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-curves-card').scrollIntoViewIfNeeded();
-  await expect(page.locator('#curve-channel')).toHaveValue('scale');
+  await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-parameter').selectOption('scale');await page.locator('#motion-curve-editor').scrollIntoViewIfNeeded();
+  await expect(page.locator('#motion-parameter')).toHaveValue('scale');
   await expect(page.locator('.curve-handle')).toHaveCount(3);
   expect(await page.locator('#subtitle-properties-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
   await page.locator('#subtitle-properties').screenshot({path:info.outputPath('keyframe-controls.png')});
@@ -189,13 +230,13 @@ test('curve graph edits numeric points, drags atomically, cancels, converts unit
 test('track curves are inherited and single-cue restoration preserves other effects',async({page})=>{
   await page.evaluate(()=>MSWSubtitleStyle.open('track'));
   await page.locator('#style-animation').evaluate(el=>el.open=true);
-  await effect(page,'curves','enabled',true);await page.locator('#curve-channel').selectOption('opacity');await page.locator('#curve-active').check();await idle(page);
+  await page.locator('#motion-parameter').selectOption('opacity');await page.locator('#curve-active').check();await idle(page);
   await page.locator('#curve-value').fill('50');await page.locator('#curve-value').blur();await idle(page);
   await page.locator('#style-edit-scope').selectOption('cue');
   await expect(page.locator('#curve-value')).toHaveValue('50');
-  await effect(page,'blink','enabled',true);
+  await effect(page,'blink','enabled',true);await page.locator('#motion-parameter').selectOption('opacity');
   await page.locator('#curve-value').fill('80');await page.locator('#curve-value').blur();await idle(page);
-  await page.locator('#motion-curves-reset').click();await idle(page);
+  await page.locator('#motion-parameter-reset').click();await idle(page);
   await expect(page.locator('#curve-value')).toHaveValue('50');
   const p=await snap(page),a=p.subtitles.cues[0].content.subtitle_animation;
   expect(a.effects.curves).toBeUndefined();expect(a.effects.blink.enabled).toBe(true);
@@ -212,7 +253,7 @@ test('curve multiselect changes only current channel, preserves bindings and res
     productionCommitProject(p,'curves',[main.id,sub.id]);
   });
   await page.locator('#style-animation').evaluate(el=>el.open=true);
-  await page.locator('#curve-channel').selectOption('scale');await page.locator('#curve-active').check();await idle(page);
+  await page.locator('#motion-parameter').selectOption('scale');await page.locator('#curve-active').check();await idle(page);
   await page.locator('#curve-value').fill('80');await page.locator('#curve-value').blur();await idle(page);
   let p=await snap(page);const [main]=p.subtitles.cues,sub=p.subtitles.cues.find(c=>c.content.text==='Translation');
   expect(main.content.subtitle_animation.effects.curves.channels.x[0].value).toBe(30);

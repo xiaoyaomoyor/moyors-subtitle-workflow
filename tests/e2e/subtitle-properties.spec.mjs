@@ -16,6 +16,7 @@ test.beforeEach(async({page})=>{
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready),{timeout:30000}).toBe(true);
   await page.evaluate(()=>{player.currentTime=1;overlayToggle.checked=true;extensionOverlayToggle.checked=true;selectOnly(0);MSWSubtitleStyle.open('cue');MSWSubtitleRenderer.invalidate();});
   await idle(page);
+  await page.locator('#style-more').evaluate(el=>el.open=true);
 });
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();expect(errors).toEqual([]);});
 async function idle(page){await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled),{timeout:30000}).toBe(true);}
@@ -63,7 +64,7 @@ test('property dock uses engineering preview and restores proofreading when hidd
   await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle.currentPreview().scope)).toBe('proof');
   await page.locator('#subtitle-properties-open').click();await idle(page);
   await expect(page.locator('#media-settings-modal')).toBeHidden();
-  await expect(page.locator('#style-edit-scope')).toHaveValue('track');
+  await expect(page.locator('#style-edit-scope option:checked')).toHaveText('S1');
   expect(await page.evaluate(()=>MSWSubtitleStyle.currentPreview().scope)).toBe('project');
   await page.screenshot({path:info.outputPath('track-properties.png')});
   await page.evaluate(()=>waveformEditor.closeDockModule('properties'));await idle(page);
@@ -150,4 +151,30 @@ test('properties fit narrow light and dark docks without overlapping field label
     });expect(issues).toEqual([]);
     await page.locator('#subtitle-properties').screenshot({path:info.outputPath(`properties-${width}-${theme}.png`)});
   }
+});
+
+test('three property categories reflow to wide columns and use one target selector',async({page},info)=>{
+  await page.setViewportSize({width:1600,height:1000});
+  await page.evaluate(()=>{
+    Object.assign(document.getElementById('subtitle-properties').style,{position:'fixed',left:'20px',top:'30px',width:'1450px',height:'850px',zIndex:'60'});
+    document.getElementById('style-more').open=true;
+  });
+  await expect(page.locator('#project-subtitle-style > details > summary')).toHaveText(['基础','进阶',/动画/]);
+  await expect(page.locator('#style-edit-scope option')).toHaveText(['所选字幕','S1']);
+  await expect(page.locator('#style-track-target')).toBeHidden();
+  const row=await page.locator('#style-field-fontSize,#style-field-wrapMode,#style-field-primaryColor').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));
+  expect(Math.max(...row)-Math.min(...row)).toBeLessThan(2);
+  await page.locator('#style-edit-scope').selectOption({label:'S1'});
+  await expect(page.locator('#style-main')).toBeVisible();
+  await expect(page.locator('#style-position-fields')).toBeHidden();
+  await expect(page.locator('#style-field-marginV')).toBeVisible();
+  await page.locator('#style-track-placement').selectOption('fixed');
+  await expect(page.locator('#style-position-y')).toBeVisible();await expect(page.locator('#style-field-marginV')).toBeHidden();
+  await page.evaluate(()=>selectOnly(1));
+  await expect(page.locator('#style-edit-scope')).toHaveValue('cue');await expect(page.locator('#style-main')).toBeHidden();
+  await page.locator('#style-position-y').fill('42.5');await page.locator('#style-position-y').blur();await idle(page);
+  expect((await snap(page)).subtitles.cues.find(c=>c.content.text==='Second subtitle').content.subtitle_position.y).toBe(.425);
+  await page.locator('#style-track-placement').selectOption('inherit');await idle(page);
+  expect((await snap(page)).subtitles.cues.find(c=>c.content.text==='Second subtitle').content.subtitle_position).toBeUndefined();
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('properties-wide.png')});
 });

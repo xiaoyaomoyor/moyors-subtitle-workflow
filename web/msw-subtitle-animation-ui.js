@@ -1,82 +1,144 @@
-// Compact effect controls shared by track defaults and actual cue selections.
+// Parameter editor: recipes fill the same values used by ASS, not a preset stack.
 (function(global){
   'use strict';
-  const A=global.MSWSubtitleAnimation;
-  function create(root,{context,commit,message,preview}){
-    const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展',curves:'关键帧'};
-    const help={fade:'按字幕自身时长淡入淡出；两段相加超过字幕时长时等比缩短。',typewriter:'逐字显示，保留完整文字的换行与位置；空格和换行不占一次出字。',blink:'在指定时段内交替显示；间隔是一次完整亮暗循环的毫秒数。可与淡入淡出叠加。',transform:'从起始状态变化到结束状态，前后保持各自状态。位移相对字幕原位置，缩放相对原字号；坐标单位以 1080p 为基准。'};
-    help.curves='曲线接管已添加参数，未添加参数继续使用舒展；不透明度仍与淡入淡出、闪烁相乘。每参数最多 32 帧，首末帧之外保持端点值。位移以 1080p 为基准。多选只统一编辑的参数；拖动松手后一次提交。';
-    const svg='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg>';
-    root.innerHTML='<div class="msw-motion-actions"><button type="button" id="motion-inherit">跟随轨道动画</button><button type="button" id="motion-clear">关闭全部</button><button type="button" id="motion-preview" aria-label="从字幕起点预览" title="从字幕起点预览"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7Z"/></svg></button></div><div class="msw-motion-presets"></div><div class="msw-motion-effects"></div>';
-    const $=id=>root.querySelector('#'+id),controls=new Map();let curvesUI;
-    for(const name of A.names){
-      const label=document.createElement('label');label.className='msw-style-check';label.dataset.optionHelp=help[name];
-      label.innerHTML=`<input type="checkbox" id="motion-${name}-enabled"><span class="msw-option-label">${labels[name]}</span>`;
-      root.querySelector('.msw-motion-presets').append(label);
-      const card=document.createElement('details');card.className='msw-motion-effect';card.hidden=true;card.open=true;card.id='motion-'+name+'-card';
-      card.innerHTML=`<summary class="msw-motion-heading"><span>${labels[name]}</span><button type="button" class="msw-style-icon" id="motion-${name}-reset" title="此效果跟随轨道" aria-label="${labels[name]}跟随轨道">${svg}</button></summary><div class="msw-style-fields"></div>`;
-      root.querySelector('.msw-motion-effects').append(card);
-      const fields=card.lastElementChild;
-      const add=(key,title,type='number',choices)=>{
-        const line=document.createElement('label');line.className='msw-style-field';
-        const caption=document.createElement('span');caption.className='msw-option-label';caption.textContent=title;
-        const input=document.createElement(type==='select'?'select':'input');input.id='motion-'+name+'-'+key;input.dataset.motion=key;input.setAttribute('aria-label',title);
-        if(['unit','easing'].includes(key))line.classList.add('msw-motion-wide');
-        if(type==='select')input.replaceChildren(...choices.map(([v,l])=>new Option(l,v)));
-        else{input.type=type;input.required=true;input.step='any';input.min=key.endsWith('Rotation')?'-360':/[XY]$/.test(key)?'-4096':key==='period'?'80':key.endsWith('Scale')?'1':'0';input.max=key.endsWith('Rotation')?'360':/[XY]$/.test(key)?'4096':key==='period'?'60000':key.endsWith('Scale')?'1000':'100';}
-        line.append(caption,input);fields.append(line);controls.set(name+'.'+key,{input,caption,title});
-        input.onchange=()=>{
-          if(!input.reportValidity()){sync();return;}
-          try{commit(name,key,type==='number'?Number(input.value):input.value);message('');}catch(error){message(error.message,true);sync();}
-        };
+  const A=global.MSWSubtitleAnimation,clone=v=>JSON.parse(JSON.stringify(v));
+  function create(root,{context,commit,message}){
+    const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展'};
+    root.innerHTML=`<div class="msw-motion-presets" data-option-help="点击预设填入对应参数；不同参数可组合，同一参数会被覆盖。修改下方参数后不再匹配的预设取消高亮，再次点击可重新应用。"></div>
+      <div class="msw-motion-parameter-bar">
+        <label class="msw-style-field"><span>动画参数</span><select id="motion-parameter" aria-label="动画参数"></select></label>
+        <label class="msw-style-field" data-option-help="百分比按每条字幕自己的时长计算；毫秒从字幕起点计算。切换按各字幕时长换算；空轨按 1 秒。"><span class="msw-option-label">时间单位</span><select id="motion-unit"><option value="percent">百分比</option><option value="ms">毫秒</option></select></label>
+        <button type="button" class="msw-style-icon" id="motion-parameter-reset" aria-label="此组参数跟随轨道" title="此组参数跟随轨道"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v11h13M14 11l4 4-4 4M9 4h11M9 8h11"/></svg></button>
+        <button type="button" class="msw-style-icon" id="motion-inherit" aria-label="恢复轨道动画" title="恢复轨道动画"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg></button>
+      </div><div id="motion-curve-editor"></div>
+      <div id="motion-range-editor" hidden>
+        <label class="msw-style-check"><input type="checkbox" id="motion-range-enabled"><span>启用</span></label>
+        <svg id="motion-range-graph" viewBox="0 0 320 58" preserveAspectRatio="none" tabindex="0" role="img" aria-label="动画时间区间，拖动端点调整开始和结束"></svg>
+        <div class="msw-style-fields">
+          <label class="msw-style-field"><span id="motion-range-start-label">开始 (%)</span><input type="number" id="motion-range-start" min="0" max="100" step="any" required></label>
+          <label class="msw-style-field"><span id="motion-range-end-label">结束 (%)</span><input type="number" id="motion-range-end" min="0" max="100" step="any" required></label>
+          <label class="msw-style-field" id="motion-period-field"><span>循环间隔 (ms)</span><input type="number" id="motion-range-period" min="80" max="60000" step="1" required></label>
+          <label class="msw-style-field" id="motion-opacity-field"><span>最低不透明度 (%)</span><input type="number" id="motion-range-opacity" min="0" max="100" step="1" required></label>
+        </div>
+      </div>`;
+    const $=id=>root.querySelector('#'+id),parameter=()=> $('motion-parameter').value;
+    const curves=global.MSWAnimationCurvesUI.create($('motion-curve-editor'),{context,commit,message});
+    $('curve-channel').hidden=true;
+    $('curve-active').nextElementSibling.textContent='使用关键帧';
+    $('motion-parameter').replaceChildren(...[
+      ['opacity','不透明度'],['x','横向位移'],['y','纵向位移'],['scale','缩放'],['rotation','旋转'],
+      ['typewriter','文字显现'],['blink','闪烁']
+    ].map(([key,label])=>new Option(label,key)));
+    let shown='opacity',drag=null,signature='',range=null;
+    const first=()=>context().items[0]?.value||A.defaults();
+    const special=()=>['typewriter','blink'].includes(parameter());
+    const effectName=()=>special()?parameter():'curves';
+    const fingerprint=()=>JSON.stringify(context().items.map(i=>[i.row?.cue_id,i.track.id,i.value]));
+    const apply=(name,key,value)=>{
+      try{commit(name,key,value);message('');}catch(error){message(error.message,true);}
+      sync();
+    };
+    for(const [name,label] of Object.entries(labels)){
+      const button=document.createElement('button');button.type='button';button.className='msw-motion-preset';button.id='motion-preset-'+name;
+      button.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg><span></span>';
+      button.lastElementChild.textContent=label;button.title='填入'+label+'参数';
+      button.onclick=()=>{
+        cancel();$('motion-parameter').value={fade:'opacity',transform:'scale'}[name]||name;
+        shown=parameter();if(!special())curves.selectChannel(shown);
+        apply(name,'preset');
       };
-      add('unit','时间单位','select',[['percent','字幕时长 (%)'],['ms','毫秒 (ms)']]);
-      const unit=controls.get(name+'.unit');unit.input.closest('label').dataset.optionHelp='比例按每条字幕自己的时长计算；毫秒从字幕起点计算。切换单位按当前预览字幕换算，多选分别换算；空轨按 1 秒换算。超出字幕的部分不显示。';
-      for(const key of A.timings(name))add(key,{in:'淡入',out:'淡出',start:'开始',end:'结束'}[key]);
-      if(name==='blink'){add('period','循环间隔 (ms)');add('opacity','变暗时不透明度 (%)');}
-      if(name==='curves'){const editor=document.createElement('div');fields.append(editor);curvesUI=global.MSWAnimationCurvesUI.create(editor,{context,commit,message});}
-      if(name==='transform'){
-        add('easing','变化方式','select',[['linear','匀速'],['ease-in','先慢后快'],['ease-out','先快后慢'],['smooth','平滑']]);
-        const table=document.createElement('div');table.className='msw-motion-transform msw-motion-wide';
-        table.innerHTML='<div class="msw-motion-transform-row msw-motion-transform-head"><span>参数</span><span>起始</span><span>结束</span></div>';
-        for(const [suffix,title] of [['Scale','缩放 (%)'],['X','横向位移 (px)'],['Y','纵向位移 (px)'],['Rotation','旋转 (°)'],['Opacity','不透明度 (%)']]){
-          add('from'+suffix,'起始'+title);add('to'+suffix,'结束'+title);
-          const row=document.createElement('div');row.className='msw-motion-transform-row';
-          const caption=document.createElement('span');caption.textContent=title;row.append(caption);
-          for(const side of ['from','to'])row.append(controls.get(name+'.'+side+suffix).input.closest('label'));
-          table.append(row);
-        }
-        fields.append(table);
-      }
-      $('motion-'+name+'-enabled').onchange=event=>{try{commit(name,'enabled',event.target.checked);message('');}catch(error){message(error.message,true);sync();}};
-      $('motion-'+name+'-reset').onclick=event=>{event.preventDefault();try{commit(name,'reset');message('');}catch(error){message(error.message,true);}sync();};
+      root.querySelector('.msw-motion-presets').append(button);
     }
-    $('motion-inherit').onclick=()=>{try{commit('all','reset');message('');}catch(error){message(error.message,true);}sync();};
-    $('motion-clear').onclick=()=>{try{commit('all','disable');message('');}catch(error){message(error.message,true);}sync();};
-    $('motion-preview').onclick=()=>preview();
-    function sync(){
-      const c=context(),items=c.items,first=items[0]?.value||A.defaults();
-      for(const el of root.querySelectorAll('input,select,button'))el.disabled=c.blocked;
-      $('motion-inherit').hidden=!c.cue;$('motion-inherit').disabled=c.blocked||!items.some(i=>i.override);
-      $('motion-preview').disabled=!c.preview;
-      for(const name of A.names){
-        const e=first.effects[name],check=$('motion-'+name+'-enabled');
-        check.checked=e.enabled;check.indeterminate=items.some(i=>i.value.effects[name].enabled!==e.enabled);
-        const overridden=c.cue&&items.some(i=>Object.hasOwn(i.override?.effects||{},name));
-        check.closest('label').classList.toggle('is-overridden',overridden);
-        const card=$('motion-'+name+'-card');card.hidden=!e.enabled&&!check.indeterminate;
-        const reset=$('motion-'+name+'-reset');reset.hidden=!overridden;
-        for(const [key,{input,caption,title}] of controls){if(!key.startsWith(name+'.'))continue;
-          const k=key.split('.')[1],mixed=items.some(i=>i.value.effects[name][k]!==e[k]);
-          input.value=mixed?'':String(e[k]);input.placeholder=mixed?'多个值':'';
-          input.closest('label').classList.toggle('is-mixed',mixed);
-          if(A.timings(name).includes(k)){input.max=e.unit==='percent'?'100':'60000';caption.textContent=title+(e.unit==='percent'?' (%)':' (ms)');}
-          if(k==='period')input.max='60000';
+    $('motion-parameter').onchange=()=>{
+      cancel();curves.cancel();shown=parameter();
+      if(!special())curves.selectChannel(shown);
+      sync();
+    };
+    $('motion-unit').onchange=()=>apply(effectName(),'unit',$('motion-unit').value);
+    $('motion-inherit').onclick=()=>apply('all','reset');
+    $('motion-parameter-reset').onclick=()=>apply(effectName(),'reset');
+    $('motion-range-enabled').onchange=e=>apply(parameter(),'enabled',e.target.checked);
+    for(const key of ['start','end','period','opacity'])$('motion-range-'+key).onchange=()=>{
+      const input=$('motion-range-'+key);if(!input.reportValidity()){sync();return;}
+      apply(parameter(),'range',{[key]:Number(input.value),enabled:true});
+    };
+    function drawRange(writeValues=true){
+      if(!range)return;
+      const maximum=range.unit==='percent'?100:Math.min(60000,Math.max(context().items[0]?.duration||1000,range.end,1));
+      const width=Math.max(200,$('motion-range-graph').clientWidth||320),right=width-12;
+      $('motion-range-graph').setAttribute('viewBox',`0 0 ${width} 58`);
+      const x=value=>12+value/maximum*(width-24);
+      $('motion-range-graph').innerHTML=`<path class="motion-range-rail" d="M12 24H${right}"/>
+        <path class="motion-range-fill" d="M${x(range.start)} 24H${x(range.end)}"/>
+        ${['start','end'].map(key=>`<rect class="motion-range-handle" data-edge="${key}" x="${x(range[key])-4}" y="13" width="8" height="22" rx="2"/>`).join('')}
+        <text x="12" y="52">0</text><text x="${right}" y="52" text-anchor="end">${Math.round(maximum*100)/100}${range.unit==='percent'?'%':' ms'}</text>`;
+      if(writeValues)for(const key of ['start','end','period','opacity']){
+        const node=$('motion-range-'+key);node.value=range[key]??'';
+        if(['start','end'].includes(key)){
+          node.max=range.unit==='percent'?'100':'60000';
+          $('motion-range-'+key+'-label').textContent=(key==='start'?'开始':'结束')+(range.unit==='percent'?' (%)':' (ms)');
         }
+      }
+      return maximum;
+    }
+    function sync(){
+      const c=context(),a=first();
+      if(drag){if(c.blocked||fingerprint()!==signature)cancel();else return;}
+      signature=fingerprint();
+      for(const node of root.querySelectorAll('input,select,button'))node.disabled=c.blocked;
+      $('motion-inherit').hidden=!c.cue;$('motion-inherit').disabled=c.blocked||!c.items.some(i=>i.override);
+      $('motion-parameter-reset').hidden=!c.cue||!c.items.some(i=>Object.hasOwn(i.override?.effects||{},effectName()));
+      for(const name of Object.keys(labels)){
+        const matches=c.items.length&&c.items.every(i=>{
+          try{
+            const patch=A.presetPatch(i.value,name,i.duration);
+            return Object.entries(patch.effects).every(([key,value])=>JSON.stringify(value)===JSON.stringify(i.value.effects[key]));
+          }catch(_){return false;}
+        });
+        $('motion-preset-'+name).setAttribute('aria-pressed',String(!!matches));
+      }
+      $('motion-unit').value=a.effects[effectName()].unit;
+      $('motion-curve-editor').hidden=special();$('motion-range-editor').hidden=!special();
+      if(special()){
+        range=clone(a.effects[parameter()]);drawRange();
+        $('motion-range-enabled').checked=range.enabled;
+        $('motion-range-enabled').indeterminate=c.items.some(i=>i.value.effects[parameter()].enabled!==range.enabled);
+        for(const key of ['start','end','period','opacity']){
+          const node=$('motion-range-'+key),mixed=c.items.some(i=>i.value.effects[parameter()][key]!==range[key]);
+          if(mixed){node.value='';node.placeholder='多个值';}else node.placeholder='';
+        }
+        $('motion-period-field').hidden=$('motion-opacity-field').hidden=parameter()!=='blink';
+      }else{
+        curves.sync();
       }
       global.MSWHelp?.hydrate(root);
-      curvesUI.sync();
     }
+    const graph=$('motion-range-graph');
+    function cancel(){if(!drag)return;range=drag.original;drag=null;drawRange();}
+    graph.addEventListener('pointerdown',event=>{
+      const edge=event.target.closest('[data-edge]')?.dataset.edge;
+      if(!edge||event.button!==0||context().blocked)return;
+      event.preventDefault();event.stopPropagation();curves.cancel();
+      drag={id:event.pointerId,edge,original:clone(range),maximum:drawRange()};graph.focus({preventScroll:true});graph.setPointerCapture(event.pointerId);
+    });
+    graph.addEventListener('pointermove',event=>{
+      if(!drag||event.pointerId!==drag.id)return;
+      const rect=graph.getBoundingClientRect(),time=(event.clientX-rect.left-12)/Math.max(1,rect.width-24)*drag.maximum;
+      range[drag.edge]=Math.round(Math.max(drag.edge==='end'?range.start+.01:0,Math.min(drag.edge==='start'?range.end-.01:drag.maximum,time))*100)/100;
+      drawRange();
+    });
+    graph.addEventListener('pointerup',event=>{
+      if(!drag||event.pointerId!==drag.id)return;const original=drag.original;drag=null;
+      if(fingerprint()!==signature){sync();return;}
+      if(original.start!==range.start||original.end!==range.end)apply(parameter(),'range',{start:range.start,end:range.end,enabled:true});
+    });
+    graph.addEventListener('pointercancel',cancel);graph.addEventListener('lostpointercapture',cancel);
+    global.addEventListener('blur',cancel);
+    new ResizeObserver(()=>{if(range&&!drag)drawRange(false);}).observe(graph);
+    global.addEventListener('keydown',event=>{if(drag&&event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();cancel();}},true);
+    $('motion-range-editor').dataset.optionHelp='拖动区间两端设置开始与结束；Esc 取消拖动。文字显现逐字显示，闪烁按固定间隔循环，均按每条字幕自己的起点计时。';
+    // Do not access the host's project-dependent state until its initialization ends.
+    $('curve-channel').value='opacity';
     return {sync};
   }
   global.MSWSubtitleAnimationUI={create};

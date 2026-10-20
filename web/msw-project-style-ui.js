@@ -12,7 +12,7 @@
   const iconButton=(id,name,icon)=>`<button type="button" id="${id}" class="msw-style-icon" title="${t(name)}" aria-label="${t(name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${icons[icon]}</svg></button>`;
   icons.swap='<path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/>';
   icons.overwrite='<path d="M20 11V7l-4-4H3v18h10M7 3v6h9V3M7 21v-7h5m3 3h7m-3-3 3 3-3 3"/>';
-  panel.innerHTML=`<span class="settings-panel-title">字幕样式</span>
+  panel.innerHTML=`
     <div class="media-settings-grid msw-style-selectors">
       <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
       <label class="media-settings-field" data-option-help="轨道默认：预设作用于所选轨道组。所选字幕：只应用外观，不改变时间、绑定、位置或动画；多选按各条字幕的轨道角色应用。调整立即用于工程，覆盖预设才更新用户预设。另存保存当前外观；多选外观不同时请先选择单条字幕。SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
@@ -20,28 +20,27 @@
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
     <form id="style-save-form" class="msw-style-save-form" hidden><label class="media-settings-field"><span>预设名称</span><input id="style-preset-name" maxlength="80" required></label><button type="submit" id="style-save-preset">保存</button><button type="button" id="style-save-cancel">取消</button></form>
     <div id="style-delete-confirm" class="msw-style-delete-confirm" hidden><p id="style-delete-question"></p><div class="msw-processing-actions"><button type="button" id="style-delete-confirm-button">删除预设</button><button type="button" id="style-delete-cancel">取消</button></div></div>
-    <details id="style-general" class="msw-style-section" open><summary>通用</summary><div id="style-basic-fields" class="msw-style-fields"></div></details>
+    <details id="style-general" class="msw-style-section" open><summary>基础</summary><div id="style-basic-fields" class="msw-style-fields"></div></details>
     <details id="style-more" class="msw-style-section"><summary>进阶</summary><div id="style-emphasis-fields" class="msw-style-checks"></div><div id="style-advanced-fields" class="msw-style-fields"></div></details>
     <details id="style-animation" class="msw-style-section"><summary><span class="msw-option-label">动画</span></summary><div id="style-animation-fields"></div></details>
     <small data-help-for="style-animation" hidden>轨道默认只作用于当前主/副轨道；所选字幕按效果覆盖，其余跟随轨道。时间从每条字幕开始计算。新动画会替代原有 ASS 动画；恢复轨道动画可取消单条覆盖。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   $('style-save-as').insertAdjacentHTML('beforebegin',iconButton('style-overwrite','覆盖预设','overwrite'));
-  panel.querySelector('.settings-panel-title').after(panel.querySelector('.msw-style-toolbar'));
   panel.querySelector('.msw-style-selectors').insertAdjacentHTML('beforebegin',`<div id="style-track-controls" class="media-settings-grid" hidden>
     <label class="media-settings-field" data-option-help="旧工程保留原画面排布。固定轨道排布统一用于预览、ASS 和烧录；各轨道可在下方选择自动排布或固定位置。"><span class="msw-option-label">画面排布</span><select id="style-track-layout"><option value="legacy">保留旧排布</option><option value="fixed">固定轨道排布</option></select></label>
   </div>`);
   const targetTabs=document.createElement('div');targetTabs.className='msw-style-target-tabs';
   const tabs=panel.querySelector('.msw-style-tabs');tabs.before(targetTabs);targetTabs.innerHTML='<select id="style-track-target" aria-label="字幕轨道组"></select>';targetTabs.append(tabs);
-  panel.querySelector('#style-more').insertAdjacentHTML('afterend',`<details id="style-track-position" class="msw-style-section" hidden open><summary>排布与画面位置</summary>
-    <label class="media-settings-field"><span>排布</span><select id="style-track-placement"><option value="auto">自动排布</option><option value="fixed">固定位置</option></select></label>
+  panel.querySelector('#style-more').insertAdjacentHTML('beforeend',`<div id="style-track-position" class="msw-position-group" hidden>
+    <div id="style-position-layout" class="msw-style-fields"><label class="media-settings-field"><span>位置方式</span><select id="style-track-placement"><option value="auto">自动排布</option><option value="fixed">固定位置</option></select></label></div>
     <div id="style-position-fields"><div class="media-settings-grid">
       <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
       <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="any" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="any" required></label>
     </div><div class="msw-processing-actions"><button type="button" id="style-position-reset">恢复默认位置</button></div><p id="style-position-note" class="msw-processing-hint"></p></div>
-  </details>`);
+  </div>`);
   panel.querySelector('#style-general').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
     <label class="media-settings-field" data-option-help="以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
@@ -63,19 +62,20 @@
     }
   }
   fields(basic,'style-basic-fields');fields(advanced.filter(r=>r[2]==='checkbox'),'style-emphasis-fields');fields(advanced.filter(r=>r[2]!=='checkbox'),'style-advanced-fields');
-  const backgroundSection=document.createElement('details');backgroundSection.id='style-background';backgroundSection.className='msw-style-section msw-style-background';
-  backgroundSection.innerHTML='<summary><span class="msw-option-label">文字背景</span></summary><div id="style-background-fields" class="msw-style-fields"></div>';
-  backgroundSection.querySelector('summary').dataset.optionHelp='矩形或圆角背景随整条字幕自动伸缩，包含所有换行；打字机动画保留完整背景。内边距和圆角以 1080p 为基准。开启后替代原有背景框，文字描边与阴影仍保留；预览、ASS 和烧录使用同一背景。';
+  const backgroundSection=document.createElement('div');backgroundSection.id='style-background';backgroundSection.className='msw-property-group';
+  backgroundSection.innerHTML='<div id="style-background-fields" class="msw-style-fields"></div>';
   $('style-more').append(backgroundSection);
-  fields([['backgroundShape','背景形状','select',[['none','无'],['rect','矩形'],['rounded','圆角矩形']]],
+  fields([['backgroundShape','文字背景','select',[['none','无'],['rect','矩形'],['rounded','圆角矩形']]],
     ['backgroundColor','填充颜色','color'],['backgroundOpacity','不透明度 %','number',0,100],
     ['backgroundPaddingX','左右内边距','number',0,240],['backgroundPaddingY','上下内边距','number',0,240],
     ['backgroundRadius','圆角半径','number',0,240]],'style-background-fields');
-  const gradientSection=document.createElement('details');gradientSection.id='style-gradient';gradientSection.className='msw-style-section msw-style-background';
-  gradientSection.innerHTML='<summary><span class="msw-option-label">文字渐变</span></summary><div id="style-gradient-fields" class="msw-style-fields"></div>';
-  gradientSection.querySelector('summary').dataset.optionHelp='双色按整条字幕阅读顺序逐字变化，空格不占步长、换行不重置；单个字内部保持纯色。开启后替代文字和说话人的填充颜色，不影响描边或背景。首尾颜色都支持视频取色，预览、ASS 和烧录一致。';
+  const gradientSection=document.createElement('div');gradientSection.id='style-gradient';gradientSection.className='msw-property-group';
+  gradientSection.innerHTML='<div id="style-gradient-fields" class="msw-style-fields"></div>';
   backgroundSection.before(gradientSection);
-  fields([['gradientMode','渐变方式','select',[['none','关闭'],['characters','双色逐字']]],['gradientStart','起始颜色','color'],['gradientEnd','结束颜色','color']],'style-gradient-fields');
+  fields([['gradientMode','文字渐变','select',[['none','关闭'],['characters','双色逐字']]],['gradientStart','起始颜色','color'],['gradientEnd','结束颜色','color']],'style-gradient-fields');
+  $('style-advanced-fields').append(gradientSection,backgroundSection);
+  $('style-field-backgroundShape').closest('label').dataset.optionHelp='背景随全文伸缩，打字机保留完整背景。内边距和圆角以 1080p 为基准；启用后替代旧背景框，描边和阴影仍保留。';
+  $('style-field-gradientMode').closest('label').dataset.optionHelp='沿阅读顺序逐字变化，换行不重置；单字内部保持纯色。替代文字填充颜色，不影响描边与背景。';
   icons.pick='<path d="m14 5 5 5M12 7l5 5-9 9H3v-5l9-9Zm1-1 3-3a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3l-3 3"/>';
   for(const input of panel.querySelectorAll('[data-style-field][type=color]')) {
     const control=document.createElement('span');control.className='msw-style-color-control';input.before(control);control.append(input);
@@ -122,11 +122,27 @@
   proofPanel.append($('style-preview-mode').closest('label'));
   const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofPanel.append(openProperties);old.before(proofPanel);
   const scopeBar=document.createElement('div');scopeBar.className='msw-properties-scope';
-  scopeBar.innerHTML='<label class="media-settings-field"><span>作用范围</span><select id="style-edit-scope"><option value="cue">所选字幕</option><option value="track">轨道默认</option></select></label><span id="style-selection-label"></span>';
-  panel.prepend(scopeBar);
+  scopeBar.innerHTML='<label class="media-settings-field"><span>对象</span><select id="style-edit-scope" aria-label="属性对象"></select></label><span id="style-selection-label"></span>';
+  const general=$('style-general'),basicFields=$('style-basic-fields'),presetRow=panel.querySelector('.msw-style-selectors');
+  general.insertBefore(scopeBar,basicFields);
+  scopeBar.insertBefore(tabs,$('style-selection-label'));
+  general.insertBefore(presetRow,basicFields);
+  presetRow.append(panel.querySelector('.msw-style-actions'));
+  targetTabs.hidden=true;panel.querySelector('.msw-style-toolbar').hidden=true;
+  for(const node of [$('style-save-form'),$('style-delete-confirm'),$('style-track-controls')])general.insertBefore(node,basicFields);
+  $('style-more').append($('style-track-position'));
+  $('style-track-position').open=true;
+  $('style-position-layout').append($('style-pair-controls'));
+  const anchor=$('style-field-alignment').closest('label');
+  anchor.querySelector('.msw-option-label').textContent='对齐锚点';$('style-position-layout').append(anchor);
+  anchor.dataset.optionHelp='自动排布按锚点和边距定位；固定位置按视频画面的百分比定位。锚点决定文字从该坐标向哪个方向展开，动画位移以此基础位置为起点。';
+  for(const key of ['marginL','marginR','marginV'])$('style-position-layout').append($('style-field-'+key).closest('label'));
+  for(const key of ['fontName'])$('style-field-'+key).closest('label').classList.add('msw-property-font');
   $('style-position-scope').closest('label').hidden=true;
-  const restoreAppearance=document.createElement('button');restoreAppearance.type='button';restoreAppearance.id='style-inherit-appearance';restoreAppearance.textContent='恢复轨道外观';
-  $('style-project-preset').closest('label').after(restoreAppearance);
+  const restoreAppearance=document.createElement('button');restoreAppearance.type='button';restoreAppearance.id='style-inherit-appearance';restoreAppearance.className='msw-style-icon';
+  restoreAppearance.title='恢复轨道外观';restoreAppearance.setAttribute('aria-label','恢复轨道外观');
+  restoreAppearance.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v11h13M14 11l4 4-4 4M9 4h11M9 8h11"/></svg>';
+  presetRow.querySelector('.msw-style-actions').prepend(restoreAppearance);
   for(const input of panel.querySelectorAll('[data-style-field]')) {
     const reset=document.createElement('button');reset.type='button';reset.className='msw-style-field-reset';reset.dataset.resetStyle=input.dataset.styleField;
     reset.title='此项跟随轨道';reset.setAttribute('aria-label',input.closest('label').querySelector('.msw-option-label').textContent+'跟随轨道');
@@ -152,17 +168,23 @@
     return global.MSWCueStyle.fields.every(k=>candidate[k]===effective[k]);
   });
   const selectionKey=()=>JSON.stringify([editScope,fixedStyleTrackId,...selectedRows().map(r=>r.cue_id).sort()]);
-  let lastSelectionKey='';
+  let lastSelectionKey='',lastCueSelection='';
   const propertiesVisible=()=>!!$('subtitle-properties').getClientRects().length;
   function open(scope=editScope){
     if(fixedPositionEditing)fixedStopPositioning(false);
-    editScope=scope;fixedPositionScope=scope;$('style-edit-scope').value=scope;
+    editScope=scope;fixedPositionScope=scope;
     waveformEditor?.showModule('properties',{recordUndo:false});waveformEditor?.activateModuleTab('properties');rebuildShowModuleMenu();
     global.MSWHelp?.hydrate(panel);
     rebuild();sync();refresh();
   }
   openProperties.onclick=()=>{host.closeMediaSettings?.();if($('media-settings-modal').getAttribute('aria-hidden')==='false')$('media-settings-close')?.click();open('track');};
-  $('style-edit-scope').onchange=()=>{if(fixedPositionEditing)fixedStopPositioning(false);cancelAction();editScope=$('style-edit-scope').value;fixedPositionScope=editScope;rebuild();sync();refresh();};
+  $('style-edit-scope').onchange=()=>{
+    if(fixedPositionEditing)fixedStopPositioning(false);
+    const selection=$('style-edit-scope').value;cancelAction();
+    if(selection==='cue'){editScope='cue';fixedPositionScope='cue';rebuild();sync();}
+    else editTrack(selection,false);
+    refresh();
+  };
   restoreAppearance.onclick=()=>commitCueAppearance({}, {replace:true});
   function commitCueAppearance(patch,options={}) {
     if(!ready||styleGeneration!==host.generation||!cueScope())return;
@@ -207,16 +229,22 @@
     const context=motionContext();if(context.blocked)return;
     commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
     const updates=context.items.map(item=>{
+      if(key==='preset')return {id:item.row?.cue_id,animation:M.presetPatch(item.value,name,item.duration),item};
+      if(key.startsWith('channel:')){
+        const current=structuredClone(item.value);
+        current.effects.curves=M.convertUnit(current.effects.curves,context.items[0].value.effects.curves.unit,item.duration);
+        const animation=M.editChannel(current,key.slice(8),value);
+        if(!M.valid(animation))throw Error('关键帧时间须递增且不能重合，数值须在允许范围内');
+        return {id:item.row?.cue_id,animation,item};
+      }
       const effects={};
       for(const effect of name==='all'?M.names:[name]){
         let state=structuredClone(item.value.effects[effect]);
         if(key==='disable')state.enabled=false;
         else if(key!=='reset'){
           if(key==='unit')state=M.convertUnit(state,value,item.duration);
-          else if(key.startsWith('channel:')){
-            state=M.convertUnit(state,context.items[0].value.effects.curves.unit,item.duration);
-            const channel=key.slice(8);if(value===null)delete state.channels[channel];else state.channels[channel]=structuredClone(value);
-          }else state[key]=value;
+          else if(key==='range')Object.assign(state,value);
+          else state[key]=value;
         }
         effects[effect]=state;
       }
@@ -234,9 +262,7 @@
     productionCommitProject(next,key==='reset'?'恢复轨道动画':'修改字幕动画',context.cue?updates.map(u=>u.id):[...fixedPositionSelectedIds()]);
     fixedPreviewInvalidate();global.dispatchEvent(new Event('msw:burn-style'));rebuild();sync();refresh();
   }
-  const motionUI=global.MSWSubtitleAnimationUI.create(motionRoot,{context:motionContext,commit:commitMotion,message:(text,error)=>message(text,error),preview:()=>{
-    const row=motionContext().preview;if(!row)return;player.currentTime=row.cue.start/1000;void player.play().catch(error=>message(error.message,true));
-  }});
+  const motionUI=global.MSWSubtitleAnimationUI.create(motionRoot,{context:motionContext,commit:commitMotion,message:(text,error)=>message(text,error)});
   let proof={mode:'project'};
   try {
     const saved=JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}');proof.mode=saved.mode||'project';
@@ -288,6 +314,7 @@
       $('style-track-layout').value=host.data.subtitle_tracks.presentation;
       $('style-track-layout').closest('label').hidden=productionFlatMode();
     }
+    fill($('style-edit-scope'),[['cue','所选字幕'],...Array.from($('style-track-target').options,o=>[o.value,o.textContent])],cueScope()?'cue':fixedStyleGroup()?.main.id||track?.id||'');
     const chosen=track?fixedStyleGroup()?.main.style.selection||track.style.selection:host.data.preview?.project_style_selection;
     const group=fixedStyleGroup(),inherited=group?[group.main,group.secondary].filter(Boolean).every(t=>t.style.mode==='inherit'):track?.style.mode==='inherit';
     selectedPreset=find(chosen)?chosen:all().find(s=>same(s,value()))?.id||(inherited?'default':'');
@@ -299,7 +326,7 @@
     fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!(cueScope()?presetMatches(s):same(s,value()))?' · '+t('已修改'):'')])],selectedPreset);
     if(!selectedPreset)$('style-project-preset').options[0].disabled=true;
     if(cueScope()&&!selectedPreset)$('style-project-preset').options[0].textContent=selectedRows().some(r=>r.cue.subtitle_style)?'已单独调整':'跟随轨道';
-    $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent=cueScope()?'应用外观预设':'工程样式';
+    $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent='样式预设';
     const selected=$('video-export-style-source').value;
     fill($('video-export-style-source'),[['project','跟随工程样式'],...all().map(s=>['preset:'+s.id,s.name])],selected || 'project');
     if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
@@ -308,19 +335,20 @@
     // Undo/project reload can clear selection without passing syncSelection.
     // Cache the selection actually rendered, not the one from before undo.
     lastSelectionKey=selectionKey();
+    lastCueSelection=JSON.stringify([...fixedPositionSelectedIds()].sort());
     const style=S.normalize(value()||S.defaults());
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const group=fixedStyleGroup();
     const rows=cueScope()?selectedRows():[],appearances=rows.map(rowAppearance);
     panel.classList.toggle('editing-cues',cueScope());
     const blocked=cueScope()?(!rows.length||rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked)):!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
-    $('style-edit-scope').value=editScope;$('style-edit-scope').disabled=fixedPositionEditing;
+    $('style-edit-scope').value=cueScope()?'cue':group?.main.id||track?.id||'';$('style-edit-scope').disabled=fixedPositionEditing;
     $('style-selection-label').textContent=cueScope()?(rows.length===1?fixedCueLabel(rows[0].cue,rows[0].role,rows[0].track_id):rows.length?`已选 ${rows.length} 条 · ${new Set(rows.map(r=>r.subtitle_track_id)).size} 轨`:'请选择字幕'):'未单独设置的字幕跟随轨道';
     $('style-track-target').hidden=cueScope();
     restoreAppearance.hidden=!cueScope();restoreAppearance.disabled=blocked||!rows.some(r=>r.cue.subtitle_style);
     $('style-animation').hidden=false;
     legacyAnimation.hidden=cueScope()||!motionContext().items.some(i=>i.legacy);
-    $('style-track-position').hidden=!fixedPresentationMode()||!cueScope()&&(!track||!productionFlatMode()&&fixedTrackCore.placement(track)!=='fixed');
+    $('style-track-position').hidden=!fixedPresentationMode();
     $('style-track-placement').value=track?fixedTrackCore.placement(track):'auto';$('style-track-placement').disabled=blocked;
     $('style-position-fields').hidden=!productionFlatMode()&&(!track||fixedTrackCore.placement(track)!=='fixed');
     if(productionFlatMode())syncPosition();
@@ -370,6 +398,7 @@
       else input.placeholder='';
       reset.hidden=!changed;reset.disabled=saving||blocked;
     }
+    for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=cueScope()||track&&fixedTrackCore.placement(track)==='fixed';
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
     const backgroundValues=cueScope()?selectedRows().map(rowAppearance):[style[role]];
@@ -400,7 +429,7 @@
   function syncPosition() {
     $('style-position-drag').hidden=fixedPositionEditing;
     $('style-position-cancel').hidden=$('style-position-finish').hidden=!fixedPositionEditing;
-    for(const id of ['style-position-scope','style-track-target','style-main','style-secondary'])$(id).disabled=fixedPositionEditing;
+    for(const id of ['style-position-scope','style-edit-scope','style-track-target','style-main','style-secondary'])$(id).disabled=fixedPositionEditing;
     if(!productionFlatMode()) {
       if(fixedPositionEditing)for(const key of ['x','y'])positionValue(key,fixedPositionCurrent()[key]);
       return;
@@ -414,11 +443,17 @@
       positionValue(key,p[key],enabled);
       input.placeholder=enabled&&p[key]===null?'多个值':'';
     }
-    $('style-track-placement').closest('label').hidden=selected;
+    const placement=$('style-track-placement');
+    placement.replaceChildren(...(selected?[['inherit','跟随轨道'],['fixed','单独定位']]:[['auto','自动排布'],['fixed','固定位置']]).map(([id,label])=>new Option(label,id)));
+    const custom=rows.filter(r=>r.cue.subtitle_position).length;
+    if(selected&&custom&&custom!==rows.length)placement.add(new Option('多个值','mixed'));
+    placement.value=selected?(custom===rows.length&&custom?'fixed':custom?'mixed':'inherit'):track?fixedTrackCore.placement(track):'auto';
+    placement.disabled=!!locked||fixedPositionEditing||selected&&!enabled;
+    $('style-position-fields').hidden=!selected&&track&&fixedTrackCore.placement(track)==='auto';
     $('style-position-drag').disabled=!enabled||selected&&rows.some(r=>!r.entry);
     $('style-position-reset').disabled=fixedPositionEditing||locked||!track||(selected?!rows.some(r=>r.cue.subtitle_position):!enabled||!track.position);
     $('style-position-reset').textContent=selected?'跟随轨道位置':'恢复默认位置';
-    $('style-position-note').textContent=selected?fixedPositionSelectionLabel(rows)+(locked?' · 所选轨道已锁定':rows.length&&!enabled?' · 请先启用字幕及轨道':rows.some(r=>r.cue.subtitle_position)?' · 已单独定位':rows.length?' · 跟随轨道位置':''):track&&fixedTrackCore.placement(track)==='auto'?'自动排布使用样式中的对齐与边距；可切换“所选字幕”单独定位。':'轨道位置作用于未单独定位的字幕。';
+    $('style-position-note').textContent=locked?'所选轨道已锁定':selected&&rows.length&&!enabled?'请先启用字幕及轨道':'';
   }
   function refresh() {
     host.useProjectStylePreview();host.refreshStylePreview();global.MSWSubtitleRenderer?.invalidate();
@@ -437,7 +472,14 @@
   $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
   function editTrack(id,show=true){cancelAction();message('');editScope='track';fixedPositionScope='track';fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(show)open('track');}
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
-  $('style-track-placement').onchange=()=>{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:$('style-track-placement').value});sync();refresh();};
+  $('style-track-placement').onchange=()=>{
+    const mode=$('style-track-placement').value;
+    if(cueScope()){
+      if(mode==='inherit')fixedCommitPosition(null);
+      else if(mode==='fixed'){const p=fixedPositionSelection()[0]?.position;if(p)fixedCommitPosition({x:p.x,y:p.y});}
+    }else{const track=fixedStyleTarget();if(track)fixedUpdateTrack(track.id,{layout:mode});}
+    sync();refresh();
+  };
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
   $('style-position-cancel').onclick=()=>fixedStopPositioning(false);
@@ -576,7 +618,7 @@
     if(settingsPanel.getAttribute('aria-hidden')==='true')cancelAction();
     if(ready){sync();fixedPreviewInvalidate();refresh();}
   }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
-  $('style-track-position').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
+  $('style-more').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
   function currentPreview() {
     if(fixedPositionEditing)return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'定位中：Esc取消，Enter完成'};
     if(override)return {...override,trackIds:global.MSWVideoSubtitleScope?.ids()??null,scope:'export',label:'导出预览：'+override.label};
@@ -584,7 +626,12 @@
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
-  global.MSWSubtitleStyle={currentPreview,editTrack,open,propertiesVisible,syncSelection:()=>{if(ready){const key=selectionKey();if(key!==lastSelectionKey){lastSelectionKey=key;cancelAction();rebuild();sync();}else syncPosition();}},syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
+  global.MSWSubtitleStyle={currentPreview,editTrack,open,propertiesVisible,syncSelection:()=>{
+    if(!ready)return;
+    const ids=[...fixedPositionSelectedIds()].sort();
+    if(!fixedPositionEditing&&ids.length&&JSON.stringify(ids)!==lastCueSelection){editScope='cue';fixedPositionScope='cue';}
+    const key=selectionKey();if(key!==lastSelectionKey){lastSelectionKey=key;cancelAction();rebuild();sync();}else syncPosition();
+  },syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');

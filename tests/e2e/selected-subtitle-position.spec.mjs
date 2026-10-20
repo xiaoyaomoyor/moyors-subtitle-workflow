@@ -72,6 +72,7 @@ test('fullscreen arrow seek ignores hidden cue selection and stays consistent ac
 async function open(page,both=false){
   await page.evaluate(both=>{selectOnly(0);if(both)addExtensionToSelection(0);MSWSubtitleStyle.editTrack(fixedTrack(DATA.segments[0]).id);},both);
   await page.locator('#style-edit-scope').selectOption('cue');await idle(page);
+  await page.locator('#style-more').evaluate(el=>el.open=true);
 }
 async function axis(page,key,value){await page.locator('#style-position-'+key).fill(String(value));await page.locator('#style-position-'+key).blur();await idle(page);}
 async function position(page){
@@ -85,6 +86,7 @@ async function position(page){
 
 test('track percentage position persists through redraw, ASS rendering, save and reopen',async({page})=>{
   await page.evaluate(()=>MSWSubtitleStyle.editTrack(fixedTrack(DATA.segments[0]).id));
+  await page.locator('#style-more').evaluate(el=>el.open=true);
   await page.locator('#style-track-placement').selectOption('fixed');
   await idle(page);const prior=pos((await events(page))[0].Text)[1];
   await axis(page,'y',45);
@@ -117,7 +119,7 @@ test('selected cue percentage keeps typed decimals during refresh and commits wi
 test('single auto cue positioning preserves its bound partner, saves, reopens and resets inheritance',async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const before=await snap(page),original=await events(page);await open(page);
-  await expect(page.locator('#style-position-note')).toContainText('S1主_1');
+  await expect(page.locator('#style-selection-label')).toContainText('S1主_1');
   await expect(page.locator('#style-position-drag')).toBeEnabled();
   await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
   await axis(page,'y',50);
@@ -133,7 +135,7 @@ test('single auto cue positioning preserves its bound partner, saves, reopens an
   await page.reload();await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');await idle(page);
   expect((await snap(page)).subtitles).toEqual(moved.subtitles);
   const ass=await page.evaluate(()=>fixedAssDocument('both'));expect(ass).toContain('\\pos(960.0000,540.0000)');
-  await open(page);await page.locator('#style-position-note').scrollIntoViewIfNeeded();await page.screenshot({path:info.outputPath('selected-position-panel.png')});
+  await open(page);await page.locator('#style-position-x').scrollIntoViewIfNeeded();await page.screenshot({path:info.outputPath('selected-position-panel.png')});
   await page.locator('#style-position-reset').click();await idle(page);
   expect((await snap(page)).subtitles).toEqual(before.subtitles);expect((await events(page)).map(r=>r.Text)).toEqual(original.map(r=>r.Text));
   expect(errors).toEqual([]);
@@ -141,7 +143,7 @@ test('single auto cue positioning preserves its bound partner, saves, reopens an
 
 test('multi selection preserves the pair gap, exposes mixed values and commits one undo',async({page})=>{
   const before=await snap(page),original=await events(page);await open(page,true);
-  await expect(page.locator('#style-position-note')).toContainText('已选 2 条');
+  await expect(page.locator('#style-selection-label')).toContainText('已选 2 条');
   await expect(page.locator('#style-position-y')).toHaveAttribute('placeholder','多个值');
   await axis(page,'y',40);const shifted=await events(page);
   const deltas=shifted.map((r,i)=>pos(r.Text)[1]-pos(original[i].Text)[1]);expect(deltas[0]).toBeLessThan(0);expect(deltas[1]).toBeCloseTo(deltas[0],3);
@@ -168,11 +170,11 @@ test('picture drag moves only the selected cue, preserves proof choice, cancels 
 
 test('empty and locked selections disable positioning; track edits and presets keep cue overrides',async({page})=>{
   await open(page);await page.evaluate(()=>clearSelection());await expect(page.locator('#style-position-drag')).toBeDisabled();
-  await expect(page.locator('#style-position-note')).toContainText('请先');await page.evaluate(()=>selectOnly(0));await expect(page.locator('#style-position-drag')).toBeEnabled();
+  await expect(page.locator('#style-selection-label')).toContainText('请选择');await page.evaluate(()=>selectOnly(0));await expect(page.locator('#style-position-drag')).toBeEnabled();
   await page.evaluate(()=>fixedUpdateTrack(DATA.subtitle_tracks.tracks[1].id,{locked:true}));
   await axis(page,'x',30);const position=(await snap(page)).subtitles.cues[0].content.subtitle_position;
   expect(position?.x).toBe(.3);await page.evaluate(()=>fixedUpdateTrack(DATA.subtitle_tracks.tracks[1].id,{locked:false}));
-  await page.locator('#style-edit-scope').selectOption('track');await page.locator('#style-track-placement').selectOption('fixed');await axis(page,'y',20);
+  await page.locator('#style-edit-scope').selectOption({label:'S1'});await page.locator('#style-track-placement').selectOption('fixed');await axis(page,'y',20);
   await page.locator('#style-project-preset').selectOption('default');expect((await snap(page)).subtitles.cues[0].content.subtitle_position).toEqual(position);
   await page.locator('#style-edit-scope').selectOption('cue');await page.evaluate(()=>fixedUpdateTrack(fixedStyleTrackId,{locked:true}));
   await expect(page.locator('#style-position-x')).toBeDisabled();await expect(page.locator('#style-position-reset')).toBeDisabled();

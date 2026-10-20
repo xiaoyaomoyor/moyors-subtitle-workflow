@@ -256,7 +256,7 @@ function fixedPositionSelectedIds() {
 }
 function fixedPositionPreviewActive() {
   return productionFlatMode()&&(fixedPositionEditing||fixedPositionScope==='cue'
-    &&document.getElementById('style-track-position')?.open
+    &&document.getElementById('style-more')?.open
     &&window.MSWSubtitleStyle?.propertiesVisible());
 }
 function fixedSchedulePositionSelectionSync() {
