@@ -18,13 +18,46 @@ test.beforeEach(async({page})=>{
  },generateWaveformPayload(10000));
 });
 async function openTime(page,track='third') {await clickMenubarItem(page,'字幕','subtitle-scale-offset-open');await page.locator('#subtitle-time-track').selectOption(track);}
-async function offset(page,value){await page.locator('#subtitle-shift-ms').fill(String(value));await page.locator('#subtitle-shift-ms').press('Enter');}
+async function offset(page,value){await page.locator('#subtitle-time-operation').selectOption('shift');await page.locator('#subtitle-time-direction').selectOption(value<0?'earlier':'later');await page.locator('#subtitle-time-seconds').fill((Math.abs(value)/1000).toFixed(3));await page.locator('#subtitle-time-seconds').press('Enter');if(await page.locator('#subtitle-time-apply').isEnabled())await page.locator('#subtitle-time-apply').click();}
+test('time drafts show readable seconds, direction and before/after without mutating on blur',async({page},info)=>{
+ const before=await snapshot(page);await selectIds(page,['third-0']);await openTime(page);
+ await page.locator('#subtitle-time-direction').selectOption('earlier');await page.locator('#subtitle-time-seconds').fill('0.250');await page.locator('#subtitle-time-seconds').press('Tab');
+ await expect(page.locator('#subtitle-time-after')).toContainText('00:00.750 → 00:01.750');
+ expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
+ await page.locator('#subtitle-time-apply').click();expect(contents(await snapshot(page),'third')[0].content.start).toBe(750);
+ await expect(page.locator('#subtitle-time-seconds')).toHaveValue('0.000');await expect(page.locator('#subtitle-time-apply')).toBeDisabled();
+ await page.locator('#subtitle-scale-offset-close').click();await page.keyboard.press('Control+z');expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
+});
+for(const [anchor,ranges] of [['start',[[1000,3000],[4000,6000]]],['center',[[500,2500],[3500,5500]]],['end',[[0,2000],[3000,5000]]],['group',[[1000,3000],[7000,9000]]]])
+test('duration scaling keeps '+anchor+' fixed and preserves word timing',async({page})=>{
+ const before=await snapshot(page);await openTime(page);await page.locator('#subtitle-time-operation').selectOption('scale');
+ await page.locator('#subtitle-scale-anchor').selectOption(anchor);await page.locator('#subtitle-scale-percent').fill('200');await page.locator('#subtitle-scale-percent').press('Enter');
+ await expect(page.locator('#subtitle-time-after')).toContainText('2.000 s');expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
+ await page.locator('#subtitle-time-apply').click();const after=contents(await snapshot(page),'third');expect(after.map(c=>[c.content.start,c.content.end])).toEqual(ranges);
+ expect(after.every(c=>c.content.items[0].start===c.content.start&&c.content.items.at(-1).end===c.content.end)).toBe(true);
+});
+for(const [operation,expected] of [['start',[1250,2000]],['end',[1000,2250]]])test('boundary draft adjusts only '+operation,async({page})=>{
+ await selectIds(page,['third-0']);await openTime(page);await page.locator('#subtitle-time-operation').selectOption(operation);await page.locator('#subtitle-time-seconds').fill('0.250');
+ await page.locator('#subtitle-time-seconds').press('Enter');await page.locator('#subtitle-time-apply').click();const cue=contents(await snapshot(page),'third')[0].content;
+ expect([cue.start,cue.end]).toEqual(expected);
+});
+test('time tools keep help accessible and fit a narrow light window',async({page},info)=>{
+ await page.setViewportSize({width:640,height:600});await page.evaluate(()=>{updateEditorSettings({theme:'light',themePreset:'alice',colors:{}});applyThemeAndColors();});await openTime(page);
+ await page.locator('#subtitle-time-operation').selectOption('scale');await page.locator('#subtitle-scale-percent').fill('150');
+ const help=page.locator('#subtitle-scale-percent').locator('xpath=../..').locator('.msw-help-button');await help.click();await expect(page.locator('#msw-option-help')).toContainText('不是字号或播放速度');
+ await page.mouse.move(620,580);await expect(page.locator('#msw-option-help')).toBeVisible();await page.keyboard.press('Escape');
+ await expect(page.locator('#subtitle-time-apply')).toBeInViewport();
+ expect(await page.locator('#subtitle-scale-offset-modal').evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
+ await page.screenshot({path:info.outputPath('time-light-small.png')});
+ await page.evaluate(()=>MSWE_I18N.applyLanguage('en'));await page.screenshot({path:info.outputPath('time-english-small.png')});
+});
 async function selectIds(page,ids){await page.evaluate(ids=>{clearSelection({silent:true});DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack().segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});updateSelectionCountText();},ids);}
 
-test('time edits use physical tracks across display columns and undo a wheel gesture once',async({page},info)=>{
+test('time drafts use physical tracks across display columns and apply once after wheel input',async({page},info)=>{
  const before=await snapshot(page);await openTime(page);await expect(page.locator('#subtitle-time-scope')).toHaveValue('all');
  const history=await page.evaluate(()=>editorHistory.undoLength());
- await page.locator('#subtitle-shift-ms').evaluate(input=>{for(let i=0;i<3;i++)input.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));});
+ await page.locator('#subtitle-time-seconds').evaluate(input=>{input.focus();for(let i=0;i<3;i++)input.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));});
+ expect((await snapshot(page)).subtitles).toEqual(before.subtitles);await page.locator('#subtitle-time-seconds').press('Enter');await page.locator('#subtitle-time-apply').click();
  const after=await snapshot(page);expect(contents(after,'third').map(c=>c.content.start)).toEqual([1030,4030]);
  expect(after.subtitles.cues.filter(c=>c.track_id!=='third')).toEqual(before.subtitles.cues.filter(c=>c.track_id!=='third'));
  expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+1);

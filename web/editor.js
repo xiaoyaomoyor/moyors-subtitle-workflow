@@ -2697,6 +2697,7 @@ const autoMergePreview = document.getElementById('auto-merge-preview');
 let autoMergeTrackId = null;
 let autoMergePreviewTimer = 0;
 let autoMergePreviewKey = '';
+let autoMergeMarks = new Map(), autoMergeMarkFrame = 0;
 const SUBTITLE_EXTEND_PANEL_POSITION_KEY = 'moy.asr.subtitle_extend.panel.v1';
 const subtitleExtendPanel = document.getElementById('subtitle-extend-panel');
 const subtitleExtendDragHandle = document.getElementById('subtitle-extend-drag-handle');
@@ -4685,6 +4686,7 @@ const autoMergeFloatingPanel = createFloatingPanel({
   manageButton: autoMergeManageButton,
   anchorButton: autoMergeManageButton,
   positionKey: AUTO_MERGE_PANEL_POSITION_KEY,
+  onClose: () => { clearTimeout(autoMergePreviewTimer); setAutoMergeMarks(); },
   onOpen: () => {
     commitProcessingEdits();
     if(productionFlatMode()) {
@@ -5840,7 +5842,7 @@ function clearAllGaps() {
 
 // 可拖动非模态工具窗（移除静音空隙 / 拼合字幕共用模式）：
 // 负责显示/隐藏、工具栏按钮 active 态、标题栏拖动与位置持久化、窗口缩放回钳、Esc 关闭。
-function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, positionKey, onOpen }) {
+function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, positionKey, onOpen, onClose }) {
   if (!panel) return { open() {}, close() {}, toggle() {}, isOpen: () => false };
   let drag = null;
 
@@ -5933,6 +5935,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
     drag = null;
     manageButton?.classList.remove('active');
     manageButton?.setAttribute('aria-expanded', 'false');
+    onClose?.();
   }
 
   function toggle() { if (isOpen()) close(); else open(); }
@@ -6291,6 +6294,7 @@ function updateSelectionCountText() {
   queueCleanupPreview();
   productionRememberSelection();
   queueAutoMergePreview();
+  queueSubtitleTimePreview();
   selCountEl.textContent = String(
     selectedIdxs.size + selectedExtensionIdxs.size + selectedOverlayIdxs.size,
   );
@@ -6949,6 +6953,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   refreshTimedTextEditButton();
   updateGapRemoveDisableHint();
   queueAutoMergePreview();
+  queueSubtitleTimePreview();
   fixedPanelUI(getCurrentCuePanelTarget());
   window.MSWE_ONBOARDING?.afterRender();
   cueListPlaybackKey = null;
@@ -10641,7 +10646,7 @@ function mergeOverlaySegments(idxs, mode = 'union') {
   return layerMergeSelected(idxs, 'overlay', getOverlayTrack(), mode);
 }
 
-// ── 「字幕 → 缩放/偏移」：显式选择轨道和范围，连续手势共享撤销记录。 ──
+// ── 「字幕 → 缩放与偏移字幕」：显式轨道范围、草稿预估与一次应用。 ──
 function batchSelectedIds() {
   const selection=processingSelection();return [...selection.mainIds,...selection.extensionIds,...selection.overlayIds];
 }
@@ -10822,184 +10827,103 @@ function clampSegmentTime(start, end) {
   const e2 = Math.max(s2 + 1, Math.round(end));
   return [s2, e2];
 }
-function initSubtitleScaleOffsetControls() {
-  const percentInput = document.getElementById('subtitle-scale-percent');
-  const startInput = document.getElementById('subtitle-start-offset-ms');
-  const endInput = document.getElementById('subtitle-end-offset-ms');
-  const shiftInput = document.getElementById('subtitle-shift-ms');
-  if (!percentInput || !startInput || !endInput || !shiftInput) return;
-  const num = (input) => {
-    const value = Number(input.value);
-    return Number.isFinite(value) ? value : null;
-  };
-  const limitedSuffix = (result) => (result?.limited
-    ? `（${result.limited} 条受相邻字幕限制）` : '');
-
-  // 缩放：percent% 缩放 + 邻居约束。锚点=各自中心（默认）或整组范围
-  // （选中整体的起止等比缩放，组内间隔同比）。供输入提交 / 滚轮 / 步进按钮共用。
-  const applyScalePercent = (percent, gesture = false) => {
-    if (!Number.isFinite(percent) || percent <= 0) {
-      subtitleTimeStatus('缩放比例必须是大于 0 的数字', true);
-      return null;
-    }
-    const factor = percent / 100;
-    const anchor = document.getElementById('subtitle-scale-anchor')?.value === 'group'
-      ? 'group' : 'center';
-    let groupStart = 0;
-    if (anchor === 'group') {
-      let context;
-      try { context = subtitleTimeContext(); }
-      catch(error){subtitleTimeStatus(error.message,true);return {changed:0,limited:0};}
-      const starts = context.indices.map((i) => context.segments[i]?.start).filter(Number.isFinite);
-      groupStart = starts.length ? Math.min(...starts) : 0;
-    }
-    const result = applySubtitleTimeEdit(`缩放字幕 ${percent}%`, (segment) => {
-      let start; let end;
-      if (anchor === 'group') {
-        start = groupStart + (segment.start - groupStart) * factor;
-        end = groupStart + (segment.end - groupStart) * factor;
-      } else {
-        const duration = segment.end - segment.start;
-        const center = (segment.start + segment.end) / 2;
-        start = center - (duration * factor) / 2;
-        end = center + (duration * factor) / 2;
-      }
-      if (Math.round(start) === segment.start && Math.round(end) === segment.end) return null;
-      return { start, end };
-    }, {gesture,gestureKey:`scale:${anchor}`});
-    if (result.changed) {
-      subtitleTimeStatus(`已调整 ${result.changed} 条字幕 · 本次缩放 ${percent}%${limitedSuffix(result)}`,Boolean(result.limited));
-      // 应用后回到 100：与偏移行“应用后归零”一致，避免误以为还会再次缩放。
-      percentInput.value = '100';
-    }
-    return result;
-  };
-  // 偏移：mode 决定动哪条边。供输入提交 / 滚轮 / 步进按钮共用。
-  const applyOffsetDelta = (mode, delta, gesture = false) => {
-    if (!Number.isFinite(delta) || delta === 0) return null;
-    const result = applySubtitleTimeEdit(`${mode}偏移 ${delta}ms`, (segment) => {
-      let start = segment.start; let end = segment.end;
-      if (mode === '起点') start += delta;
-      else if (mode === '终点') end += delta;
-      else { start += delta; end += delta; }
-      if (start === segment.start && end === segment.end) return null;
-      return { start, end };
-    }, {gesture,gestureKey:`offset:${mode}`,moveDelta:mode==='整体'?delta:null});
-    if (result.changed) subtitleTimeStatus(`已调整 ${result.changed} 条字幕 · ${mode}偏移 ${delta} ms${limitedSuffix(result)}`,Boolean(result.limited));
-    return result;
-  };
-  // 暴露给滚轮多档步进（滚轮绑定在弹窗区块，位于本函数之后）。
-  applySubtitleScaleWheel = percent => applyScalePercent(percent,true);
-  applySubtitleOffsetWheel = (mode,delta) => applyOffsetDelta(mode,delta,true);
-
-  percentInput.addEventListener('change', () => applyScalePercent(num(percentInput)));
-  // 偏移行：Enter 或 change 提交后应用并把输入框归零（便于连续多次偏移）。
-  const offsetHandler = (input, mode) => {
-    const apply = () => {
-      const delta = num(input);
-      if (delta === null || delta === 0) return;
-      const result = applyOffsetDelta(mode, delta);
-      if (result?.changed) input.value = '0';
-    };
-    input.addEventListener('change', apply);
-    input.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      input.blur();
-      apply();
-    });
-  };
-  offsetHandler(startInput, '起点');
-  offsetHandler(endInput, '终点');
-  offsetHandler(shiftInput, '整体');
-
-}
-let applySubtitleScaleWheel = null;
-let applySubtitleOffsetWheel = null;
-initSubtitleScaleOffsetControls();
-
-// 「字幕 → 缩放/偏移字幕」详情弹窗。
+// Time adjustments are drafts: no blur, wheel or step operation edits the project.
 const subtitleScaleModal = document.getElementById('subtitle-scale-offset-modal');
-const subtitleScaleFloatingPanel = createFloatingPanel({
-  panel: subtitleScaleModal,
-  dragHandle: document.getElementById('subtitle-scale-offset-drag'),
-  positionKey: 'moy.asr.editor.subtitleScalePanel.pos.v1',
-});
-document.getElementById('subtitle-scale-offset-open')?.addEventListener('click', () => {
-  if (subtitleScaleModal?.classList.contains('show')) subtitleScaleFloatingPanel.close();
-  else {
-    if(productionFlatMode()) {
-      commitProcessingEdits();initBatchScope('subtitle-time');subtitleTimeGesture=null;
-      subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);subtitleScaleFloatingPanel.open();return;
+const timeField = key => document.getElementById('subtitle-time-'+key);
+let subtitleTimePreviewTimer=0, subtitleTimePreviewKey='';
+function subtitleTimeTransform() {
+  const operation=timeField('operation').value,context=subtitleTimeContext();
+  if(!context.indices.length)throw Error('当前范围没有字幕');
+  const groupStart=Math.min(...context.indices.map(i=>context.segments[i].start));
+  const numberInput=operation==='scale'?document.getElementById('subtitle-scale-percent'):timeField('seconds');
+  if(!numberInput.value.trim()||!numberInput.checkValidity())throw Error(operation==='scale'?'时长比例须在 1%–1000% 之间':'请输入有效的移动时间（秒）');
+  const value=Number(numberInput.value),anchor=document.getElementById('subtitle-scale-anchor').value;
+  const delta=Math.round(value*1000)*(timeField('direction').value==='earlier'?-1:1);
+  const transform=cue=>{
+    if(operation==='scale'){
+      const origin=anchor==='group'?groupStart:anchor==='start'?cue.start:anchor==='end'?cue.end:(cue.start+cue.end)/2;
+      return {start:Math.round(origin+(cue.start-origin)*value/100),end:Math.round(origin+(cue.end-origin)*value/100)};
     }
-    document.getElementById('subtitle-time-track').value = selectedExtensionIdxs.size && !selectedIdxs.size ? 'extension' : 'main';
-    const selected = selectedExtensionIdxs.size || selectedIdxs.size;
-    document.getElementById('subtitle-time-scope').value = selected ? 'selected' : 'all';
-    subtitleTimeGesture = null;
-    subtitleTimeStatus(selected ? '作用于所选字幕；可撤销' : '作用于整条轨道；可撤销');
-    subtitleScaleFloatingPanel.open();
-  }
-});
-for (const id of ['subtitle-time-track','subtitle-time-scope','subtitle-time-linked']) document.getElementById(id)?.addEventListener('change',()=>{
-  subtitleTimeGesture = null;
-  try {subtitleTimeStatus(`当前范围：${subtitleTimeContext().indices.length} 条字幕`);}
-  catch(error){subtitleTimeStatus(error.message,true);}
-});
-document.getElementById('subtitle-scale-offset-close')?.addEventListener('click', () => subtitleScaleFloatingPanel.close());
-// 步进按钮：单击 ±1（缩放 1%、偏移 1ms）；长按 300ms 后每 70ms 连发。
-subtitleScaleModal?.querySelectorAll('.gap-remove-step-btn').forEach((button) => {
-  const input = document.getElementById(button.dataset.stepFor || '');
-  if (!input) return;
-  const dir = Number(button.dataset.stepDir) || 1;
-  const isScale = input.id === 'subtitle-scale-percent';
-  let repeatTimer = 0;
-  let holdTimer = 0;
-  const stop = () => { clearTimeout(holdTimer); clearInterval(repeatTimer); holdTimer = 0; repeatTimer = 0; subtitleTimeGesture = null; };
-  const stepOnce = () => {
-    if (isScale) {
-      const current = Number(input.value) || 100;
-      applySubtitleScaleWheel?.(Math.min(1000, Math.max(1, Math.round(current + dir))));
-    } else {
-      const mode = input.id === 'subtitle-start-offset-ms' ? '起点'
-        : input.id === 'subtitle-end-offset-ms' ? '终点' : '整体';
-      applySubtitleOffsetWheel?.(mode, dir);
-    }
+    return {start:cue.start+(operation==='end'?0:delta),end:cue.end+(operation==='start'?0:delta)};
   };
-  button.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    stepOnce();
-    holdTimer = setTimeout(() => {
-      repeatTimer = setInterval(stepOnce, 70);
-    }, 300);
-  });
-  ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => button.addEventListener(type, stop));
-});
-
-// 滚轮即时应用（多档步进）：缩放 ±1%（Shift ±5%）；偏移 ±10ms（Shift ±100ms、Ctrl ±1ms）。
-subtitleScaleModal?.querySelectorAll('input[type="number"]').forEach((input) => {
-  input.addEventListener('wheel', (event) => {
-    if (!event.deltaY) return;
-    event.preventDefault();
-    input.focus({ preventScroll: true });
-    const isScale = input.id === 'subtitle-scale-percent';
-    let step;
-    if (isScale) step = event.shiftKey ? 5 : 1;
-    else if (event.ctrlKey || event.metaKey) step = 1;
-    else if (event.shiftKey) step = 100;
-    else step = 10;
-    const dir = event.deltaY < 0 ? 1 : -1;
-    if (isScale) {
-      const current = Number(input.value) || 100;
-      applySubtitleScaleWheel?.(Math.min(1000, Math.max(1, Math.round(current + dir * step))));
-    } else {
-      const mode = input.id === 'subtitle-start-offset-ms' ? '起点'
-        : input.id === 'subtitle-end-offset-ms' ? '终点' : '整体';
-      applySubtitleOffsetWheel?.(mode, dir * step);
+  return {context,operation,value,delta,transform};
+}
+function queueSubtitleTimePreview() {
+  if(!document.getElementById('subtitle-scale-offset-modal')?.classList.contains('show'))return;
+  clearTimeout(subtitleTimePreviewTimer);subtitleTimePreviewTimer=setTimeout(refreshSubtitleTimePreview,100);
+}
+function refreshSubtitleTimePreview(force=false) {
+  clearTimeout(subtitleTimePreviewTimer);
+  if(!subtitleScaleModal.classList.contains('show'))return;
+  const scale=timeField('operation').value==='scale';
+  timeField('offset-fields').hidden=scale;timeField('scale-fields').hidden=!scale;
+  try {
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    if(productionFlatMode()) {
+      const select=timeField('track'),id=select.value,tracks=DATA.subtitle_tracks.tracks;
+      if(JSON.stringify([...select.options].map(o=>[o.value,o.textContent]))!==JSON.stringify(tracks.map(t=>[t.id,t.name]))) {
+        select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
+        if(!tracks.some(t=>t.id===id)){const option=new Option('轨道已不存在',id);option.disabled=true;select.add(option);}
+        select.value=id;
+      }
     }
-  }, { passive: false });
+    const draft=subtitleTimeTransform(),source=draft.context.segments[draft.context.indices[0]],destination=draft.transform(source);
+    const context=productionFlatMode()?batchContext('subtitle-time'):null;
+    const key=JSON.stringify([context?.p.subtitles,context?.p.timebase,draft.context.indices,[...subtitleScaleModal.querySelectorAll('input,select')].map(n=>n.type==='checkbox'?n.checked:n.value)]);
+    if(!force&&key===subtitleTimePreviewKey)return;
+    subtitleTimePreviewKey=key;
+    const result=context?MSWBatchEditing.time(context.p,context.ids,draft.transform,{linked:timeField('linked').checked}):{changed:draft.context.indices.filter(i=>{const c=draft.context.segments[i],r=draft.transform(c);return c.start!==r.start||c.end!==r.end;}).length};
+    timeField('apply').disabled=!result.changed;
+    const range=cue=>`${formatTimelineMilliseconds(cue.start)} → ${formatTimelineMilliseconds(cue.end)} · ${((cue.end-cue.start)/1000).toFixed(3)} s`;
+    timeField('example').hidden=false;timeField('example-title').textContent='首条示例';
+    timeField('before').textContent=range(source);timeField('after').textContent=range(destination);
+    const lo=Math.min(source.start,destination.start),hi=Math.max(source.end,destination.end),length=Math.max(1,hi-lo);
+    for(const [id,c] of [['before-bar',source],['after-bar',destination]]){const bar=timeField(id);bar.setAttribute('x',String(4+(c.start-lo)/length*312));bar.setAttribute('width',String(Math.max(1,(c.end-c.start)/length*312)));}
+    subtitleTimeStatus(result.changed?`预计调整 ${result.changed} 条字幕${result.linked?' · 联动 '+result.linked+' 条':''}`:`当前范围：${draft.context.indices.length} 条字幕`);
+  }catch(error){subtitleTimePreviewKey='';timeField('apply').disabled=true;timeField('example').hidden=true;subtitleTimeStatus(error.message,true);}
+}
+const subtitleScaleFloatingPanel = createFloatingPanel({
+  panel:subtitleScaleModal,dragHandle:document.getElementById('subtitle-scale-offset-drag'),
+  positionKey:'moy.asr.editor.subtitleScalePanel.pos.v2',
+  onClose:()=>clearTimeout(subtitleTimePreviewTimer),
 });
-
-// 「延长字幕」工具窗已由「缩放字幕」子菜单取代，原函数移除。
+document.getElementById('subtitle-scale-offset-open')?.addEventListener('click',()=>{
+  if(subtitleScaleModal.classList.contains('show')){subtitleScaleFloatingPanel.close();return;}
+  commitProcessingEdits();
+  if(productionFlatMode())initBatchScope('subtitle-time');
+  else {
+    timeField('track').replaceChildren(new Option('主字幕','main'),new Option('副字幕','extension'),new Option('叠加字幕','overlay'));
+    timeField('track').value=selectedExtensionIdxs.size&&!selectedIdxs.size?'extension':'main';
+    timeField('scope').value=selectedExtensionIdxs.size||selectedIdxs.size?'selected':'all';
+  }
+  timeField('seconds').value='0.000';document.getElementById('subtitle-scale-percent').value='100';
+  subtitleTimePreviewKey='';subtitleScaleFloatingPanel.open();refreshSubtitleTimePreview(true);
+});
+document.getElementById('subtitle-scale-offset-close')?.addEventListener('click',()=>subtitleScaleFloatingPanel.close());
+for(const event of ['input','change'])subtitleScaleModal.addEventListener(event,queueSubtitleTimePreview);
+subtitleScaleModal.addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&event.target.matches('input')){event.preventDefault();refreshSubtitleTimePreview(true);}
+});
+subtitleScaleModal.addEventListener('wheel',event=>{
+  const input=event.target.closest('input[type=number]');if(!event.deltaY||!input||document.activeElement!==input)return;
+  event.preventDefault();const step=input.id==='subtitle-scale-percent'?1:.01;
+  input.value=String(Math.round(Math.min(Number(input.max),Math.max(Number(input.min),(Number(input.value)||0)+(event.deltaY<0?step:-step)))*1000)/1000);queueSubtitleTimePreview();
+},{passive:false});
+timeField('apply').addEventListener('click',()=>{
+  try {
+    commitProcessingEdits();if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    const draft=subtitleTimeTransform();let result;
+    if(productionFlatMode()){
+      const context=batchContext('subtitle-time');result=MSWBatchEditing.time(context.p,context.ids,draft.transform,{linked:timeField('linked').checked});
+      if(result.changed)productionCommitProject(result.project,'缩放与偏移字幕',result.ids);
+    }else result=applySubtitleTimeEdit('缩放与偏移字幕',draft.transform,{moveDelta:draft.operation==='shift'?draft.delta:null});
+    if(!result.changed){refreshSubtitleTimePreview(true);return;}
+    timeField('seconds').value='0.000';document.getElementById('subtitle-scale-percent').value='100';
+    refreshSubtitleTimePreview(true);subtitleTimeStatus(`已调整 ${result.changed} 条字幕 · 可一次撤销`);
+  }catch(error){subtitleTimePreviewKey='';timeField('apply').disabled=true;subtitleTimeStatus(error.message,true);}
+});
+window.addEventListener('msw:subtitles-changed',queueSubtitleTimePreview);
+window.addEventListener('msw:project-changed',queueSubtitleTimePreview);
 
 // === 拼合字幕 ===
 // 把工具窗参数同步到控件；「吸收过短字幕」关闭时禁用短句相关参数。
@@ -11067,14 +10991,61 @@ function refreshAutoMergePreview(force=false) {
   autoMergeTrackSelect.value=autoMergeTrackId||'';
   try {
     const p=MSWProductionProject.toProject(DATA),key=JSON.stringify([p.subtitles,p.subtitle_view,p.timebase,autoMergeTrackId,autoMergeScopeSelect.value,autoMergeSelection(),autoMergeOptions(),EDITOR_SETTINGS.mergeJoinTextWord,EDITOR_SETTINGS.mergeJoinTextContinuous,Boolean(pendingLinkedSplit)]);
-    if(!force&&key===autoMergePreviewKey)return;
+    if(!force&&key===autoMergePreviewKey){paintAutoMergeMarks();return;}
     autoMergePreviewKey=key;
     if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
     const result=buildAutoMergePlan(p);
+    setAutoMergeMarks(result,p);
     autoMergePreview.textContent=autoMergeSummary(result);
     autoMergeRunButton.disabled=!result.stats.snaps&&!result.stats.groups;
-  }catch(error){autoMergePreview.textContent=error.message;autoMergeRunButton.disabled=true;}
+  }catch(error){setAutoMergeMarks();autoMergePreview.textContent=error.message;autoMergeRunButton.disabled=true;}
 }
+function setAutoMergeMarks(result,p) {
+  autoMergeMarks=new Map();
+  if(result&&p) {
+    const cues=new Map(p.subtitles.cues.map(c=>[c.id,c])),partners=new Map(),labels=new Map(),rowsByTrack=new Map();
+    for(const b of p.subtitles.bindings){partners.set(b.source_id,b.target_id);partners.set(b.target_id,b.source_id);}
+    for(const cue of cues.values()){if(!rowsByTrack.has(cue.track_id))rowsByTrack.set(cue.track_id,[]);rowsByTrack.get(cue.track_id).push(cue);}
+    for(const track of p.subtitles.tracks)(rowsByTrack.get(track.id)||[]).sort((a,b)=>a.content.start-b.content.start||a.id.localeCompare(b.id)).forEach((c,i)=>labels.set(c.id,`${track.name}_${i+1}`));
+    result.groups.forEach((group,index)=>{
+      const targets=[group.targetId,partners.get(group.targetId)].filter(Boolean);
+      for(const id of group.removedIds){const cue=cues.get(id),target=targets.find(t=>cues.get(t)?.track_id===cue?.track_id);if(!target)continue;
+        const kind=id===target?'target':cue.content.start<cues.get(target).content.start?'next':'previous';
+        autoMergeMarks.set(id,{kind,number:index+1,title:`拼合 ${index+1}：${id===target?'合入此字幕':'并入 '+labels.get(target)}；同号字幕合为一条，文字按时间顺序排列`});
+      }
+    });
+    for(const snap of result.snaps||[])if(!autoMergeMarks.has(snap.id))autoMergeMarks.set(snap.id,{kind:snap.edge==='start'?'extend-start':'extend-end',number:'',title:snap.edge==='start'?'提前起点，填补间隔；不合并文字':'延长终点，填补间隔；不合并文字'});
+  }
+  paintAutoMergeMarks();
+}
+function paintAutoMergeMarks() {
+  cancelAnimationFrame(autoMergeMarkFrame);autoMergeMarkFrame=0;
+  const active=autoMergePanel?.classList.contains('show');
+  const nodes=new Map();
+  for(const node of document.querySelectorAll('.waveform-cue-block[data-cue-id]'))nodes.set(node,node.dataset.cueId);
+  for(const row of container.querySelectorAll('.cue[data-main-id], .cue[data-ext-id]')) {
+    if(row.dataset.mainId)nodes.set(row.querySelector('.multi-cue-column.main')||row,row.dataset.mainId);
+    if(row.dataset.extId)nodes.set(row.querySelector('.multi-cue-column.extension')||row,row.dataset.extId);
+  }
+  for(const [node,id] of nodes) {
+    const mark=active?autoMergeMarks.get(id):null,old=node.querySelector('.merge-plan-marker');
+    if(!mark){old?.remove();node.classList.remove('merge-plan-cue');continue;}
+    const signature=JSON.stringify(mark);if(old?.dataset.signature===signature)continue;
+    old?.remove();const badge=document.createElement('span');badge.className='merge-plan-marker';badge.dataset.kind=mark.kind;
+    badge.dataset.signature=signature;badge.title=mark.title;badge.setAttribute('aria-label',mark.title);
+    const paths={target:'M3 5h4v6H3zM9 5h4v6H9zM7 8h2',previous:'M13 3v4H3m4-4L3 7l4 4',next:'M3 3v4h10M9 3l4 4-4 4','extend-start':'M13 8H3m4-4L3 8l4 4M2 3v10','extend-end':'M3 8h10M9 4l4 4-4 4M14 3v10'};
+    badge.innerHTML=`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${paths[mark.kind]}"/></svg><span>${mark.number}</span>`;
+    node.classList.add('merge-plan-cue');(node.querySelector(':scope > .multi-cue-column-header, :scope > .index')||node).append(badge);
+  }
+}
+// Virtual rows and list cards are replaced during scroll and playback. Observe
+// only cue-tree changes, not our own badges, so markers survive without polling.
+const autoMergeMarkObserver=new MutationObserver(records=>{
+  if(!autoMergeMarks.size||!autoMergePanel.classList.contains('show')||autoMergeMarkFrame)return;
+  if(records.some(r=>[...r.addedNodes,...r.removedNodes].some(n=>n.nodeType===1&&(n.matches('.cue,.waveform-cue-block,.multi-cue-column')||n.querySelector('.cue,.waveform-cue-block,.multi-cue-column')))))
+    autoMergeMarkFrame=requestAnimationFrame(paintAutoMergeMarks);
+});
+for(const root of [container,document.getElementById('waveform-scroll')])if(root)autoMergeMarkObserver.observe(root,{childList:true,subtree:true});
 function applyProductionAutoMerge() {
   try {
     if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
@@ -11086,7 +11057,7 @@ function applyProductionAutoMerge() {
       feedbackMembers:layerCore.tracks(DATA).flatMap(t=>t.segments.filter(c=>group.removedIds.includes(c.id)).map(cue=>({cue,role:t.role,track_id:t.track_id}))),
       feedbackResults:result.project.subtitles.cues.filter(c=>group.resultIds.includes(c.id)),
     }));
-    productionCommitProject(result.project,'拼接/合并字幕',result.ids);
+    productionCommitProject(result.project,'拼合字幕',result.ids);
     restoreCueListRenderAnchor(anchor);updateWithoutCueListAutoScroll();
     triggerMergeFeedback(feedback);
     // Cache the new estimate, then keep the completion message until the user
@@ -11113,13 +11084,13 @@ function autoMergeSegments() {
   });
   if(EDITOR_SETTINGS.autoMergeSnapGaps===false)plan.snaps=[];
   if (!plan.snaps.length && !plan.groups.length) {
-    flashHint('没有需要拼接/合并的间隔或过短字幕', 'invalid');
+    flashHint('没有需要拼合的间隔或过短字幕', 'invalid');
     return;
   }
   if (editingState) finishEdit(false);
   commitCuePanelEdit();
   clearSelection({ silent: true });
-  pushUndo('拼接/合并字幕');
+  pushUndo('拼合字幕');
   const snappedCount = applyAutoMergeSnapsWithBindings(plan.snaps);
   // 合并从后往前进行，保持靠前组的下标仍然有效
   for (let i = plan.groups.length - 1; i >= 0; i--) {

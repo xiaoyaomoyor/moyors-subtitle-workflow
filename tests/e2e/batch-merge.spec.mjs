@@ -12,6 +12,24 @@ const fixture=()=>{
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 const open=page=>clickMenubarItem(page,'字幕','auto-merge-manage');
 const byId=values=>values.slice().sort((a,b)=>a.id.localeCompare(b.id));
+test('merge marks show destinations on both surfaces, survive redraw and clear on close or invalid scope',async({page},info)=>{
+ const before=await snap(page);await open(page);
+ await expect(page.locator('#cues-container .merge-plan-marker[data-kind=previous]')).toHaveCount(4);
+ await expect(page.locator('.waveform-cue-block .merge-plan-marker[data-kind=target]').first()).toBeVisible();
+ expect((await snap(page)).subtitles).toEqual(before.subtitles);
+ expect(await page.locator('.waveform-cue-block.merge-plan-cue').first().evaluate(n=>getComputedStyle(n).position)).toBe('absolute');
+ await page.evaluate(()=>renderAll({waveform:'full'}));
+ await expect(page.locator('#cues-container .merge-plan-marker[data-kind=previous]')).toHaveCount(4);
+ await page.locator('#auto-merge-gap-ms').fill('2000');await page.locator('#auto-merge-absorb-direction').selectOption('next');
+ await expect(page.locator('#cues-container .merge-plan-marker[data-kind=next]').first()).toBeVisible();
+ await page.screenshot({path:info.outputPath('merge-directions.png')});
+ await page.locator('#auto-merge-absorb-short').uncheck();
+ await expect(page.locator('#cues-container .merge-plan-marker[data-kind=target]')).toHaveCount(0);
+ await expect(page.locator('.merge-plan-marker[data-kind=extend-start]').first()).toBeVisible();
+ await page.locator('#auto-merge-scope').selectOption('selected');await expect(page.locator('.merge-plan-marker')).toHaveCount(0);
+ await page.locator('#auto-merge-scope').selectOption('track');await expect(page.locator('.merge-plan-marker').first()).toBeVisible();
+ await page.keyboard.press('Escape');await expect(page.locator('.merge-plan-marker')).toHaveCount(0);
+});
 test.beforeAll(async()=>{const dir=makeTempDir('batch-merge');server=await startStaticServer(generateBlankEditor(join(dir,'editor.html')),await findFreePort());});
 test.afterAll(async()=>server?.stop());
 test.beforeEach(async({page})=>{

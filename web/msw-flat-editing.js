@@ -241,11 +241,16 @@
         if(c.track_id===trackId)resultIds.add(id);
       }
       next.subtitle_view={...next.subtitle_view,secondary_cue_ids:[...right]};
-      result.conflicts.forEach(c=>conflicts.add(c));mergedGroups.push({sourceIds:ids,removedIds:removed,resultIds:result.ids});
+      const long=group.filter(i=>utils.countSubtitleUnits(rows[i].content.text,owner.split_mode)>=(options.shortCount||3));
+      const anchors=long.length?long:group;
+      const targetId=rows[options.absorbDirection==='next'?anchors.at(-1):anchors[0]].id;
+      result.conflicts.forEach(c=>conflicts.add(c));mergedGroups.push({sourceIds:ids,removedIds:removed,resultIds:result.ids,targetId});
     }
     if(groups.length)refreshOffsets(next);
     core.validate(next);
-    return {project:next,ids:[...resultIds],groups:mergedGroups,conflicts:[...conflicts],
+    const previewSnaps=snaps.flatMap(s=>{const c=rows[s.index],other=partner(p,c.id);
+      return [{id:c.id,edge:s.edge},...(other?[{id:other.id,edge:s.edge}]:[])];});
+    return {project:next,ids:[...resultIds],groups:mergedGroups,snaps:previewSnaps,conflicts:[...conflicts],
       stats:{scope:rows.filter(c=>wanted.has(c.id)).length,skipped,snaps:snaps.length,groups:groups.length,
         merged:groups.reduce((n,g)=>n+g.length,0),affected:affected.size,linked:linked.size}};
   }

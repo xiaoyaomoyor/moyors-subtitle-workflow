@@ -22,6 +22,23 @@ test.beforeEach(async({page})=>{
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();});
 async function idle(page){await expect.poll(()=>page.evaluate(()=>!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled),{timeout:15000}).toBe(true);}
 async function toggle(page,value){await page.evaluate(value=>{const el=document.getElementById('subtitle-avoid-controls');el.checked=value;el.dispatchEvent(new Event('change'));},value);await idle(page);}
+test('docked player controls keep readable contrast in light and dark themes',async({page},info)=>{
+  await page.evaluate(()=>{selectOnly(0);fixedPositionScope='cue';fixedStartPositioning();});
+  await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
+  for(const theme of ['light','dark']) {
+    await page.evaluate(theme=>{updateEditorSettings({theme,themePreset:theme==='light'?'alice':'default',colors:{}});applyThemeAndColors();},theme);
+    const ratios=await page.locator('#media-controls').evaluate(bar=>{
+      const ctx=document.createElement('canvas').getContext('2d');
+      const luminance=color=>{ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data].slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);};
+      const bg=luminance(getComputedStyle(bar).backgroundColor);
+      return [...bar.querySelectorAll('button,select,.media-clock')].map(n=>{const fg=luminance(getComputedStyle(n).color);return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05);});
+    });
+    expect(ratios.every(r=>r>=4.5)).toBe(true);
+    await page.screenshot({path:info.outputPath('player-controls-'+theme+'.png')});
+  }
+  await page.keyboard.press('Escape');await expect(page.locator('#media-controls')).not.toHaveClass(/media-controls-outside/);
+  await expect(page.locator('#media-controls button').first()).toHaveCSS('color','rgb(232, 232, 232)');
+});
 const events=page=>page.evaluate(async()=>await MSWSubtitleRenderer.renderer.renderer.getEvents());
 const pos=text=>[...text.match(/\\pos\(([^,]+),([^)]*)\)/)].slice(1).map(Number);
 async function assertVisibleAboveControls(page){

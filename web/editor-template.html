@@ -231,8 +231,8 @@ __WAVEFORM_CSS__
       <button type="button" class="dropdown-item" id="subtitle-load-srt" role="menuitem" title="加载 SRT 字幕文件">加载字幕</button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">处理</div>
-      <button type="button" class="dropdown-item" id="auto-merge-manage" role="menuitem" title="按轨道与范围批量填补短间隔、合并短字幕">拼接/合并字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-      <button type="button" class="dropdown-item" id="subtitle-scale-offset-open" role="menuitem" title="打开缩放/偏移字幕窗口">缩放/偏移字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="auto-merge-manage" role="menuitem" title="按轨道与范围批量填补短间隔、合并短字幕">拼合字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="subtitle-scale-offset-open" role="menuitem" title="打开缩放与偏移字幕窗口">缩放与偏移字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-submenu" id="batch-operations-group">
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
@@ -495,14 +495,14 @@ __WAVEFORM_CSS__
   </footer>
 </aside>
 
-<!-- 可拖动的非模态拼接/合并字幕工具窗 -->
+<!-- 可拖动的非模态拼合字幕工具窗 -->
 <aside class="gap-remove-panel msw-processing-panel auto-merge-panel" id="auto-merge-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="auto-merge-panel-title">
   <header class="gap-remove-panel-header" id="auto-merge-drag-handle">
     <div class="gap-remove-heading">
       <span class="gap-remove-eyebrow">字幕 · 处理</span>
-      <h3 id="auto-merge-panel-title">拼接/合并字幕</h3>
+      <h3 id="auto-merge-panel-title">拼合字幕</h3>
     </div>
-    <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼接/合并字幕工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+    <button type="button" id="auto-merge-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭拼合字幕工具窗"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
     <section class="settings-panel-section auto-merge-section" data-flat-settings hidden>
@@ -557,7 +557,7 @@ __WAVEFORM_CSS__
   <div class="msw-processing-actions auto-merge-footer"><small class="msw-processing-hint" id="auto-merge-preview" role="status" aria-live="polite"></small><button type="button" id="auto-merge-run" class="primary">应用</button></div>
 </aside>
 
-<!-- 缩放/偏移字幕工具窗 -->
+<!-- 缩放与偏移字幕工具窗 -->
 <aside class="gap-remove-panel msw-processing-panel" id="subtitle-cleanup-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-cleanup-title">
   <header class="gap-remove-panel-header" id="subtitle-cleanup-handle">
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕 · 处理</span><h3 id="subtitle-cleanup-title">清理字幕</h3></div>
@@ -575,80 +575,41 @@ __WAVEFORM_CSS__
     <div class="msw-processing-actions"><small id="subtitle-cleanup-status" class="msw-processing-hint" role="status" aria-live="polite"></small><button id="subtitle-cleanup-apply" type="button" class="primary">清理</button></div>
   </div>
 </aside>
-<aside class="gap-remove-panel subtitle-scale-panel" id="subtitle-scale-offset-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-scale-offset-title">
+<aside class="gap-remove-panel msw-processing-panel subtitle-scale-panel" id="subtitle-scale-offset-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-scale-offset-title">
   <header class="gap-remove-panel-header" id="subtitle-scale-offset-drag">
-    <div class="gap-remove-heading">
-      <span class="gap-remove-eyebrow">字幕</span>
-      <h3 id="subtitle-scale-offset-title">缩放/偏移字幕</h3>
-    </div>
-    <button type="button" id="subtitle-scale-offset-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭缩放/偏移字幕"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕 · 时间</span><h3 id="subtitle-scale-offset-title">缩放与偏移字幕</h3></div>
+    <button type="button" id="subtitle-scale-offset-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭缩放与偏移字幕"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
-    <div class="gap-remove-parameters-heading">
-      <span>缩放与偏移</span>
-      <small data-help-for="subtitle-scale-offset-title">输入后按 Enter 或点击其他位置生效，可撤销。滚轮缩放每格 1%，Shift 为 5%；时间偏移每格 10 ms，Shift 为 100 ms，Ctrl（Mac 为 Cmd）为 1 ms。方向按钮支持长按。</small>
+    <section class="subtitle-time-section">
+      <h4>作用范围</h4>
+      <div class="subtitle-time-fields">
+        <label>作用轨道<select id="subtitle-time-track"></select></label>
+        <label>作用范围<select id="subtitle-time-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
+      </div>
+      <label class="toggle settings-panel-item" data-option-help="绑定伙伴按相同的起止变化联动，保留原偏移。锁定、重叠或无效时间会阻止整批应用。"><input type="checkbox" id="subtitle-time-linked" checked>联动绑定字幕</label>
+    </section>
+    <section class="subtitle-time-section">
+      <h4>时间调整</h4>
+      <label class="subtitle-time-operation">操作<select id="subtitle-time-operation"><option value="shift">整体移动</option><option value="start">调整起点</option><option value="end">调整终点</option><option value="scale">缩放时长</option></select></label>
+      <div id="subtitle-time-offset-fields" class="subtitle-time-fields">
+        <label>方向<select id="subtitle-time-direction"><option value="later">延后</option><option value="earlier">提前</option></select></label>
+        <label data-option-help="输入正数；1 秒等于 1000 毫秒。方向由左侧选择。"><span class="msw-option-label">移动时间</span><span class="subtitle-time-number"><input id="subtitle-time-seconds" aria-label="移动时间" type="number" min="0" max="43200" step="0.001" value="0.000"><span>秒</span></span></label>
+      </div>
+      <div id="subtitle-time-scale-fields" class="subtitle-time-fields" hidden>
+        <label data-option-help="100% 不变，200% 为原时长的两倍，50% 为一半；不是字号或播放速度。"><span class="msw-option-label">时长比例</span><span class="subtitle-time-number"><input id="subtitle-scale-percent" aria-label="时长比例" type="number" min="1" max="1000" step="1" value="100"><span>%</span></span></label>
+        <label data-option-help="每条字幕单独缩放时保持对应的起点、中心或终点；整组起点会同时缩放组内间隔。"><span class="msw-option-label">保持不动</span><select id="subtitle-scale-anchor"><option value="start">每条起点</option><option value="center" selected>每条中心</option><option value="end">每条终点</option><option value="group">整组起点（含间隔）</option></select></label>
+      </div>
+    </section>
+    <div id="subtitle-time-example" class="subtitle-time-example" hidden>
+      <span id="subtitle-time-example-title"></span>
+      <div><span>调整前</span><span id="subtitle-time-before"></span></div>
+      <div><span>调整后</span><span id="subtitle-time-after"></span></div>
+      <svg id="subtitle-time-diagram" viewBox="0 0 320 32" role="img" aria-label="时间变化示意"><path d="M0 8H320M0 24H320"/><rect id="subtitle-time-before-bar" y="3" height="10" rx="2"/><rect id="subtitle-time-after-bar" y="19" height="10" rx="2"/></svg>
     </div>
-    <div class="msw-processing-fields">
-      <label>作用轨道<select id="subtitle-time-track"><option value="overlay">叠加字幕</option><option value="main">主字幕</option><option value="extension">当前副字幕轨</option></select></label>
-      <label>作用范围<select id="subtitle-time-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
-    </div>
-    <label class="msw-tts-check" data-option-help="按同样的起止变化调整绑定伙伴，保留时间偏移。关闭时只调整目标轨；有锁定、重叠或无效时间时整批不应用。整轨范围包含禁用、隐藏和折叠内容。"><input type="checkbox" id="subtitle-time-linked" checked>联动绑定字幕</label>
-    <div class="gap-remove-fields">
-      <label class="gap-remove-field">
-        <span class="gap-remove-field-label">缩放字幕</span>
-        <span class="gap-remove-number-control">
-          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-scale-percent" data-step-dir="-1" title="向左减小 1%（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
-          <input type="number" id="subtitle-scale-percent" min="1" max="1000" step="1" value="100" inputmode="numeric">
-          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-scale-percent" data-step-dir="1" title="向右增大 1%（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
-          <span class="gap-remove-unit">%</span>
-        </span>
-        <small>100% 保持不变；按所选锚点缩放时间，发生同轨重叠或无效时间时整批不应用。</small>
-      </label>
-      <label class="gap-remove-field">
-        <span class="gap-remove-field-label">缩放锚点</span>
-        <span class="gap-remove-number-control anchor-select-control">
-          <select id="subtitle-scale-anchor" title="多选时的缩放基准">
-            <option value="center" selected>各自中心</option>
-            <option value="group">整组范围</option>
-          </select>
-        </span>
-        <small>整组范围按选中整体的起止等比缩放，组内间隔同比</small>
-      </label>
-      <label class="gap-remove-field">
-        <span class="gap-remove-field-label">起点偏移</span>
-        <span class="gap-remove-number-control">
-          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-start-offset-ms" data-step-dir="-1" title="向左减小 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
-          <input type="number" id="subtitle-start-offset-ms" step="1" value="0" inputmode="numeric">
-          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-start-offset-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
-          <span class="gap-remove-unit">ms</span>
-        </span>
-        <small>正数向后、负数向前；应用成功后归零，发生重叠或无效时间时整批不应用。</small>
-      </label>
-      <label class="gap-remove-field">
-        <span class="gap-remove-field-label">终点偏移</span>
-        <span class="gap-remove-number-control">
-          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-end-offset-ms" data-step-dir="-1" title="向左减小 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
-          <input type="number" id="subtitle-end-offset-ms" step="1" value="0" inputmode="numeric">
-          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-end-offset-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
-          <span class="gap-remove-unit">ms</span>
-        </span>
-        <small>正数向后、负数向前；应用成功后归零，发生重叠或无效时间时整批不应用。</small>
-      </label>
-      <label class="gap-remove-field">
-        <span class="gap-remove-field-label">整体偏移</span>
-        <span class="gap-remove-number-control">
-          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-shift-ms" data-step-dir="-1" title="向左减小 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
-          <input type="number" id="subtitle-shift-ms" step="1" value="0" inputmode="numeric">
-          <button type="button" class="gap-remove-step-btn" data-step-for="subtitle-shift-ms" data-step-dir="1" title="向右增大 1ms（可长按连发）"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg></button>
-          <span class="gap-remove-unit">ms</span>
-        </span>
-        <small>所有目标字幕移动相同距离，保留时长与间隔；正数向后、负数向前。发生重叠或越过零点时整批不应用。</small>
-      </label>
-    </div>
-    <footer class="gap-remove-panel-footer">
-      <span id="subtitle-time-status" role="status" aria-live="polite">请选择作用范围</span>
-    </footer>
+    <p hidden data-help-for="subtitle-scale-offset-title">先预览再应用，整批可一次撤销。输入、失焦和滚轮不会直接修改字幕。整轨范围包含禁用、隐藏与折叠内容。</p>
   </div>
+  <footer class="msw-processing-actions subtitle-time-footer"><small id="subtitle-time-status" class="msw-processing-hint" role="status" aria-live="polite">请选择作用范围</small><button id="subtitle-time-apply" class="primary" type="button" disabled>应用</button></footer>
 </aside>
 
 <aside class="gap-remove-panel cue-editor-settings-window" id="cue-editor-settings-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="cue-editor-settings-title">

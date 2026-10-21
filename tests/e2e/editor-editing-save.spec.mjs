@@ -1,3 +1,4 @@
+async function submitTimeOffset(page,ms){await page.locator('#subtitle-time-seconds').fill((ms/1000).toFixed(3));await page.locator('#subtitle-time-seconds').press('Enter');if(await page.locator('#subtitle-time-apply').isEnabled())await page.locator('#subtitle-time-apply').click();}
 import {test,expect} from '@playwright/test';
 import {writeFileSync,statSync} from 'node:fs';
 import {join} from 'node:path';
@@ -47,7 +48,7 @@ test('native selected text copies without replacing the subtitle block clipboard
 test('merge sections match timing fields and new project has a distinct save title',async({page})=>{
   await clickMenubarItem(page,'字幕','auto-merge-manage');
   const color=await page.locator('#auto-merge-gap-ms').evaluate(e=>getComputedStyle(e.closest('.auto-merge-section')).backgroundColor);
-  const timingColor=await page.locator('#subtitle-scale-percent').evaluate(e=>getComputedStyle(e.closest('.gap-remove-field')).backgroundColor);
+  const timingColor=await page.locator('#subtitle-scale-percent').evaluate(e=>getComputedStyle(e.closest('.subtitle-time-section')).backgroundColor);
   expect(color).toBe(timingColor);expect(color).not.toBe('rgba(0, 0, 0, 0)');
   if(process.env.MSW_UI_EVIDENCE_DIR)await page.screenshot({path:join(process.env.MSW_UI_EVIDENCE_DIR,'merge-panel.png')});
   await page.locator('#auto-merge-close').click();
@@ -90,7 +91,8 @@ test('timing wheel coalesces undo, retimes words and keeps feedback in panel',as
   await page.evaluate(()=>{selectedIdxs.add(0);});
   await clickMenubarItem(page,'字幕','subtitle-scale-offset-open');
   const before=await page.evaluate(()=>({undo:editorHistory.undoLength(),hints:document.querySelectorAll('.hint-card').length}));
-  await page.locator('#subtitle-shift-ms').evaluate(input=>{for(let i=0;i<3;i++)input.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));});
+  await page.locator('#subtitle-time-seconds').evaluate(input=>{input.focus();for(let i=0;i<3;i++)input.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));});
+  await page.locator('#subtitle-time-seconds').press('Enter');await page.locator('#subtitle-time-apply').click();
   const result=await page.evaluate(()=>({start:DATA.segments[0].start,word:DATA.segments[0].items[0].start,undo:editorHistory.undoLength(),hints:document.querySelectorAll('.hint-card').length,repairs:[repairCurrentProjectTimings(),repairCurrentProjectTimings()]}));
   expect(result.start).toBe(2030);expect(result.word).toBe(2030);expect(result.undo).toBe(before.undo+1);expect(result.hints).toBe(before.hints);expect(result.repairs).toEqual([0,0]);
   await expect(page.locator('#subtitle-time-status')).toContainText('已调整');
@@ -104,17 +106,17 @@ test('secondary timing scope never falls back to editing all main subtitles',asy
   await clickMenubarItem(page,'字幕','subtitle-scale-offset-open');
   const physicalTrack=await page.evaluate(()=>MSWProductionProject.toProject(DATA).subtitles.cues.find(c=>c.id===getActiveExtensionTrack().segments[0].id).track_id);
   await expect(page.locator('#subtitle-time-track')).toHaveValue(physicalTrack);
-  await page.locator('#subtitle-shift-ms').fill('100');await page.locator('#subtitle-shift-ms').press('Tab');
+  await submitTimeOffset(page,100);
   expect(await page.evaluate(()=>[DATA.segments[0].start,getActiveExtensionTrack().segments[0].start])).toEqual([2000,2100]);
   await page.evaluate(()=>selectedExtensionIdxs.clear());
-  await page.locator('#subtitle-shift-ms').fill('100');await page.locator('#subtitle-shift-ms').press('Tab');
+  await submitTimeOffset(page,100);
   await expect(page.locator('#subtitle-time-status')).toContainText('当前范围没有字幕');
 });
 
 test('whole-track move preserves gaps and durations',async({page})=>{
   await clickMenubarItem(page,'字幕','subtitle-scale-offset-open');
   await expect(page.locator('#subtitle-time-scope')).toHaveValue('all');
-  await page.locator('#subtitle-shift-ms').fill('1500');await page.locator('#subtitle-shift-ms').press('Tab');
+  await submitTimeOffset(page,1500);
   expect(await page.evaluate(()=>DATA.segments.map(c=>[c.start,c.end]))).toEqual([[3500,4500],[5500,6500],[7500,8500]]);
 });
 
@@ -126,7 +128,7 @@ for(const kind of ['main','extension'])test(`linked ${kind} batch movement prese
   await clickMenubarItem(page,'字幕','subtitle-scale-offset-open');
   const physicalTrack=await page.evaluate(kind=>MSWProductionProject.toProject(DATA).subtitles.cues.find(c=>c.id===(kind==='main'?DATA.segments:getActiveExtensionTrack().segments)[0].id).track_id,kind);
   await page.locator('#subtitle-time-track').selectOption(physicalTrack);
-  await page.locator('#subtitle-shift-ms').fill('2500');await page.locator('#subtitle-shift-ms').press('Tab');
+  await submitTimeOffset(page,2500);
   expect(await page.evaluate(()=>[DATA.segments,getActiveExtensionTrack().segments].map(cues=>cues.map(c=>[c.start,c.end,c.items[0].start])))).toEqual([
     [[4500,5500,4500],[6500,7500,6500],[8500,9500,8500]],
     [[4500,5500,4500],[6500,7500,6500],[8500,9500,8500]],
@@ -140,7 +142,7 @@ test('dense frame word timing remains stable across repeated save snapshots',asy
     selectedIdxs.add(0);
   });
   await clickMenubarItem(page,'字幕','subtitle-scale-offset-open');
-  await page.locator('#subtitle-shift-ms').fill('100');await page.locator('#subtitle-shift-ms').press('Tab');
+  await submitTimeOffset(page,100);
   const result=await page.evaluate(()=>({first:buildJson(),second:buildJson(),cue:DATA.segments[0],repairs:repairCurrentProjectTimings()}));
   expect(result.first).toEqual(result.second);expect(result.repairs).toBe(0);
   expect(result.cue.items.every(i=>i.start>=result.cue.start && i.end<=result.cue.end)).toBe(true);

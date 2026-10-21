@@ -9,6 +9,21 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '字幕 · 时间': 'Subtitles · Timing', '时间调整': 'Timing adjustment', '整体移动': 'Move together',
+    '调整起点': 'Adjust starts', '调整终点': 'Adjust ends', '缩放时长': 'Scale duration',
+    '方向': 'Direction', '延后': 'Later', '提前': 'Earlier', '移动时间': 'Time amount',
+    '时长比例': 'Duration ratio', '保持不动': 'Keep fixed', '每条起点': 'Each start',
+    '每条中心': 'Each center', '每条终点': 'Each end', '整组起点（含间隔）': 'Group start (including gaps)',
+    '首条示例': 'First subtitle example', '调整前': 'Before', '调整后': 'After', '时间变化示意': 'Timing preview',
+    '时长比例须在 1%–1000% 之间': 'Duration ratio must be between 1% and 1000%',
+    '请输入有效的移动时间（秒）': 'Enter a valid time amount in seconds',
+    '输入正数；1 秒等于 1000 毫秒。方向由左侧选择。': 'Enter a positive value. One second equals 1000 milliseconds. Choose Earlier or Later on the left.',
+    '100% 不变，200% 为原时长的两倍，50% 为一半；不是字号或播放速度。': '100% keeps the duration; 200% doubles it; 50% halves it. This does not change font size or playback speed.',
+    '每条字幕单独缩放时保持对应的起点、中心或终点；整组起点会同时缩放组内间隔。': 'Scale each subtitle around its start, center or end. Group start scales both durations and gaps together.',
+    '绑定伙伴按相同的起止变化联动，保留原偏移。锁定、重叠或无效时间会阻止整批应用。': 'Linked partners follow the same boundary changes, preserving offsets. Locks, overlaps or invalid times prevent the entire batch.',
+    '先预览再应用，整批可一次撤销。输入、失焦和滚轮不会直接修改字幕。整轨范围包含禁用、隐藏与折叠内容。': 'Preview before applying; undo the batch in one step. Typing, blurring or scrolling does not edit subtitles. Whole track includes disabled, hidden and collapsed content.',
+    '提前起点，填补间隔；不合并文字': 'Extend the start earlier to fill the gap; keep text separate',
+    '延长终点，填补间隔；不合并文字': 'Extend the end later to fill the gap; keep text separate',
     '属性列表': 'Properties', '基础': 'Basic', '对象': 'Target', '样式预设': 'Style preset',
     '对齐锚点': 'Anchor', '位置方式': 'Positioning', '单独定位': 'Custom position',
     '动画参数': 'Animation parameter', '文字显现': 'Text reveal', '使用关键帧': 'Use keyframes',
@@ -1150,13 +1165,13 @@
     "加载媒体或字幕文件": "Load media or subtitle file",
     "导出主/副字幕（SRT/ASS）或按颜色分别导出": "Export main/extension subtitles (SRT/ASS), or export by color",
     "导出主字幕轨": "Export main subtitle track",
-    "打开缩放/偏移字幕窗口": "Open subtitle scale/shift window",
+    "打开缩放与偏移字幕窗口": "Open subtitle scale/shift window",
     "识别整个源视频或时间选区": "Transcribe the source video or selected time ranges",
     "播放时跳过已移除的空隙；左键定位到空隙内时可临时预览": "Skip removed gaps during playback; left-click inside a gap to preview it temporarily",
     "删除当前所有已移除和已恢复的空隙区段记录（可撤销）": "Delete all removed and restored gap records (undoable)",
     "在「字幕编辑器」等子工作区顶部栏显示 Enter / Esc 等快捷键提示（默认关闭）": "Show Enter/Esc and other shortcut hints in panel headers (off by default)",
     "Alt+左键点击切换整段，空白处 Alt+左键拖动增加空隙；空隙块左键或 Alt+左键拖动整体偏移，Ctrl/Cmd+拖动复制；中键拖动默认增加静音，按住 Alt 才恢复声音": "Alt+left click toggles a gap; Alt+left drag on blank space adds one. Left/Alt+left drag moves gaps; Ctrl/Cmd+drag copies. Middle drag adds silence; Alt restores sound.",
-    "关闭缩放/偏移字幕": "Close subtitle scale/shift",
+    "关闭缩放与偏移字幕": "Close subtitle scale/shift",
     "开启后，字数过滤期间拆分出的字幕会暂时保留，直到点击其他字幕、波形或空白处": "Keep newly split subtitles visible during count filtering until another subtitle, waveform or blank area is clicked",
     "波形形状来源：默认使用媒体旁 .ReaPeaks 的最细 wave 层（缺数据时自动回退自研缓存）；需要时可切回自研": "Waveform source: use the finest cached wave layer, falling back to native peaks when unavailable; switch to native peaks if needed",
     "在波形条左侧显示行编号（V1/V2 字幕行、A1/A2 配音行）；点击编号可禁用/启用整行": "Show lane labels at the left (V1/V2 subtitles, A1/A2 audio); click to mute/unmute a lane",
@@ -1693,7 +1708,7 @@
     '搜索设置…': 'Search settings…', '已复制工程文件名': 'Project file name copied',
     // 第二轮：音频设置 / 工作区布局 / 界面配置 / 颜色 / dock 菜单
     '音频设置': 'Audio settings', '多行波形': 'Multi-row waveform', '基础波形': 'Basic waveform',
-    '播放时跳过空隙': 'Skip removed gaps during playback', '快捷键提示': 'Keyboard hints', '菜单栏': 'Menubar', '缩放字幕': 'Scale subtitles', '缩放/偏移字幕': 'Scale / shift subtitles', '缩放与偏移': 'Scale & offset', '起点偏移': 'Start offset', '终点偏移': 'End offset', '整体偏移': 'Shift all', '输入即生效（可撤销）；未选中字幕时对全部字幕生效': 'Applies on input (undoable); affects all subtitles when none is selected',
+    '播放时跳过空隙': 'Skip removed gaps during playback', '快捷键提示': 'Keyboard hints', '菜单栏': 'Menubar', '缩放字幕': 'Scale subtitles', '缩放与偏移字幕': 'Scale / shift subtitles', '缩放与偏移': 'Scale & offset', '起点偏移': 'Start offset', '终点偏移': 'End offset', '整体偏移': 'Shift all', '输入即生效（可撤销）；未选中字幕时对全部字幕生效': 'Applies on input (undoable); affects all subtitles when none is selected',
     '按比例缩放时长；中心不变，100 为不变；自动限制在相邻字幕之间，不产生重叠': 'Scales duration proportionally around the center; 100 = unchanged; automatically clamped between neighbors so nothing overlaps',
     '正数向右、负数向左；应用后归零；自动限制在相邻字幕之间': 'Positive moves right, negative left; resets after applying; automatically clamped between neighbors',
     '整条字幕平移；正右负左，应用后归零；自动限制在相邻字幕之间': 'Moves the whole cue; resets after applying; automatically clamped between neighbors',
@@ -1716,7 +1731,7 @@
     '选区': 'Selection', '命中': 'Hit',
     '选区色': 'Selection color', '灵梦：红白配色浅色主题': 'Reimu: red-and-white light theme', '爱丽丝：金发蓝裙浅色主题': 'Alice: blonde-blue light theme', '恋：黄绿配色浅色主题': 'Koishi: yellow-green light theme', '退出编辑器': 'Exit editor', '页面全屏': 'Page fullscreen', '退出页面全屏': 'Exit page fullscreen', '介绍引导': 'Replay guide', '我的字幕流编辑器': 'MSW Subtitle Editor', '重新完整走一遍快速上手': 'Walk through the quick-start guide again', '跳过 (ESC)': 'Skip (Esc)', '播放/暂停': 'Play/Pause', '媒体首/尾': 'Media start/end', '选择前/后字幕': 'Select previous/next subtitle', '连选': 'Extend selection', '与前/后一条合并': 'Merge with previous/next', '多选': 'Multi-select', '全选': 'Select all', '取消选择': 'Deselect', '选择/分割工具': 'Select/Razor tool', '切回选择/清除选择': 'Back to select / clear selection', '在鼠标位置创建字幕': 'Create subtitle at the pointer', '按音频位置拆分': 'Split at the audio position', '框选字幕': 'Marquee-select subtitles', '微调移动字幕': 'Nudge subtitle', '起终点贴邻': 'Snap edge to neighbor', '起终点到鼠标位置': 'Edge to pointer', '按住微调移动': 'Hold to nudge', '绑定': 'Bind', '解绑': 'Unbind', '副字幕对齐主字幕时长': 'Align extension to main duration', '空隙启用/禁用': 'Toggle gap', '调整振幅': 'Adjust amplitude', '分配/清除颜色': 'Assign/Clear color', '让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）': 'Fill the screen with the editor page (browser fullscreen, Esc to exit).', '退出浏览器全屏（Esc）': 'Exit browser fullscreen (Esc).', '当前浏览器不支持页面全屏': 'Page fullscreen is not supported in this browser.', '尚未保存': 'Not saved yet', '删除此自定义工作区': 'Delete this custom workspace', '中文': 'Chinese', '服务器已停止，可以关闭此标签页了': 'Server stopped; you can close this tab now', '停止本地编辑器服务器并关闭本页': 'Stop the local editor server and close this page', '复制当前窗口为新标签': 'Duplicate this window as a new tab', '把此窗口变成其他模块': 'Turn this window into another module', '此窗口当前显示在另一处标签；点击本标签切换到这里': 'This window is currently shown at another tab; click this tab to bring it here', '添加窗口到此标签组': 'Add a window to this tab group', '没有可添加的窗口': 'No windows available to add', '弹出为浮动窗口': 'Pop out as floating window', '关闭窗口': 'Close window', '至少保留一个窗口在工作区': 'Keep at least one window in the workspace', '空隙设置': 'Gap settings', '静音空隙工具与播放跳过设置': 'Silence gap tools and playback skip settings', '已复制媒体文件名': 'Media filename copied', '按颜色过滤': 'Filter by color', '空隙操作': 'Gap operations', '移除空隙的人工修正方式；「边界与中键」可同时启用两套操作': 'Manual correction style for removed gaps; Boundary & Middle enables both at once', '多行波形按每行长度滚动显示；基础波形单行跟随播放头显示': 'Multi-row waveform scrolls by row length; basic waveform follows the playhead in one row', '详见帮助的「空隙状态」说明': 'See the Gap states section in Help',
     '非字幕片段设为空隙': 'Treat non-subtitle spans as gaps',
-    '静音空隙工具': 'Silence gap tools', '没有可处理的空隙；请先加载媒体并用「静音空隙工具」扫描': 'No gaps to process; load media and scan with the silence gap tools first', '拼接/合并字幕': 'Merge subtitles', '延长字幕': 'Extend subtitles',
+    '静音空隙工具': 'Silence gap tools', '没有可处理的空隙；请先加载媒体并用「静音空隙工具」扫描': 'No gaps to process; load media and scan with the silence gap tools first', '延长字幕': 'Extend subtitles',
     '批量对齐': 'Batch align', '处理': 'Processing',
     '布局': 'Layout', '切换工作区布局': 'Switch workspace layout',
     '保存到自定义布局': 'Save to custom layout', '恢复默认布局': 'Restore default layout',
@@ -2038,8 +2053,7 @@
     '多行': 'Multi-row', '基础': 'Basic', '隐藏': 'Hidden',
     '选择': 'Select', '分割': 'Razor', '移除静音空隙': 'Remove silent gaps',
     '跳过空隙': 'Skip gaps', '播放时跳过空隙': 'Skip gaps during playback', '未扫描空隙': 'Gaps not scanned', '工作区': 'Workspace',
-    '拼合字幕': 'Snap subtitles', '拼合参数': 'Snap parameters',
-    '拼接/合并字幕': 'Join / merge subtitles', '拼接/合并参数': 'Join / merge parameters',
+    '拼合字幕': 'Join / merge subtitles', '拼合参数': 'Join / merge parameters',
     '拼接字幕': 'Snap subtitles',
     '将间隔过短的前后字幕直接吸附在一起；0 表示不处理间隔': 'Snap adjacent subtitles with short gaps directly together; 0 leaves gaps unchanged',
     '向前：后方字幕起点吸附到前方字幕终点；向后：前方字幕终点吸附到后方字幕起点': 'Forward: snap the later subtitle start to the earlier subtitle end; backward: snap the earlier subtitle end to the later subtitle start',
@@ -2081,8 +2095,7 @@
       'Short subtitles are absorbed only when the adjacent interval is within the threshold above; when off, only intervals are snapped',
     '关闭后只吸附间隔，不合并任何字幕': 'When off, only intervals are snapped and no subtitles are merged',
     '按当前参数处理整段工程': 'Process the whole project with these parameters',
-    '没有需要拼合的间隔或过短字幕': 'No intervals or short subtitles to snap',
-    '没有需要拼接/合并的间隔或过短字幕': 'No intervals or short subtitles to join / merge',
+    '没有需要拼合的间隔或过短字幕': 'No intervals or short subtitles to join / merge',
     '字幕时长不足 200ms，无法拆分': 'Subtitles shorter than 200 ms cannot be split',
     '字幕列表编辑': 'Subtitle list editor', '右侧整列波形': 'Waveform column right',
     '三折叠布局': 'Three-fold layout', '大荧幕布局': 'Cinema screen layout',
@@ -2614,10 +2627,9 @@
     '选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl(Cmd)/Shift 多选，Shift+空白拖拽框选，Alt 临时反转相邻字幕联动，Alt+点击切换禁用': 'Select tool (V, default): click to select, drag to move, drag edges to trim; Ctrl(Cmd)/Shift multi-select, Shift+drag on blank area to box-select, Alt temporarily reverses adjacent-cue linking, Alt+click toggles disabled',
     '分割工具（R）：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择': 'Razor tool (R): click a subtitle block to split at the pointer using word/character timing; splits within 100 ms of an edge are rejected; Esc returns to Select',
     '打开可拖动的移除静音空隙工具窗': 'Open the draggable silent-gap tool',
-    '打开可拖动的拼合字幕工具窗': 'Open the draggable snap-subtitles tool',
-    '关闭拼合字幕工具窗': 'Close the snap-subtitles tool',
+    '打开可拖动的拼合字幕工具窗': 'Open the draggable join / merge subtitles tool',
     '将间隔过短的前后字幕直接吸附在一起，去除中间的短暂空白（可直接吸收短字幕）': 'Snap nearby subtitles together to remove the brief gap between them (short subtitles can also be absorbed)',
-    '关闭拼接/合并字幕工具窗': 'Close the join / merge subtitles tool',
+    '关闭拼合字幕工具窗': 'Close the join / merge subtitles tool',
     '关闭后只拼合间隔，不合并任何字幕': 'When off, only intervals are snapped and no subtitles are merged',
     '播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览': 'Skip removed silent gaps during playback; clicking inside a gap previews it temporarily',
     '工作区：窗口布局与显示状态（列表显示项、波形模式等）': 'Workspace: window layout and display state (list fields, waveform mode, etc.)',
@@ -3074,7 +3086,7 @@
     if (match) {
       return `This color has ${match[1]} subtitles; click a row to show only that color, check boxes to select multiple`;
     }
-    // flashHint：已拼接/合并字幕：吸附 2 处间隔，吸收 1 条短字幕
+    // flashHint：已拼合字幕：吸附 2 处间隔，吸收 1 条短字幕
     match = /^(已拼接\/合并字幕|已拼合字幕)：(.+)$/.exec(text);
     if (match) {
       const parts = match[2].split('，').map((part) => {
@@ -3084,14 +3096,18 @@
         if (inner) return `absorbed ${inner[1]} short subtitles`;
         return translateText(part, EN);
       });
-      return `${match[1] === '已拼接/合并字幕' ? 'Join / merge subtitles' : 'Snap subtitles'}: ${parts.join(', ')}`;
+      return `Join / merge subtitles: ${parts.join(', ')}`;
     }
     match = /^当前范围：(\d+) 条字幕$/.exec(text);
     if (match) return `Current scope: ${match[1]} subtitles`;
+    match = /^预计调整 (\d+) 条字幕(?: · 联动 (\d+) 条)?$/.exec(text);
+    if (match) return `Will adjust ${match[1]} subtitles${match[2]?' · '+match[2]+' linked':''}`;
+    match = /^拼合 (\d+)：(合入此字幕|并入 (.+))；同号字幕合为一条，文字按时间顺序排列$/.exec(text);
+    if (match) return `Join ${match[1]}: ${match[3]?'into '+match[3]:'destination'}; matching numbers merge in time order`;
     match = /^已校正 (\d+) 处字词时间；请检查调整结果$/.exec(text);
     if (match) return `Corrected ${match[1]} word timings; check the result`;
     match = /^已调整 (\d+) 条字幕 · (.+)$/.exec(text);
-    if (match) return `Adjusted ${match[1]} subtitles · ${match[2].replace('本次缩放', 'Scale').replace('起点偏移', 'Start offset').replace('终点偏移', 'End offset').replace('整体偏移', 'Track offset').replace(/（(\d+) 条受相邻字幕限制）/, ' ($1 constrained by neighboring subtitles)')}`;
+    if (match) return `Adjusted ${match[1]} subtitles · ${match[2].replace('可一次撤销','Undo in one step').replace('本次缩放', 'Scale').replace('起点偏移', 'Start offset').replace('终点偏移', 'End offset').replace('整体偏移', 'Track offset').replace(/（(\d+) 条受相邻字幕限制）/, ' ($1 constrained by neighboring subtitles)')}`;
     // flashHint：已自动修复 2 处 0 长时间码（保底 100ms）
     match = /^已自动修复\s*(\d+)\s*处\s*0\s*长时间码（保底\s*100ms）$/.exec(text);
     if (match) return `Auto-repaired ${match[1]} zero-length timings (100 ms minimum)`;

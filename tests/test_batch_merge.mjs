@@ -25,6 +25,15 @@ const fixture=()=>{
 };
 const run=(p,patch={},ids=null)=>edit.batchMerge(p,p.subtitles.tracks[0].id,ids,{gapMs:200,shortCount:3,utils,...patch});
 const text=p=>p.subtitles.cues.filter(c=>c.track_id===p.subtitles.tracks[0].id).sort((a,b)=>a.content.start-b.content.start).map(c=>c.content.text);
+test('preview marks describe actual fallback destinations and linked boundary extensions',()=>{
+ const p=fixture(),rows=p.subtitles.cues.filter(c=>c.track_id===p.subtitles.tracks[0].id);
+ const previous=run(p);assert.equal(previous.groups[0].targetId,rows[0].id);
+ const fallback=run(p,{absorbDirection:'next'});assert.equal(fallback.groups[0].targetId,rows[0].id);
+ const next=run(p,{absorbDirection:'next',gapMs:2000});assert.equal(next.groups[0].targetId,rows[2].id);
+ assert.deepEqual(Array.from(previous.snaps,s=>s.id),[rows[1].id,'partner1',rows[3].id,'partner3']);
+ assert.ok(previous.snaps.every(s=>s.edge==='start'));
+ assert.equal(run(p,{snapGaps:false}).snaps.length,0);
+});
 
 test('batch parameters affect only nearby groups and preserve paired offsets and input',()=>{
  const p=fixture(),original=JSON.stringify(p),result=run(p);

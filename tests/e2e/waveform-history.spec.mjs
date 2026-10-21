@@ -1766,8 +1766,10 @@ test('offsets selected subtitle ends and undoes the batch in one step', async ({
   await cues.nth(1).click({ modifiers: ['Control'] });
   const before = await page.evaluate(() => structuredClone(DATA.segments));
   await clickMenubarItem(page, '字幕', 'subtitle-scale-offset-open');
-  await page.locator('#subtitle-end-offset-ms').fill('60');
-  await page.locator('#subtitle-end-offset-ms').press('Enter');
+  await page.locator('#subtitle-time-operation').selectOption('end');
+  await page.locator('#subtitle-time-seconds').fill('0.060');
+  await page.locator('#subtitle-time-seconds').press('Enter');
+  await page.locator('#subtitle-time-apply').click();
   const after = await page.evaluate(() => structuredClone(DATA.segments));
   expect(after.slice(0, 2).map(s => s.end)).toEqual(before.slice(0, 2).map(s => s.end + 60));
   expect(after.slice(2)).toEqual(before.slice(2));
