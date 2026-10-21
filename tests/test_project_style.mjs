@@ -130,3 +130,17 @@ test('pair spacing includes vertical scale rather than treating scaled text as i
     assert.deepEqual(S.pairSettings(x),S.pairSettings(y));
   }
 });
+
+
+test('separate English font is optional, portable in presets and safe in ASS mixed runs',()=>{
+  const value=S.defaults();value.main.latinFontName='Georgia';
+  assert.equal(S.normalize(value).main.latinFontName,'Georgia');
+  assert.equal(S.fromLibrary(S.toLibrary(value)).main.latinFontName,'Georgia');
+  assert.equal(S.normalize(S.defaults()).main.latinFontName,undefined);
+  assert.equal(U.assTextFont('中',value.main),value.main.fontName);
+  assert.equal(U.assTextFont('A',value.main),'Georgia');
+  assert.equal(U.assTextFont('1',value.main),'Georgia');
+  const text=U.escapeAssStyledText('中文 English，中文',value.main);
+  assert.ok(text.includes('{\\fnGeorgia} English'));
+  assert.ok(text.includes('{\\fn'+value.main.fontName+'}，中文'));
+});

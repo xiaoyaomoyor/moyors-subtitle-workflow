@@ -34,10 +34,12 @@ def ass(text, style):
     from maw.subtitle_wrapping import _characters
     from maw.msw.subtitle_style import ass_text
     units=_characters(text)
+    from maw.msw.subtitle_fonts import font_tags
+    fonts=font_tags(units,style)
     count=sum(not u.isspace() for u in units)
     parts=[];index=0
-    for unit in units:
+    for unit, font in zip(units, fonts):
         if not unit.isspace():
             parts.append(tag(color(style,index,count)));index+=1
-        parts.append(ass_text(unit))
+        parts.append(font+ass_text(unit))
     return ''.join(parts)

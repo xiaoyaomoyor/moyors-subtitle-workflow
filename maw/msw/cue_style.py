@@ -28,6 +28,8 @@ def valid(value):
             ok = isinstance(v, str) and re.fullmatch(r'#[0-9a-fA-F]{6}', v)
         elif key == 'fontName':
             ok = isinstance(v, str) and bool(v.strip()) and len(v) <= 128 and not re.search(r'[\r\n,\x00]', v)
+        elif key == 'latinFontName':
+            ok = isinstance(v, str) and len(v) <= 128 and not re.search(r'[\\{},\r\n\x00]', v)
         elif key == 'borderStyle':
             ok = type(v) in (int, float) and v in (1, 3)
         elif key == 'wrapMode':

@@ -4339,6 +4339,7 @@
       name: normalizeAssLibraryText(source.name, fallback.name || '样式'),
       builtin: Boolean(fallback.builtin),
       fontName: normalizeAssLibraryText(source.fontName, fallback.fontName || ASS_DEFAULT_FONT_FAMILY, ASS_STYLE_LIBRARY_MAX_FONT_LENGTH),
+      ...('latinFontName' in source || 'latinFontName' in fallback ? {latinFontName:normalizeAssLibraryText(source.latinFontName ?? fallback.latinFontName, '', ASS_STYLE_LIBRARY_MAX_FONT_LENGTH)} : {}),
       fontSize: normalizeAssLibraryNumber(source.fontSize, fallback.fontSize || 18, 1, 512),
       primaryColor: normalizeAssLibraryColor(source.primaryColor, fallback.primaryColor || '#ffffff'),
       secondaryColor: normalizeAssLibraryColor(source.secondaryColor, fallback.secondaryColor || '#ffffff'),
@@ -4865,7 +4866,7 @@
   function assEventText({ segment, text, speakerName, speakerLabelSeparator, colorName,
     colorStyles, style, colorStyle, speakerLabels, assMode }) {
     const content = String(text ?? '');
-    if (!speakerLabels || !speakerName) return escapeAssText(content);
+    if (!speakerLabels || !speakerName) return escapeAssStyledText(content,style);
     const paletteSpeakerColor = colorStyles.find((item) => item.name === colorName)?.value
       || style.primaryColor;
     // ASS can reproduce the existing text-colour mapping and stroke-colour
@@ -4880,8 +4881,23 @@
     // speaker label.
     const eventTextColor = style.primaryColor;
     const label = `${speakerName}${speakerLabelSeparator}`;
-    if (!assMode) return escapeAssText(`${label}${content}`);
-    return `{\\c${assOverrideColorFromHex(speakerColor)}}${escapeAssText(label)}{\\c${assOverrideColorFromHex(eventTextColor)}}${escapeAssText(content)}`;
+    if (!assMode) return escapeAssStyledText(`${label}${content}`,style);
+    return `{\\c${assOverrideColorFromHex(speakerColor)}}${escapeAssStyledText(label,style)}{\\c${assOverrideColorFromHex(eventTextColor)}}${style.latinFontName?`{\\fn${String(style.fontName).replace(/[\\{},\x00-\x1f]/g,'')}}`:''}${escapeAssStyledText(content,style)}`;
+  }
+
+  function assTextFont(text,style={}) {
+    const cp=String(text).codePointAt(0);
+    return (cp<=0x024f||cp>=0x1e00&&cp<=0x1eff?style.latinFontName:'')||style.fontName;
+  }
+
+  function escapeAssStyledText(text,style={}) {
+    if(!style.latinFontName||style.latinFontName===style.fontName)return escapeAssText(text);
+    let current=style.fontName;
+    return Array.from(String(text??''),char=>{
+      const family=/\p{Mark}/u.test(char)?current:assTextFont(char,style);
+      const tag=family!==current?`{\\fn${String(family).replace(/[\\{},\x00-\x1f]/g,'')}}`:'';current=family;
+      return tag+escapeAssText(char);
+    }).join('');
   }
 
   function buildAssPayload(segments, options = {}) {
@@ -5028,7 +5044,7 @@
           tags+=`\\pos(${x},${resolution.height/2-offset})`;
         }
         const extensionText = tags
-          ? `{${tags}}${escapeAssText(segment.text)}` : escapeAssText(segment.text);
+          ? `{${tags}}${escapeAssStyledText(segment.text,extensionStyle)}` : escapeAssStyledText(segment.text,extensionStyle);
         events.push(
           `Dialogue: 1,${formatAssTime(startCentiseconds * 10)},${formatAssTime(endCentiseconds * 10)},Extension,,0,0,${options.layerMargins?.secondary?.[segment.id] ?? 0},,${extensionText}`,
         );
@@ -6939,6 +6955,8 @@ export default MawDynamicCaptions;
     assColorFromHex,
     formatAssTime,
     escapeAssText,
+    assTextFont,
+    escapeAssStyledText,
     ASS_STYLE_LIBRARY_SCHEMA,
     ASS_DEFAULT_STYLE,
     ASS_DEFAULT_ASS_STYLE,

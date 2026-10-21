@@ -47,7 +47,7 @@
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
-  const basic=[['fontName','字体','text'],['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
+  const basic=[['fontName','中文字体','text'],['latinFontName','英文字体','text'],['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
   const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,100],['spacing','字距','number',-100,100],['marginL','左边距','number',0,9999],['marginR','右边距','number',0,9999],['marginV','垂直边距','number',0,9999],['angle','旋转角度','number',-360,360],['scaleX','横向缩放 %','number',0,1000],['scaleY','纵向缩放 %','number',0,1000]];
   function fields(rows,target,animation=false) {
     for(const [key,caption,type,min,max,step] of rows) {
@@ -93,37 +93,8 @@
     };
   }
   $('style-field-fontSize').closest('label').dataset.optionHelp='字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。';
-  const fontInput=$('style-field-fontName'),fontControl=document.createElement('span');fontControl.className='msw-style-font-control';fontInput.before(fontControl);fontControl.append(fontInput);
-  fontControl.insertAdjacentHTML('beforeend',iconButton('style-scan-fonts','读取本机字体','fonts'));const scanFonts=$('style-scan-fonts');
-  const fontMenu=document.createElement('div');fontMenu.id='style-local-fonts';fontMenu.className='msw-font-menu';fontMenu.hidden=true;
-  fontMenu.innerHTML='<input type="search" aria-label="搜索本机字体" placeholder="搜索字体"><div role="listbox" aria-label="本机字体"></div>';
-  document.body.append(fontMenu);let localFontFamilies=[];
-  const closeFonts=()=>{fontMenu.hidden=true;scanFonts.setAttribute('aria-expanded','false');};
-  const drawFonts=()=>{
-    const query=fontMenu.firstElementChild.value.trim().toLocaleLowerCase(),list=fontMenu.lastElementChild;
-    list.replaceChildren(...localFontFamilies.filter(f=>f.aliases.toLocaleLowerCase().includes(query)).map(f=>{
-      const b=document.createElement('button');b.type='button';b.setAttribute('role','option');b.textContent=f.family;
-      b.setAttribute('aria-selected',String(f.family===fontInput.value));
-      b.onclick=()=>{fontInput.value=f.family;closeFonts();fontInput.dispatchEvent(new Event('change',{bubbles:true}));fontInput.focus();};return b;
-    }));
-    if(!list.childElementCount)list.textContent='没有匹配的字体';
-  };
-  fontMenu.firstElementChild.oninput=drawFonts;
-  scanFonts.onclick=async()=>{try{
-    if(!fontMenu.hidden){closeFonts();return;}
-    if(!global.queryLocalFonts)throw Error('当前浏览器不支持读取字体，可直接输入字体名称');
-    const fonts=await global.queryLocalFonts(),families=new Map();
-    for(const f of fonts){if(!f.family)continue;const entry=families.get(f.family)||{family:f.family,aliases:f.family};entry.aliases+=' '+(f.fullName||'')+' '+(f.postscriptName||'');families.set(f.family,entry);}
-    localFontFamilies=[...families.values()].sort((a,b)=>a.family.localeCompare(b.family));
-    if(!localFontFamilies.length)throw Error('未读取到字体，请检查浏览器的本地字体权限');
-    fontMenu.firstElementChild.value='';drawFonts();fontMenu.hidden=false;scanFonts.setAttribute('aria-expanded','true');
-    const r=fontControl.getBoundingClientRect();fontMenu.style.width=Math.min(Math.max(240,r.width),innerWidth-16)+'px';
-    fontMenu.style.left=Math.max(8,Math.min(r.left,innerWidth-fontMenu.offsetWidth-8))+'px';
-    fontMenu.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-fontMenu.offsetHeight-8))+'px';fontMenu.firstElementChild.focus();
-  }catch(e){message(e.message,true);}};
-  document.addEventListener('pointerdown',e=>{if(!fontMenu.contains(e.target)&&!scanFonts.contains(e.target))closeFonts();},true);
-  fontMenu.onkeydown=e=>{e.stopPropagation();if(e.key==='Escape'){closeFonts();scanFonts.focus();}};
-  global.addEventListener('resize',closeFonts);
+  const fontInputs=['fontName','latinFontName'].map(key=>$('style-field-'+key));
+  const fontPicker=global.MSWFontPicker.create(fontInputs,()=>host.config?.processingUrl?request('subtitle-fonts'):Promise.reject());
   const A=global.AsrEditorUtils.ASS_DEFAULT_ANIMATIONS;
   const captions={fad:'淡入淡出',fade:'分段透明度',move:'移动',t:'样式渐变',inMs:'淡入 (ms)',outMs:'淡出 (ms)',alpha1:'起始透明度',alpha2:'中间透明度',alpha3:'结束透明度',t1:'开始 (ms)',t2:'结束 (ms)',t3:'第三时间 (ms)',t4:'第四时间 (ms)',x1:'起点 X',y1:'起点 Y',x2:'终点 X',y2:'终点 Y',startMs:'开始 (ms)',endMs:'结束 (ms)',accel:'变化速率',tags:'ASS 渐变标签'};
   const animationHelp={fad:'字幕出现和结束时的淡入淡出时长。与分段透明度二选一。',move:'按字幕开始后的时间，从起点移动到终点；坐标以画面左上角为原点。',fade:'按四个时间点在三种透明度间过渡：0 为不透明，255 为完全透明。与淡入淡出二选一。',t:'在指定时间段逐渐改变样式。变化速率为 1 时匀速；自定义可填写 ASS 标签。'};
@@ -165,7 +136,7 @@
   anchor.querySelector('.msw-option-label').textContent='对齐锚点';$('style-position-layout').append(anchor);
   anchor.dataset.optionHelp='锚点决定文字向哪个方向展开。百分比相对视频画面，不含黑边。';
   for(const key of ['marginL','marginR','marginV'])$('style-position-layout').append($('style-field-'+key).closest('label'));
-  for(const key of ['fontName'])$('style-field-'+key).closest('label').classList.add('msw-property-font');
+  for(const key of ['fontName','latinFontName'])$('style-field-'+key).closest('label').classList.add('msw-property-font');
   $('style-position-scope').closest('label').hidden=true;
   const restoreAppearance=document.createElement('button');restoreAppearance.type='button';restoreAppearance.id='style-inherit-appearance';restoreAppearance.className='msw-style-icon';
   restoreAppearance.title='恢复轨道外观';restoreAppearance.setAttribute('aria-label','恢复轨道外观');
@@ -472,6 +443,7 @@
       else input.placeholder='';
       recoveryState(reset,changed,saving||blocked);
     }
+    for(const input of fontInputs)fontPicker.sync(input,input.value,input.closest('label').classList.contains('is-mixed'));
     for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=cueScope()||track&&fixedTrackCore.placement(track)==='fixed';
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';

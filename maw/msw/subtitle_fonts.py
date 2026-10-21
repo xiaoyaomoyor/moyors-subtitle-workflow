@@ -57,6 +57,74 @@ def installed_fonts():
     return result
 
 
+@lru_cache(maxsize=1)
+def font_catalog():
+    """Public family metadata only; never expose installed filesystem paths."""
+    from fontTools.ttLib import TTFont, TTCollection
+    families = {}
+    paths = {path for group in installed_fonts().values() for path in group}
+    for path in sorted(paths):
+        owner = None
+        try:
+            owner = TTCollection(str(path), lazy=True) if path.suffix.lower() in {'.ttc', '.otc'} else TTFont(str(path), lazy=True)
+            for font in owner.fonts if hasattr(owner, 'fonts') else [owner]:
+                names = [(r.nameID, r.langID, r.toUnicode().strip()) for r in font['name'].names
+                         if r.nameID in {1, 4, 6, 16}]
+                family_names = [r for r in names if r[0] in {1, 16} and r[2]]
+                if not family_names:
+                    continue
+                # Keep separately selectable Windows/CSS families (Arial Black,
+                # Arial Narrow, etc.); typographic name 16 can collapse them.
+                family = min(family_names, key=lambda r: (r[1] not in (0x409, 0), r[0] != 1, r[2]))[2]
+                chinese = [r for r in family_names if r[1] & 0x3ff == 4 and re.search(r'[\u3400-\u9fff]', r[2])]
+                label = min(chinese, key=lambda r: (r[1] != 0x804, r[0] != 1, r[2]))[2] if chinese else family
+                cmap = font.getBestCmap() or {}
+                cjk = sum(ord(c) in cmap for c in '中文天地人山水日月一二三') >= 10 and sum(0x3400 <= c <= 0x9fff for c in cmap) >= 128
+                latin = all(ord(c) in cmap for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
+                entry = families.setdefault(family.casefold(), dict(family=family, label=label, aliases=set(), cjk=False, latin=False))
+                entry['aliases'].update(r[2] for r in names if r[2])
+                if chinese:
+                    entry['label'] = label
+                entry['cjk'] |= cjk
+                entry['latin'] |= latin
+        except Exception:
+            continue
+        finally:
+            if owner is not None:
+                owner.close()
+    return [dict(entry, aliases=sorted(entry['aliases'])) for entry in sorted(families.values(), key=lambda e: e['family'].casefold())]
+
+
+def text_font(char, style):
+    """Latin letters, digits and half-width punctuation use the English face."""
+    cp = ord(char[0]) if char else 0
+    return (style.get('latinFontName') if cp <= 0x024f or 0x1e00 <= cp <= 0x1eff else None) or style.get('fontName', '')
+
+
+def font_tag(family):
+    # Names are data, never ASS overrides (also guard older permissive projects).
+    return r'{\fn' + re.sub(r'[\\{},\x00-\x1f]', '', family) + '}'
+
+
+def font_tags(text, style):
+    """One prefix per character, emitted only at a script/font boundary."""
+    current, result = style.get('fontName', ''), []
+    for char in text:
+        family = text_font(char, style)
+        result.append(font_tag(family) if family != current else '')
+        current = family
+    return result
+
+
+def styled_text(text, style):
+    from maw.msw.subtitle_style import ass_text
+    from maw.subtitle_wrapping import _characters
+    if not style.get('latinFontName') or style['latinFontName'] == style.get('fontName'):
+        return ass_text(text)
+    units = _characters(text)
+    return ''.join(tag + ass_text(unit) for tag, unit in zip(font_tags(units, style), units))
+
+
 @lru_cache(maxsize=64)
 def family_metrics(family, bold=False, italic=False):
     """Read advances in ASS font-size units, including TTC face and weight.
@@ -102,11 +170,13 @@ def wrapped_line_count(text, style, width):
     """
     family = style.get('font_family', '')
     metrics = family_metrics(family, style.get('bold', False), style.get('italic', False)) if family else {}
+    latin = family_metrics(style['latin_font_family'], style.get('bold', False), style.get('italic', False)) if style.get('latin_font_family') else metrics
     fallback = None
     size, scale, spacing = style['font_size'], style.get('scale_x', 100)/100, style.get('spacing', 0)
     def advance(char):
         nonlocal fallback
-        value = metrics.get(ord(char))
+        table = latin if text_font(char, dict(fontName=family, latinFontName=style.get('latin_font_family'))) != family else metrics
+        value = table.get(ord(char))
         if value is None and family:
             if fallback is None:
                 registry = installed_fonts()

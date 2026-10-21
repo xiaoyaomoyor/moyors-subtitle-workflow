@@ -85,17 +85,11 @@ test('paste chooses hovered physical track instead of selected cue track',async(
   expect(copy?.track_id).toBe(target);expect(copy.content.text).toBe('First');
 });
 
-test('local fonts opens all families despite current font, searches aliases and applies selection',async({page})=>{
-  await page.evaluate(()=>{window.queryLocalFonts=async()=>[
-    {family:'Microsoft YaHei',fullName:'Microsoft YaHei Regular'},
-    {family:'Microsoft YaHei',fullName:'Microsoft YaHei Bold'},
-    {family:'Microsoft YaHei UI'}, {family:'Test Serif',fullName:'测试衬线'}];
-    selectOnly(0);MSWSubtitleStyle.open('cue');});
-  await page.locator('#style-scan-fonts').click();
-  await expect(page.locator('#style-local-fonts [role=option]')).toHaveCount(3);
-  await page.getByRole('searchbox',{name:'搜索本机字体'}).fill('测试');
-  await expect(page.locator('#style-local-fonts [role=option]')).toHaveCount(1);
-  await page.getByRole('option',{name:'Test Serif',exact:true}).click();
-  await expect(page.locator('#style-field-fontName')).toHaveValue('Test Serif');
-  expect((await snap(page)).cues.find(c=>c.content.text==='First').content.subtitle_style.fontName).toBe('Test Serif');
+test('font fields remain editable without a local service and have no duplicate search input',async({page})=>{
+  await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});
+  await expect(page.locator('#style-scan-fonts')).toHaveCount(0);
+  await page.locator('#style-field-latinFontName').fill('Georgia');
+  await expect(page.locator('#style-local-fonts input')).toHaveCount(0);
+  await page.locator('#style-field-latinFontName').blur();
+  expect((await snap(page)).cues.find(c=>c.content.text==='First').content.subtitle_style.latinFontName).toBe('Georgia');
 });

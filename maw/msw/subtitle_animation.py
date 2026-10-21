@@ -220,6 +220,8 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
         raw = deepcopy(raw)
         raw['effects']['typewriter']['enabled'] = False
     units = _characters(text)
+    from maw.msw.subtitle_fonts import font_tags
+    fonts = font_tags(units, style)
     count = sum(not unit.isspace() for unit in units)
     use_gradient=drawing is None and gradient.enabled(style)
     color_tags=[];color_index=0
@@ -271,7 +273,7 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
                 prefix_count += 1
             if color_tags[unit_index]:
                 parts.append(color_tags[unit_index])
-            parts.append(ass_text(unit))
+            parts.append(fonts[unit_index]+ass_text(unit))
             if unit != '\n':
                 prefix_count += len(unit)
         yield a, b, tags, ''.join(parts)

@@ -5118,10 +5118,11 @@
 .msw-style-font-control { display:flex; align-items:center; gap:4px; min-width:0; }
 .msw-font-menu { position:fixed; z-index:11000; box-sizing:border-box; max-width:calc(100vw - 16px); padding:6px; background:var(--menu-overlay-bg); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); }
 .msw-font-menu[hidden] { display:none; }
-.msw-font-menu input { box-sizing:border-box; width:100%; margin-bottom:5px; }
+.msw-font-input { padding-right:26px !important; background-image:linear-gradient(45deg,transparent 50%,var(--text-muted) 50%),linear-gradient(135deg,var(--text-muted) 50%,transparent 50%) !important; background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50% !important; background-size:5px 5px !important; background-repeat:no-repeat !important; }
+.msw-font-note { display:block; padding:8px; color:var(--text-muted); font-size:var(--font-size-sm); }
 .msw-font-menu [role=listbox] { max-height:min(240px,45vh); overflow:auto; color:var(--text-muted); }
 .msw-font-menu [role=option] { display:block; width:100%; padding:6px 8px; border:0; border-radius:var(--radius-sm); text-align:left; background:none; color:var(--text-primary); }
-.msw-font-menu [role=option]:hover,.msw-font-menu [role=option][aria-selected=true] { background:var(--accent-tint); color:var(--accent); }
+.msw-font-menu [role=option].is-current,.msw-font-menu [role=option]:hover,.msw-font-menu [role=option][aria-selected=true] { background:var(--accent-tint); color:var(--accent); }
 .msw-style-font-control input { flex:1; width:0; }
 .msw-style-fields input[type=color] { height:30px; padding:3px; cursor:pointer; }
 .msw-style-section { border-top:1px solid var(--border); padding-top:2px; }

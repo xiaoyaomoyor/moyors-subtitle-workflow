@@ -81,6 +81,9 @@ function fixedMeasureText(row, projectStyle, width) {
   if(!fixedMeasureRoot){fixedMeasureRoot=document.createElement('div');fixedMeasureRoot.className='fixed-subtitle-measure';document.body.append(fixedMeasureRoot);}
   fixedMeasureRoot.style.width=width+'px';
   const node=document.createElement('div');node.textContent=text;node.className='fixed-subtitle-text';
+  if(style.latinFontName)node.replaceChildren(...window.MSWProjectStyle.characters(text).map(unit=>{
+    const span=document.createElement('span');span.textContent=unit;span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));return span;
+  }));
   const metrics={resolution:{width,height:1080},stageWidth:width,stageHeight:1080,scaleX:1,scaleY:1};
   applyAssPreviewElement(node,style,{opacity:1},metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
   const padding=(Math.max(0,style.outline)+Math.max(0,style.shadow))*Math.max(1,(style.scaleX||100)/100,(style.scaleY||100)/100);
@@ -165,11 +168,12 @@ function fixedRefreshSubtitlePreview(tMs) {
     const animated=motion?{...variant,scaleX:variant.scaleX*motion.scale/100,scaleY:variant.scaleY*motion.scale/100,angle:variant.angle+motion.rotation}:assPreviewAnimatedStyle(variant,profile,animation);
     applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
     const gradient=window.MSWSubtitleGradient.enabled(style);
-    if(motion||gradient){
+    if(motion||gradient||style.latinFontName){
       text.replaceChildren();let seen=0,prefix=0;
       const units=window.MSWProjectStyle.characters(size.text),count=units.filter(u=>u.trim()).length;
       for(const unit of units){
         if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
+        if(style.latinFontName)span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));
         if(motion&&seen>motion.revealed)span.style.visibility='hidden';
         if(gradient)span.style.color=window.MSWSubtitleGradient.color(style,seen-1,count);
         else if(prefix<size.prefix.length)span.style.color=speaker.style.color;

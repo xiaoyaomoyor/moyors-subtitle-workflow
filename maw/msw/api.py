@@ -353,6 +353,9 @@ class ProcessingAPI:
             elif route == 'subtitle-fonts' and post:
                 from maw.msw.subtitle_preview import font_manifest
                 result = font_manifest(payload.get('families'))
+            elif route == 'subtitle-fonts' and not post:
+                from maw.msw.subtitle_fonts import font_catalog
+                result = {'families': font_catalog()}
             elif route == 'subtitle-font' and not post:
                 from maw.msw.subtitle_preview import font_file
                 handler.send_file(font_file(payload.get('id')), handler.command != 'HEAD')

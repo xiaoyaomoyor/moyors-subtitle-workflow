@@ -86,6 +86,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "msw-animation-curves-ui.js",
                 "msw-subtitle-animation-ui.js",
                 "msw-video-color-picker.js",
+                "msw-font-picker.js",
                 "msw-project-style-ui.js",
                 "msw-preview-avoidance.js",
                 "msw-subtitle-renderer.js",

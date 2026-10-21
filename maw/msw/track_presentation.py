@@ -8,7 +8,7 @@ import math
 import re
 
 from maw.msw.subtitle_tracks import TrackIndex, key, placement, style_kind
-from maw.msw.subtitle_fonts import family_metrics, installed_fonts
+from maw.msw.subtitle_fonts import family_metrics, installed_fonts, text_font, styled_text
 from maw.project_subtitle_style import normalize_project_style, builtin_presets
 from maw.subtitle_wrapping import wrap_text, _characters
 from maw.msw import cue_style
@@ -18,6 +18,7 @@ from maw.msw import subtitle_background as background
 
 def measured_text(text, style, width, *, prefix=''):
     metrics = family_metrics(style['fontName'], style['bold'], style['italic'])
+    latin = family_metrics(style['latinFontName'], style['bold'], style['italic']) if style.get('latinFontName') else metrics
     registry = installed_fonts()
     fallback_name = next((n for n in ('microsoft yahei', 'pingfang sc', 'noto sans cjk sc', 'arial', 'dejavu sans') if n in registry), '')
     fallback = family_metrics(fallback_name, style['bold'], style['italic']) if fallback_name else {}
@@ -26,7 +27,7 @@ def measured_text(text, style, width, *, prefix=''):
     pad_x = background.normalize(style)['backgroundPaddingX'] if background.enabled(style) else 0
     available = max(1, width-style['marginL']-style['marginR']-(padding+pad_x)*2)
     def advance(token):
-        return sum((metrics.get(ord(c), fallback.get(ord(c), 1.1 if ord(c)>255 else .55))*style['fontSize']+style['spacing'])*sx for c in token)
+        return sum(((latin if text_font(c, style) != style['fontName'] else metrics).get(ord(c), fallback.get(ord(c), 1.1 if ord(c)>255 else .55))*style['fontSize']+style['spacing'])*sx for c in token)
     lines = []
     for raw in (prefix+wrap_text(text, style)).replace('\r\n', '\n').replace('\r', '\n').split('\n'):
         line, used = '', 0
@@ -284,7 +285,7 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
         for tag,keys in [('fad',('inMs','outMs')),('fade',('alpha1','alpha2','alpha3','t1','t2','t3','t4')),('t',('startMs','endMs','accel','tags'))]:
             a=animations[tag]
             if a['enabled']:base+='\\'+tag+'('+','.join(str(a[k]) for k in keys)+')'
-        text=ass_text(r['size']['text'])
+        text=styled_text(r['size']['text'], r['style'])
         color=palette.get(r['color'].get('name'))
         if color and mode=='speaker' and r['prefix']:
             count=cut=0
@@ -293,7 +294,8 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
                 if ch!='\n':count+=1
                 if count>=len(r['prefix']):break
             def tag(hex):return r'{\c&H'+hex[5:7]+hex[3:5]+hex[1:3]+'&}'
-            text=tag(color)+ass_text(r['size']['text'][:cut])+tag(r['style']['primaryColor'])+ass_text(r['size']['text'][cut:])
+            from maw.msw.subtitle_fonts import font_tag
+            text=tag(color)+styled_text(r['size']['text'][:cut],r['style'])+tag(r['style']['primaryColor'])+font_tag(r['style']['fontName'])+styled_text(r['size']['text'][cut:],r['style'])
         if gradient.enabled(r['style']):
             text=gradient.ass(r['size']['text'],r['style'])
         for interval in plan['intervals']:

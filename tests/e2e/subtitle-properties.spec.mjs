@@ -74,12 +74,13 @@ test('property dock uses engineering preview and restores proofreading when hidd
 });
 
 test('cue preset changes only appearance and exact preview matches the burned frame',async({page},info)=>{
+  await field(page,'latinFontName','Georgia');
   await field(page,'fontSize',96);await field(page,'primaryColor','#ff0000');
   await page.locator('#style-position-y').fill('45');await page.locator('#style-position-y').blur();await idle(page);
   const positioned=await snap(page),position=positioned.subtitles.cues[0].content.subtitle_position;
   await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('Selected appearance');await page.locator('#style-save-preset').click();
   await expect(page.locator('#style-message')).toContainText('预设已保存');
-  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({fontSize:96,primaryColor:'#ff0000'});
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({latinFontName:'Georgia',fontSize:96,primaryColor:'#ff0000'});
   await expect(page.locator('#style-project-preset option:checked')).toHaveText('Selected appearance');
   const preset=await page.locator('#style-project-preset').inputValue();
   await field(page,'fontSize',88);await expect(page.locator('#style-project-preset option:checked')).toHaveText('Selected appearance · 已修改');
@@ -211,4 +212,41 @@ test('object row aligns, roles stay visible and field names restore overrides wi
   const x=await page.locator('#style-position-x').boundingBox(),button=await page.locator('#style-position-drag').boundingBox();
   expect(x.y).toBeLessThanOrEqual(y.y);expect(button.y).toBeGreaterThanOrEqual(y.y);
   await page.locator('#subtitle-properties').screenshot({path:info.outputPath('properties-polished.png')});
+});
+
+
+test('automatic bilingual font picker filters Chinese, previews families, saves and restores overrides',async({page},info)=>{
+  await expect(page.locator('#style-scan-fonts')).toHaveCount(0);
+  const cn=page.locator('#style-field-fontName'),en=page.locator('#style-field-latinFontName');
+  await cn.click();
+  await expect(page.locator('#style-local-fonts [role=option]')).not.toHaveCount(0,{timeout:30000});
+  await expect(page.locator('#style-local-fonts input')).toHaveCount(0);
+  const options=page.locator('#style-local-fonts [role=option]');
+  await expect(options.filter({hasText:/^Arial$/})).toHaveCount(0);
+  await cn.fill('微软雅黑');
+  await expect(options.filter({hasText:/^微软雅黑$/})).toHaveCount(1);
+  await cn.dispatchEvent('keydown',{key:'Enter',isComposing:true});
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toBeUndefined();
+  await expect(page.locator('#style-local-fonts')).toBeVisible();
+  await page.screenshot({path:info.outputPath('chinese-font-picker.png')});
+  const item=options.filter({hasText:/^微软雅黑$/});
+  expect(await item.evaluate(n=>n.style.fontFamily)).toContain('Microsoft YaHei');
+  await item.click();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style.fontName).toBe('Microsoft YaHei');
+  await expect(cn).toHaveValue('微软雅黑');
+  await en.fill('Georgia');
+  await expect(options).toHaveCount(1);
+  await expect(page.locator('#style-local-fonts')).toBeVisible();
+  await en.press('ArrowDown');await en.press('Enter');await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style.latinFontName).toBe('Georgia');
+  await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.cues[0].content.text='中文 English 123';productionCommitProject(p,'mixed font fixture',[p.subtitles.cues[0].id]);});await idle(page);
+  const preview=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),target:'both',video:{width:640,height:360}}));
+  expect(preview.ass).toContain('\\fnGeorgia');
+  await page.screenshot({path:info.outputPath('bilingual-fonts.png')});
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+  await page.reload();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({fontName:'Microsoft YaHei',latinFontName:'Georgia'});
+  await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});
+  await page.locator('[data-reset-style=latinFontName]').click();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({fontName:'Microsoft YaHei'});
 });

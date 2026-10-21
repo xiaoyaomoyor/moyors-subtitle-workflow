@@ -170,7 +170,8 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
                 else: variant.update(primaryColor=value, secondaryColor=value)
                 lines.append(ass_style_line(variant, name=f'{name}-{color_name}'))
     lines += ['', '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
-    layout_styles={name:{'font_family':s['fontName'],'bold':s['bold'],'italic':s['italic'],
+    from maw.msw.subtitle_fonts import styled_text, font_tag
+    layout_styles={name:{'font_family':s['fontName'],'latin_font_family':s.get('latinFontName'),'bold':s['bold'],'italic':s['italic'],
                         'font_size':s['fontSize'],'scale_x':s['scaleX'],'scale_y':s['scaleY'],'spacing':s['spacing'],
                         'width':max(.1,1-(s['marginL']+s['marginR'])/width), 'y':1-s['marginV']/1080} for name,s in styles.items()}
     offsets=presentation(project,layout_styles,target,width) if project.get('schema')=='msw.project.v2' else {}
@@ -197,10 +198,10 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
             color_name = color.get('name')
             style_name = f'{name}-{color_name}' if name != 'secondary' and mode in {'text', 'stroke'} and color_name in palette else name
             layer = {'main': 0, 'secondary': 1, 'overlay': 2}[name]
-            text = ass_text(cue['text'])
+            text = styled_text(cue['text'], styles[name])
             label = (labels.get('names') or {}).get(color_name, '') if labels.get('enabled') is True else ''
             if name != 'secondary' and label and color_name in palette:
-                label_text = ass_text(label + labels.get('separator', '：'))
+                label_text = styled_text(label + labels.get('separator', '：'), styles[name]) + (font_tag(styles[name]['fontName']) if styles[name].get('latinFontName') else '')
                 if name != 'secondary' and mode in {'speaker', 'text'}:
                     label_color = ass_color(palette[color_name])[4:].upper()  # BBGGRR without alpha
                     body_color = palette[color_name] if mode == 'text' else styles[name]['primaryColor']

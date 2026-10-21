@@ -5138,10 +5138,11 @@
 .msw-style-font-control { display:flex; align-items:center; gap:4px; min-width:0; }
 .msw-font-menu { position:fixed; z-index:11000; box-sizing:border-box; max-width:calc(100vw - 16px); padding:6px; background:var(--menu-overlay-bg); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); }
 .msw-font-menu[hidden] { display:none; }
-.msw-font-menu input { box-sizing:border-box; width:100%; margin-bottom:5px; }
+.msw-font-input { padding-right:26px !important; background-image:linear-gradient(45deg,transparent 50%,var(--text-muted) 50%),linear-gradient(135deg,var(--text-muted) 50%,transparent 50%) !important; background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50% !important; background-size:5px 5px !important; background-repeat:no-repeat !important; }
+.msw-font-note { display:block; padding:8px; color:var(--text-muted); font-size:var(--font-size-sm); }
 .msw-font-menu [role=listbox] { max-height:min(240px,45vh); overflow:auto; color:var(--text-muted); }
 .msw-font-menu [role=option] { display:block; width:100%; padding:6px 8px; border:0; border-radius:var(--radius-sm); text-align:left; background:none; color:var(--text-primary); }
-.msw-font-menu [role=option]:hover,.msw-font-menu [role=option][aria-selected=true] { background:var(--accent-tint); color:var(--accent); }
+.msw-font-menu [role=option].is-current,.msw-font-menu [role=option]:hover,.msw-font-menu [role=option][aria-selected=true] { background:var(--accent-tint); color:var(--accent); }
 .msw-style-font-control input { flex:1; width:0; }
 .msw-style-fields input[type=color] { height:30px; padding:3px; cursor:pointer; }
 .msw-style-section { border-top:1px solid var(--border); padding-top:2px; }
@@ -15566,6 +15567,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       name: normalizeAssLibraryText(source.name, fallback.name || '样式'),
       builtin: Boolean(fallback.builtin),
       fontName: normalizeAssLibraryText(source.fontName, fallback.fontName || ASS_DEFAULT_FONT_FAMILY, ASS_STYLE_LIBRARY_MAX_FONT_LENGTH),
+      ...('latinFontName' in source || 'latinFontName' in fallback ? {latinFontName:normalizeAssLibraryText(source.latinFontName ?? fallback.latinFontName, '', ASS_STYLE_LIBRARY_MAX_FONT_LENGTH)} : {}),
       fontSize: normalizeAssLibraryNumber(source.fontSize, fallback.fontSize || 18, 1, 512),
       primaryColor: normalizeAssLibraryColor(source.primaryColor, fallback.primaryColor || '#ffffff'),
       secondaryColor: normalizeAssLibraryColor(source.secondaryColor, fallback.secondaryColor || '#ffffff'),
@@ -16092,7 +16094,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   function assEventText({ segment, text, speakerName, speakerLabelSeparator, colorName,
     colorStyles, style, colorStyle, speakerLabels, assMode }) {
     const content = String(text ?? '');
-    if (!speakerLabels || !speakerName) return escapeAssText(content);
+    if (!speakerLabels || !speakerName) return escapeAssStyledText(content,style);
     const paletteSpeakerColor = colorStyles.find((item) => item.name === colorName)?.value
       || style.primaryColor;
     // ASS can reproduce the existing text-colour mapping and stroke-colour
@@ -16107,8 +16109,23 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     // speaker label.
     const eventTextColor = style.primaryColor;
     const label = `${speakerName}${speakerLabelSeparator}`;
-    if (!assMode) return escapeAssText(`${label}${content}`);
-    return `{\\c${assOverrideColorFromHex(speakerColor)}}${escapeAssText(label)}{\\c${assOverrideColorFromHex(eventTextColor)}}${escapeAssText(content)}`;
+    if (!assMode) return escapeAssStyledText(`${label}${content}`,style);
+    return `{\\c${assOverrideColorFromHex(speakerColor)}}${escapeAssStyledText(label,style)}{\\c${assOverrideColorFromHex(eventTextColor)}}${style.latinFontName?`{\\fn${String(style.fontName).replace(/[\\{},\x00-\x1f]/g,'')}}`:''}${escapeAssStyledText(content,style)}`;
+  }
+
+  function assTextFont(text,style={}) {
+    const cp=String(text).codePointAt(0);
+    return (cp<=0x024f||cp>=0x1e00&&cp<=0x1eff?style.latinFontName:'')||style.fontName;
+  }
+
+  function escapeAssStyledText(text,style={}) {
+    if(!style.latinFontName||style.latinFontName===style.fontName)return escapeAssText(text);
+    let current=style.fontName;
+    return Array.from(String(text??''),char=>{
+      const family=/\p{Mark}/u.test(char)?current:assTextFont(char,style);
+      const tag=family!==current?`{\\fn${String(family).replace(/[\\{},\x00-\x1f]/g,'')}}`:'';current=family;
+      return tag+escapeAssText(char);
+    }).join('');
   }
 
   function buildAssPayload(segments, options = {}) {
@@ -16255,7 +16272,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
           tags+=`\\pos(${x},${resolution.height/2-offset})`;
         }
         const extensionText = tags
-          ? `{${tags}}${escapeAssText(segment.text)}` : escapeAssText(segment.text);
+          ? `{${tags}}${escapeAssStyledText(segment.text,extensionStyle)}` : escapeAssStyledText(segment.text,extensionStyle);
         events.push(
           `Dialogue: 1,${formatAssTime(startCentiseconds * 10)},${formatAssTime(endCentiseconds * 10)},Extension,,0,0,${options.layerMargins?.secondary?.[segment.id] ?? 0},,${extensionText}`,
         );
@@ -18166,6 +18183,8 @@ export default MawDynamicCaptions;
     assColorFromHex,
     formatAssTime,
     escapeAssText,
+    assTextFont,
+    escapeAssStyledText,
     ASS_STYLE_LIBRARY_SCHEMA,
     ASS_DEFAULT_STYLE,
     ASS_DEFAULT_ASS_STYLE,
@@ -18613,7 +18632,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 13;
+  const layoutVersion = 14;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -18829,7 +18848,7 @@ export default MawDynamicCaptions;
   const colors=['primaryColor','outlineColor','backColor'];
   const background=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground;
   const gradient=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-gradient.js'):global.MSWSubtitleGradient;
-  const fields=Object.freeze(['fontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
+  const fields=Object.freeze(['fontName','latinFontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
   function valid(value) {
     return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>{
       if(background.fields.includes(k))return background.valid({[k]:v});
@@ -18838,6 +18857,7 @@ export default MawDynamicCaptions;
       if(booleans.includes(k))return typeof v==='boolean';
       if(colors.includes(k))return typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
       if(k==='fontName')return typeof v==='string'&&!!v.trim()&&v.length<=128&&!/[\r\n,\x00]/.test(v);
+      if(k==='latinFontName')return typeof v==='string'&&v.length<=128&&!/[\\{},\r\n\x00]/.test(v);
       if(k==='borderStyle')return v===1||v===3;
       if(k==='wrapMode')return v==='auto'||v==='characters';
       return false;
@@ -34979,6 +34999,9 @@ function fixedMeasureText(row, projectStyle, width) {
   if(!fixedMeasureRoot){fixedMeasureRoot=document.createElement('div');fixedMeasureRoot.className='fixed-subtitle-measure';document.body.append(fixedMeasureRoot);}
   fixedMeasureRoot.style.width=width+'px';
   const node=document.createElement('div');node.textContent=text;node.className='fixed-subtitle-text';
+  if(style.latinFontName)node.replaceChildren(...window.MSWProjectStyle.characters(text).map(unit=>{
+    const span=document.createElement('span');span.textContent=unit;span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));return span;
+  }));
   const metrics={resolution:{width,height:1080},stageWidth:width,stageHeight:1080,scaleX:1,scaleY:1};
   applyAssPreviewElement(node,style,{opacity:1},metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
   const padding=(Math.max(0,style.outline)+Math.max(0,style.shadow))*Math.max(1,(style.scaleX||100)/100,(style.scaleY||100)/100);
@@ -35063,11 +35086,12 @@ function fixedRefreshSubtitlePreview(tMs) {
     const animated=motion?{...variant,scaleX:variant.scaleX*motion.scale/100,scaleY:variant.scaleY*motion.scale/100,angle:variant.angle+motion.rotation}:assPreviewAnimatedStyle(variant,profile,animation);
     applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
     const gradient=window.MSWSubtitleGradient.enabled(style);
-    if(motion||gradient){
+    if(motion||gradient||style.latinFontName){
       text.replaceChildren();let seen=0,prefix=0;
       const units=window.MSWProjectStyle.characters(size.text),count=units.filter(u=>u.trim()).length;
       for(const unit of units){
         if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
+        if(style.latinFontName)span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));
         if(motion&&seen>motion.revealed)span.style.visibility='hidden';
         if(gradient)span.style.color=window.MSWSubtitleGradient.color(style,seen-1,count);
         else if(prefix<size.prefix.length)span.style.color=speaker.style.color;
@@ -67565,6 +67589,87 @@ window.addEventListener('beforeunload', (e) => {
   global.MSWVideoColorPicker=Object.freeze({pick,cancel,get active(){return !!active;}});
 })(window);
 
+// One editable combobox per script; the authenticated local service owns enumeration.
+(function(global) {
+  'use strict';
+  function create(inputs, load) {
+    const menu=document.createElement('div');menu.id='style-local-fonts';menu.className='msw-font-menu';menu.hidden=true;
+    const list=document.createElement('div');list.setAttribute('role','listbox');list.id='style-font-options';menu.append(list);document.body.append(menu);
+    let families=[],loaded=false,error='',active=null,query='',index=-1,options=[];
+    const states=new Map(inputs.map(input=>[input,{value:'',mixed:false}]));
+    const english=input=>input.dataset.styleField==='latinFontName';
+    const entry=value=>families.find(f=>f.family.toLocaleLowerCase()===value.toLocaleLowerCase())||families.find(f=>f.aliases.some(a=>a.toLocaleLowerCase()===value.toLocaleLowerCase()));
+    const label=(font,input)=>english(input)?font.family:font.label;
+    const canonical=input=>entry(input.value.trim())?.family||input.value.trim();
+    const close=()=>{if(active){active.setAttribute('aria-expanded','false');active.removeAttribute('aria-activedescendant');}menu.hidden=true;active=null;};
+    function sync(input,value,mixed=false) {
+      states.set(input,{value:String(value??''),mixed});
+      input.value=mixed?'':label(entry(String(value??''))||{family:value||'',label:value||''},input);
+      input.placeholder=mixed?'多个值':english(input)?'同中文字体':'输入或选择字体';
+    }
+    function position() {
+      if(!active)return;
+      const r=active.getBoundingClientRect();menu.style.width=Math.min(Math.max(220,r.width),innerWidth-16)+'px';
+      menu.style.left=Math.max(8,Math.min(r.left,innerWidth-menu.offsetWidth-8))+'px';
+      menu.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-menu.offsetHeight-8))+'px';
+    }
+    function highlight() {
+      [...list.children].forEach((b,i)=>b.classList.toggle('is-current',i===index));
+      if(index>=0){active.setAttribute('aria-activedescendant',list.children[index].id);list.children[index].scrollIntoView({block:'nearest'});}
+      else active?.removeAttribute('aria-activedescendant');
+    }
+    function choose(font) {
+      const input=active;if(!input)return;
+      input.value=font.family;close();input.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+    function draw() {
+      if(!active)return;
+      const q=query.toLocaleLowerCase();
+      options=families.filter(f=>(english(active)?f.latin:f.cjk)&&[f.family,f.label,...f.aliases].some(n=>n.toLocaleLowerCase().includes(q)))
+        .sort((a,b)=>label(a,active).localeCompare(label(b,active),'zh-CN'));
+      index=-1;list.replaceChildren(...options.map((f,i)=>{
+        const b=document.createElement('button');b.type='button';b.id='style-font-option-'+i;b.setAttribute('role','option');
+        b.textContent=label(f,active);b.title=f.family;b.style.fontFamily=JSON.stringify(f.family)+', sans-serif';
+        b.setAttribute('aria-selected',String(f.family===canonical(active)));
+        b.onpointerdown=e=>e.preventDefault();b.onclick=()=>choose(f);return b;
+      }));
+      if(!options.length){const note=document.createElement('span');note.className='msw-font-note';note.textContent=!loaded?'正在读取字体…':error||'没有匹配的字体，可直接输入名称';list.append(note);}
+      position();
+    }
+    function open(input) {if(input.disabled)return;if(active&&active!==input)close();active=input;query='';menu.hidden=false;input.setAttribute('aria-expanded','true');draw();}
+    for(const input of inputs) {
+      input.setAttribute('role','combobox');input.setAttribute('aria-autocomplete','list');input.setAttribute('aria-controls',list.id);input.setAttribute('aria-expanded','false');
+      input.autocomplete='off';input.spellcheck=false;input.classList.add('msw-font-input');input.maxLength=128;
+      input.addEventListener('focus',()=>open(input));
+      input.addEventListener('click',()=>{if(active!==input)open(input);});
+      input.addEventListener('input',()=>{if(active!==input)open(input);query=input.value.trim();draw();});
+      input.addEventListener('change',()=>{input.value=canonical(input);close();},true);
+      input.addEventListener('blur',()=>{close();const s=states.get(input);sync(input,s.value,s.mixed);});
+      input.addEventListener('keydown',e=>{
+        if(e.isComposing||e.keyCode===229)return;
+        if(['ArrowDown','ArrowUp','Enter','Escape'].includes(e.key))e.stopPropagation();
+        if(e.key==='Escape'){e.preventDefault();const s=states.get(input);sync(input,s.value,s.mixed);close();}
+        else if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+          e.preventDefault();if(active!==input)open(input);if(options.length){index=(index+(e.key==='ArrowDown'?1:-1)+options.length)%options.length;highlight();}
+        }else if(e.key==='Enter'){
+          e.preventDefault();if(active===input&&index>=0)choose(options[index]);else {input.dispatchEvent(new Event('change',{bubbles:true}));close();}
+        }
+      });
+    }
+    document.addEventListener('pointerdown',e=>{if(!menu.contains(e.target)&&!inputs.includes(e.target))close();},true);
+    global.addEventListener('resize',close);
+    document.addEventListener('scroll',e=>{
+      if(!active||menu.contains(e.target))return;
+      const r=active.getBoundingClientRect();
+      if(!r.width||!r.height||r.bottom<=0||r.top>=innerHeight)close();else position();
+    },true);
+    Promise.resolve().then(load).then(data=>{if(!Array.isArray(data?.families))throw Error('字体列表不可用');families=data.families;loaded=true;for(const [input,s] of states)if(document.activeElement!==input)sync(input,s.value,s.mixed);draw();})
+      .catch(()=>{loaded=true;error='暂无法读取本机字体，可直接输入名称';draw();});
+    return {sync,canonical,close};
+  }
+  global.MSWFontPicker={create};
+})(window);
+
 (function(global) {
   'use strict';
   const host=global.MSWE?.resolve('processing-host'), S=global.MSWProjectStyle;
@@ -67614,7 +67719,7 @@ window.addEventListener('beforeunload', (e) => {
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
-  const basic=[['fontName','字体','text'],['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
+  const basic=[['fontName','中文字体','text'],['latinFontName','英文字体','text'],['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
   const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,100],['spacing','字距','number',-100,100],['marginL','左边距','number',0,9999],['marginR','右边距','number',0,9999],['marginV','垂直边距','number',0,9999],['angle','旋转角度','number',-360,360],['scaleX','横向缩放 %','number',0,1000],['scaleY','纵向缩放 %','number',0,1000]];
   function fields(rows,target,animation=false) {
     for(const [key,caption,type,min,max,step] of rows) {
@@ -67660,37 +67765,8 @@ window.addEventListener('beforeunload', (e) => {
     };
   }
   $('style-field-fontSize').closest('label').dataset.optionHelp='字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。';
-  const fontInput=$('style-field-fontName'),fontControl=document.createElement('span');fontControl.className='msw-style-font-control';fontInput.before(fontControl);fontControl.append(fontInput);
-  fontControl.insertAdjacentHTML('beforeend',iconButton('style-scan-fonts','读取本机字体','fonts'));const scanFonts=$('style-scan-fonts');
-  const fontMenu=document.createElement('div');fontMenu.id='style-local-fonts';fontMenu.className='msw-font-menu';fontMenu.hidden=true;
-  fontMenu.innerHTML='<input type="search" aria-label="搜索本机字体" placeholder="搜索字体"><div role="listbox" aria-label="本机字体"></div>';
-  document.body.append(fontMenu);let localFontFamilies=[];
-  const closeFonts=()=>{fontMenu.hidden=true;scanFonts.setAttribute('aria-expanded','false');};
-  const drawFonts=()=>{
-    const query=fontMenu.firstElementChild.value.trim().toLocaleLowerCase(),list=fontMenu.lastElementChild;
-    list.replaceChildren(...localFontFamilies.filter(f=>f.aliases.toLocaleLowerCase().includes(query)).map(f=>{
-      const b=document.createElement('button');b.type='button';b.setAttribute('role','option');b.textContent=f.family;
-      b.setAttribute('aria-selected',String(f.family===fontInput.value));
-      b.onclick=()=>{fontInput.value=f.family;closeFonts();fontInput.dispatchEvent(new Event('change',{bubbles:true}));fontInput.focus();};return b;
-    }));
-    if(!list.childElementCount)list.textContent='没有匹配的字体';
-  };
-  fontMenu.firstElementChild.oninput=drawFonts;
-  scanFonts.onclick=async()=>{try{
-    if(!fontMenu.hidden){closeFonts();return;}
-    if(!global.queryLocalFonts)throw Error('当前浏览器不支持读取字体，可直接输入字体名称');
-    const fonts=await global.queryLocalFonts(),families=new Map();
-    for(const f of fonts){if(!f.family)continue;const entry=families.get(f.family)||{family:f.family,aliases:f.family};entry.aliases+=' '+(f.fullName||'')+' '+(f.postscriptName||'');families.set(f.family,entry);}
-    localFontFamilies=[...families.values()].sort((a,b)=>a.family.localeCompare(b.family));
-    if(!localFontFamilies.length)throw Error('未读取到字体，请检查浏览器的本地字体权限');
-    fontMenu.firstElementChild.value='';drawFonts();fontMenu.hidden=false;scanFonts.setAttribute('aria-expanded','true');
-    const r=fontControl.getBoundingClientRect();fontMenu.style.width=Math.min(Math.max(240,r.width),innerWidth-16)+'px';
-    fontMenu.style.left=Math.max(8,Math.min(r.left,innerWidth-fontMenu.offsetWidth-8))+'px';
-    fontMenu.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-fontMenu.offsetHeight-8))+'px';fontMenu.firstElementChild.focus();
-  }catch(e){message(e.message,true);}};
-  document.addEventListener('pointerdown',e=>{if(!fontMenu.contains(e.target)&&!scanFonts.contains(e.target))closeFonts();},true);
-  fontMenu.onkeydown=e=>{e.stopPropagation();if(e.key==='Escape'){closeFonts();scanFonts.focus();}};
-  global.addEventListener('resize',closeFonts);
+  const fontInputs=['fontName','latinFontName'].map(key=>$('style-field-'+key));
+  const fontPicker=global.MSWFontPicker.create(fontInputs,()=>host.config?.processingUrl?request('subtitle-fonts'):Promise.reject());
   const A=global.AsrEditorUtils.ASS_DEFAULT_ANIMATIONS;
   const captions={fad:'淡入淡出',fade:'分段透明度',move:'移动',t:'样式渐变',inMs:'淡入 (ms)',outMs:'淡出 (ms)',alpha1:'起始透明度',alpha2:'中间透明度',alpha3:'结束透明度',t1:'开始 (ms)',t2:'结束 (ms)',t3:'第三时间 (ms)',t4:'第四时间 (ms)',x1:'起点 X',y1:'起点 Y',x2:'终点 X',y2:'终点 Y',startMs:'开始 (ms)',endMs:'结束 (ms)',accel:'变化速率',tags:'ASS 渐变标签'};
   const animationHelp={fad:'字幕出现和结束时的淡入淡出时长。与分段透明度二选一。',move:'按字幕开始后的时间，从起点移动到终点；坐标以画面左上角为原点。',fade:'按四个时间点在三种透明度间过渡：0 为不透明，255 为完全透明。与淡入淡出二选一。',t:'在指定时间段逐渐改变样式。变化速率为 1 时匀速；自定义可填写 ASS 标签。'};
@@ -67732,7 +67808,7 @@ window.addEventListener('beforeunload', (e) => {
   anchor.querySelector('.msw-option-label').textContent='对齐锚点';$('style-position-layout').append(anchor);
   anchor.dataset.optionHelp='锚点决定文字向哪个方向展开。百分比相对视频画面，不含黑边。';
   for(const key of ['marginL','marginR','marginV'])$('style-position-layout').append($('style-field-'+key).closest('label'));
-  for(const key of ['fontName'])$('style-field-'+key).closest('label').classList.add('msw-property-font');
+  for(const key of ['fontName','latinFontName'])$('style-field-'+key).closest('label').classList.add('msw-property-font');
   $('style-position-scope').closest('label').hidden=true;
   const restoreAppearance=document.createElement('button');restoreAppearance.type='button';restoreAppearance.id='style-inherit-appearance';restoreAppearance.className='msw-style-icon';
   restoreAppearance.title='恢复轨道外观';restoreAppearance.setAttribute('aria-label','恢复轨道外观');
@@ -68039,6 +68115,7 @@ window.addEventListener('beforeunload', (e) => {
       else input.placeholder='';
       recoveryState(reset,changed,saving||blocked);
     }
+    for(const input of fontInputs)fontPicker.sync(input,input.value,input.closest('label').classList.contains('is-mixed'));
     for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=cueScope()||track&&fixedTrackCore.placement(track)==='fixed';
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
@@ -68435,8 +68512,8 @@ window.addEventListener('beforeunload', (e) => {
     });
   }
   async function fonts(style) {
-    const familyNames=s=>[s.main.fontName,s.secondary.fontName,s.annotation?.main.fontName,s.annotation?.secondary.fontName];
-    const cueFonts=[...(host.data.subtitles?.cues||[]).map(c=>c.content),...(host.data.segments||[]),...(host.data.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].map(c=>c.subtitle_style?.fontName);
+    const familyNames=s=>[s.main,s.secondary,s.annotation?.main,s.annotation?.secondary].flatMap(s=>[s?.fontName,s?.latinFontName]);
+    const cueFonts=[...(host.data.subtitles?.cues||[]).map(c=>c.content),...(host.data.segments||[]),...(host.data.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>[c.subtitle_style?.fontName,c.subtitle_style?.latinFontName]);
     const families=[...new Set([...familyNames(style),...cueFonts,...(host.data.subtitles?.tracks||host.data.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
     if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
     const manifest=await fontManifests.get(fontKey);

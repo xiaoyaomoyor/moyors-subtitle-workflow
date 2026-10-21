@@ -12,7 +12,8 @@ v4 单条定位使用可选 `subtitles.cues[*].content.subtitle_position:{x,y,al
 
 v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对象。缺省字段继续继承该物理轨道对应样式；工程默认 → 轨道快照 → 单条覆盖 → 轨道动画。对象只接受以下字段，未知字段、错误类型和越界值拒绝：
 
-- `fontName`：非空字符串，至多 128 字符，不含逗号、换行和 NUL；`fontSize`：1–512。
+- `fontName`：中文及其他非拉丁文字的字体族名，非空字符串，至多 128 字符，不含逗号、换行和 NUL；`fontSize`：1–512。
+- 可选 `latinFontName`：英文字体族名，至多 128 字符，不含反斜线、大括号、逗号、换行和 NUL。用于拉丁字母、数字与半角标点；缺省或空字符串使用 `fontName`，旧工程无需改写。工程／轨道／预设样式同样支持此字段；单条可独立覆盖与恢复。字体下拉栏显示本地化家族名，工程存储实际字体族名。ASS 使用逐段 `\fn`，换行测量、渐变、打字机、预览和烧录使用相同字体分段规则。
 - `primaryColor`、`outlineColor`、`backColor`：`#RRGGBB`；显式文字／描边颜色优先于字幕颜色标记的映射。
 - `bold`、`italic`、`underline`、`strikeOut`：布尔值；`borderStyle`：1 或 3。
 - `outline`、`shadow`：0–100；`spacing`：−100–100；`angle`：−360–360；`scaleX`、`scaleY`：0–1000，均为有限数字。

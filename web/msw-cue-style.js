@@ -6,7 +6,7 @@
   const colors=['primaryColor','outlineColor','backColor'];
   const background=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground;
   const gradient=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-gradient.js'):global.MSWSubtitleGradient;
-  const fields=Object.freeze(['fontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
+  const fields=Object.freeze(['fontName','latinFontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
   function valid(value) {
     return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>{
       if(background.fields.includes(k))return background.valid({[k]:v});
@@ -15,6 +15,7 @@
       if(booleans.includes(k))return typeof v==='boolean';
       if(colors.includes(k))return typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
       if(k==='fontName')return typeof v==='string'&&!!v.trim()&&v.length<=128&&!/[\r\n,\x00]/.test(v);
+      if(k==='latinFontName')return typeof v==='string'&&v.length<=128&&!/[\\{},\r\n\x00]/.test(v);
       if(k==='borderStyle')return v===1||v===3;
       if(k==='wrapMode')return v==='auto'||v==='characters';
       return false;
