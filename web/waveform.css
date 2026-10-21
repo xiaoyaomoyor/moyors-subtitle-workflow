@@ -358,6 +358,7 @@
 }
 
 .waveform-scroll {
+  overflow-anchor: none;
   position: absolute;
   /* 顶部让出标签栏（点击/拖放标签不被滚动区拦截） */
   top: var(--module-tab-h); bottom: 0; left: 0; right: 0;

@@ -14,8 +14,8 @@
   icons.overwrite='<path d="M20 11V7l-4-4H3v18h10M7 3v6h9V3M7 21v-7h5m3 3h7m-3-3 3 3-3 3"/>';
   panel.innerHTML=`
     <div class="media-settings-grid msw-style-selectors">
-      <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
-      <label class="media-settings-field" data-option-help="轨道默认：预设作用于所选轨道组。所选字幕：只应用外观，不改变时间、绑定、位置或动画；多选按各条字幕的轨道角色应用。调整立即用于工程，覆盖预设才更新用户预设。另存保存当前外观；多选外观不同时请先选择单条字幕。SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
+      <label class="media-settings-field" data-option-help="跟随工程，或使用预设校对；预览选择不影响导出。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
+      <label class="media-settings-field" data-option-help="作用于当前对象。修改立即生效；覆盖或另存才更新预设。所选字幕只应用外观。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
     </div>
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
     <form id="style-save-form" class="msw-style-save-form" hidden><label class="media-settings-field"><span>预设名称</span><input id="style-preset-name" maxlength="80" required></label><button type="submit" id="style-save-preset">保存</button><button type="button" id="style-save-cancel">取消</button></form>
@@ -35,7 +35,7 @@
   panel.querySelector('#style-more').insertAdjacentHTML('beforeend',`<div id="style-track-position" class="msw-position-group" hidden>
     <div id="style-position-layout" class="msw-style-fields"></div>
     <div id="style-position-fields"><div class="media-settings-grid">
-      <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
+      <label class="media-settings-field" data-option-help="只调整当前对象；多选以首条为基准平移，保留相对距离。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="any" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="any" required></label>
       <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
@@ -43,7 +43,7 @@
   </div>`);
   panel.querySelector('#style-general').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
-    <label class="media-settings-field" data-option-help="以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
+    <label class="media-settings-field" data-option-help="两行文字之间的附加间距，负值让字幕靠近；过小可能重叠。以 1080p 为基准。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
@@ -76,8 +76,8 @@
   fields([['gradientMode','文字渐变','select',[['none','关闭'],['characters','双色逐字']]],['gradientStart','起始颜色','color'],['gradientEnd','结束颜色','color']],'style-gradient-fields');
   const decorationFields=document.createElement('div');decorationFields.className='msw-style-fields msw-decoration-fields';decorationFields.id='style-decoration-fields';
   $('style-more').append(decorationFields);decorationFields.append(gradientSection,backgroundSection);
-  $('style-field-backgroundShape').closest('label').dataset.optionHelp='矩形背景随全文伸缩，圆角半径为 0 时使用直角。打字机保留完整背景。内边距和圆角以 1080p 为基准；启用后替代旧背景框，描边和阴影仍保留。';
-  $('style-field-gradientMode').closest('label').dataset.optionHelp='沿阅读顺序逐字变化，换行不重置；单字内部保持纯色。替代文字填充颜色，不影响描边与背景。';
+  $('style-field-backgroundShape').closest('label').dataset.optionHelp='随全文大小伸缩；圆角为 0 时使用直角。打字机保留完整背景。';
+  $('style-field-gradientMode').closest('label').dataset.optionHelp='沿阅读顺序逐字渐变，单字内部保持纯色。';
   icons.pick='<path d="m14 5 5 5M12 7l5 5-9 9H3v-5l9-9Zm1-1 3-3a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3l-3 3"/>';
   for(const input of panel.querySelectorAll('[data-style-field][type=color]')) {
     const control=document.createElement('span');control.className='msw-style-color-control';input.before(control);control.append(input);
@@ -93,11 +93,37 @@
     };
   }
   $('style-field-fontSize').closest('label').dataset.optionHelp='字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。';
-  const fontList=document.createElement('datalist');fontList.id='style-local-fonts';panel.append(fontList);
-  $('style-field-fontName').setAttribute('list',fontList.id);
   const fontInput=$('style-field-fontName'),fontControl=document.createElement('span');fontControl.className='msw-style-font-control';fontInput.before(fontControl);fontControl.append(fontInput);
   fontControl.insertAdjacentHTML('beforeend',iconButton('style-scan-fonts','读取本机字体','fonts'));const scanFonts=$('style-scan-fonts');
-  scanFonts.onclick=async()=>{try{if(!global.queryLocalFonts)throw Error('当前浏览器不支持读取字体，可直接输入字体名称');const fonts=await global.queryLocalFonts();fontList.replaceChildren(...[...new Set(fonts.map(f=>f.family))].sort().map(name=>new Option(name,name)));message('本机字体已载入，可输入名称筛选。');}catch(e){message(e.message,true);}};
+  const fontMenu=document.createElement('div');fontMenu.id='style-local-fonts';fontMenu.className='msw-font-menu';fontMenu.hidden=true;
+  fontMenu.innerHTML='<input type="search" aria-label="搜索本机字体" placeholder="搜索字体"><div role="listbox" aria-label="本机字体"></div>';
+  document.body.append(fontMenu);let localFontFamilies=[];
+  const closeFonts=()=>{fontMenu.hidden=true;scanFonts.setAttribute('aria-expanded','false');};
+  const drawFonts=()=>{
+    const query=fontMenu.firstElementChild.value.trim().toLocaleLowerCase(),list=fontMenu.lastElementChild;
+    list.replaceChildren(...localFontFamilies.filter(f=>f.aliases.toLocaleLowerCase().includes(query)).map(f=>{
+      const b=document.createElement('button');b.type='button';b.setAttribute('role','option');b.textContent=f.family;
+      b.setAttribute('aria-selected',String(f.family===fontInput.value));
+      b.onclick=()=>{fontInput.value=f.family;closeFonts();fontInput.dispatchEvent(new Event('change',{bubbles:true}));fontInput.focus();};return b;
+    }));
+    if(!list.childElementCount)list.textContent='没有匹配的字体';
+  };
+  fontMenu.firstElementChild.oninput=drawFonts;
+  scanFonts.onclick=async()=>{try{
+    if(!fontMenu.hidden){closeFonts();return;}
+    if(!global.queryLocalFonts)throw Error('当前浏览器不支持读取字体，可直接输入字体名称');
+    const fonts=await global.queryLocalFonts(),families=new Map();
+    for(const f of fonts){if(!f.family)continue;const entry=families.get(f.family)||{family:f.family,aliases:f.family};entry.aliases+=' '+(f.fullName||'')+' '+(f.postscriptName||'');families.set(f.family,entry);}
+    localFontFamilies=[...families.values()].sort((a,b)=>a.family.localeCompare(b.family));
+    if(!localFontFamilies.length)throw Error('未读取到字体，请检查浏览器的本地字体权限');
+    fontMenu.firstElementChild.value='';drawFonts();fontMenu.hidden=false;scanFonts.setAttribute('aria-expanded','true');
+    const r=fontControl.getBoundingClientRect();fontMenu.style.width=Math.min(Math.max(240,r.width),innerWidth-16)+'px';
+    fontMenu.style.left=Math.max(8,Math.min(r.left,innerWidth-fontMenu.offsetWidth-8))+'px';
+    fontMenu.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-fontMenu.offsetHeight-8))+'px';fontMenu.firstElementChild.focus();
+  }catch(e){message(e.message,true);}};
+  document.addEventListener('pointerdown',e=>{if(!fontMenu.contains(e.target)&&!scanFonts.contains(e.target))closeFonts();},true);
+  fontMenu.onkeydown=e=>{e.stopPropagation();if(e.key==='Escape'){closeFonts();scanFonts.focus();}};
+  global.addEventListener('resize',closeFonts);
   const A=global.AsrEditorUtils.ASS_DEFAULT_ANIMATIONS;
   const captions={fad:'淡入淡出',fade:'分段透明度',move:'移动',t:'样式渐变',inMs:'淡入 (ms)',outMs:'淡出 (ms)',alpha1:'起始透明度',alpha2:'中间透明度',alpha3:'结束透明度',t1:'开始 (ms)',t2:'结束 (ms)',t3:'第三时间 (ms)',t4:'第四时间 (ms)',x1:'起点 X',y1:'起点 Y',x2:'终点 X',y2:'终点 Y',startMs:'开始 (ms)',endMs:'结束 (ms)',accel:'变化速率',tags:'ASS 渐变标签'};
   const animationHelp={fad:'字幕出现和结束时的淡入淡出时长。与分段透明度二选一。',move:'按字幕开始后的时间，从起点移动到终点；坐标以画面左上角为原点。',fade:'按四个时间点在三种透明度间过渡：0 为不透明，255 为完全透明。与淡入淡出二选一。',t:'在指定时间段逐渐改变样式。变化速率为 1 时匀速；自定义可填写 ASS 标签。'};
@@ -116,7 +142,7 @@
   $('style-transform-preset').replaceChildren(...[...transformTags,['custom','自定义标签']].map(([id,name])=>new Option(t(name),id)));
   $('style-field-t-tags').closest('label').classList.add('msw-style-wide');$('style-field-t-tags').maxLength=512;
   $('style-field-t-tags').placeholder='\\fscx120\\fscy120';
-  $('style-field-wrapMode').closest('label').dataset.optionHelp='自动按画面宽度换行；按字数为每行字幕正文设置上限（1–200）。汉字、英文字母、标点、空格各计 1，常见组合表情不拆开；保留手动换行。画面过窄时仍可能提前换行。仅影响预览、ASS 和烧录，不改写正文或 SRT。';
+  $('style-field-wrapMode').closest('label').dataset.optionHelp='自动适应画面宽度，或限制每行字符数（含空格、标点）。保留手动换行，不改写正文。';
   global.MSWHelp?.hydrate(panel);
   // Proofreading remains a player preference. Authoring lives in one dock.
   const proofPanel=document.createElement('section');proofPanel.className='settings-panel-section msw-project-style';
@@ -137,7 +163,7 @@
   $('style-position-layout').append($('style-pair-controls'));
   const anchor=$('style-field-alignment').closest('label');
   anchor.querySelector('.msw-option-label').textContent='对齐锚点';$('style-position-layout').append(anchor);
-  anchor.dataset.optionHelp='自动排布按锚点和边距定位；固定位置按视频画面的百分比定位。锚点决定文字从该坐标向哪个方向展开，动画位移以此基础位置为起点。';
+  anchor.dataset.optionHelp='锚点决定文字向哪个方向展开。百分比相对视频画面，不含黑边。';
   for(const key of ['marginL','marginR','marginV'])$('style-position-layout').append($('style-field-'+key).closest('label'));
   for(const key of ['fontName'])$('style-field-'+key).closest('label').classList.add('msw-property-font');
   $('style-position-scope').closest('label').hidden=true;
@@ -258,13 +284,17 @@
       const previewRow=row||owned.find(r=>r.cue.start<=player.currentTime*1000&&r.cue.end>player.currentTime*1000)||owned[0];
       return {row,track,style,override,base,legacy:!base&&!override&&Object.values(style.animations).some(e=>e.enabled),value:M.resolve(base,override)||M.defaults(),duration:previewRow?previewRow.cue.end-previewRow.cue.start:1000,preview:previewRow};
     });
-    return {cue,items,preview:items[0]?.preview,blocked:!ready||saving||fixedPositionEditing||!productionFlatMode()||!items.length||items.some(i=>i.track.locked)};
+    return {cue,items,playhead:player.currentTime*1000,preview:items[0]?.preview,blocked:!ready||saving||fixedPositionEditing||!productionFlatMode()||!items.length||items.some(i=>i.track.locked)};
   }
   function commitMotion(name,key,value){
     const context=motionContext();if(context.blocked)return;
     commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
     const updates=context.items.map(item=>{
-      if(key==='author')return {id:item.row?.cue_id,animation:M.authorPatch(item.value,name,value,item.duration),item};
+      if(key==='author'){
+        if(value.type==='playhead'&&!item.preview)throw Error('当前轨道没有可参考的字幕');
+        const action=value.type==='playhead'?{...value,time:context.playhead-item.preview.cue.start}:value;
+        return {id:item.row?.cue_id,animation:M.authorPatch(item.value,name,action,item.duration),item};
+      }
       if(key==='preset')return {id:item.row?.cue_id,animation:M.presetPatch(item.value,name,item.duration),item};
       if(key.startsWith('channel:')){
         const current=structuredClone(item.value);

@@ -18,6 +18,27 @@ def model(**effects):
 
 
 class SubtitleAnimationTests(unittest.TestCase):
+    def test_slide_fixed_fade_and_retained_reveal_match_browser_and_ass(self):
+        a=model(fade=dict(enabled=True,unit='ms',**{'in':300,'out':500}),
+                slide=dict(enabled=True,direction='up',distance=140),typewriter=dict(enabled=True))
+        for duration in (400,2000,4000):
+            times=[0,50,150,duration/2,duration-100,duration]
+            script="const A=require('./web/msw-subtitle-animation.js'),a=JSON.parse(process.argv[1]);console.log(JSON.stringify(JSON.parse(process.argv[2]).map(t=>A.sample(a,t,Number(process.argv[3]),10))))"
+            actual=json.loads(subprocess.check_output(['node','-e',script,json.dumps(a),json.dumps(times),str(duration)],cwd=ROOT,text=True))
+            for t,expected in zip(times,actual):
+                for k,v in animation.sample(a,t,duration,10).items():self.assertAlmostEqual(v,expected[k],places=8)
+        p=self.project(a)
+        plan=dict(intervals=[dict(start_ms=0,end_ms=43200000,output_start_ms=0)])
+        self.assertEqual(preview_ass(dict(project=p,video=dict(width=640,height=360)))['ass'],styled_ass(p,plan,'both',dict(width=640,height=360)))
+        script="const A=require('./web/msw-subtitle-animation.js'),a=JSON.parse(process.argv[1]);console.log(JSON.stringify(A.resolve(a,A.authorPatch(a,'all',{type:'mode',value:'custom'},4000))))"
+        c=json.loads(subprocess.check_output(['node','-e',script,json.dumps(a)],cwd=ROOT,text=True))
+        self.assertTrue(animation.valid(c))
+        for t in range(0,4001,37):
+            for k,v in animation.sample(a,t,4000,10).items():self.assertAlmostEqual(v,animation.sample(c,t,4000,10)[k],places=3)
+        self.assertLess(animation.sample(c,0,4000,10)['revealed'],10)
+        c['effects']['typewriter']['custom']=False
+        self.assertEqual(animation.sample(c,0,4000,10)['revealed'],10)
+
     def test_authoring_modes_four_point_fade_and_percentage_cycle(self):
         a=model(fade=dict(enabled=True,start=10,end=90,**{'in':20,'out':10}),
                 blink=dict(enabled=True,period=20,periodUnit='percent',opacity=40),

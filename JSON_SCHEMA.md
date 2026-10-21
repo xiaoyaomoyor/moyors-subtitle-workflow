@@ -37,19 +37,22 @@ v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对
 | `typewriter` | `enabled:false, unit:"percent", start:0, end:40` |
 | `blink` | `enabled:false, unit:"percent", start:0, end:100, period:600, opacity:0` |
 | `transform` | `enabled:false, unit:"percent", start:0, end:25, fromX:0, fromY:0, toX:0, toY:0, fromScale:85, toScale:100, fromRotation:0, toRotation:0, fromOpacity:100, toOpacity:100, easing:"smooth"` |
+| `slide` | `enabled:false, unit:"percent", start:0, in:15, out:15, end:100, direction:"right", distance:120` |
 | `curves` | `enabled:false, unit:"percent", channels:{}` |
 
 `in/out/start/end` 为 0–100% 或 0–60000ms，`end` 必须大于 `start`；淡入淡出总和超过字幕时长时等比缩短。`period` 为完整亮暗周期，80–60000ms；`opacity/fromOpacity/toOpacity` 为 0–100（100 为完全可见）。位移为相对原锚点的 1080p 坐标，−4096–4096；缩放为原样式的 1–1000%；旋转为相对原角度的 −360–360 度。缓动 `easing` 为 `linear/ease-in/ease-out/smooth`，分别为线性、平方、反向平方、三次平滑。
+
+滑入滑出 `slide` 使用四个点 `start/start+in/end-out/end`，要求 in+out 不超过 end-start；distance 为 0–4096 个 1080p 像素，direction 为 left/right/up/down，表示运动方向（从相反方向进入，沿此方向离开）。使用平滑进出，位移与 transform 相加，curves 同名通道覆盖合成位移。新的舒展预设从 100% 到 115%，强度编辑只改变终值；已保存的 transform 起止值不在读取时改写。
 
 `curves.channels` 仅接受 `x`、`y`（−4096–4096 px）、`scale`（1–1000%）、`rotation`（−360–360°）、`opacity`（0–100%）。每个存在的通道是 1–32 个 `{time,value,easing}` 的数组，字段必须完整且无额外字段。`time` 为该效果单位下的 0–100 或 0–60000，有序且严格递增；`value` 为通道范围内有限数。`easing` 为 `linear/smooth/hold`，控制本点至下一点的过渡；smooth 使用 `p²(3−2p)` 无过冲平滑，hold 在下一点时跳变。单点或首末点之外保持端点值。关闭曲线保留点数据；移除通道恢复该参数的舒展／默认值。曲线覆盖舒展的同名参数，不透明度再与淡入淡出、闪烁相乘。
 
 关键帧多选按当前通道统一点数据，其他通道和效果分别保留。混合单位时将各对象的其他通道先换算到首条显示单位；单位转换越界会拒绝，避免截断或合并关键帧。每次曲线拖动在松手时一次提交，Esc 取消；选区变更或锁定取消未提交拖动。保存仍按 `curves` 整个效果覆盖轨道基底，点选、选中的通道和图表范围不写入工程。
 
-属性列表使用互斥的预设／自定义模式。可选顶层 `mode` 仅接受 `presets/custom`，单条可只覆盖模式而继承全部效果；省略时继承轨道模式，两层均省略则保留旧组合渲染规则。`presets` 只运行 fade/typewriter/blink/transform；`custom` 只运行 curves。两套数据与预设启用状态始终保留，切换不复制、不删除另一套参数。关闭预设只改 enabled，恢复默认只重置该预设参数并保留开关；恢复轨道动画删除整个字幕动画覆盖。旧曲线工程显示为自定义，打开面板不改写数据。
+属性列表使用互斥的预设／自定义模式。可选顶层 `mode` 仅接受 `presets/custom`，单条可只覆盖模式而继承全部效果；省略时继承轨道模式，两层均省略则保留旧组合渲染规则。`presets` 运行 fade/typewriter/blink/transform/slide；`custom` 运行 curves，以及显式携带 `custom:true` 的 typewriter（省略等同 false）。进入自定义将启用的数值预设按各字幕时钟转换为百分比曲线，并保留打字机为可关闭标记；返回预设保留原预设参数。已有自定义在未启用任何预设时保留。轨道转换以当前参考字幕的时长计算。超过每通道 32 帧预算时拒绝转换，保留原效果；不会静默截断。关闭预设只改 enabled，恢复默认只重置该预设参数并保留开关；恢复轨道动画删除整个字幕动画覆盖。旧曲线工程显示为自定义，打开面板不改写数据。
 
-淡入淡出兼容扩展：`fade` 可额外同时包含 `start/end`，单位沿用 unit，要求 `0 <= start < end <= 单位上限` 且 `in+out <= end-start`。四个时间点为 `start/start+in/end-out/end`，外侧透明，中间不透明；in/out 可为 0。未设置边界仍使用原来从字幕起点淡入、终点淡出的语义。闪烁可增加 `periodUnit:"percent"|"ms"`；省略等同 ms，百分比周期范围为 1–100，毫秒周期沿用 80–60000。JS 采样、布局包络、Python ASS 编译均只考虑当前模式的效果。预设界面采用百分比；旧毫秒时段在首次实际修改该预设时按本条时长换算，超出字幕的部分限制到可编辑区间，不在打开时重写。
+淡入淡出兼容扩展：`fade` 可额外同时包含 `start/end`，单位沿用 unit，要求 `0 <= start < end <= 单位上限` 且 `in+out <= end-start`。四个时间点为 `start/start+in/end-out/end`，外侧透明，中间不透明；in/out 可为 0。未设置边界仍使用原来从字幕起点淡入、终点淡出的语义。闪烁可增加 `periodUnit:"percent"|"ms"`；省略等同 ms，百分比周期范围为 1–100，毫秒周期沿用 80–60000。JS 采样、布局包络、Python ASS 编译均只考虑当前模式的效果。预设默认百分比；淡入淡出另支持固定时长：使用 unit:ms 且不含 start/end，淡入锚定字幕起点，淡出锚定各自终点；总时长超过字幕时长按比例缩短。批量切换时以首条参考时长算出同一份 in/out 秒数，后续输入统一秒数；只是查看不会改写。其他旧毫秒预设在首次修改时按本条时长换算。
 
-预设滑条拖动只提交时间字段，保留多选对象各自的强度等其他参数。自定义图表编辑仍按当前通道写入 curves，其他通道保留；图表的其他通道时间标记仅为投影，不会隐式增加帧。过渡形状为菱形 linear、圆形 smooth、方形 hold；视图选择和悬停时间不保存到工程。单位转换仍按各条字幕时长进行且拒绝越界；自定义不含文字显现，预览和导出使用相同的曲线数据。
+预设滑条拖动只提交时间字段，保留多选对象各自的强度等其他参数。自定义图表编辑仍按当前通道写入 curves，其他通道保留；图表的其他通道时间标记仅为投影，不会隐式增加帧。过渡形状为菱形 linear、圆形 smooth、方形 hold；视图选择和悬停时间不保存到工程。单位转换仍按各条字幕时长进行且拒绝越界；自定义可保留独立打字机效果，预览和导出使用同一数据。播放头设帧按每条字幕起点换算局部时间，须位于所有目标字幕内；新建或替换当前参数同时间的帧，采用该处原曲线值。
 
 渐变使用原生 ASS `\1c` 字素标签，不增加事件条数，字素颜色由完整文本确定，打字机隐藏尾部不重新计算颜色。关键帧使用相同源时钟编译成有界的 ASS `\move` / `\t` 片段，平滑曲线以最多 40ms 间隔近似，最终时间受 ASS 厘秒精度约束。精确浏览器预览、独立 ASS 和烧录共用编译器。未实现单字内部连续渐变或 CSS 专有渐变。
 

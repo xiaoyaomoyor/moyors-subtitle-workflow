@@ -2,7 +2,9 @@
 (function(global) {
   'use strict';
   global.MSWAssetLibrary = {create({host, request, jobs, schedule, voiceLabel = recipe => recipe.voice}) {
-  const library=host.assetLibrary, el=id=>document.getElementById(id)||library.querySelector('#'+id);
+  const library=host.assetLibrary, cuePanel=document.getElementById('current-cue-panel');
+  // Dock tabs may detach either panel while library state still refreshes.
+  const el=id=>document.getElementById(id)||(id==='current-cue-panel'?cuePanel:null)||library.querySelector('#'+id)||cuePanel?.querySelector('#'+id);
   const t=value=>global.MSWE_I18N?.translateText?.(value)||value;
   const available=Boolean(host.config?.processingUrl);
   const projectId=()=>global.MSWProject.ensure(host.data).project_id;

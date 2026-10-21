@@ -9,6 +9,7 @@ DEFINITIONS = dict(
     blink=dict(enabled=False, unit='percent', start=0, end=100, period=600, opacity=0),
     transform=dict(enabled=False, unit='percent', start=0, end=25, fromX=0, fromY=0, toX=0, toY=0,
                    fromScale=85, toScale=100, fromRotation=0, toRotation=0, fromOpacity=100, toOpacity=100, easing='smooth'),
+    slide=dict(enabled=False, unit='percent', start=0, **{'in':15, 'out':15}, end=100, direction='right', distance=120),
     curves=dict(enabled=False, unit='percent', channels={}))
 CHANNELS = dict(x=(-4096,4096), y=(-4096,4096), scale=(1,1000), rotation=(-360,360), opacity=(0,100))
 
@@ -42,14 +43,16 @@ def valid(raw):
         return False
     for name, effect in raw['effects'].items():
         default = DEFINITIONS.get(name)
-        extra = {'start','end'} if name == 'fade' else {'periodUnit'} if name == 'blink' else set()
+        extra = {'start','end'} if name == 'fade' else {'periodUnit'} if name == 'blink' else {'custom'} if name == 'typewriter' else set()
         if not default or not isinstance(effect, dict) or not set(default) <= set(effect) or set(effect)-set(default)-extra:
             return False
         if name == 'fade' and ('start' in effect) != ('end' in effect):
             return False
         for key, value in effect.items():
-            if key == 'enabled':
+            if key in ('enabled','custom'):
                 ok = type(value) is bool
+            elif key == 'direction':
+                ok = value in ('left','right','up','down')
             elif key in ('unit','periodUnit'):
                 ok = value in ('percent', 'ms')
             elif key == 'easing':
@@ -57,7 +60,8 @@ def valid(raw):
             elif key == 'channels':
                 ok = valid_channels(value, effect['unit'])
             else:
-                low, high = ((0, 100 if effect['unit'] == 'percent' else 60000) if key in (*timings(name),'start','end')
+                low, high = ((0, 100 if effect['unit'] == 'percent' else 60000) if key in (*timings(name),'start','end', *(('in','out') if name=='slide' else ()))
+                             else (0,4096) if key == 'distance'
                              else ((1,100) if effect.get('periodUnit') == 'percent' else (80,60000)) if key == 'period' else (0, 100) if key.endswith('Opacity') or key == 'opacity'
                              else (1, 1000) if key.endswith('Scale') else (-360, 360) if key.endswith('Rotation') else (-4096, 4096))
                 ok = type(value) in (int, float) and math.isfinite(value) and low <= value <= high
@@ -65,7 +69,7 @@ def valid(raw):
                 return False
         if name not in ('fade','curves') and effect['end'] <= effect['start']:
             return False
-        if name == 'fade' and 'start' in effect and (effect['end'] <= effect['start'] or effect['in']+effect['out'] > effect['end']-effect['start']+1e-8):
+        if name in ('fade','slide') and 'start' in effect and (effect['end'] <= effect['start'] or effect['in']+effect['out'] > effect['end']-effect['start']+1e-8):
             return False
     return True
 
@@ -86,7 +90,7 @@ def resolve(base=None, override=None):
 def active(raw):
     if 'mode' not in raw:
         return raw
-    return {**raw, 'effects':{key:effect if (raw['mode']=='custom') == (key=='curves') else {**effect,'enabled':False}
+    return {**raw, 'effects':{key:effect if ((key=='curves' or key=='typewriter' and effect.get('custom')) if raw['mode']=='custom' else key!='curves') else {**effect,'enabled':False}
                              for key,effect in raw['effects'].items()}}
 
 
@@ -133,6 +137,13 @@ def sample(raw, elapsed, duration, count=0):
         for key, suffix in [('x', 'X'), ('y', 'Y'), ('scale', 'Scale'), ('rotation', 'Rotation')]:
             state[key] = t['from'+suffix] + (t['to'+suffix]-t['from'+suffix])*p
         transform_opacity = t['fromOpacity']+(t['toOpacity']-t['fromOpacity'])*p
+    s = raw['effects'].get('slide')
+    if s and s['enabled']:
+        start, end, a, z = (ms(s,key,duration) for key in ('start','end','in','out'))
+        pin = clamp((time-start)/a) if a else int(time>=start)
+        pout = clamp((time-end+z)/z) if z else int(time>=end)
+        offset = -(1-pin*pin*(3-2*pin))+pout*pout*(3-2*pout)
+        state['x' if s['direction'] in ('left','right') else 'y'] += offset*s['distance']*(-1 if s['direction'] in ('left','up') else 1)
     c = raw['effects'].get('curves')
     if c and c['enabled']:
         for key, points in c['channels'].items():
@@ -167,12 +178,15 @@ def boundaries(raw, duration, count):
                         raise ValueError('字幕关键帧生成片段过多，请缩短动画时段')
                     cuts.update(a+i*40 for i in range(1,steps))
             continue
-        if name == 'fade':
+        if name in ('fade','slide'):
             a, z = ms(effect, 'in', duration), ms(effect, 'out', duration)
             start = ms(effect,'start',duration) if 'start' in effect else 0
             end = ms(effect,'end',duration) if 'end' in effect else duration
             ratio = min(1, (end-start)/(a+z)) if a+z else 1
             cuts.update((start,start+a*ratio,end-z*ratio,end))
+            if name == 'slide':
+                for lo, hi in ((start,start+a),(end-z,end)):
+                    cuts.update(lo+i*40 for i in range(1,math.ceil(max(0,min(duration,hi)-lo)/40)))
             continue
         a, b = ms(effect, 'start', duration), ms(effect, 'end', duration)
         cuts.update((a, b))

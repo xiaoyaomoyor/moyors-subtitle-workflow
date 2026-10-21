@@ -5136,6 +5136,12 @@
 .msw-style-icon svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 .msw-style-icon:disabled { opacity:.4; cursor:default; }
 .msw-style-font-control { display:flex; align-items:center; gap:4px; min-width:0; }
+.msw-font-menu { position:fixed; z-index:11000; box-sizing:border-box; max-width:calc(100vw - 16px); padding:6px; background:var(--menu-overlay-bg); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); }
+.msw-font-menu[hidden] { display:none; }
+.msw-font-menu input { box-sizing:border-box; width:100%; margin-bottom:5px; }
+.msw-font-menu [role=listbox] { max-height:min(240px,45vh); overflow:auto; color:var(--text-muted); }
+.msw-font-menu [role=option] { display:block; width:100%; padding:6px 8px; border:0; border-radius:var(--radius-sm); text-align:left; background:none; color:var(--text-primary); }
+.msw-font-menu [role=option]:hover,.msw-font-menu [role=option][aria-selected=true] { background:var(--accent-tint); color:var(--accent); }
 .msw-style-font-control input { flex:1; width:0; }
 .msw-style-fields input[type=color] { height:30px; padding:3px; cursor:pointer; }
 .msw-style-section { border-top:1px solid var(--border); padding-top:2px; }
@@ -5374,8 +5380,15 @@
 .msw-motion-heading > span::before { content:none; }
 .msw-motion-range-graph { display:block; width:100%; height:82px; touch-action:none; user-select:none; }
 .msw-motion-range-graph text { fill:var(--text-muted); font-size:10px; pointer-events:none; }
-.msw-motion-range-graph .motion-range-rail { stroke-width:6; stroke:var(--border); }
-.motion-range-fill { cursor:ew-resize; stroke-width:6; stroke-linecap:round; }
+.msw-motion-range-graph .motion-range-rail { stroke-width:1; stroke:var(--border); fill:var(--bg-panel); }
+.msw-motion-range-graph .motion-range-fill { cursor:ew-resize; stroke:var(--text-secondary); stroke-width:1; fill:color-mix(in srgb,var(--accent) 26%,var(--bg-panel)); }
+.msw-motion-heading { flex-wrap:wrap; gap:8px; }
+.msw-motion-heading > select { width:auto; min-width:90px; max-width:150px; }
+#motion-fade-durations { display:flex; flex-wrap:wrap; gap:8px; }
+#motion-fade-durations[hidden] { display:none; }
+#motion-fade-durations label { display:flex; align-items:center; gap:4px; font-size:.85em; }
+#motion-fade-durations input { width:80px; min-width:0; }
+#motion-custom-typewriter { margin-bottom:8px; }
 .motion-range-hit { fill:transparent; stroke:none; }
 .motion-range-node { cursor:ew-resize; }
 .motion-range-node .motion-range-handle { fill:var(--accent); stroke:var(--bg-panel); stroke-width:1.5; pointer-events:none; }
@@ -5845,6 +5858,7 @@
 }
 
 .waveform-scroll {
+  overflow-anchor: none;
   position: absolute;
   /* 顶部让出标签栏（点击/拖放标签不被滚动区拦截） */
   top: var(--module-tab-h); bottom: 0; left: 0; right: 0;
@@ -18233,6 +18247,7 @@ export default MawDynamicCaptions;
     typewriter:{enabled:false,unit:'percent',start:0,end:40},
     blink:{enabled:false,unit:'percent',start:0,end:100,period:600,opacity:0},
     transform:{enabled:false,unit:'percent',start:0,end:25,fromX:0,fromY:0,toX:0,toY:0,fromScale:85,toScale:100,fromRotation:0,toRotation:0,fromOpacity:100,toOpacity:100,easing:'smooth'},
+    slide:{enabled:false,unit:'percent',start:0,in:15,out:15,end:100,direction:'right',distance:120},
     curves:{enabled:false,unit:'percent',channels:{}}
   };
   const channels={x:{label:'横向位移 (px)',min:-4096,max:4096,initial:0},y:{label:'纵向位移 (px)',min:-4096,max:4096,initial:0},
@@ -18253,20 +18268,21 @@ export default MawDynamicCaptions;
     if(!object(raw)||raw.schema!==schema||!object(raw.effects)||Object.keys(raw).some(k=>!['schema','effects','mode'].includes(k))||
       (Object.hasOwn(raw,'mode')&&!['presets','custom'].includes(raw.mode)))return false;
     return Object.entries(raw.effects).every(([name,e])=>{
-      const d=definitions[name],extra=name==='fade'?['start','end']:name==='blink'?['periodUnit']:[];
+      const d=definitions[name],extra=name==='fade'?['start','end']:name==='blink'?['periodUnit']:name==='typewriter'?['custom']:[];
       if(!d||!object(e)||Object.keys(d).some(k=>!Object.hasOwn(e,k))||Object.keys(e).some(k=>!Object.hasOwn(d,k)&&!extra.includes(k)))return false;
       if(name==='fade'&&Object.hasOwn(e,'start')!==Object.hasOwn(e,'end'))return false;
       for(const [k,v] of Object.entries(e)){
-        if(k==='enabled'){if(typeof v!=='boolean')return false;}
+        if(k==='enabled'||k==='custom'){if(typeof v!=='boolean')return false;}
+        else if(k==='direction'){if(!['left','right','up','down'].includes(v))return false;}
         else if(k==='unit'||k==='periodUnit'){if(!['percent','ms'].includes(v))return false;}
         else if(k==='easing'){if(!['linear','ease-in','ease-out','smooth'].includes(v))return false;}
         else if(k==='channels'){if(!validChannels(v,e.unit))return false;}
         else{
-          const bounds=[...timings(name),'start','end'].includes(k)?[0,e.unit==='percent'?100:60000]:k==='period'?(e.periodUnit==='percent'?[1,100]:[80,60000]):k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
+          const bounds=[...timings(name),'start','end',...(name==='slide'?['in','out']:[])].includes(k)?[0,e.unit==='percent'?100:60000]:k==='distance'?[0,4096]:k==='period'?(e.periodUnit==='percent'?[1,100]:[80,60000]):k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
           if(typeof v!=='number'||!Number.isFinite(v)||v<bounds[0]||v>bounds[1])return false;
         }
       }
-      if(name==='fade'&&Object.hasOwn(e,'start'))return e.end>e.start&&e.in+e.out<=e.end-e.start+1e-8;
+      if((name==='fade'||name==='slide')&&Object.hasOwn(e,'start'))return e.end>e.start&&e.in+e.out<=e.end-e.start+1e-8;
       return name==='curves'||name==='fade'||e.end>e.start;
     });
   }
@@ -18276,7 +18292,7 @@ export default MawDynamicCaptions;
   function active(raw){
     if(!raw.mode)return raw;
     return {...raw,effects:Object.fromEntries(Object.entries(raw.effects).map(([key,e])=>[key,
-      (raw.mode==='custom')===(key==='curves')?e:{...e,enabled:false}]))};
+      (raw.mode==='custom'?(key==='curves'||key==='typewriter'&&e.custom):key!=='curves')?e:{...e,enabled:false}]))};
   }
   const authoringMode=raw=>raw.mode||(raw.effects.curves?.enabled&&Object.keys(raw.effects.curves.channels).length?'custom':'presets');
   // Snap within legal bounds, never across a neighbouring keyframe. If a very
@@ -18287,24 +18303,25 @@ export default MawDynamicCaptions;
     const bounded=low<=high?Math.max(low,Math.min(high,Math.round(value/step)*step)):Math.max(min,Math.min(max,value));
     return Math.max(min,Math.min(max,Math.round(bounded*1e9)/1e9));
   }
-  function presetTimes(name,e){return name==='fade'?[e.start,e.start+e.in,e.end-e.out,e.end]:[e.start,e.end];}
+  function presetTimes(name,e){return ['fade','slide'].includes(name)?[e.start,e.start+e.in,e.end-e.out,e.end]:[e.start,e.end];}
   function dragPreset(name,original,{edge,band},value,delta,modifiers={}){
     const p=presetTimes(name,original),round=v=>Math.round(v*1e9)/1e9;
     if(band!==undefined){
-      const [a,b]=name==='fade'?(band==='in'?[0,1]:[2,3]):[0,1];
+      const [a,b]=['fade','slide'].includes(name)?(band==='in'?[0,1]:[2,3]):[0,1];
       delta=snapValue(p[a]+delta,modifiers,a?p[a-1]:0,(b<p.length-1?p[b+1]:100)-(p[b]-p[a]))-p[a];
       for(let i=a;i<=b;i++)p[i]=round(p[i]+delta);
     }else{
-      const i=Number(edge),gap=name==='fade'?0:.1;
+      const i=Number(edge),gap=['fade','slide'].includes(name)?0:.1;
       p[i]=snapValue(value,modifiers,i?p[i-1]+gap:0,i<p.length-1?p[i+1]-gap:100);
     }
     if(p.at(-1)-p[0]<.099999999)return {};
-    return {start:p[0],end:p.at(-1),...(name==='fade'?{in:round(p[1]-p[0]),out:round(p[3]-p[2])}:{})};
+    return {start:p[0],end:p.at(-1),...(['fade','slide'].includes(name)?{in:round(p[1]-p[0]),out:round(p[3]-p[2])}:{})};
   }
   function presetDefault(name){
     const e=clone(definitions[name]);
     if(name==='fade')Object.assign(e,{start:0,end:100});
     if(name==='blink')Object.assign(e,{period:20,periodUnit:'percent'});
+    if(name==='transform')Object.assign(e,{fromScale:100,toScale:115});
     return e;
   }
   function presetState(raw,name,duration=1000){
@@ -18326,19 +18343,74 @@ export default MawDynamicCaptions;
     if(name==='blink'&&e.periodUnit!=='percent')Object.assign(e,{period:clamp(e.period*100/duration,1,100),periodUnit:'percent'});
     return e;
   }
+  // Bake only active numeric channels. Preserve discontinuities and reject a
+  // conversion that cannot fit the editable curve budget instead of losing it.
+  function curvesFromPresets(raw,duration=1000){
+    const a=normalize(raw);a.mode='presets';
+    const {fade:f,blink:b,transform:t,slide:s}=a.effects,c={enabled:true,unit:'percent',channels:{}};
+    const phase=e=>[ms(e,'start',duration),ms(e,'start',duration)+ms(e,'in',duration),ms(e,'end',duration)-ms(e,'out',duration),ms(e,'end',duration)];
+    for(const [key,suffix] of [['opacity','Opacity'],['x','X'],['y','Y'],['scale','Scale'],['rotation','Rotation']]){
+      const transform=t.enabled&&(t['from'+suffix]!==channels[key].initial||t['to'+suffix]!==channels[key].initial);
+      const sliding=s.enabled&&key===(['left','right'].includes(s.direction)?'x':'y');
+      if(!transform&&!sliding&&!(key==='opacity'&&(f.enabled||b.enabled)))continue;
+      const value=time=>sample(a,time,duration)[key]*(key==='opacity'?100:1);
+      if((key!=='opacity'||!f.enabled&&!b.enabled)&&((transform&&!sliding&&['linear','smooth'].includes(t.easing))||sliding&&!transform)){
+        const critical=sliding?phase(s):[ms(t,'start',duration),ms(t,'end',duration)];
+        c.channels[key]=[...new Set([0,...critical,duration].map(time=>clamp(time,0,duration)))].sort((a,b)=>a-b).map(time=>({time:time/duration*100,value:value(time),easing:sliding?(time===critical[0]||time===critical[2]?'smooth':'linear'):time===critical[0]?t.easing:'linear'}));
+        // A phase clipped by the cue end needs sampling, not a shortened ease.
+        if(critical.every(time=>time<=duration))continue;
+      }
+      const times=new Set([0,duration]),add=x=>times.add(clamp(x,0,duration));
+      if(transform){add(ms(t,'start',duration));add(ms(t,'end',duration));}
+      if(sliding)phase(s).forEach(add);
+      if(key==='opacity'){
+        if(f.enabled){const start=Object.hasOwn(f,'start')?ms(f,'start',duration):0,end=Object.hasOwn(f,'end')?ms(f,'end',duration):duration;
+          const fi=ms(f,'in',duration),fo=ms(f,'out',duration),ratio=Math.min(1,(end-start)/(fi+fo||1));[start,start+fi*ratio,end-fo*ratio,end].forEach(add);}
+        if(b.enabled){const start=ms(b,'start',duration),end=Math.min(duration,ms(b,'end',duration)),step=b.period*(b.periodUnit==='percent'?duration/100:1)/2;
+          if((end-start)/step>30)throw Error('闪烁过于密集，请增大循环间隔后再转为自定义');
+          for(let time=start;time<end;time+=step)add(time);add(end);}
+      }
+      const epsilon=Math.min(.001,duration/1e6);
+      for(const time of [...times])if(time>0&&Math.abs(value(time)-value(time-epsilon))>.11)add(time-epsilon);
+      let sorted=[...times].sort((a,b)=>a-b);
+      function refine(left,right,depth=0){
+        if(right-left<=epsilon*1.01||depth>10)return [left];
+        const va=value(left),vb=value(right);
+        if([.25,.5,.75].some(p=>Math.abs(value(left+(right-left)*p)-(va+(vb-va)*p))>.1)){
+          const mid=(left+right)/2;return [...refine(left,mid,depth+1),...refine(mid,right,depth+1)];
+        }
+        return [left];
+      }
+      sorted=sorted.slice(0,-1).flatMap((time,i)=>refine(time,sorted[i+1])).concat(duration);
+      if(sorted.length>32)throw Error('动画变化过于复杂，请简化效果后再转为自定义（每个参数最多 32 帧）');
+      c.channels[key]=sorted.map(time=>({time:time/duration*100,value:value(time),easing:'linear'}));
+    }
+    return c;
+  }
   // Authoring modes retain both banks. Only the active bank is sampled/exported.
   function authorPatch(raw,name,action,duration=1000){
     const a=normalize(raw),patch={schema,effects:{}};
     if(action.type==='mode'){
       patch.mode=action.value;
-      if(action.value==='custom'&&Object.keys(a.effects.curves.channels).length&&!a.effects.curves.enabled)patch.effects.curves={...a.effects.curves,enabled:true};
+      if(action.value==='custom'){
+        if(names.some(n=>n!=='curves'&&a.effects[n].enabled))patch.effects.curves=curvesFromPresets(a,duration);
+        else if(Object.keys(a.effects.curves.channels).length)patch.effects.curves={...a.effects.curves,enabled:true};
+        patch.effects.typewriter={...a.effects.typewriter,custom:a.effects.typewriter.enabled};
+      }
       if(!valid(patch))throw Error('动画模式无效');
       return patch;
     }
+    if(action.type==='custom-typewriter')return {schema,mode:'custom',effects:{typewriter:{...a.effects.typewriter,custom:action.value}}};
     if(name==='curves'){
       const c=clone(a.effects.curves);
       if(action.type==='unit')patch.effects.curves=convertUnit(c,action.value,duration);
       else if(action.type==='reset')patch.effects.curves=clone(definitions.curves);
+      else if(action.type==='playhead'){
+        if(action.time<0||action.time>duration)throw Error('请将播放头移到所选字幕共同覆盖的时间内');
+        const time=action.time*(c.unit==='percent'?100/duration:1),points=c.channels[action.channel]||[];
+        const value=sample(a,action.time,duration)[action.channel]*(action.channel==='opacity'?100:1);
+        c.channels[action.channel]=[...points.filter(p=>Math.abs(p.time-time)>.001),{time,value,easing:'linear'}].sort((a,b)=>a.time-b.time);c.enabled=true;patch.effects.curves=c;
+      }
       else{
         // Multi-selection edits normalize other channels to the displayed unit.
         const next=convertUnit(c,action.unit||c.unit,duration);
@@ -18348,9 +18420,18 @@ export default MawDynamicCaptions;
       }
       patch.mode='custom';
     }else{
-      const e=action.type==='reset'?{...presetDefault(name),enabled:a.effects[name].enabled}:presetState(a,name,duration);
+      let e=action.type==='reset'?{...presetDefault(name),enabled:a.effects[name].enabled}:name==='fade'&&a.effects.fade.unit==='ms'&&!Object.hasOwn(a.effects.fade,'start')?clone(a.effects.fade):presetState(a,name,duration);
+      if(name==='fade'&&action.type==='values'&&action.timeUnit){
+        if(action.timeUnit==='ms')e={enabled:e.enabled,unit:'ms',in:ms(e,'in',duration),out:ms(e,'out',duration)};
+        else e=presetState(a,name,duration);
+      }
+      if(name==='fade'&&action.type==='timing'){
+        if(action.value==='ms')e={enabled:e.enabled,unit:'ms',in:action.in??Math.round(ms(e,'in',duration)),out:action.out??Math.round(ms(e,'out',duration))};
+        else e={...presetState(a,name,duration),unit:'percent'};
+      }
       if(action.type==='toggle')e.enabled=action.value;
       if(action.type==='values')Object.assign(e,action.value);
+      if(name==='transform'&&action.type==='values'&&Object.hasOwn(action.value,'toScale'))e.fromScale=100;
       patch.effects[name]=e;patch.mode='presets';
     }
     if(!valid(patch))throw Error('动画参数无效：时间不能交叉，数值须在允许范围内');
@@ -18436,13 +18517,17 @@ export default MawDynamicCaptions;
   }
   function sample(raw,elapsed,duration,count=0){
     raw=active(raw);
-    const {fade:f,typewriter:w,blink:b,transform:t}=raw.effects;
+    const {fade:f,typewriter:w,blink:b,transform:t,slide:s}=raw.effects;
     const time=clamp(elapsed,0,duration),state={opacity:1,x:0,y:0,scale:100,rotation:0,revealed:count};
     if(f.enabled){let a=ms(f,'in',duration),z=ms(f,'out',duration),start=Object.hasOwn(f,'start')?ms(f,'start',duration):0,end=Object.hasOwn(f,'end')?ms(f,'end',duration):duration;if(a+z>end-start){const ratio=(end-start)/(a+z);a*=ratio;z*=ratio;}state.opacity=time<start||time>end?0:clamp(Math.min(a?(time-start)/a:1,z?(end-time)/z:1,1));}
     const period=b.period*(b.periodUnit==='percent'?duration/100:1);
     if(b.enabled&&time>=ms(b,'start',duration)&&time<ms(b,'end',duration)&&Math.floor((time-ms(b,'start',duration))/(period/2))%2)state.opacity*=b.opacity/100;
     let transformOpacity=100;
     if(t.enabled){const p=ease(clamp((time-ms(t,'start',duration))/(ms(t,'end',duration)-ms(t,'start',duration))),t.easing);for(const [key,suffix] of [['x','X'],['y','Y'],['scale','Scale'],['rotation','Rotation']])state[key]=t['from'+suffix]+(t['to'+suffix]-t['from'+suffix])*p;transformOpacity=t.fromOpacity+(t.toOpacity-t.fromOpacity)*p;}
+    if(s?.enabled){const start=ms(s,'start',duration),end=ms(s,'end',duration),a=ms(s,'in',duration),z=ms(s,'out',duration);
+      const offset=-(1-ease(a?clamp((time-start)/a):time>=start?1:0,'smooth'))+ease(z?clamp((time-end+z)/z):time>=end?1:0,'smooth');
+      state[['left','right'].includes(s.direction)?'x':'y']+=offset*s.distance*(['left','up'].includes(s.direction)?-1:1);
+    }
     const c=raw.effects.curves;
     if(c?.enabled)for(const [key,points] of Object.entries(c.channels)){
       const v=curveValue(points,time*(c.unit==='percent'?100/duration:1));if(key==='opacity')transformOpacity=v;else state[key]=v;
@@ -18452,9 +18537,10 @@ export default MawDynamicCaptions;
     return state;
   }
   function envelope(row,width){
-    const motion=row.motion?active(row.motion):null,t=motion?.effects.transform,c=motion?.effects.curves;if(!t?.enabled&&!c?.enabled)return row;
+    const motion=row.motion?active(row.motion):null,t=motion?.effects.transform,c=motion?.effects.curves,slide=motion?.effects.slide;if(!t?.enabled&&!c?.enabled&&!slide?.enabled)return row;
     const values=(key,suffix)=>c?.enabled&&c.channels[key]?c.channels[key].map(p=>p.value):t?.enabled?[t['from'+suffix],t['to'+suffix]]:[channels[key].initial];
     const scales=values('scale','Scale'),dx=values('x','X'),dy=values('y','Y'),rotations=values('rotation','Rotation');
+    if(slide?.enabled){const key=['left','right'].includes(slide.direction)?'x':'y';if(!(c?.enabled&&c.channels[key])){const v=key==='x'?dx:dy;v.push(Math.min(...v)-slide.distance,Math.max(...v)+slide.distance);}}
     const ax=row.position.x*width,ay=row.position.y*1080,s=Math.max(...scales)/100;
     const corners=[[row.x-ax,row.y-ay],[row.x+row.width-ax,row.y-ay],[row.x-ax,row.y+row.height-ay],[row.x+row.width-ax,row.y+row.height-ay]];
     const radius=Math.max(...corners.map(([x,y])=>Math.hypot(x,y)))*s,rotate=rotations.some(Boolean);
@@ -18469,7 +18555,7 @@ export default MawDynamicCaptions;
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
   }
-  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset};
+  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);
 
@@ -28762,7 +28848,23 @@ export default MawDynamicCaptions;
     }
 
     applyCustomSplitRatio(first, ratio) {
-      first.style.flex = `0 0 calc(${clamp(Number(ratio) || 50, 20, 80)}% - 3.5px)`;
+      const [low, high] = this.customSplitBounds(first.parentElement);
+      first.style.flex = `0 0 calc(${clamp(Number(ratio) || 50, low, high)}% - 3.5px)`;
+    }
+
+    customSplitBounds(split) {
+      const node=split?.layoutNode;
+      if(!node)return [20,80];
+      const axis=node.direction,extent=axis==='row'?split.clientWidth:split.clientHeight;
+      if(!extent)return [20,80];
+      const minimum=n=>{
+        if(n.type==='module')return axis==='row'?(n.id==='wave'?260:220):100;
+        const sizes=n.children.map(minimum);
+        return n.type==='split'&&n.direction===axis?sizes.reduce((a,b)=>a+b,7):Math.max(...sizes);
+      };
+      let a=minimum(node.children[0]),b=minimum(node.children[1]);
+      const scale=Math.min(1,Math.max(0,extent-7)/(a+b));a*=scale;b*=scale;
+      return [(a+3.5)/extent*100,100-(b+3.5)/extent*100];
     }
 
     bindCustomLayoutDivider(divider, split, first, node) {
@@ -28781,7 +28883,7 @@ export default MawDynamicCaptions;
         const position = node.direction === 'row'
           ? ((event.clientX - rect.left) / Math.max(1, rect.width)) * 100
           : ((event.clientY - rect.top) / Math.max(1, rect.height)) * 100;
-        const nextRatio = clamp(position, 20, 80);
+        const nextRatio = clamp(position, ...this.customSplitBounds(split));
         if (nextRatio === node.ratio) return;
         if (!drag.changed) {
           this.recordLayoutUndo('调整自定义布局尺寸', drag.snapshot);
@@ -28814,9 +28916,18 @@ export default MawDynamicCaptions;
       this.layoutHosts = resolved.hosts;
       this.layoutOccurrences = resolved.occurrences;
       this.settings.layoutTree = tree;
-      if (this.renderedCustomLayoutTree === tree && root.childElementCount) return;
+      if (this.renderedCustomLayoutTree === tree && root.childElementCount) {
+        root.querySelectorAll('.layout-split').forEach(split=>this.applyCustomSplitRatio(split.firstElementChild,split.layoutNode.ratio));
+        return;
+      }
+      const waveScrollTop=this.scroll.scrollTop;
       root.replaceChildren();
       root.appendChild(this.createCustomLayoutNode(tree));
+      root.querySelectorAll('.layout-split').forEach(split=>this.applyCustomSplitRatio(split.firstElementChild,split.layoutNode.ratio));
+      this.scroll.scrollTop=waveScrollTop;
+      // Reparenting can reset scrolling without resizing the wave pane. Rebuild
+      // the visible rows from its final viewport, never leave stale spacers.
+      this.multiRange=[-1,-1];this.scheduleMultiVisible();
       this.renderedCustomLayoutTree = tree;
       // 被关闭的窗口不在树上：把它的工作区元素移出 DOM（预设渲染器或恢复显示时会重新挂载），
       // 否则从预设布局直接关闭窗口时元素仍是工作区直接子节点，会残留在画面上。
@@ -29583,7 +29694,7 @@ export default MawDynamicCaptions;
     resolveLayerPointerDelta(drag, rawDelta, disableSnap) {
       const clock = resolveTiming(drag.timing);
       const segments = this.options.getSegments(drag.track);
-      const motions = drag.indices.map(index => {
+      const motions = drag.resizeMotions || drag.indices.map(index => {
         const original = drag.originals.get(index);
         const moveStart = drag.kind === 'move' || drag.kind === 'resize-left' || drag.edge === 'start'
           || (drag.kind === 'resize-boundary' && index !== drag.indices[0]);
@@ -29592,7 +29703,7 @@ export default MawDynamicCaptions;
       });
       // Followers constrain the same delta, so neither duration nor binding
       // offsets change when any member reaches zero or a neighbouring cue.
-      for (const follower of this.options.getSubtitleDragFollowers?.(drag) || []) {
+      for (const follower of drag.resizeMotions ? [] : this.options.getSubtitleDragFollowers?.(drag) || []) {
         const source = motions.find(motion => motion.index === follower.index);
         if (!source) continue;
         motions.push({ ...follower, moveStart: source.moveStart, moveEnd: source.moveEnd,
@@ -29608,7 +29719,13 @@ export default MawDynamicCaptions;
         if (motion.moveEnd && !motion.moveStart) lower = Math.max(lower, motion.start + clock.minDuration - motion.end);
         if (allowOverlap || drag.relocating) continue;
         for (const other of this.options.getSubtitleCollisionSegments?.(motion.segments) || motion.segments) {
-          if (moving.has(other)) continue;
+          if (moving.has(other)) {
+            const partner = motions.find(m => m.segment === other);
+            if (partner === motion || this.options.sameSubtitleTrack?.(motion.segment, other) === false) continue;
+            if (motion.moveEnd && !partner.moveStart && partner.start >= motion.end) upper = Math.min(upper, partner.start - motion.end);
+            if (motion.moveStart && !partner.moveEnd && partner.end <= motion.start) lower = Math.max(lower, partner.end - motion.start);
+            continue;
+          }
           if (this.options.sameSubtitleTrack?.(motion.segment, other) === false) continue;
           const start = clock.fromMs(other.start), end = clock.fromMs(other.end);
           // Keep pre-existing overlaps editable; do not create new ones or
@@ -30331,14 +30448,14 @@ export default MawDynamicCaptions;
         this.seekFromPointer(event, row, false, geometry);
       });
       row.addEventListener('pointerenter', (event) => {
-        this.pointerLineEvent = { clientX: event.clientX };
+        this.pointerLineEvent = { clientX: event.clientX, clientY: event.clientY };
         this.pointerLineRow = row;
         this.pointerLineMarker = pointerLine;
         this.showPointerLine(event, row, pointerLine);
       });
       row.addEventListener('pointermove', event => this.updateCueEdgeHover(event, row), { capture: true });
       row.addEventListener('pointermove', (event) => {
-        this.pointerLineEvent = { clientX: event.clientX };
+        this.pointerLineEvent = { clientX: event.clientX, clientY: event.clientY };
         this.pointerLineRow = row;
         this.pointerLineMarker = pointerLine;
         this.showPointerLine(event, row, pointerLine);
@@ -31826,11 +31943,13 @@ export default MawDynamicCaptions;
       const shiftClick = event.shiftKey && !targetHandle
         ? { selected: this.options.getSelection(track)?.has(index) === true } : null;
       let boundaryIndex = index;
+      const multiResize = targetHandle && this.subtitleLayersEnabled() && this.options.getSelection(track)?.has(index)
+        && (this.options.getSelection('main').size + this.options.getSelection('extension').size > 1);
       const kind = targetHandle?.classList.contains('left')
-        ? (edgeHit.shared
+        ? (edgeHit.shared && !multiResize
           ? (boundaryIndex = index - 1, 'resize-boundary') : 'resize-left')
         : targetHandle?.classList.contains('right')
-          ? (edgeHit.shared
+          ? (edgeHit.shared && !multiResize
             ? 'resize-boundary' : 'resize-right')
           : 'move';
       // 选中字幕会更新列表、面板以及波形块状态；其中任一步都可能触发
@@ -31856,7 +31975,7 @@ export default MawDynamicCaptions;
         }
       }
       const liveSelection = this.options.getSelection(track);
-      const indices = kind === 'move' && !shiftOverlayMove && liveSelection.has(index)
+      const indices = (kind === 'move' || multiResize) && !shiftOverlayMove && liveSelection.has(index)
         ? [...liveSelection].sort((a, b) => a - b) : [index];
       const segments = this.options.getSegments(track);
       const timing = this.cueTiming();
@@ -33272,6 +33391,7 @@ export default MawDynamicCaptions;
         return;
       }
       const commitIndices = [...(drag.commitIndices || drag.indices)];
+      drag.fixedResize?.forEach(e=>{e.cue._dirty=true;});
       const segments = this.options.getSegments(drag.track || 'main');
       commitIndices.forEach((idx) => { if (segments[idx]) segments[idx]._dirty = true; });
       this.options.onCommitEdit(commitIndices, drag.kind, drag.track || 'main', drag.independent === true);
@@ -33807,6 +33927,11 @@ function productionCaptureClipboard() {
 }
 function productionPasteClipboard() {
   try {
+    const row=waveformEditor?.pointerLineRow,point=waveformEditor?.pointerLineEvent;
+    if(row?.isConnected&&Number.isFinite(point?.clientY)){
+      const rect=row.getBoundingClientRect();
+      fixedHitTrack(rect.bottom-point.clientY-7-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0));
+    }
     const at=Math.round(window.MSWE?.resolve('audio-timeline')?.currentTimeMs()??player.currentTime*1000)||0;
     const result=window.MSWProductionProject.place(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack().id);
     productionCommitProject(window.MSWProductionProject.toProject(result.project),'粘贴字幕',result.ids);
@@ -33839,6 +33964,7 @@ function fixedMove(refs, targetId) {
 // Pointer moves change time and physical ownership in one validated transaction.
 // Display columns remain an adapter detail; crossing them never unbinds cues.
 function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
+  if (productionFlatMode() && ['resize-left','resize-right'].includes(drag.kind)) return fixedResizeSelection(drag, rawDelta, disableSnap);
   if(!productionFlatMode()||drag.kind!=='move')return null;
   const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
   if(!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
@@ -33912,6 +34038,10 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   layerInvalidate();return true;
 }
 function fixedCancelMoveDrag(drag) {
+  if(drag.fixedResize) {
+    for(const e of drag.fixedResize)Object.assign(e.cue,structuredClone(e.original));
+    syncBindingOffsets();layerInvalidate();
+  }
   if(!drag.fixedMove)return;
   const state=drag.fixedMove;DATA.subtitle_tracks.assignments=state.assignments;fixedActiveTrackId=state.active;
   for(const entry of [...state.entries,...state.followers]){
@@ -33919,6 +34049,34 @@ function fixedCancelMoveDrag(drag) {
     Object.assign(entry.cue,entry.original);
   }
   syncBindingOffsets();fixedStatus();layerInvalidate();
+}
+// Resize the actual selection across display columns, with one common delta.
+function fixedResizeSelection(drag, rawDelta, disableSnap) {
+  if(!drag.fixedResize) {
+    const rows=layerCore.tracks(DATA).flatMap(s=>s.segments.map((cue,index)=>({cue,index,source:s})));
+    const ids=new Set([...selectedIdxs].map(i=>DATA.segments[i]?.id).concat([...selectedExtensionIdxs].map(i=>getActiveExtensionTrack()?.segments[i]?.id)));
+    if(ids.size<2)return null;
+    const p=MSWProductionProject.toProject(DATA);
+    for(const b of p.subtitles.bindings)if(ids.has(b.source_id)||ids.has(b.target_id)){ids.add(b.source_id);ids.add(b.target_id);}
+    const entries=rows.filter(e=>ids.has(e.cue.id));
+    if(entries.some(e=>fixedTrack(e.cue,e.source.role,e.source.track_id)?.locked))return false;
+    drag.fixedResize=entries.map(e=>({...e,original:structuredClone(e.cue)}));
+    drag.resizeMotions=drag.fixedResize.map(e=>({segment:e.cue,segments:e.source.segments,
+      start:drag.timing.fromMs(e.original.start),end:drag.timing.fromMs(e.original.end),
+      moveStart:drag.kind==='resize-left',moveEnd:drag.kind==='resize-right'}));
+  }
+  const delta=waveformEditor.resolveLayerPointerDelta(drag,rawDelta,disableSnap);
+  if(delta===null)return false;
+  const changes=new Map(drag.fixedResize.map(e=>{
+    const next=structuredClone(e.original),edge=drag.kind==='resize-left'?'start':'end';
+    next[edge]=drag.timing.toMs(drag.timing.fromMs(e.original[edge])+delta);
+    if(drag.timing.unit==='frames')next[edge+'_frame']=drag.timing.fromMs(next[edge]);
+    next.items=remapPanelItems(e.original.items,e.original.start,e.original.end,next.start,next.end);
+    return [e.cue.id,next];
+  }));
+  if(!drag.fixedResize.some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end))return false;
+  for(const e of drag.fixedResize)Object.assign(e.cue,changes.get(e.cue.id));
+  syncBindingOffsets();layerInvalidate();return true;
 }
 function fixedMenuItem(label, action, disabled = false) {
   if(productionFlatMode())return ctxAppendItem(label,action,{disabled});
@@ -64123,7 +64281,9 @@ window.addEventListener('beforeunload', (e) => {
 (function(global) {
   'use strict';
   global.MSWAssetLibrary = {create({host, request, jobs, schedule, voiceLabel = recipe => recipe.voice}) {
-  const library=host.assetLibrary, el=id=>document.getElementById(id)||library.querySelector('#'+id);
+  const library=host.assetLibrary, cuePanel=document.getElementById('current-cue-panel');
+  // Dock tabs may detach either panel while library state still refreshes.
+  const el=id=>document.getElementById(id)||(id==='current-cue-panel'?cuePanel:null)||library.querySelector('#'+id)||cuePanel?.querySelector('#'+id);
   const t=value=>global.MSWE_I18N?.translateText?.(value)||value;
   const available=Boolean(host.config?.processingUrl);
   const projectId=()=>global.MSWProject.ensure(host.data).project_id;
@@ -66996,10 +67156,11 @@ window.addEventListener('beforeunload', (e) => {
   const icons={linear:'M-5 0L0-5L5 0L0 5Z',smooth:'M-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0',hold:'M-5-5H5V5H-5Z'};
   function create(root,{context,commit,message}){
     root.className='msw-curves';
-    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击图表选择时间与数值，＋新建关键帧；选中已有关键帧后可直接输入数值或拖动。右键设置过渡、删除、切换坐标。精确时间显示秒，保留三位小数（0.300 s = 300 毫秒），相对于每条字幕的起点。多选和整轨也可使用；切换单位保留各条原有时序，编辑当前参数才统一。菱形为匀速，圆形为平滑，方形为定格；底部短线表示其他参数的关键帧。Ctrl 吸附当前单位整数，Ctrl+Shift 吸附 5 的倍数，Esc 取消拖动。">
+    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击空白处准备新帧，选中帧后输入或拖动修改。右键切换坐标、过渡或删除。时间相对字幕起点；Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。">
       <label><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" value="0" required></label>
       <label><span id="curve-value-label">不透明度 (%)</span><input id="curve-value" type="number" step="any" value="100" required></label>
       <button id="curve-add" type="button" class="msw-style-icon" title="在此时间新建关键帧" aria-label="在此时间新建关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
+      <button id="curve-playhead" type="button" class="msw-style-icon" title="在播放头处设帧；需位于当前对象的字幕内" aria-label="在播放头处设帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h8l-4 5-4-5Zm4 5v13M14 13h8m-4-4v8"/></svg></button>
       <button id="curve-reset" type="button" class="msw-style-icon" title="恢复自定义默认值" aria-label="恢复自定义默认值"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg></button></div>
       <div class="msw-curve-plot"><svg id="curve-graph" viewBox="0 0 320 200" preserveAspectRatio="none" tabindex="0" role="group" aria-label="自定义动画图表，右键切换坐标及编辑关键帧"></svg></div>
       <p id="curve-note" class="msw-processing-hint"></p>`;
@@ -67022,6 +67183,7 @@ window.addEventListener('beforeunload', (e) => {
       $('curve-value').min=String(c.min);$('curve-value').max=String(c.max);
       $('curve-time').value=state.unit==='ms'?(cursor.time/1000).toFixed(3):String(number(cursor.time));$('curve-value').value=String(number(cursor.value));
       $('curve-time').disabled=$('curve-value').disabled=$('curve-reset').disabled=off;
+      $('curve-playhead').disabled=off||!context().items.some(i=>i.preview);
       $('curve-add').disabled=off||points.length>=32||points.some(p=>Math.abs(p.time-cursor.time)<.001);
       $('curve-note').textContent=mixed?'多个值：显示首条，编辑仅统一当前参数。':'';
       graph.setAttribute('aria-disabled',String(off));
@@ -67065,7 +67227,7 @@ window.addEventListener('beforeunload', (e) => {
       if(target!==targetSignature){targetSignature=target;selected=-1;cursor={time:0,value:A.channels[channel].initial};}
       points=clone(state.channels[channel]||[]);
       mixed=c.items.some(i=>JSON.stringify(i.value.effects.curves.channels[channel]||[])!==JSON.stringify(points)||i.value.effects.curves.unit!==state.unit);
-      selected=points.findIndex(p=>Math.abs(p.time-cursor.time)<.001);
+      if(selected>=0)selected=points.findIndex(p=>Math.abs(p.time-cursor.time)<.001);
       if(selected>=0)cursor={...points[selected]};
       controls();draw();
     }
@@ -67088,15 +67250,24 @@ window.addEventListener('beforeunload', (e) => {
       const old=points.findIndex(p=>Math.abs(p.time-point.time)<.001);
       if(old>=0){selected=old;cursor={...points[old]};controls();draw();return;}
       cursor={...point};
+      selected=0;
       save([...points,{time:point.time,value:point.value,easing:'linear'}].sort((a,b)=>a.time-b.time));
     }
     $('curve-add').onclick=()=>{if($('curve-time').reportValidity()&&$('curve-value').reportValidity())add();};
+    $('curve-playhead').onclick=()=>{
+      const c=context(),i=c.items[0];if(!i?.preview)return;
+      cursor.time=(c.playhead-i.preview.cue.start)*(state.unit==='percent'?100/i.duration:1);selected=0;
+      apply({type:'playhead',channel});
+    };
     $('curve-reset').onclick=()=>{cursor={time:0,value:A.channels[channel].initial};apply({type:'reset'});};
     $('curve-time').onchange=()=>{
       if(!$('curve-time').reportValidity()){controls();return;}
-      cursor.time=number(Number($('curve-time').value)*timeScale());selected=points.findIndex(p=>p.time===cursor.time);
-      if(selected>=0)cursor.value=points[selected].value;
-      controls();draw();
+      const time=number(Number($('curve-time').value)*timeScale());
+      if(selected>=0){
+        if(points.some((p,i)=>i!==selected&&Math.abs(p.time-time)<.001)){message('此时间已有关键帧',true);controls();return;}
+        const next=clone(points);next[selected].time=time;cursor.time=time;
+        save(next.sort((a,b)=>a.time-b.time));
+      }else{cursor.time=time;controls();draw();}
     };
     $('curve-value').onchange=()=>{
       if(!$('curve-value').reportValidity()){controls();return;}
@@ -67139,14 +67310,17 @@ window.addEventListener('beforeunload', (e) => {
       drag={id:e.pointerId,original:clone(points),cursor:{...cursor},geometry:{...geometry}};
       graph.setPointerCapture(e.pointerId);controls();draw();
     };
+    function crosshair(v){
+      const g=geometry,group=graph.querySelector('.curve-crosshair');
+      group.setAttribute('visibility','visible');group.querySelector('path').setAttribute('d',`M44 ${g.Y(v.value)}H${g.width-16}M${g.X(v.time)} 24V164`);
+      const y=group.querySelector('.curve-hover-y'),x=group.querySelector('.curve-hover-x');
+      y.setAttribute('x','39');y.setAttribute('y',String(g.Y(v.value)+4));y.textContent=number(v.value);
+      x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=timeText(v.time);
+    }
     graph.onpointermove=e=>{
       if(!state)return;
       if(!drag){
-        const v=at(e),g=geometry,group=graph.querySelector('.curve-crosshair');
-        group.setAttribute('visibility','visible');group.querySelector('path').setAttribute('d',`M44 ${g.Y(v.value)}H${g.width-16}M${g.X(v.time)} 24V164`);
-        const y=group.querySelector('.curve-hover-y'),x=group.querySelector('.curve-hover-x');
-        y.setAttribute('x','39');y.setAttribute('y',String(g.Y(v.value)+4));y.textContent=number(v.value);
-        x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=timeText(v.time);
+        crosshair(at(e));
         return;
       }
       if(e.pointerId!==drag.id)return;
@@ -67155,9 +67329,9 @@ window.addEventListener('beforeunload', (e) => {
       const scale=timeScale(),lo=selected?points[selected-1].time+.001:0,hi=selected<points.length-1?points[selected+1].time-.001:geometry.end;
       if(lo<=hi)p.time=number(A.snapValue(v.time/scale,e,lo/scale,hi/scale,.001)*scale);
       const bounds=A.channels[channel];
-      p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();
+      p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();crosshair(p);
     };
-    graph.onpointerleave=()=>graph.querySelector('.curve-crosshair')?.setAttribute('visibility','hidden');
+    graph.onpointerleave=()=>{if(!drag)graph.querySelector('.curve-crosshair')?.setAttribute('visibility','hidden');};
     graph.onpointerup=e=>{
       if(!drag||e.pointerId!==drag.id)return;
       const original=drag.original;drag=null;
@@ -67188,20 +67362,21 @@ window.addEventListener('beforeunload', (e) => {
 (function(global){
   'use strict';
   const A=global.MSWSubtitleAnimation,clone=v=>JSON.parse(JSON.stringify(v));
-  const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展'};
+  const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展',slide:'滑入滑出'};
   const resetIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg>';
   const inheritIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v11h13M14 11l4 4-4 4M9 4h11M9 8h11"/></svg>';
   const readout=v=>Math.round(v*10)/10;
   const parameters=(name,e)=>name==='blink'?
     [{key:'period',title:'循环间隔',min:1,max:100,lane:0},{key:'opacity',title:'最低不透明度',min:0,max:100,lane:1}]:
-    name==='transform'?[{key:'fromScale',title:'缩放强度',min:1,max:Math.max(200,e.fromScale),lane:0}]:[];
+    name==='transform'?[{key:'toScale',title:'缩放强度',min:1,max:Math.max(200,e.toScale),lane:0}]:name==='slide'?[{key:'distance',title:'滑动距离',min:0,max:Math.max(480,e.distance),lane:0}]:[];
   function create(root,{context,commit,message}){
-    root.innerHTML=`<div class="msw-motion-presets" data-option-help="预设可叠加，时间均为字幕时长百分比。水滴手柄控制时间，可拖动两点之间的色条移动整个区间；虚线方形／菱形手柄控制强度，名称和数值显示在滑条下方。舒展强度控制起始缩放，末尾恢复原结束缩放。按住 Ctrl 拖动吸附整数，Ctrl+Shift 吸附 5 的倍数，Esc 取消。切换自定义或关闭效果均保留参数，还原图标才恢复默认值。"></div>
+    root.innerHTML=`<div class="msw-motion-presets" data-option-help="拖动手柄调整时间，拖动色块移动区间；虚线手柄调整强度。Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。关闭效果保留参数。"></div>
       <div id="motion-preset-controls"></div><div id="motion-curve-editor" hidden></div>`;
     const $=id=>root.querySelector('#'+id),bar=root.firstElementChild;
     let signature='',drag=null,states={},custom=false;
     const fingerprint=()=>JSON.stringify(context().items.map(i=>[i.row?.cue_id,i.track.id,i.value]));
     function apply(name,action){
+      if(name==='fade'&&action.type==='values')action={...action,timeUnit:fixedFade()?'ms':'percent'};
       try{commit(name,'author',action);message('');}catch(e){message(e.message,true);}sync();
     }
     function cancel(){
@@ -67213,7 +67388,7 @@ window.addEventListener('beforeunload', (e) => {
       b.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg><span>'+label+'</span>';
       b.onclick=()=>{cancel();apply(name,{type:'toggle',value:b.classList.contains('is-mixed')||b.getAttribute('aria-pressed')!=='true'});};bar.append(b);
       const section=document.createElement('section');section.id='motion-'+name;section.className='msw-motion-effect';section.hidden=true;
-      section.innerHTML=`<div class="msw-motion-heading"><span>${label}</span><button type="button" class="msw-style-icon" id="motion-${name}-reset" title="恢复${label}默认值" aria-label="恢复${label}默认值">${resetIcon}</button></div>
+      section.innerHTML=`<div class="msw-motion-heading"><span>${label}</span>${name==='fade'?'<select id="motion-fade-timing" aria-label="淡入淡出时间方式"><option value="percent">按比例</option><option value="ms">固定时长</option></select><span id="motion-fade-durations" hidden><label>淡入 <input id="motion-fade-in-seconds" type="number" min="0" max="60" step="0.001" aria-label="淡入秒数"> s</label><label>淡出 <input id="motion-fade-out-seconds" type="number" min="0" max="60" step="0.001" aria-label="淡出秒数"> s</label></span>':name==='slide'?'<select id="motion-slide-direction" aria-label="滑动方向"><option value="right">向右</option><option value="left">向左</option><option value="down">向下</option><option value="up">向上</option></select>':''}<button type="button" class="msw-style-icon" id="motion-${name}-reset" title="恢复${label}默认值" aria-label="恢复${label}默认值">${resetIcon}</button></div>
         <svg id="motion-${name}-graph" class="msw-motion-range-graph" preserveAspectRatio="none" role="group" aria-label="${label}时间区间"></svg>`;
       $('motion-preset-controls').append(section);
       $('motion-'+name+'-reset').onclick=()=>apply(name,{type:'reset'});
@@ -67239,6 +67414,7 @@ window.addEventListener('beforeunload', (e) => {
       graph.onpointerup=e=>{
         if(drag?.name!==name||drag.id!==e.pointerId)return;
         const d=drag,next=clone(states[name]);drag=null;
+        if(name==='fade'&&fixedFade()){const duration=context().items[0]?.duration||1000,key=Number(d.edge)===1?'in':'out';d.patch={[key]:next[key]*duration/100};}
         if(fingerprint()!==signature||context().blocked){sync();return;}
         if(JSON.stringify(next)!==JSON.stringify(d.original))apply(name,{type:'values',value:d.patch});
       };
@@ -67250,37 +67426,44 @@ window.addEventListener('beforeunload', (e) => {
         const parameter=parameters(name,states[name]).find(p=>p.key===node.dataset.parameter),edge=node.dataset.edge;
         const current=parameter?states[name][parameter.key]:A.presetTimes(name,states[name])[Number(edge)],min=parameter?.min??0,max=parameter?.max??100;
         const value=e.key==='Home'?min:e.key==='End'?max:current+(e.key==='ArrowLeft'?-1:1)*(e.ctrlKey&&e.shiftKey?5:1);
-        const patch=parameter?{[parameter.key]:A.snapValue(value,e,min,max)}:A.dragPreset(name,states[name],{edge},value,0,e);
+        let patch=parameter?{[parameter.key]:A.snapValue(value,e,min,max)}:A.dragPreset(name,states[name],{edge},value,0,e);
+        if(name==='fade'&&fixedFade()){const e={...states[name],...patch},duration=context().items[0]?.duration||1000,key=Number(edge)===1?'in':'out';patch={[key]:e[key]*duration/100};}
         apply(name,{type:'values',value:patch});
         graph.querySelector(parameter?`[data-parameter="${parameter.key}"]`:`[data-edge="${edge}"]`)?.focus({preventScroll:true});
       };
       new ResizeObserver(()=>{if(states[name]&&!drag)draw(name);}).observe(graph);
     }
+    const fixedFade=()=>context().items[0]?.value.effects.fade.unit==='ms'&&!Object.hasOwn(context().items[0].value.effects.fade,'start');
+    $('motion-fade-timing').onchange=e=>{const c=context(),f=c.items[0].value.effects.fade,d=c.items[0].duration;apply('fade',{type:'timing',value:e.target.value,in:Math.round(A.ms(f,'in',d)),out:Math.round(A.ms(f,'out',d))});};
+    for(const key of ['in','out'])$('motion-fade-'+key+'-seconds').onchange=e=>{if(e.target.reportValidity())apply('fade',{type:'values',value:{[key]:Number(e.target.value)*1000}});else sync();};
+    $('motion-slide-direction').onchange=e=>apply('slide',{type:'values',value:{direction:e.target.value}});
     const mode=document.createElement('button');mode.id='motion-custom';mode.type='button';mode.className='msw-motion-preset msw-motion-custom';mode.textContent='自定义';bar.append(mode);
     const inherit=document.createElement('button');inherit.id='motion-inherit';inherit.type='button';inherit.className='msw-style-icon';inherit.title=inherit.ariaLabel='恢复轨道动画';inherit.innerHTML=inheritIcon;bar.append(inherit);
     const curves=global.MSWAnimationCurvesUI.create($('motion-curve-editor'),{context,commit,message});
+    const reveal=document.createElement('button');reveal.id='motion-custom-typewriter';reveal.type='button';reveal.className='msw-motion-preset';reveal.textContent='打字机 ×';reveal.title='关闭保留的打字机效果';$('motion-curve-editor').prepend(reveal);
+    reveal.onclick=()=>apply('typewriter',{type:'custom-typewriter',value:false});
     mode.onclick=()=>{cancel();curves.cancel();apply('all',{type:'mode',value:custom?'presets':'custom'});};
     inherit.onclick=()=>{try{commit('all','reset');message('');}catch(e){message(e.message,true);}sync();};
     function draw(name){
       const graph=$('motion-'+name+'-graph'),width=Math.max(180,graph.clientWidth||320),e=states[name],p=A.presetTimes(name,e),x=v=>26+v/100*(width-52);
       const scalar=parameters(name,drag?.name===name?drag.original:e),height=scalar.length?92:82,off=context().blocked,tab=off?-1:0;
-      const titles=name==='fade'?['淡入开始','淡入结束','淡出开始','淡出结束']:['开始','结束'];
+      const pair=['fade','slide'].includes(name),fixed=name==='fade'&&fixedFade(),titles=name==='fade'?['淡入开始','淡入结束','淡出开始','淡出结束']:name==='slide'?['滑入开始','滑入结束','滑出开始','滑出结束']:['开始','结束'];
       graph.setAttribute('viewBox',`0 0 ${width} ${height}`);graph.style.height=height+'px';
-      const bands=name==='fade'?[[0,1,'in'],[2,3,'out']]:[[0,1,'range']];
-      graph.innerHTML=`<path class="motion-range-rail" d="M26 28H${width-26}"/>`+
-        bands.map(([a,b,id])=>`<path class="motion-range-fill" data-band="${id}" d="M${x(p[a])} 28H${x(p[b])}"><title>拖动整个${name==='fade'?(id==='in'?'淡入':'淡出'):'效果'}区间</title></path>`).join('')+
-        p.map((v,i)=>`<g class="motion-range-node" data-edge="${i}" tabindex="${tab}" role="slider" aria-disabled="${off}" aria-label="${titles[i]}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${readout(v)}" aria-valuetext="${readout(v)}%">
+      const bands=pair?[[0,1,'in'],[2,3,'out']]:[[0,1,'range']];
+      graph.innerHTML=`<rect class="motion-range-rail" x="26" y="17" width="${width-52}" height="22" rx="4"/>`+
+        bands.map(([a,b,id])=>`<rect class="motion-range-fill" ${fixed?'':`data-band="${id}"`} x="${x(p[a])}" y="17" width="${Math.max(1,x(p[b])-x(p[a]))}" height="22" rx="4"><title>${fixed?'固定淡入／淡出':'拖动整个效果区间'}</title></rect>`).join('')+
+        p.map((v,i)=>fixed&&(i===0||i===3)?'':`<g class="motion-range-node" data-edge="${i}" tabindex="${tab}" role="slider" aria-disabled="${off}" aria-label="${titles[i]}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${readout(v)}" aria-valuetext="${readout(v)}%">
           <path class="motion-range-handle" transform="translate(${x(v)} ${i%2?56:0}) scale(1 ${i%2?-1:1})" d="M0 25L-5.5 17A7 7 0 1 1 5.5 17Z"/>
           <rect class="motion-range-hit" x="${x(v)-10}" y="${i%2?39:2}" width="20" height="18"/>
           <title>${titles[i]} ${readout(v)}%</title></g>
-          <text x="${x(v)}" y="${i%2&&(name==='fade'||x(v)-x(p[i-1])<42)?79:65}" text-anchor="${v<6?'start':v>94?'end':'middle'}">${readout(v)}%</text>`).join('')+
+          <text x="${x(v)}" y="${i%2&&(pair||x(v)-x(p[i-1])<42)?79:65}" text-anchor="${v<6?'start':v>94?'end':'middle'}">${readout(v)}%</text>`).join('')+
         scalar.map(({key,title,min,max,lane},i)=>{
-          const px=x(e[key]/max*100),y=lane?32:24,summary=key==='fromScale'?`缩放 ${readout(e[key])}% → ${readout(e.toScale)}%`:`${lane?'不透明':'间隔'} ${readout(e[key])}%`;
+          const px=x(e[key]/max*100),y=lane?32:24,summary=key==='toScale'?`缩放 100% → ${readout(e[key])}%`:key==='distance'?`距离 ${readout(e[key])} px`:`${lane?'不透明':'间隔'} ${readout(e[key])}%`;
           return `<g id="motion-${name}-${key}" class="motion-parameter-node" data-parameter="${key}" tabindex="${tab}" role="slider" aria-disabled="${off}" aria-label="${title}" aria-valuemin="${min}" aria-valuemax="${max}" aria-valuenow="${readout(e[key])}" aria-valuetext="${summary}">
             <path class="motion-parameter-stem" d="M${px} 18V38"/>
             <path class="motion-parameter-symbol" transform="translate(${px} ${y})" d="${lane?'M0-4L4 0L0 4L-4 0Z':'M-3-3H3V3H-3Z'}"/>
             <rect class="motion-range-hit" x="${px-8}" y="${lane?28:19}" width="16" height="9"/>
-            <title>${title}：${readout(e[key])}%${key==='fromScale'?`，结束缩放 ${readout(e.toScale)}%`:''}</title></g>
+            <title>${title}：${readout(e[key])}%${key==='toScale'?`，结束缩放 ${readout(e.toScale)}%`:''}</title></g>
             <path class="motion-parameter-symbol" transform="translate(${26+i*(width-52)/2} 85)" d="${lane?'M0-3L3 0L0 3L-3 0Z':'M-2.5-2.5H2.5V2.5H-2.5Z'}"/>
             <text x="${34+i*(width-52)/2}" y="89">${summary}</text>`;
         }).join('');
@@ -67293,6 +67476,10 @@ window.addEventListener('beforeunload', (e) => {
       const first=c.items[0]?.value||A.defaults();custom=A.authoringMode(first)==='custom';
       mode.setAttribute('aria-pressed',String(custom));mode.disabled=c.blocked;
       $('motion-preset-controls').hidden=custom;$('motion-curve-editor').hidden=!custom;
+      reveal.hidden=!custom||!first.effects.typewriter.enabled||!first.effects.typewriter.custom;reveal.disabled=c.blocked;
+      $('motion-fade-timing').value=fixedFade()?'ms':'percent';$('motion-fade-durations').hidden=!fixedFade();
+      for(const key of ['in','out'])$('motion-fade-'+key+'-seconds').value=(first.effects.fade[key]/1000).toFixed(3);
+      $('motion-slide-direction').value=first.effects.slide.direction;
       inherit.hidden=!c.cue;inherit.disabled=c.blocked||!c.items.some(i=>i.override);
       for(const name of Object.keys(labels)){
         const button=$('motion-preset-'+name),enabled=first.effects[name].enabled;
@@ -67302,7 +67489,7 @@ window.addEventListener('beforeunload', (e) => {
         try{states[name]=A.presetState(first,name,c.items[0]?.duration||1000);}
         catch(_){states[name]={...A.presetDefault(name),enabled};}
         const section=$('motion-'+name);section.hidden=!(enabled||mixed);
-        for(const el of section.querySelectorAll('input,button'))el.disabled=c.blocked;
+        for(const el of section.querySelectorAll('input,button,select'))el.disabled=c.blocked;
         draw(name);
       }
       curves.sync();global.MSWHelp?.hydrate(root);
@@ -67394,8 +67581,8 @@ window.addEventListener('beforeunload', (e) => {
   icons.overwrite='<path d="M20 11V7l-4-4H3v18h10M7 3v6h9V3M7 21v-7h5m3 3h7m-3-3 3 3-3 3"/>';
   panel.innerHTML=`
     <div class="media-settings-grid msw-style-selectors">
-      <label class="media-settings-field" data-option-help="跟随工程样式时预览工程输出；也可选择已有预设，仅用于播放器校对。下方始终编辑工程样式，修改不会切换预览选择。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
-      <label class="media-settings-field" data-option-help="轨道默认：预设作用于所选轨道组。所选字幕：只应用外观，不改变时间、绑定、位置或动画；多选按各条字幕的轨道角色应用。调整立即用于工程，覆盖预设才更新用户预设。另存保存当前外观；多选外观不同时请先选择单条字幕。SRT 仅保存文字和时间。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
+      <label class="media-settings-field" data-option-help="跟随工程，或使用预设校对；预览选择不影响导出。"><span class="msw-option-label">预览样式</span><select id="style-preview-mode"></select></label>
+      <label class="media-settings-field" data-option-help="作用于当前对象。修改立即生效；覆盖或另存才更新预设。所选字幕只应用外观。"><span class="msw-option-label">工程样式</span><select id="style-project-preset"></select></label>
     </div>
     <div class="msw-style-toolbar"><div class="msw-style-tabs" role="tablist" aria-label="字幕样式轨道"><button type="button" role="tab" id="style-main" aria-selected="true">主字幕</button><button type="button" role="tab" id="style-secondary" aria-selected="false" tabindex="-1">副字幕</button></div><div class="msw-style-actions" role="group" aria-label="样式预设操作">${iconButton('style-save-as','另存为新预设','save')}${iconButton('style-reset','恢复默认','reset')}${iconButton('style-delete-preset','删除预设','delete')}</div></div>
     <form id="style-save-form" class="msw-style-save-form" hidden><label class="media-settings-field"><span>预设名称</span><input id="style-preset-name" maxlength="80" required></label><button type="submit" id="style-save-preset">保存</button><button type="button" id="style-save-cancel">取消</button></form>
@@ -67415,7 +67602,7 @@ window.addEventListener('beforeunload', (e) => {
   panel.querySelector('#style-more').insertAdjacentHTML('beforeend',`<div id="style-track-position" class="msw-position-group" hidden>
     <div id="style-position-layout" class="msw-style-fields"></div>
     <div id="style-position-fields"><div class="media-settings-grid">
-      <label class="media-settings-field" data-option-help="轨道默认作用于未单独定位的字幕。所选字幕使用列表或波形区的实际选区，不自动扩展到绑定的另一侧。坐标相对视频内容，不含黑边；沿用字幕原有对齐锚点。多选时保持相对距离，多个值以首条为基准整体平移。定位时临时预览工程样式，结束后恢复预览选择。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
+      <label class="media-settings-field" data-option-help="只调整当前对象；多选以首条为基准平移，保留相对距离。"><span class="msw-option-label">定位对象</span><select id="style-position-scope"><option value="track">轨道默认</option><option value="cue">所选字幕</option></select></label>
       <label class="media-settings-field"><span>横向 (%)</span><input id="style-position-x" type="number" min="0" max="100" step="any" required></label>
       <label class="media-settings-field"><span>纵向 (%)</span><input id="style-position-y" type="number" min="0" max="100" step="any" required></label>
       <div class="style-position-actions"><button type="button" id="style-position-drag">在画面中定位</button><button type="button" id="style-position-cancel" hidden>取消定位</button><button type="button" id="style-position-finish" hidden>完成定位</button></div>
@@ -67423,7 +67610,7 @@ window.addEventListener('beforeunload', (e) => {
   </div>`);
   panel.querySelector('#style-general').insertAdjacentHTML('beforebegin',`<div id="style-pair-controls" class="media-settings-grid">
     <label class="media-settings-field"><span class="msw-option-label">主副排列</span><select id="style-pair-order"><option value="main-above">主字幕在上</option><option value="secondary-above">副字幕在上</option></select></label>
-    <label class="media-settings-field" data-option-help="以 1080p 为基准，随视频画面等比缩放。数值是文字行框之间的附加间距：0 不额外留空，负值压缩行框，过小时可能重叠。字号、字体、描边和纵向缩放会影响可见距离；相同数值不代表不同样式的字形边缘距离相同。压缩到极限后仍保留上下顺序。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
+    <label class="media-settings-field" data-option-help="两行文字之间的附加间距，负值让字幕靠近；过小可能重叠。以 1080p 为基准。"><span class="msw-option-label">主副字幕间距</span><span class="gap-remove-number-control"><input id="style-pair-gap" type="number" min="-240" max="240" step="1" required><span class="gap-remove-unit">px</span></span></label>
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
@@ -67456,8 +67643,8 @@ window.addEventListener('beforeunload', (e) => {
   fields([['gradientMode','文字渐变','select',[['none','关闭'],['characters','双色逐字']]],['gradientStart','起始颜色','color'],['gradientEnd','结束颜色','color']],'style-gradient-fields');
   const decorationFields=document.createElement('div');decorationFields.className='msw-style-fields msw-decoration-fields';decorationFields.id='style-decoration-fields';
   $('style-more').append(decorationFields);decorationFields.append(gradientSection,backgroundSection);
-  $('style-field-backgroundShape').closest('label').dataset.optionHelp='矩形背景随全文伸缩，圆角半径为 0 时使用直角。打字机保留完整背景。内边距和圆角以 1080p 为基准；启用后替代旧背景框，描边和阴影仍保留。';
-  $('style-field-gradientMode').closest('label').dataset.optionHelp='沿阅读顺序逐字变化，换行不重置；单字内部保持纯色。替代文字填充颜色，不影响描边与背景。';
+  $('style-field-backgroundShape').closest('label').dataset.optionHelp='随全文大小伸缩；圆角为 0 时使用直角。打字机保留完整背景。';
+  $('style-field-gradientMode').closest('label').dataset.optionHelp='沿阅读顺序逐字渐变，单字内部保持纯色。';
   icons.pick='<path d="m14 5 5 5M12 7l5 5-9 9H3v-5l9-9Zm1-1 3-3a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3l-3 3"/>';
   for(const input of panel.querySelectorAll('[data-style-field][type=color]')) {
     const control=document.createElement('span');control.className='msw-style-color-control';input.before(control);control.append(input);
@@ -67473,11 +67660,37 @@ window.addEventListener('beforeunload', (e) => {
     };
   }
   $('style-field-fontSize').closest('label').dataset.optionHelp='字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。';
-  const fontList=document.createElement('datalist');fontList.id='style-local-fonts';panel.append(fontList);
-  $('style-field-fontName').setAttribute('list',fontList.id);
   const fontInput=$('style-field-fontName'),fontControl=document.createElement('span');fontControl.className='msw-style-font-control';fontInput.before(fontControl);fontControl.append(fontInput);
   fontControl.insertAdjacentHTML('beforeend',iconButton('style-scan-fonts','读取本机字体','fonts'));const scanFonts=$('style-scan-fonts');
-  scanFonts.onclick=async()=>{try{if(!global.queryLocalFonts)throw Error('当前浏览器不支持读取字体，可直接输入字体名称');const fonts=await global.queryLocalFonts();fontList.replaceChildren(...[...new Set(fonts.map(f=>f.family))].sort().map(name=>new Option(name,name)));message('本机字体已载入，可输入名称筛选。');}catch(e){message(e.message,true);}};
+  const fontMenu=document.createElement('div');fontMenu.id='style-local-fonts';fontMenu.className='msw-font-menu';fontMenu.hidden=true;
+  fontMenu.innerHTML='<input type="search" aria-label="搜索本机字体" placeholder="搜索字体"><div role="listbox" aria-label="本机字体"></div>';
+  document.body.append(fontMenu);let localFontFamilies=[];
+  const closeFonts=()=>{fontMenu.hidden=true;scanFonts.setAttribute('aria-expanded','false');};
+  const drawFonts=()=>{
+    const query=fontMenu.firstElementChild.value.trim().toLocaleLowerCase(),list=fontMenu.lastElementChild;
+    list.replaceChildren(...localFontFamilies.filter(f=>f.aliases.toLocaleLowerCase().includes(query)).map(f=>{
+      const b=document.createElement('button');b.type='button';b.setAttribute('role','option');b.textContent=f.family;
+      b.setAttribute('aria-selected',String(f.family===fontInput.value));
+      b.onclick=()=>{fontInput.value=f.family;closeFonts();fontInput.dispatchEvent(new Event('change',{bubbles:true}));fontInput.focus();};return b;
+    }));
+    if(!list.childElementCount)list.textContent='没有匹配的字体';
+  };
+  fontMenu.firstElementChild.oninput=drawFonts;
+  scanFonts.onclick=async()=>{try{
+    if(!fontMenu.hidden){closeFonts();return;}
+    if(!global.queryLocalFonts)throw Error('当前浏览器不支持读取字体，可直接输入字体名称');
+    const fonts=await global.queryLocalFonts(),families=new Map();
+    for(const f of fonts){if(!f.family)continue;const entry=families.get(f.family)||{family:f.family,aliases:f.family};entry.aliases+=' '+(f.fullName||'')+' '+(f.postscriptName||'');families.set(f.family,entry);}
+    localFontFamilies=[...families.values()].sort((a,b)=>a.family.localeCompare(b.family));
+    if(!localFontFamilies.length)throw Error('未读取到字体，请检查浏览器的本地字体权限');
+    fontMenu.firstElementChild.value='';drawFonts();fontMenu.hidden=false;scanFonts.setAttribute('aria-expanded','true');
+    const r=fontControl.getBoundingClientRect();fontMenu.style.width=Math.min(Math.max(240,r.width),innerWidth-16)+'px';
+    fontMenu.style.left=Math.max(8,Math.min(r.left,innerWidth-fontMenu.offsetWidth-8))+'px';
+    fontMenu.style.top=Math.max(8,Math.min(r.bottom+4,innerHeight-fontMenu.offsetHeight-8))+'px';fontMenu.firstElementChild.focus();
+  }catch(e){message(e.message,true);}};
+  document.addEventListener('pointerdown',e=>{if(!fontMenu.contains(e.target)&&!scanFonts.contains(e.target))closeFonts();},true);
+  fontMenu.onkeydown=e=>{e.stopPropagation();if(e.key==='Escape'){closeFonts();scanFonts.focus();}};
+  global.addEventListener('resize',closeFonts);
   const A=global.AsrEditorUtils.ASS_DEFAULT_ANIMATIONS;
   const captions={fad:'淡入淡出',fade:'分段透明度',move:'移动',t:'样式渐变',inMs:'淡入 (ms)',outMs:'淡出 (ms)',alpha1:'起始透明度',alpha2:'中间透明度',alpha3:'结束透明度',t1:'开始 (ms)',t2:'结束 (ms)',t3:'第三时间 (ms)',t4:'第四时间 (ms)',x1:'起点 X',y1:'起点 Y',x2:'终点 X',y2:'终点 Y',startMs:'开始 (ms)',endMs:'结束 (ms)',accel:'变化速率',tags:'ASS 渐变标签'};
   const animationHelp={fad:'字幕出现和结束时的淡入淡出时长。与分段透明度二选一。',move:'按字幕开始后的时间，从起点移动到终点；坐标以画面左上角为原点。',fade:'按四个时间点在三种透明度间过渡：0 为不透明，255 为完全透明。与淡入淡出二选一。',t:'在指定时间段逐渐改变样式。变化速率为 1 时匀速；自定义可填写 ASS 标签。'};
@@ -67496,7 +67709,7 @@ window.addEventListener('beforeunload', (e) => {
   $('style-transform-preset').replaceChildren(...[...transformTags,['custom','自定义标签']].map(([id,name])=>new Option(t(name),id)));
   $('style-field-t-tags').closest('label').classList.add('msw-style-wide');$('style-field-t-tags').maxLength=512;
   $('style-field-t-tags').placeholder='\\fscx120\\fscy120';
-  $('style-field-wrapMode').closest('label').dataset.optionHelp='自动按画面宽度换行；按字数为每行字幕正文设置上限（1–200）。汉字、英文字母、标点、空格各计 1，常见组合表情不拆开；保留手动换行。画面过窄时仍可能提前换行。仅影响预览、ASS 和烧录，不改写正文或 SRT。';
+  $('style-field-wrapMode').closest('label').dataset.optionHelp='自动适应画面宽度，或限制每行字符数（含空格、标点）。保留手动换行，不改写正文。';
   global.MSWHelp?.hydrate(panel);
   // Proofreading remains a player preference. Authoring lives in one dock.
   const proofPanel=document.createElement('section');proofPanel.className='settings-panel-section msw-project-style';
@@ -67517,7 +67730,7 @@ window.addEventListener('beforeunload', (e) => {
   $('style-position-layout').append($('style-pair-controls'));
   const anchor=$('style-field-alignment').closest('label');
   anchor.querySelector('.msw-option-label').textContent='对齐锚点';$('style-position-layout').append(anchor);
-  anchor.dataset.optionHelp='自动排布按锚点和边距定位；固定位置按视频画面的百分比定位。锚点决定文字从该坐标向哪个方向展开，动画位移以此基础位置为起点。';
+  anchor.dataset.optionHelp='锚点决定文字向哪个方向展开。百分比相对视频画面，不含黑边。';
   for(const key of ['marginL','marginR','marginV'])$('style-position-layout').append($('style-field-'+key).closest('label'));
   for(const key of ['fontName'])$('style-field-'+key).closest('label').classList.add('msw-property-font');
   $('style-position-scope').closest('label').hidden=true;
@@ -67638,13 +67851,17 @@ window.addEventListener('beforeunload', (e) => {
       const previewRow=row||owned.find(r=>r.cue.start<=player.currentTime*1000&&r.cue.end>player.currentTime*1000)||owned[0];
       return {row,track,style,override,base,legacy:!base&&!override&&Object.values(style.animations).some(e=>e.enabled),value:M.resolve(base,override)||M.defaults(),duration:previewRow?previewRow.cue.end-previewRow.cue.start:1000,preview:previewRow};
     });
-    return {cue,items,preview:items[0]?.preview,blocked:!ready||saving||fixedPositionEditing||!productionFlatMode()||!items.length||items.some(i=>i.track.locked)};
+    return {cue,items,playhead:player.currentTime*1000,preview:items[0]?.preview,blocked:!ready||saving||fixedPositionEditing||!productionFlatMode()||!items.length||items.some(i=>i.track.locked)};
   }
   function commitMotion(name,key,value){
     const context=motionContext();if(context.blocked)return;
     commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
     const updates=context.items.map(item=>{
-      if(key==='author')return {id:item.row?.cue_id,animation:M.authorPatch(item.value,name,value,item.duration),item};
+      if(key==='author'){
+        if(value.type==='playhead'&&!item.preview)throw Error('当前轨道没有可参考的字幕');
+        const action=value.type==='playhead'?{...value,time:context.playhead-item.preview.cue.start}:value;
+        return {id:item.row?.cue_id,animation:M.authorPatch(item.value,name,action,item.duration),item};
+      }
       if(key==='preset')return {id:item.row?.cue_id,animation:M.presetPatch(item.value,name,item.duration),item};
       if(key.startsWith('channel:')){
         const current=structuredClone(item.value);

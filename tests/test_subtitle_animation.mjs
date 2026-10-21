@@ -5,6 +5,46 @@ import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import production from '../web/msw-production-project.js';
 
+test('fixed fades anchor to both cue ends and compress only when too short',()=>{
+  let a=A.defaults();a=A.resolve(a,A.authorPatch(a,'fade',{type:'timing',value:'ms',in:300,out:500},2000));
+  a=A.resolve(a,A.authorPatch(a,'fade',{type:'toggle',value:true},2000));
+  for(const duration of [1000,2000,10000]){
+    assert.equal(A.sample(a,150,duration).opacity,.5);
+    assert.equal(A.sample(a,duration-250,duration).opacity,.5);
+  }
+  assert.equal(A.sample(a,75,400).opacity,.5);
+  assert.equal(A.sample(a,275,400).opacity,.5);
+  assert.equal(A.resolve(a,A.authorPatch(a,'fade',{type:'toggle',value:false})).effects.fade.in,300);
+  const mixed=A.authorPatch(A.defaults(),'fade',{type:'values',timeUnit:'ms',value:{in:300}},2000);
+  assert.deepEqual(mixed.effects.fade,{enabled:false,unit:'ms',in:300,out:200});
+  const percentage=A.authorPatch(a,'fade',{type:'values',timeUnit:'percent',value:{start:0,in:10,out:20,end:100}},2000);
+  assert.deepEqual(percentage.effects.fade,{enabled:true,unit:'percent',start:0,end:100,in:10,out:20});
+});
+
+test('slide and stretch convert to curves with reveal retained and no source mutation',()=>{
+  let a=A.defaults();
+  for(const name of ['fade','typewriter','slide','transform'])a=A.resolve(a,A.authorPatch(a,name,{type:'toggle',value:true},4000));
+  assert.equal(a.effects.transform.fromScale,100);assert.equal(a.effects.transform.toScale,115);
+  for(const direction of ['right','left','down','up']){
+    a.effects.slide.direction=direction;
+    const copy=structuredClone(a),custom=A.resolve(a,A.authorPatch(a,'all',{type:'mode',value:'custom'},4000));
+    assert.ok(A.valid(custom));assert.deepEqual(a,copy);
+    for(let t=0;t<=4000;t+=37)for(const key of Object.keys(A.sample(a,t,4000,20)))assert.ok(Math.abs(A.sample(a,t,4000,20)[key]-A.sample(custom,t,4000,20)[key])<.002,`${direction} ${t} ${key}`);
+    assert.equal(A.resolve(custom,A.authorPatch(custom,'typewriter',{type:'custom-typewriter',value:false})).effects.typewriter.custom,false);
+  }
+  a=A.resolve(a,A.authorPatch(a,'blink',{type:'toggle',value:true}));
+  const c=A.resolve(a,A.authorPatch(a,'all',{type:'mode',value:'custom'},4000));
+  for(let t=0;t<4000;t+=29)assert.ok(Math.abs(A.sample(a,t,4000).opacity-A.sample(c,t,4000).opacity)<.002);
+});
+
+test('playhead frame inserts or replaces the current channel and rejects out-of-cue clocks',()=>{
+  let a=A.defaults();a.mode='custom';
+  const frame=(time)=>A.authorPatch(a,'curves',{type:'playhead',time,channel:'scale'},2000);
+  a=A.resolve(a,frame(500));assert.deepEqual(a.effects.curves.channels.scale,[{time:25,value:100,easing:'linear'}]);
+  a=A.resolve(a,frame(500));assert.equal(a.effects.curves.channels.scale.length,1);
+  assert.throws(()=>frame(-1),/播放头/);assert.throws(()=>frame(2001),/播放头/);
+});
+
 test('drag snapping stays inside bounds and preserves a moved interval without invalid animation data',()=>{
   assert.equal(A.snapValue(12.34,{}),12.3);
   assert.equal(A.snapValue(12.8,{ctrlKey:true}),13);
@@ -43,7 +83,8 @@ test('authoring modes retain inactive effects and preset toggles retain edited v
   patch('fade',{type:'toggle',value:false});patch('fade',{type:'toggle',value:true});
   assert.equal(a.effects.fade.start,10);assert.equal(a.effects.fade.in,20);
   patch('fade',{type:'reset'});assert.equal(a.effects.fade.enabled,true);assert.equal(a.effects.fade.start,0);
-  patch('all',{type:'mode',value:'custom'});assert.equal(A.sample(a,100,2000).opacity,.7);
+  patch('all',{type:'mode',value:'custom'});assert.equal(A.sample(a,100,2000).opacity,.5);
+  assert.equal(a.effects.typewriter.custom,true);
   assert.throws(()=>patch('fade',{type:'values',value:{in:90,out:20}}),/无效/);
 });
 

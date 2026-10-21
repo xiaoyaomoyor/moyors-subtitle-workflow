@@ -5116,6 +5116,12 @@
 .msw-style-icon svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 .msw-style-icon:disabled { opacity:.4; cursor:default; }
 .msw-style-font-control { display:flex; align-items:center; gap:4px; min-width:0; }
+.msw-font-menu { position:fixed; z-index:11000; box-sizing:border-box; max-width:calc(100vw - 16px); padding:6px; background:var(--menu-overlay-bg); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); }
+.msw-font-menu[hidden] { display:none; }
+.msw-font-menu input { box-sizing:border-box; width:100%; margin-bottom:5px; }
+.msw-font-menu [role=listbox] { max-height:min(240px,45vh); overflow:auto; color:var(--text-muted); }
+.msw-font-menu [role=option] { display:block; width:100%; padding:6px 8px; border:0; border-radius:var(--radius-sm); text-align:left; background:none; color:var(--text-primary); }
+.msw-font-menu [role=option]:hover,.msw-font-menu [role=option][aria-selected=true] { background:var(--accent-tint); color:var(--accent); }
 .msw-style-font-control input { flex:1; width:0; }
 .msw-style-fields input[type=color] { height:30px; padding:3px; cursor:pointer; }
 .msw-style-section { border-top:1px solid var(--border); padding-top:2px; }
@@ -5354,8 +5360,15 @@
 .msw-motion-heading > span::before { content:none; }
 .msw-motion-range-graph { display:block; width:100%; height:82px; touch-action:none; user-select:none; }
 .msw-motion-range-graph text { fill:var(--text-muted); font-size:10px; pointer-events:none; }
-.msw-motion-range-graph .motion-range-rail { stroke-width:6; stroke:var(--border); }
-.motion-range-fill { cursor:ew-resize; stroke-width:6; stroke-linecap:round; }
+.msw-motion-range-graph .motion-range-rail { stroke-width:1; stroke:var(--border); fill:var(--bg-panel); }
+.msw-motion-range-graph .motion-range-fill { cursor:ew-resize; stroke:var(--text-secondary); stroke-width:1; fill:color-mix(in srgb,var(--accent) 26%,var(--bg-panel)); }
+.msw-motion-heading { flex-wrap:wrap; gap:8px; }
+.msw-motion-heading > select { width:auto; min-width:90px; max-width:150px; }
+#motion-fade-durations { display:flex; flex-wrap:wrap; gap:8px; }
+#motion-fade-durations[hidden] { display:none; }
+#motion-fade-durations label { display:flex; align-items:center; gap:4px; font-size:.85em; }
+#motion-fade-durations input { width:80px; min-width:0; }
+#motion-custom-typewriter { margin-bottom:8px; }
 .motion-range-hit { fill:transparent; stroke:none; }
 .motion-range-node { cursor:ew-resize; }
 .motion-range-node .motion-range-handle { fill:var(--accent); stroke:var(--bg-panel); stroke-width:1.5; pointer-events:none; }

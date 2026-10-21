@@ -300,6 +300,11 @@ function productionCaptureClipboard() {
 }
 function productionPasteClipboard() {
   try {
+    const row=waveformEditor?.pointerLineRow,point=waveformEditor?.pointerLineEvent;
+    if(row?.isConnected&&Number.isFinite(point?.clientY)){
+      const rect=row.getBoundingClientRect();
+      fixedHitTrack(rect.bottom-point.clientY-7-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0));
+    }
     const at=Math.round(window.MSWE?.resolve('audio-timeline')?.currentTimeMs()??player.currentTime*1000)||0;
     const result=window.MSWProductionProject.place(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack().id);
     productionCommitProject(window.MSWProductionProject.toProject(result.project),'粘贴字幕',result.ids);
@@ -332,6 +337,7 @@ function fixedMove(refs, targetId) {
 // Pointer moves change time and physical ownership in one validated transaction.
 // Display columns remain an adapter detail; crossing them never unbinds cues.
 function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
+  if (productionFlatMode() && ['resize-left','resize-right'].includes(drag.kind)) return fixedResizeSelection(drag, rawDelta, disableSnap);
   if(!productionFlatMode()||drag.kind!=='move')return null;
   const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
   if(!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
@@ -405,6 +411,10 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   layerInvalidate();return true;
 }
 function fixedCancelMoveDrag(drag) {
+  if(drag.fixedResize) {
+    for(const e of drag.fixedResize)Object.assign(e.cue,structuredClone(e.original));
+    syncBindingOffsets();layerInvalidate();
+  }
   if(!drag.fixedMove)return;
   const state=drag.fixedMove;DATA.subtitle_tracks.assignments=state.assignments;fixedActiveTrackId=state.active;
   for(const entry of [...state.entries,...state.followers]){
@@ -412,6 +422,34 @@ function fixedCancelMoveDrag(drag) {
     Object.assign(entry.cue,entry.original);
   }
   syncBindingOffsets();fixedStatus();layerInvalidate();
+}
+// Resize the actual selection across display columns, with one common delta.
+function fixedResizeSelection(drag, rawDelta, disableSnap) {
+  if(!drag.fixedResize) {
+    const rows=layerCore.tracks(DATA).flatMap(s=>s.segments.map((cue,index)=>({cue,index,source:s})));
+    const ids=new Set([...selectedIdxs].map(i=>DATA.segments[i]?.id).concat([...selectedExtensionIdxs].map(i=>getActiveExtensionTrack()?.segments[i]?.id)));
+    if(ids.size<2)return null;
+    const p=MSWProductionProject.toProject(DATA);
+    for(const b of p.subtitles.bindings)if(ids.has(b.source_id)||ids.has(b.target_id)){ids.add(b.source_id);ids.add(b.target_id);}
+    const entries=rows.filter(e=>ids.has(e.cue.id));
+    if(entries.some(e=>fixedTrack(e.cue,e.source.role,e.source.track_id)?.locked))return false;
+    drag.fixedResize=entries.map(e=>({...e,original:structuredClone(e.cue)}));
+    drag.resizeMotions=drag.fixedResize.map(e=>({segment:e.cue,segments:e.source.segments,
+      start:drag.timing.fromMs(e.original.start),end:drag.timing.fromMs(e.original.end),
+      moveStart:drag.kind==='resize-left',moveEnd:drag.kind==='resize-right'}));
+  }
+  const delta=waveformEditor.resolveLayerPointerDelta(drag,rawDelta,disableSnap);
+  if(delta===null)return false;
+  const changes=new Map(drag.fixedResize.map(e=>{
+    const next=structuredClone(e.original),edge=drag.kind==='resize-left'?'start':'end';
+    next[edge]=drag.timing.toMs(drag.timing.fromMs(e.original[edge])+delta);
+    if(drag.timing.unit==='frames')next[edge+'_frame']=drag.timing.fromMs(next[edge]);
+    next.items=remapPanelItems(e.original.items,e.original.start,e.original.end,next.start,next.end);
+    return [e.cue.id,next];
+  }));
+  if(!drag.fixedResize.some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end))return false;
+  for(const e of drag.fixedResize)Object.assign(e.cue,changes.get(e.cue.id));
+  syncBindingOffsets();layerInvalidate();return true;
 }
 function fixedMenuItem(label, action, disabled = false) {
   if(productionFlatMode())return ctxAppendItem(label,action,{disabled});

@@ -3146,7 +3146,23 @@
     }
 
     applyCustomSplitRatio(first, ratio) {
-      first.style.flex = `0 0 calc(${clamp(Number(ratio) || 50, 20, 80)}% - 3.5px)`;
+      const [low, high] = this.customSplitBounds(first.parentElement);
+      first.style.flex = `0 0 calc(${clamp(Number(ratio) || 50, low, high)}% - 3.5px)`;
+    }
+
+    customSplitBounds(split) {
+      const node=split?.layoutNode;
+      if(!node)return [20,80];
+      const axis=node.direction,extent=axis==='row'?split.clientWidth:split.clientHeight;
+      if(!extent)return [20,80];
+      const minimum=n=>{
+        if(n.type==='module')return axis==='row'?(n.id==='wave'?260:220):100;
+        const sizes=n.children.map(minimum);
+        return n.type==='split'&&n.direction===axis?sizes.reduce((a,b)=>a+b,7):Math.max(...sizes);
+      };
+      let a=minimum(node.children[0]),b=minimum(node.children[1]);
+      const scale=Math.min(1,Math.max(0,extent-7)/(a+b));a*=scale;b*=scale;
+      return [(a+3.5)/extent*100,100-(b+3.5)/extent*100];
     }
 
     bindCustomLayoutDivider(divider, split, first, node) {
@@ -3165,7 +3181,7 @@
         const position = node.direction === 'row'
           ? ((event.clientX - rect.left) / Math.max(1, rect.width)) * 100
           : ((event.clientY - rect.top) / Math.max(1, rect.height)) * 100;
-        const nextRatio = clamp(position, 20, 80);
+        const nextRatio = clamp(position, ...this.customSplitBounds(split));
         if (nextRatio === node.ratio) return;
         if (!drag.changed) {
           this.recordLayoutUndo('调整自定义布局尺寸', drag.snapshot);
@@ -3198,9 +3214,18 @@
       this.layoutHosts = resolved.hosts;
       this.layoutOccurrences = resolved.occurrences;
       this.settings.layoutTree = tree;
-      if (this.renderedCustomLayoutTree === tree && root.childElementCount) return;
+      if (this.renderedCustomLayoutTree === tree && root.childElementCount) {
+        root.querySelectorAll('.layout-split').forEach(split=>this.applyCustomSplitRatio(split.firstElementChild,split.layoutNode.ratio));
+        return;
+      }
+      const waveScrollTop=this.scroll.scrollTop;
       root.replaceChildren();
       root.appendChild(this.createCustomLayoutNode(tree));
+      root.querySelectorAll('.layout-split').forEach(split=>this.applyCustomSplitRatio(split.firstElementChild,split.layoutNode.ratio));
+      this.scroll.scrollTop=waveScrollTop;
+      // Reparenting can reset scrolling without resizing the wave pane. Rebuild
+      // the visible rows from its final viewport, never leave stale spacers.
+      this.multiRange=[-1,-1];this.scheduleMultiVisible();
       this.renderedCustomLayoutTree = tree;
       // 被关闭的窗口不在树上：把它的工作区元素移出 DOM（预设渲染器或恢复显示时会重新挂载），
       // 否则从预设布局直接关闭窗口时元素仍是工作区直接子节点，会残留在画面上。
@@ -3967,7 +3992,7 @@
     resolveLayerPointerDelta(drag, rawDelta, disableSnap) {
       const clock = resolveTiming(drag.timing);
       const segments = this.options.getSegments(drag.track);
-      const motions = drag.indices.map(index => {
+      const motions = drag.resizeMotions || drag.indices.map(index => {
         const original = drag.originals.get(index);
         const moveStart = drag.kind === 'move' || drag.kind === 'resize-left' || drag.edge === 'start'
           || (drag.kind === 'resize-boundary' && index !== drag.indices[0]);
@@ -3976,7 +4001,7 @@
       });
       // Followers constrain the same delta, so neither duration nor binding
       // offsets change when any member reaches zero or a neighbouring cue.
-      for (const follower of this.options.getSubtitleDragFollowers?.(drag) || []) {
+      for (const follower of drag.resizeMotions ? [] : this.options.getSubtitleDragFollowers?.(drag) || []) {
         const source = motions.find(motion => motion.index === follower.index);
         if (!source) continue;
         motions.push({ ...follower, moveStart: source.moveStart, moveEnd: source.moveEnd,
@@ -3992,7 +4017,13 @@
         if (motion.moveEnd && !motion.moveStart) lower = Math.max(lower, motion.start + clock.minDuration - motion.end);
         if (allowOverlap || drag.relocating) continue;
         for (const other of this.options.getSubtitleCollisionSegments?.(motion.segments) || motion.segments) {
-          if (moving.has(other)) continue;
+          if (moving.has(other)) {
+            const partner = motions.find(m => m.segment === other);
+            if (partner === motion || this.options.sameSubtitleTrack?.(motion.segment, other) === false) continue;
+            if (motion.moveEnd && !partner.moveStart && partner.start >= motion.end) upper = Math.min(upper, partner.start - motion.end);
+            if (motion.moveStart && !partner.moveEnd && partner.end <= motion.start) lower = Math.max(lower, partner.end - motion.start);
+            continue;
+          }
           if (this.options.sameSubtitleTrack?.(motion.segment, other) === false) continue;
           const start = clock.fromMs(other.start), end = clock.fromMs(other.end);
           // Keep pre-existing overlaps editable; do not create new ones or
@@ -4715,14 +4746,14 @@
         this.seekFromPointer(event, row, false, geometry);
       });
       row.addEventListener('pointerenter', (event) => {
-        this.pointerLineEvent = { clientX: event.clientX };
+        this.pointerLineEvent = { clientX: event.clientX, clientY: event.clientY };
         this.pointerLineRow = row;
         this.pointerLineMarker = pointerLine;
         this.showPointerLine(event, row, pointerLine);
       });
       row.addEventListener('pointermove', event => this.updateCueEdgeHover(event, row), { capture: true });
       row.addEventListener('pointermove', (event) => {
-        this.pointerLineEvent = { clientX: event.clientX };
+        this.pointerLineEvent = { clientX: event.clientX, clientY: event.clientY };
         this.pointerLineRow = row;
         this.pointerLineMarker = pointerLine;
         this.showPointerLine(event, row, pointerLine);
@@ -6210,11 +6241,13 @@
       const shiftClick = event.shiftKey && !targetHandle
         ? { selected: this.options.getSelection(track)?.has(index) === true } : null;
       let boundaryIndex = index;
+      const multiResize = targetHandle && this.subtitleLayersEnabled() && this.options.getSelection(track)?.has(index)
+        && (this.options.getSelection('main').size + this.options.getSelection('extension').size > 1);
       const kind = targetHandle?.classList.contains('left')
-        ? (edgeHit.shared
+        ? (edgeHit.shared && !multiResize
           ? (boundaryIndex = index - 1, 'resize-boundary') : 'resize-left')
         : targetHandle?.classList.contains('right')
-          ? (edgeHit.shared
+          ? (edgeHit.shared && !multiResize
             ? 'resize-boundary' : 'resize-right')
           : 'move';
       // 选中字幕会更新列表、面板以及波形块状态；其中任一步都可能触发
@@ -6240,7 +6273,7 @@
         }
       }
       const liveSelection = this.options.getSelection(track);
-      const indices = kind === 'move' && !shiftOverlayMove && liveSelection.has(index)
+      const indices = (kind === 'move' || multiResize) && !shiftOverlayMove && liveSelection.has(index)
         ? [...liveSelection].sort((a, b) => a - b) : [index];
       const segments = this.options.getSegments(track);
       const timing = this.cueTiming();
@@ -7656,6 +7689,7 @@
         return;
       }
       const commitIndices = [...(drag.commitIndices || drag.indices)];
+      drag.fixedResize?.forEach(e=>{e.cue._dirty=true;});
       const segments = this.options.getSegments(drag.track || 'main');
       commitIndices.forEach((idx) => { if (segments[idx]) segments[idx]._dirty = true; });
       this.options.onCommitEdit(commitIndices, drag.kind, drag.track || 'main', drag.independent === true);

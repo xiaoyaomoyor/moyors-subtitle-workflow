@@ -6,10 +6,11 @@
   const icons={linear:'M-5 0L0-5L5 0L0 5Z',smooth:'M-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0',hold:'M-5-5H5V5H-5Z'};
   function create(root,{context,commit,message}){
     root.className='msw-curves';
-    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击图表选择时间与数值，＋新建关键帧；选中已有关键帧后可直接输入数值或拖动。右键设置过渡、删除、切换坐标。精确时间显示秒，保留三位小数（0.300 s = 300 毫秒），相对于每条字幕的起点。多选和整轨也可使用；切换单位保留各条原有时序，编辑当前参数才统一。菱形为匀速，圆形为平滑，方形为定格；底部短线表示其他参数的关键帧。Ctrl 吸附当前单位整数，Ctrl+Shift 吸附 5 的倍数，Esc 取消拖动。">
+    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击空白处准备新帧，选中帧后输入或拖动修改。右键切换坐标、过渡或删除。时间相对字幕起点；Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。">
       <label><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" value="0" required></label>
       <label><span id="curve-value-label">不透明度 (%)</span><input id="curve-value" type="number" step="any" value="100" required></label>
       <button id="curve-add" type="button" class="msw-style-icon" title="在此时间新建关键帧" aria-label="在此时间新建关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
+      <button id="curve-playhead" type="button" class="msw-style-icon" title="在播放头处设帧；需位于当前对象的字幕内" aria-label="在播放头处设帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h8l-4 5-4-5Zm4 5v13M14 13h8m-4-4v8"/></svg></button>
       <button id="curve-reset" type="button" class="msw-style-icon" title="恢复自定义默认值" aria-label="恢复自定义默认值"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg></button></div>
       <div class="msw-curve-plot"><svg id="curve-graph" viewBox="0 0 320 200" preserveAspectRatio="none" tabindex="0" role="group" aria-label="自定义动画图表，右键切换坐标及编辑关键帧"></svg></div>
       <p id="curve-note" class="msw-processing-hint"></p>`;
@@ -32,6 +33,7 @@
       $('curve-value').min=String(c.min);$('curve-value').max=String(c.max);
       $('curve-time').value=state.unit==='ms'?(cursor.time/1000).toFixed(3):String(number(cursor.time));$('curve-value').value=String(number(cursor.value));
       $('curve-time').disabled=$('curve-value').disabled=$('curve-reset').disabled=off;
+      $('curve-playhead').disabled=off||!context().items.some(i=>i.preview);
       $('curve-add').disabled=off||points.length>=32||points.some(p=>Math.abs(p.time-cursor.time)<.001);
       $('curve-note').textContent=mixed?'多个值：显示首条，编辑仅统一当前参数。':'';
       graph.setAttribute('aria-disabled',String(off));
@@ -75,7 +77,7 @@
       if(target!==targetSignature){targetSignature=target;selected=-1;cursor={time:0,value:A.channels[channel].initial};}
       points=clone(state.channels[channel]||[]);
       mixed=c.items.some(i=>JSON.stringify(i.value.effects.curves.channels[channel]||[])!==JSON.stringify(points)||i.value.effects.curves.unit!==state.unit);
-      selected=points.findIndex(p=>Math.abs(p.time-cursor.time)<.001);
+      if(selected>=0)selected=points.findIndex(p=>Math.abs(p.time-cursor.time)<.001);
       if(selected>=0)cursor={...points[selected]};
       controls();draw();
     }
@@ -98,15 +100,24 @@
       const old=points.findIndex(p=>Math.abs(p.time-point.time)<.001);
       if(old>=0){selected=old;cursor={...points[old]};controls();draw();return;}
       cursor={...point};
+      selected=0;
       save([...points,{time:point.time,value:point.value,easing:'linear'}].sort((a,b)=>a.time-b.time));
     }
     $('curve-add').onclick=()=>{if($('curve-time').reportValidity()&&$('curve-value').reportValidity())add();};
+    $('curve-playhead').onclick=()=>{
+      const c=context(),i=c.items[0];if(!i?.preview)return;
+      cursor.time=(c.playhead-i.preview.cue.start)*(state.unit==='percent'?100/i.duration:1);selected=0;
+      apply({type:'playhead',channel});
+    };
     $('curve-reset').onclick=()=>{cursor={time:0,value:A.channels[channel].initial};apply({type:'reset'});};
     $('curve-time').onchange=()=>{
       if(!$('curve-time').reportValidity()){controls();return;}
-      cursor.time=number(Number($('curve-time').value)*timeScale());selected=points.findIndex(p=>p.time===cursor.time);
-      if(selected>=0)cursor.value=points[selected].value;
-      controls();draw();
+      const time=number(Number($('curve-time').value)*timeScale());
+      if(selected>=0){
+        if(points.some((p,i)=>i!==selected&&Math.abs(p.time-time)<.001)){message('此时间已有关键帧',true);controls();return;}
+        const next=clone(points);next[selected].time=time;cursor.time=time;
+        save(next.sort((a,b)=>a.time-b.time));
+      }else{cursor.time=time;controls();draw();}
     };
     $('curve-value').onchange=()=>{
       if(!$('curve-value').reportValidity()){controls();return;}
@@ -149,14 +160,17 @@
       drag={id:e.pointerId,original:clone(points),cursor:{...cursor},geometry:{...geometry}};
       graph.setPointerCapture(e.pointerId);controls();draw();
     };
+    function crosshair(v){
+      const g=geometry,group=graph.querySelector('.curve-crosshair');
+      group.setAttribute('visibility','visible');group.querySelector('path').setAttribute('d',`M44 ${g.Y(v.value)}H${g.width-16}M${g.X(v.time)} 24V164`);
+      const y=group.querySelector('.curve-hover-y'),x=group.querySelector('.curve-hover-x');
+      y.setAttribute('x','39');y.setAttribute('y',String(g.Y(v.value)+4));y.textContent=number(v.value);
+      x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=timeText(v.time);
+    }
     graph.onpointermove=e=>{
       if(!state)return;
       if(!drag){
-        const v=at(e),g=geometry,group=graph.querySelector('.curve-crosshair');
-        group.setAttribute('visibility','visible');group.querySelector('path').setAttribute('d',`M44 ${g.Y(v.value)}H${g.width-16}M${g.X(v.time)} 24V164`);
-        const y=group.querySelector('.curve-hover-y'),x=group.querySelector('.curve-hover-x');
-        y.setAttribute('x','39');y.setAttribute('y',String(g.Y(v.value)+4));y.textContent=number(v.value);
-        x.setAttribute('x',String(Math.max(60,Math.min(g.width-30,g.X(v.time)))));x.setAttribute('y','199');x.textContent=timeText(v.time);
+        crosshair(at(e));
         return;
       }
       if(e.pointerId!==drag.id)return;
@@ -165,9 +179,9 @@
       const scale=timeScale(),lo=selected?points[selected-1].time+.001:0,hi=selected<points.length-1?points[selected+1].time-.001:geometry.end;
       if(lo<=hi)p.time=number(A.snapValue(v.time/scale,e,lo/scale,hi/scale,.001)*scale);
       const bounds=A.channels[channel];
-      p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();
+      p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();crosshair(p);
     };
-    graph.onpointerleave=()=>graph.querySelector('.curve-crosshair')?.setAttribute('visibility','hidden');
+    graph.onpointerleave=()=>{if(!drag)graph.querySelector('.curve-crosshair')?.setAttribute('visibility','hidden');};
     graph.onpointerup=e=>{
       if(!drag||e.pointerId!==drag.id)return;
       const original=drag.original;drag=null;
