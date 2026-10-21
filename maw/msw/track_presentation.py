@@ -14,11 +14,15 @@ from maw.subtitle_wrapping import wrap_text, _characters
 from maw.msw import cue_style
 from maw.msw import subtitle_animation
 from maw.msw import subtitle_background as background
+from maw.font_scripts import SCRIPT_FONTS
 
 
 def measured_text(text, style, width, *, prefix=''):
     metrics = family_metrics(style['fontName'], style['bold'], style['italic'])
-    latin = family_metrics(style['latinFontName'], style['bold'], style['italic']) if style.get('latinFontName') else metrics
+    tables = {style['fontName']: metrics}
+    for field in SCRIPT_FONTS:
+        if style.get(field) and style[field] not in tables:
+            tables[style[field]] = family_metrics(style[field], style['bold'], style['italic'])
     registry = installed_fonts()
     fallback_name = next((n for n in ('microsoft yahei', 'pingfang sc', 'noto sans cjk sc', 'arial', 'dejavu sans') if n in registry), '')
     fallback = family_metrics(fallback_name, style['bold'], style['italic']) if fallback_name else {}
@@ -27,7 +31,7 @@ def measured_text(text, style, width, *, prefix=''):
     pad_x = background.normalize(style)['backgroundPaddingX'] if background.enabled(style) else 0
     available = max(1, width-style['marginL']-style['marginR']-(padding+pad_x)*2)
     def advance(token):
-        return sum(((latin if text_font(c, style) != style['fontName'] else metrics).get(ord(c), fallback.get(ord(c), 1.1 if ord(c)>255 else .55))*style['fontSize']+style['spacing'])*sx for c in token)
+        return sum((tables[text_font(c, style)].get(ord(c), fallback.get(ord(c), 1.1 if ord(c)>255 else .55))*style['fontSize']+style['spacing'])*sx for c in token)
     lines = []
     for raw in (prefix+wrap_text(text, style)).replace('\r\n', '\n').replace('\r', '\n').split('\n'):
         line, used = '', 0

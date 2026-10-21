@@ -88,6 +88,7 @@ test('paste chooses hovered physical track instead of selected cue track',async(
 test('font fields remain editable without a local service and have no duplicate search input',async({page})=>{
   await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});
   await expect(page.locator('#style-scan-fonts')).toHaveCount(0);
+  await page.locator('#style-font-script').selectOption('latin');
   await page.locator('#style-field-latinFontName').fill('Georgia');
   await expect(page.locator('#style-local-fonts input')).toHaveCount(0);
   await page.locator('#style-field-latinFontName').blur();

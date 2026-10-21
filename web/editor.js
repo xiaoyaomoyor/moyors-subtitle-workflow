@@ -6286,6 +6286,8 @@ let lastClickedOverlayIdx = -1;
 
 // 已选计数涵盖主轨/副轨/叠加轨三个选区集。
 function updateSelectionCountText() {
+  const splitDraft = pendingLinkedSplit;
+  if (splitDraft) queueMicrotask(() => { if (pendingLinkedSplit === splitDraft) syncSplitSelection(); });
   queueCleanupPreview();
   productionRememberSelection();
   queueAutoMergePreview();
@@ -9870,24 +9872,36 @@ function closeLinkedSplitModal() {
   }
 }
 
-// Only a user selecting a different cue dismisses the draft; background selection
-// updates, preview-line dragging and clicks on the current pair must not cancel it.
-document.addEventListener('pointerdown', (event) => {
+// Wait until selection and the active cue have both settled (selectOnly clears
+// the old selection first). Never commit a draft when its target changes.
+function syncSplitSelection() {
   const state = pendingLinkedSplit;
-  if (!state || !EDITOR_SETTINGS.cueEditorSplitAutoClose || event.button !== 0 || event.altKey) return;
-  const target = event.target;
-  if (target.closest('button, input, select, textarea, .waveform-split-preview')) return;
-  const node = target.closest('.waveform-cue-block, #cues-container .multi-cue-column, #cues-container .cue, #cues-container .multi-extension-cue, #cues-container .overlay-track-cue');
-  if (!node) return;
-  const kind = node.dataset.track || (node.dataset.overlayIdx != null ? 'overlay'
-    : node.classList.contains('extension') || node.classList.contains('multi-extension-cue') ? 'extension' : 'main');
-  const track = kind === 'extension' ? getActiveExtensionTrack() : kind === 'overlay' ? getOverlayTrack() : null;
-  const index = Number(kind === 'extension' ? node.dataset.extIdx : kind === 'overlay' ? node.dataset.overlayIdx : node.dataset.mainIdx ?? node.dataset.idx);
+  if (!state || !EDITOR_SETTINGS.cueEditorSplitAutoClose) return;
+  if (!selectedIdxs.size && !selectedExtensionIdxs.size && !selectedOverlayIdxs.size) {
+    closeLinkedSplitModal(); return;
+  }
+  const target = getCurrentCuePanelTarget();
+  if (!target) return;
+  const {kind,index} = target;
+  const selected = kind === 'main' ? selectedIdxs : kind === 'overlay' ? selectedOverlayIdxs : selectedExtensionIdxs;
+  if (!selected.has(index)) return;
+  const track = kind === 'extension' ? getExtensionTrack(target.trackId) || getActiveExtensionTrack() : kind === 'overlay' ? getOverlayTrack() : null;
   const segment = (kind === 'main' ? DATA.segments : track?.segments)?.[index];
   if (!segment) return;
   const belongsToDraft = kind === 'main' ? segment.id === state.mainId
     : track?.id === splitStateTrack(state)?.id && segment.id === state.extensionId;
-  if (!belongsToDraft) closeLinkedSplitModal();
+  if (belongsToDraft) return;
+  const pointer = waveformPointerContext(), playhead = Number(player.currentTime)*1000;
+  const inside = time => Number.isFinite(time) && time > segment.start && time < segment.end;
+  const timeMs = inside(pointer?.timeMs) ? pointer.timeMs : inside(playhead) ? playhead : (segment.start+segment.end)/2;
+  requestSubtitleSplit(kind,index,{track,timeMs,requireConfirm:true});
+}
+
+document.addEventListener('keydown', event => {
+  if (!pendingLinkedSplit || event.key.toLowerCase() !== 'b' || event.repeat || event.isComposing
+      || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || isTextEditingTarget(event)
+      || event.target.closest('input, textarea, select')) return;
+  event.preventDefault();event.stopImmediatePropagation();closeLinkedSplitModal();
 }, true);
 
 function openMainWaveformSplitModal(mainIndex, timeMs) {
@@ -23096,6 +23110,7 @@ function openSelectedCueTts() {
 }
 
 function openSelectedCueTranslation() {
+  document.getElementById('translation-source').value='selected';
   document.getElementById('subtitle-translate-btn')?.click();
 }
 function copySelectedSubtitlesToAssets() {
@@ -25990,11 +26005,11 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   isEditing: () => Boolean(editingState || extensionEditingState || waveformEditor?.hasCueDrag?.()
     || previewGesture || waveformPlayheadDragging || document.activeElement === cuePanelText
     || document.activeElement?.isContentEditable),
-  capture: (outputMode = 'secondary', destination = '') => {
+  capture: (outputMode = 'secondary', destination = '', selection = null) => {
     commitProcessingEdits();
     window.MSWProject.ensure(DATA);
     projectImportDirty = true;
-    return window.MSWTranslation.snapshot(DATA, processingSelection(), outputMode, destination);
+    return window.MSWTranslation.snapshot(DATA, selection || processingSelection(), outputMode, destination);
   },
   applyTranslation: applyTranslationJob,
   applyProcessing: applyProcessingResults,

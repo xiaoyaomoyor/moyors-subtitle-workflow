@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 import test_selected_position as position_tests
 from maw.ass_styles import _normalize_style, DEFAULT_ASS_STYLE
 from maw.msw import cue_style, subtitle_animation, subtitle_gradient
-from maw.msw.subtitle_fonts import font_catalog, styled_text
+from maw.msw.subtitle_fonts import font_catalog, styled_text, text_font
+from maw.font_scripts import SCRIPT_FONTS
 from maw.msw.track_presentation import measured_text
 from maw.msw.subtitle_preview import preview_ass
 from maw.msw.subtitle_style import styled_ass
@@ -15,6 +16,20 @@ from maw.project_subtitle_style import builtin_presets, normalize_project_style
 
 
 class MixedFontTests(unittest.TestCase):
+    def test_script_fonts_roundtrip_and_ass_keep_all_categories(self):
+        samples = ['éA', 'かな', '한글', 'Жя', 'Ωα', 'سلام', 'שלום', 'नमस्ते', 'ไทย']
+        style = dict(fontName='Han', **{key:key for key in SCRIPT_FONTS})
+        normalized = _normalize_style(style, DEFAULT_ASS_STYLE, style_id='main')
+        self.assertTrue(cue_style.valid({k:style[k] for k in SCRIPT_FONTS}))
+        for key, text in zip(SCRIPT_FONTS, samples):
+            self.assertEqual(normalized[key], key)
+            self.assertEqual(text_font(text, style), key)
+            self.assertIn(r'{\fn' + key + '}', styled_text('漢'+text, style))
+            self.assertFalse(cue_style.valid({key: r'unsafe\pos(0,0)'}))
+        self.assertEqual(text_font('漢', style), 'Han')
+        self.assertEqual(text_font('1', style), 'latinFontName')
+        self.assertEqual(text_font('한', {'fontName':'Fallback'}), 'Fallback')
+
     def test_catalog_localizes_deduplicates_and_checks_real_glyph_coverage(self):
         def record(name, lang, value):
             r = MagicMock(nameID=name, langID=lang)
@@ -33,6 +48,8 @@ class MixedFontTests(unittest.TestCase):
         self.assertEqual(catalog[0]['label'], '测试字体')
         self.assertTrue(catalog[0]['cjk'])
         self.assertTrue(catalog[0]['latin'])
+        self.assertIn('han', catalog[0]['scripts'])
+        self.assertNotIn('kana', catalog[0]['scripts'])
         self.assertNotIn('fixture', json.dumps(catalog))
         owner.close.assert_called_once()
 

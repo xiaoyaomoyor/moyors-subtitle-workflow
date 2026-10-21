@@ -5288,7 +5288,7 @@
 #subtitle-properties .msw-style-section { margin-top:8px; padding-top:4px; }
 #subtitle-properties .msw-style-section > summary { padding:6px 0 10px; }
 #subtitle-properties #style-basic-fields { padding-top:6px; }
-#subtitle-properties .msw-property-font { grid-column:1 / -1; }
+#subtitle-properties .msw-property-font { grid-column:1 / -1; display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:10px; align-items:end; min-width:0; }
 #subtitle-properties .msw-property-group,#subtitle-properties .msw-property-group > .msw-style-fields { display:contents; }
 #subtitle-properties .msw-position-group { display:contents; }
 #subtitle-properties :is(#style-position-layout,#style-position-fields,#style-position-fields > .media-settings-grid) { display:contents; }

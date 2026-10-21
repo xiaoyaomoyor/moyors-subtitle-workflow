@@ -7,6 +7,17 @@ const context={window:{MSWSubtitleTracks:trackCore},TextEncoder,TextDecoder,Uint
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-subtitle-background.js','msw-subtitle-gradient.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const S=context.window.MSWProjectStyle,U=context.window.AsrEditorUtils;
 
+test('script fonts normalize and render distinct writing systems without losing other mappings',()=>{
+  const samples=['漢','éA','かな','한글','Жя','Ωα','سلام','שלום','नमस्ते','ไทย'];
+  const style=Object.fromEntries(U.ASS_FONT_SCRIPTS.map(([,field])=>[field,field]));
+  const normalized=S.normalize({...S.defaults(),main:style});
+  U.ASS_FONT_SCRIPTS.forEach(([,field],i)=>{
+    assert.equal(normalized.main[field],field);assert.equal(U.assTextFont(samples[i],style),field);
+    if(i)assert.ok(U.escapeAssStyledText('漢'+samples[i],style).includes('\\fn'+field));
+  });
+  assert.equal(U.assTextFont('한',{fontName:'Fallback'}),'Fallback');
+});
+
 test('v4 preview and alternate export presets override snapshots without losing track roles or positions',()=>{
   const base=S.defaults(),preset=S.presets()[1];
   const original={schema:'msw.project.v4',preview:{project_style:base},subtitles:{tracks:[

@@ -21,7 +21,7 @@ test.beforeEach(async({page})=>{
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();expect(errors).toEqual([]);});
 async function idle(page){await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled),{timeout:30000}).toBe(true);}
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
-async function field(page,name,value){await page.locator('#style-field-'+name).fill(String(value));await page.locator('#style-field-'+name).blur();await idle(page);}
+async function field(page,name,value){if(name.endsWith('FontName'))await page.locator('#style-font-script').selectOption(name.replace('FontName',''));await page.locator('#style-field-'+name).fill(String(value));await page.locator('#style-field-'+name).blur();await idle(page);}
 
 test('single and cross-track edits preserve inheritance, binding, undo and reopen',async({page},info)=>{
   await expect(page.locator('#subtitle-properties')).toBeVisible();
@@ -234,6 +234,7 @@ test('automatic bilingual font picker filters Chinese, previews families, saves 
   await item.click();await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_style.fontName).toBe('Microsoft YaHei');
   await expect(cn).toHaveValue('微软雅黑');
+  await page.locator('#style-font-script').selectOption('latin');
   await en.fill('Georgia');
   await expect(options).toHaveCount(1);
   await expect(page.locator('#style-local-fonts')).toBeVisible();
@@ -247,6 +248,36 @@ test('automatic bilingual font picker filters Chinese, previews families, saves 
   await page.reload();await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({fontName:'Microsoft YaHei',latinFontName:'Georgia'});
   await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});
+  await page.locator('#style-font-script').selectOption('latin');
   await page.locator('[data-reset-style=latinFontName]').click();await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({fontName:'Microsoft YaHei'});
+});
+
+test('language category shares one visible font input, filters glyph coverage and preserves mappings',async({page},info)=>{
+  const language=page.locator('#style-font-script');
+  const catalog=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-fonts'));
+  const state=await snap(page);
+  for(const script of ['kana','hangul','cyrillic','arabic']) {
+    await language.selectOption(script);
+    await expect(page.locator('.msw-property-font input:visible')).toHaveCount(1);
+    const input=page.locator(`[data-font-script=${script}]`);await input.click();
+    const actual=await page.locator('#style-local-fonts [role=option]').evaluateAll(nodes=>nodes.map(n=>n.title).sort());
+    expect(actual).toEqual(catalog.families.filter(f=>f.scripts.includes(script)).map(f=>f.family).sort());
+    await input.press('Escape');
+  }
+  expect((await snap(page)).subtitles).toEqual(state.subtitles);
+  const face=catalog.families.find(f=>f.scripts.includes('kana'));
+  expect(face).toBeTruthy();
+  await field(page,'kanaFontName',face.family);await field(page,'latinFontName','Georgia');
+  await language.selectOption('kana');
+  await expect(page.locator('[data-reset-style=kanaFontName]')).toHaveClass(/is-overridden/);
+  await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.cues[0].content.text='漢字かなカナ Latin';productionCommitProject(p,'scripts fixture',[p.subtitles.cues[0].id]);});await idle(page);
+  const preview=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),video:{width:640,height:360},target:'both'}));
+  expect(preview.ass).toContain('\\fn'+face.family);expect(preview.ass).toContain('\\fnGeorgia');
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('font-language.png')});
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);await page.reload();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({kanaFontName:face.family,latinFontName:'Georgia'});
+  await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});await language.selectOption('kana');
+  await page.locator('[data-reset-style=kanaFontName]').click();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({latinFontName:'Georgia'});
 });

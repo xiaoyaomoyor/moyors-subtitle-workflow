@@ -6,15 +6,15 @@
     const list=document.createElement('div');list.setAttribute('role','listbox');list.id='style-font-options';menu.append(list);document.body.append(menu);
     let families=[],loaded=false,error='',active=null,query='',index=-1,options=[];
     const states=new Map(inputs.map(input=>[input,{value:'',mixed:false}]));
-    const english=input=>input.dataset.styleField==='latinFontName';
+    const script=input=>input.dataset.fontScript||'han';
     const entry=value=>families.find(f=>f.family.toLocaleLowerCase()===value.toLocaleLowerCase())||families.find(f=>f.aliases.some(a=>a.toLocaleLowerCase()===value.toLocaleLowerCase()));
-    const label=(font,input)=>english(input)?font.family:font.label;
+    const label=(font,input)=>script(input)==='latin'?font.family:font.label;
     const canonical=input=>entry(input.value.trim())?.family||input.value.trim();
     const close=()=>{if(active){active.setAttribute('aria-expanded','false');active.removeAttribute('aria-activedescendant');}menu.hidden=true;active=null;};
     function sync(input,value,mixed=false) {
       states.set(input,{value:String(value??''),mixed});
       input.value=mixed?'':label(entry(String(value??''))||{family:value||'',label:value||''},input);
-      input.placeholder=mixed?'多个值':english(input)?'同中文字体':'输入或选择字体';
+      input.placeholder=mixed?'多个值':script(input)==='han'?'输入或选择字体':'沿用汉字字体';
     }
     function position() {
       if(!active)return;
@@ -34,7 +34,7 @@
     function draw() {
       if(!active)return;
       const q=query.toLocaleLowerCase();
-      options=families.filter(f=>(english(active)?f.latin:f.cjk)&&[f.family,f.label,...f.aliases].some(n=>n.toLocaleLowerCase().includes(q)))
+      options=families.filter(f=>(f.scripts?.includes(script(active))||(script(active)==='han'?f.cjk:script(active)==='latin'?f.latin:false))&&[f.family,f.label,...f.aliases].some(n=>n.toLocaleLowerCase().includes(q)))
         .sort((a,b)=>label(a,active).localeCompare(label(b,active),'zh-CN'));
       index=-1;list.replaceChildren(...options.map((f,i)=>{
         const b=document.createElement('button');b.type='button';b.id='style-font-option-'+i;b.setAttribute('role','option');

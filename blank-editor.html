@@ -5308,7 +5308,7 @@
 #subtitle-properties .msw-style-section { margin-top:8px; padding-top:4px; }
 #subtitle-properties .msw-style-section > summary { padding:6px 0 10px; }
 #subtitle-properties #style-basic-fields { padding-top:6px; }
-#subtitle-properties .msw-property-font { grid-column:1 / -1; }
+#subtitle-properties .msw-property-font { grid-column:1 / -1; display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:10px; align-items:end; min-width:0; }
 #subtitle-properties .msw-property-group,#subtitle-properties .msw-property-group > .msw-style-fields { display:contents; }
 #subtitle-properties .msw-position-group { display:contents; }
 #subtitle-properties :is(#style-position-layout,#style-position-fields,#style-position-fields > .media-settings-grid) { display:contents; }
@@ -7290,7 +7290,7 @@
     <div class="settings-panel-section cue-editor-settings-section"><span class="settings-panel-title">联动切分</span>
       <div class="cue-editor-settings-display-group">
         <label class="toggle settings-panel-item" data-option-help="在取消与确认切分之间显示保留两侧原文和仅切当前字幕并解绑。独立切分作用于确认区中高亮的字幕。"><input type="checkbox" id="cue-editor-split-more-actions"> 更多操作</label>
-        <label class="toggle settings-panel-item" data-option-help="鼠标选择本次切分以外的字幕卡片或波形字幕块时，取消尚未确认的切分。"><input type="checkbox" id="cue-editor-split-auto-close" checked> 自动关闭</label>
+        <label class="toggle settings-panel-item" data-option-help="选择其他字幕时，将确认区切换到该组字幕；取消所有字幕选择时关闭。不会提交上一次未确认的切分。再次按 B 也可关闭。"><input type="checkbox" id="cue-editor-split-auto-close" checked> 自动切换</label>
       </div>
     </div>
   </div>
@@ -9269,6 +9269,7 @@
     <button type="button" id="subtitle-translation-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕翻译"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
+    <div class="msw-processing-fields"><label>翻译源<select id="translation-source" aria-label="翻译源"><option value="selected">所选字幕</option></select></label></div>
     <p id="translation-scope" class="msw-processing-hint" aria-live="polite"></p>
     <p id="translation-unavailable" class="msw-processing-hint" hidden>字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
     <div id="translation-controls">
@@ -9277,7 +9278,7 @@
         <label id="translation-destination-field" hidden>译文轨道<select id="translation-destination" aria-label="译文轨道"></select></label>
         <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
       </div>
-      <p class="msw-processing-hint" data-help-for="translation-destination">只翻译选中的字幕。绑定双方同时选中时按绑定参考方翻译一次；单独选择任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。分组不等于绑定。开始翻译只生成候选；应用到译文轨道或替换所选原文需在结果中选择。</p>
+      <p class="msw-processing-hint" data-help-for="translation-destination">翻译源可选整条轨道或所选字幕。绑定双方同时选中时只翻译参考方；单选任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。翻译结果需在记录中应用。</p>
       <p id="translation-target-summary" class="msw-processing-hint" hidden></p>
       <p id="translation-scope-issue" class="msw-processing-hint" role="status" hidden></p>
       <p id="translation-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="translation-environment-reminder" hidden><button type="button" id="translation-environment-open">前往 LLM 环境配置</button></div>
@@ -11232,6 +11233,15 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   'use strict';
 
   const PROJECT_SCHEMA = 'moy.asr.project.v1';
+  // Language picker edits script coverage, never guesses the language of Han
+  // characters or shared Latin letters. fontName remains the fallback face.
+  const ASS_FONT_SCRIPTS = Object.freeze([
+    ['han','fontName','中文／汉字'],['latin','latinFontName','英语等／拉丁字母'],
+    ['kana','kanaFontName','日文／假名'],['hangul','hangulFontName','韩文'],
+    ['cyrillic','cyrillicFontName','俄语等／西里尔字母'],['greek','greekFontName','希腊文'],
+    ['arabic','arabicFontName','阿拉伯文'],['hebrew','hebrewFontName','希伯来文'],
+    ['devanagari','devanagariFontName','印地语等／天城文'],['thai','thaiFontName','泰文'],
+  ]);
   function supportsProjectSchema(project) {
     return Boolean(project && typeof project === 'object' && !Array.isArray(project)
       && (!Object.prototype.hasOwnProperty.call(project, 'schema') || [PROJECT_SCHEMA, 'msw.project.v2', 'msw.project.v3'].includes(project.schema)));
@@ -15567,7 +15577,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       name: normalizeAssLibraryText(source.name, fallback.name || '样式'),
       builtin: Boolean(fallback.builtin),
       fontName: normalizeAssLibraryText(source.fontName, fallback.fontName || ASS_DEFAULT_FONT_FAMILY, ASS_STYLE_LIBRARY_MAX_FONT_LENGTH),
-      ...('latinFontName' in source || 'latinFontName' in fallback ? {latinFontName:normalizeAssLibraryText(source.latinFontName ?? fallback.latinFontName, '', ASS_STYLE_LIBRARY_MAX_FONT_LENGTH)} : {}),
+      ...Object.fromEntries(ASS_FONT_SCRIPTS.slice(1).map(([,k])=>k).filter(k=>k in source||k in fallback).map(k=>[k,normalizeAssLibraryText(source[k] ?? fallback[k], '', ASS_STYLE_LIBRARY_MAX_FONT_LENGTH)])),
       fontSize: normalizeAssLibraryNumber(source.fontSize, fallback.fontSize || 18, 1, 512),
       primaryColor: normalizeAssLibraryColor(source.primaryColor, fallback.primaryColor || '#ffffff'),
       secondaryColor: normalizeAssLibraryColor(source.secondaryColor, fallback.secondaryColor || '#ffffff'),
@@ -16110,16 +16120,26 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     const eventTextColor = style.primaryColor;
     const label = `${speakerName}${speakerLabelSeparator}`;
     if (!assMode) return escapeAssStyledText(`${label}${content}`,style);
-    return `{\\c${assOverrideColorFromHex(speakerColor)}}${escapeAssStyledText(label,style)}{\\c${assOverrideColorFromHex(eventTextColor)}}${style.latinFontName?`{\\fn${String(style.fontName).replace(/[\\{},\x00-\x1f]/g,'')}}`:''}${escapeAssStyledText(content,style)}`;
+    return `{\\c${assOverrideColorFromHex(speakerColor)}}${escapeAssStyledText(label,style)}{\\c${assOverrideColorFromHex(eventTextColor)}}${ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k])?`{\\fn${String(style.fontName).replace(/[\\{},\x00-\x1f]/g,'')}}`:''}${escapeAssStyledText(content,style)}`;
   }
 
   function assTextFont(text,style={}) {
     const cp=String(text).codePointAt(0);
-    return (cp<=0x024f||cp>=0x1e00&&cp<=0x1eff?style.latinFontName:'')||style.fontName;
+    const within=(a,b)=>cp>=a&&cp<=b;
+    const script=cp<=0x024f||within(0x1e00,0x1eff)?'latin'
+      :within(0x3040,0x30ff)||within(0x31f0,0x31ff)||within(0xff66,0xff9f)?'kana'
+      :within(0x1100,0x11ff)||within(0x3130,0x318f)||within(0xa960,0xa97f)||within(0xac00,0xd7ff)?'hangul'
+      :within(0x0400,0x052f)||within(0x2de0,0x2dff)||within(0xa640,0xa69f)?'cyrillic'
+      :within(0x0370,0x03ff)||within(0x1f00,0x1fff)?'greek'
+      :within(0x0600,0x06ff)||within(0x0750,0x077f)||within(0x0870,0x08ff)||within(0xfb50,0xfdff)||within(0xfe70,0xfeff)?'arabic'
+      :within(0x0590,0x05ff)||within(0xfb1d,0xfb4f)?'hebrew'
+      :within(0x0900,0x097f)||within(0xa8e0,0xa8ff)?'devanagari'
+      :within(0x0e00,0x0e7f)?'thai':null;
+    return style[script+'FontName']||style.fontName;
   }
 
   function escapeAssStyledText(text,style={}) {
-    if(!style.latinFontName||style.latinFontName===style.fontName)return escapeAssText(text);
+    if(!ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k]&&style[k]!==style.fontName))return escapeAssText(text);
     let current=style.fontName;
     return Array.from(String(text??''),char=>{
       const family=/\p{Mark}/u.test(char)?current:assTextFont(char,style);
@@ -18187,6 +18207,7 @@ export default MawDynamicCaptions;
     escapeAssStyledText,
     ASS_STYLE_LIBRARY_SCHEMA,
     ASS_DEFAULT_STYLE,
+    ASS_FONT_SCRIPTS,
     ASS_DEFAULT_ASS_STYLE,
     ASS_DEFAULT_EXTENSION_STYLE,
     ASS_DEFAULT_ANIMATIONS,
@@ -18632,7 +18653,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 14;
+  const layoutVersion = 15;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -18848,7 +18869,8 @@ export default MawDynamicCaptions;
   const colors=['primaryColor','outlineColor','backColor'];
   const background=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground;
   const gradient=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-gradient.js'):global.MSWSubtitleGradient;
-  const fields=Object.freeze(['fontName','latinFontName',...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
+  const fonts=['latinFontName','kanaFontName','hangulFontName','cyrillicFontName','greekFontName','arabicFontName','hebrewFontName','devanagariFontName','thaiFontName'];
+  const fields=Object.freeze(['fontName',...fonts,...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
   function valid(value) {
     return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>{
       if(background.fields.includes(k))return background.valid({[k]:v});
@@ -18857,7 +18879,7 @@ export default MawDynamicCaptions;
       if(booleans.includes(k))return typeof v==='boolean';
       if(colors.includes(k))return typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
       if(k==='fontName')return typeof v==='string'&&!!v.trim()&&v.length<=128&&!/[\r\n,\x00]/.test(v);
-      if(k==='latinFontName')return typeof v==='string'&&v.length<=128&&!/[\\{},\r\n\x00]/.test(v);
+      if(fonts.includes(k))return typeof v==='string'&&v.length<=128&&!/[\\{},\r\n\x00]/.test(v);
       if(k==='borderStyle')return v===1||v===3;
       if(k==='wrapMode')return v==='auto'||v==='characters';
       return false;
@@ -20496,6 +20518,12 @@ export default MawDynamicCaptions;
     const snap=F.translation(p,ids,target);
     return {...snap,output_mode:outputMode,...(created?{created_subtitle_track:created}:{})};
   }
+  function trackSelection(view,trackId) {
+    const p=toProject(view),ids=new Set(p.subtitles.cues.filter(c=>c.track_id===trackId).map(c=>c.id));
+    return {mainIds:(view.segments||[]).filter(c=>ids.has(c.id)).map(c=>c.id),
+      extensionIds:(view.multi_subtitle?.tracks||[]).flatMap(t=>t.segments||[]).filter(c=>ids.has(c.id)).map(c=>c.id),
+      hasSelection:true,trackId:null};
+  }
   function translationIds(view,selection,project=null) {
     const ids=new Set([...(selection.mainIds||[]),...(selection.extensionIds||[])]);
     // A selected pair has one source, regardless of the list's left/right layout.
@@ -20656,7 +20684,7 @@ export default MawDynamicCaptions;
     for(const t of p.subtitles.tracks)t.enabled=t.enabled&&(!selected||selected.has(t.id));
     return p;
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -22799,6 +22827,14 @@ export default MawDynamicCaptions;
     '显示与操作': 'Display and interaction',
     '更多操作': 'More actions',
     '自动关闭': 'Auto-close',
+    '自动切换': 'Auto-switch',
+    '翻译源': 'Translation source', '来源轨道已删除': 'Source track deleted', '此轨道没有可翻译的字幕': 'This track has no subtitles to translate',
+    '目标语言': 'Target language', '中文／汉字': 'Chinese / Han', '英语等／拉丁字母': 'Latin letters',
+    '日文／假名': 'Japanese / Kana', '韩文': 'Korean', '俄语等／西里尔字母': 'Cyrillic letters',
+    '希腊文': 'Greek', '阿拉伯文': 'Arabic', '希伯来文': 'Hebrew', '印地语等／天城文': 'Devanagari', '泰文': 'Thai',
+    '按文字类别设置。汉字共用字体；拉丁字母、数字及半角标点共用字体。未设置的类别沿用汉字字体。': 'Set fonts by script. Han characters share a font; Latin letters, digits and ASCII punctuation share a font. Unset scripts use the Han font.',
+    '翻译源可选整条轨道或所选字幕。绑定双方同时选中时只翻译参考方；单选任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。翻译结果需在记录中应用。': 'Translate a whole track or selected cues. When both bound cues are selected, translate the reference cue once. A single selected partner is translated directly. Automatic destination uses bindings, then the secondary track, or creates a track. Apply results from the history.',
+    '选择其他字幕时，将确认区切换到该组字幕；取消所有字幕选择时关闭。不会提交上一次未确认的切分。再次按 B 也可关闭。': 'Switch the draft to the selected cue group; clear the selection or press B again to close. Unconfirmed splits are not applied.',
     '在取消与确认切分之间显示保留两侧原文和仅切当前字幕并解绑。独立切分作用于确认区中高亮的字幕。': 'Show Keep text on both sides and Split only this subtitle and unlink between Cancel and Confirm split. Independent splitting applies to the highlighted subtitle.',
     '鼠标选择本次切分以外的字幕卡片或波形字幕块时，取消尚未确认的切分。': 'Cancel the pending split when you select a subtitle card or waveform block outside the current split.',
     '切割工具：快速联动切分': 'Razor tool: quick linked split',
@@ -34999,7 +35035,7 @@ function fixedMeasureText(row, projectStyle, width) {
   if(!fixedMeasureRoot){fixedMeasureRoot=document.createElement('div');fixedMeasureRoot.className='fixed-subtitle-measure';document.body.append(fixedMeasureRoot);}
   fixedMeasureRoot.style.width=width+'px';
   const node=document.createElement('div');node.textContent=text;node.className='fixed-subtitle-text';
-  if(style.latinFontName)node.replaceChildren(...window.MSWProjectStyle.characters(text).map(unit=>{
+  if(window.AsrEditorUtils.ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k]))node.replaceChildren(...window.MSWProjectStyle.characters(text).map(unit=>{
     const span=document.createElement('span');span.textContent=unit;span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));return span;
   }));
   const metrics={resolution:{width,height:1080},stageWidth:width,stageHeight:1080,scaleX:1,scaleY:1};
@@ -35086,12 +35122,13 @@ function fixedRefreshSubtitlePreview(tMs) {
     const animated=motion?{...variant,scaleX:variant.scaleX*motion.scale/100,scaleY:variant.scaleY*motion.scale/100,angle:variant.angle+motion.rotation}:assPreviewAnimatedStyle(variant,profile,animation);
     applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
     const gradient=window.MSWSubtitleGradient.enabled(style);
-    if(motion||gradient||style.latinFontName){
+    const mixedFonts=window.AsrEditorUtils.ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k]);
+    if(motion||gradient||mixedFonts){
       text.replaceChildren();let seen=0,prefix=0;
       const units=window.MSWProjectStyle.characters(size.text),count=units.filter(u=>u.trim()).length;
       for(const unit of units){
         if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
-        if(style.latinFontName)span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));
+        if(mixedFonts)span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));
         if(motion&&seen>motion.revealed)span.style.visibility='hidden';
         if(gradient)span.style.color=window.MSWSubtitleGradient.color(style,seen-1,count);
         else if(prefix<size.prefix.length)span.style.color=speaker.style.color;
@@ -41649,6 +41686,8 @@ let lastClickedOverlayIdx = -1;
 
 // 已选计数涵盖主轨/副轨/叠加轨三个选区集。
 function updateSelectionCountText() {
+  const splitDraft = pendingLinkedSplit;
+  if (splitDraft) queueMicrotask(() => { if (pendingLinkedSplit === splitDraft) syncSplitSelection(); });
   queueCleanupPreview();
   productionRememberSelection();
   queueAutoMergePreview();
@@ -45233,24 +45272,36 @@ function closeLinkedSplitModal() {
   }
 }
 
-// Only a user selecting a different cue dismisses the draft; background selection
-// updates, preview-line dragging and clicks on the current pair must not cancel it.
-document.addEventListener('pointerdown', (event) => {
+// Wait until selection and the active cue have both settled (selectOnly clears
+// the old selection first). Never commit a draft when its target changes.
+function syncSplitSelection() {
   const state = pendingLinkedSplit;
-  if (!state || !EDITOR_SETTINGS.cueEditorSplitAutoClose || event.button !== 0 || event.altKey) return;
-  const target = event.target;
-  if (target.closest('button, input, select, textarea, .waveform-split-preview')) return;
-  const node = target.closest('.waveform-cue-block, #cues-container .multi-cue-column, #cues-container .cue, #cues-container .multi-extension-cue, #cues-container .overlay-track-cue');
-  if (!node) return;
-  const kind = node.dataset.track || (node.dataset.overlayIdx != null ? 'overlay'
-    : node.classList.contains('extension') || node.classList.contains('multi-extension-cue') ? 'extension' : 'main');
-  const track = kind === 'extension' ? getActiveExtensionTrack() : kind === 'overlay' ? getOverlayTrack() : null;
-  const index = Number(kind === 'extension' ? node.dataset.extIdx : kind === 'overlay' ? node.dataset.overlayIdx : node.dataset.mainIdx ?? node.dataset.idx);
+  if (!state || !EDITOR_SETTINGS.cueEditorSplitAutoClose) return;
+  if (!selectedIdxs.size && !selectedExtensionIdxs.size && !selectedOverlayIdxs.size) {
+    closeLinkedSplitModal(); return;
+  }
+  const target = getCurrentCuePanelTarget();
+  if (!target) return;
+  const {kind,index} = target;
+  const selected = kind === 'main' ? selectedIdxs : kind === 'overlay' ? selectedOverlayIdxs : selectedExtensionIdxs;
+  if (!selected.has(index)) return;
+  const track = kind === 'extension' ? getExtensionTrack(target.trackId) || getActiveExtensionTrack() : kind === 'overlay' ? getOverlayTrack() : null;
   const segment = (kind === 'main' ? DATA.segments : track?.segments)?.[index];
   if (!segment) return;
   const belongsToDraft = kind === 'main' ? segment.id === state.mainId
     : track?.id === splitStateTrack(state)?.id && segment.id === state.extensionId;
-  if (!belongsToDraft) closeLinkedSplitModal();
+  if (belongsToDraft) return;
+  const pointer = waveformPointerContext(), playhead = Number(player.currentTime)*1000;
+  const inside = time => Number.isFinite(time) && time > segment.start && time < segment.end;
+  const timeMs = inside(pointer?.timeMs) ? pointer.timeMs : inside(playhead) ? playhead : (segment.start+segment.end)/2;
+  requestSubtitleSplit(kind,index,{track,timeMs,requireConfirm:true});
+}
+
+document.addEventListener('keydown', event => {
+  if (!pendingLinkedSplit || event.key.toLowerCase() !== 'b' || event.repeat || event.isComposing
+      || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || isTextEditingTarget(event)
+      || event.target.closest('input, textarea, select')) return;
+  event.preventDefault();event.stopImmediatePropagation();closeLinkedSplitModal();
 }, true);
 
 function openMainWaveformSplitModal(mainIndex, timeMs) {
@@ -58459,6 +58510,7 @@ function openSelectedCueTts() {
 }
 
 function openSelectedCueTranslation() {
+  document.getElementById('translation-source').value='selected';
   document.getElementById('subtitle-translate-btn')?.click();
 }
 function copySelectedSubtitlesToAssets() {
@@ -61353,11 +61405,11 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   isEditing: () => Boolean(editingState || extensionEditingState || waveformEditor?.hasCueDrag?.()
     || previewGesture || waveformPlayheadDragging || document.activeElement === cuePanelText
     || document.activeElement?.isContentEditable),
-  capture: (outputMode = 'secondary', destination = '') => {
+  capture: (outputMode = 'secondary', destination = '', selection = null) => {
     commitProcessingEdits();
     window.MSWProject.ensure(DATA);
     projectImportDirty = true;
-    return window.MSWTranslation.snapshot(DATA, processingSelection(), outputMode, destination);
+    return window.MSWTranslation.snapshot(DATA, selection || processingSelection(), outputMode, destination);
   },
   applyTranslation: applyTranslationJob,
   applyProcessing: applyProcessingResults,
@@ -62953,6 +63005,10 @@ window.addEventListener('beforeunload', (e) => {
   let pendingSubmission = null;
   let loadingProviders = null, savingSettings = false, providerError = '';
   const destinationRow=el('translation-destination-field'),destination=el('translation-destination');
+  const source=el('translation-source');
+  function sourceSelection() {
+    return source.value==='selected' ? host.selection() : global.MSWProductionProject.trackSelection(host.data,source.value);
+  }
 
   function message(value, error = false) {
     el('translation-message').textContent = t(value);
@@ -62990,6 +63046,12 @@ window.addEventListener('beforeunload', (e) => {
   }
   function updateScope() {
     const flat=global.MSWProductionProject?.isView(host.data),selectedDestination=destination.value;
+    const sourceId=source.value;
+    source.replaceChildren(new Option(t('所选字幕'),'selected'),...(flat?host.data.subtitle_tracks.tracks:[]).map(track=>new Option(track.name,track.id)));
+    if(sourceId!=='selected'&&![...source.options].some(o=>o.value===sourceId)) {
+      const missing=new Option(t('来源轨道已删除'),sourceId);missing.disabled=true;source.add(missing);
+    }
+    source.value=sourceId;source.disabled=requestInFlight||Boolean(pendingSubmission);
     destinationRow.hidden=!flat;
     destination.disabled=requestInFlight||Boolean(pendingSubmission);
     if(flat) {
@@ -63001,7 +63063,7 @@ window.addEventListener('beforeunload', (e) => {
       }
       if([...destination.options].some(o=>o.value===selectedDestination))destination.value=selectedDestination;
     }
-    const selection = host.selection();
+    const selection = sourceSelection();
     const scope = flat?null:global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
     let scopeIssue='',sourceCount=scope?.sources.length||0;
     if(flat) {
@@ -63010,7 +63072,7 @@ window.addEventListener('beforeunload', (e) => {
       el('translation-scope').textContent=report.count?`${t('来源')}：${report.sourceTracks.map(track=>`${track.name} · ${track.count}`).join(' / ')}`
         +(report.pairedCount?` · ${t('绑定双方去重')} ${report.pairedCount}`:''):t('请先选择要翻译的字幕');
       el('translation-target-summary').textContent=report.target?`${t('译文')}：${report.target.created?t('新建')+' ':''}${report.target.name} · ${report.target.count}`:'';
-      scopeIssue=report.count?report.issue:'';
+      scopeIssue=report.count?report.issue:source.value==='selected'?'':t('此轨道没有可翻译的字幕');
     } else {
       el('translation-scope').textContent = `${t(scope.sources.length ? '范围：选中的主字幕' : '范围：未选择字幕')} · ${scope.sources.length}`
         + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
@@ -63165,7 +63227,7 @@ window.addEventListener('beforeunload', (e) => {
     }
     const generation = host.generation;
     try {
-      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture('secondary',destination.value) : null;
+      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture('secondary',destination.value,sourceSelection()) : null;
       requestInFlight = true; updateScope();
       if(kind === 'connection_test') report('正在验证连接…');
       const payload = pendingSubmission || { kind, project_id: projectId(), client_token: clientToken(),
@@ -63215,6 +63277,7 @@ window.addEventListener('beforeunload', (e) => {
   };
   el('translation-start').addEventListener('click', () => void submit('translation'));
   destination.addEventListener('change',updateScope);
+  source.addEventListener('change',updateScope);
   global.addEventListener('msw:subtitles-changed',()=>{if(floating.isOpen())updateScope();});
   el('translation-test').addEventListener('click', () => void submit('connection_test'));
   el('translation-save-settings').addEventListener('click', async () => {
@@ -63230,6 +63293,7 @@ window.addEventListener('beforeunload', (e) => {
   });
   global.addEventListener('msw:project-changed', () => {
     destination.value='';
+    source.value='selected';
     clearTimeout(timer); cursor = 0; jobs.clear(); details.clear(); resultView.reset(); pendingSubmission = null;
     queueMicrotask(() => { updateScope(); renderJobs(); message(''); schedulePoll(0); });
   });
@@ -67597,15 +67661,15 @@ window.addEventListener('beforeunload', (e) => {
     const list=document.createElement('div');list.setAttribute('role','listbox');list.id='style-font-options';menu.append(list);document.body.append(menu);
     let families=[],loaded=false,error='',active=null,query='',index=-1,options=[];
     const states=new Map(inputs.map(input=>[input,{value:'',mixed:false}]));
-    const english=input=>input.dataset.styleField==='latinFontName';
+    const script=input=>input.dataset.fontScript||'han';
     const entry=value=>families.find(f=>f.family.toLocaleLowerCase()===value.toLocaleLowerCase())||families.find(f=>f.aliases.some(a=>a.toLocaleLowerCase()===value.toLocaleLowerCase()));
-    const label=(font,input)=>english(input)?font.family:font.label;
+    const label=(font,input)=>script(input)==='latin'?font.family:font.label;
     const canonical=input=>entry(input.value.trim())?.family||input.value.trim();
     const close=()=>{if(active){active.setAttribute('aria-expanded','false');active.removeAttribute('aria-activedescendant');}menu.hidden=true;active=null;};
     function sync(input,value,mixed=false) {
       states.set(input,{value:String(value??''),mixed});
       input.value=mixed?'':label(entry(String(value??''))||{family:value||'',label:value||''},input);
-      input.placeholder=mixed?'多个值':english(input)?'同中文字体':'输入或选择字体';
+      input.placeholder=mixed?'多个值':script(input)==='han'?'输入或选择字体':'沿用汉字字体';
     }
     function position() {
       if(!active)return;
@@ -67625,7 +67689,7 @@ window.addEventListener('beforeunload', (e) => {
     function draw() {
       if(!active)return;
       const q=query.toLocaleLowerCase();
-      options=families.filter(f=>(english(active)?f.latin:f.cjk)&&[f.family,f.label,...f.aliases].some(n=>n.toLocaleLowerCase().includes(q)))
+      options=families.filter(f=>(f.scripts?.includes(script(active))||(script(active)==='han'?f.cjk:script(active)==='latin'?f.latin:false))&&[f.family,f.label,...f.aliases].some(n=>n.toLocaleLowerCase().includes(q)))
         .sort((a,b)=>label(a,active).localeCompare(label(b,active),'zh-CN'));
       index=-1;list.replaceChildren(...options.map((f,i)=>{
         const b=document.createElement('button');b.type='button';b.id='style-font-option-'+i;b.setAttribute('role','option');
@@ -67719,7 +67783,8 @@ window.addEventListener('beforeunload', (e) => {
   </div>`);
   panel.querySelector('.msw-style-tabs').setAttribute('role','group');
   for(const r of ['main','secondary']){$('style-'+r).removeAttribute('role');$('style-'+r).removeAttribute('aria-selected');$('style-'+r).removeAttribute('tabindex');}
-  const basic=[['fontName','中文字体','text'],['latinFontName','英文字体','text'],['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
+  const fontScripts=global.AsrEditorUtils.ASS_FONT_SCRIPTS;
+  const basic=[...fontScripts.map(([,key])=>[key,'字体','text']),['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
   const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,100],['spacing','字距','number',-100,100],['marginL','左边距','number',0,9999],['marginR','右边距','number',0,9999],['marginV','垂直边距','number',0,9999],['angle','旋转角度','number',-360,360],['scaleX','横向缩放 %','number',0,1000],['scaleY','纵向缩放 %','number',0,1000]];
   function fields(rows,target,animation=false) {
     for(const [key,caption,type,min,max,step] of rows) {
@@ -67765,8 +67830,18 @@ window.addEventListener('beforeunload', (e) => {
     };
   }
   $('style-field-fontSize').closest('label').dataset.optionHelp='字号、边距和动画坐标以 1080p 为基准，随画面尺寸缩放。';
-  const fontInputs=['fontName','latinFontName'].map(key=>$('style-field-'+key));
+  const fontInputs=fontScripts.map(([script,key])=>{const input=$('style-field-'+key);input.dataset.fontScript=script;return input;});
+  const fontRow=document.createElement('div');fontRow.className='msw-property-font';
+  const languageLabel=document.createElement('label');languageLabel.className='msw-style-field';
+  languageLabel.innerHTML='<span class="msw-option-label">目标语言</span><select id="style-font-script" aria-label="目标语言"></select>';
+  fontInputs[0].closest('label').before(fontRow);fontRow.append(languageLabel);
+  const fontLanguage=$('style-font-script');fontLanguage.replaceChildren(...fontScripts.map(([script,,label])=>new Option(t(label),script)));
+  languageLabel.dataset.optionHelp='按文字类别设置。汉字共用字体；拉丁字母、数字及半角标点共用字体。未设置的类别沿用汉字字体。';
+  for(const input of fontInputs)fontRow.append(input.closest('label'));
+  const showFontCategory=()=>{for(const input of fontInputs)input.closest('label').hidden=input.dataset.fontScript!==fontLanguage.value;};
   const fontPicker=global.MSWFontPicker.create(fontInputs,()=>host.config?.processingUrl?request('subtitle-fonts'):Promise.reject());
+  fontLanguage.onchange=()=>{fontPicker.close();showFontCategory();};
+  showFontCategory();
   const A=global.AsrEditorUtils.ASS_DEFAULT_ANIMATIONS;
   const captions={fad:'淡入淡出',fade:'分段透明度',move:'移动',t:'样式渐变',inMs:'淡入 (ms)',outMs:'淡出 (ms)',alpha1:'起始透明度',alpha2:'中间透明度',alpha3:'结束透明度',t1:'开始 (ms)',t2:'结束 (ms)',t3:'第三时间 (ms)',t4:'第四时间 (ms)',x1:'起点 X',y1:'起点 Y',x2:'终点 X',y2:'终点 Y',startMs:'开始 (ms)',endMs:'结束 (ms)',accel:'变化速率',tags:'ASS 渐变标签'};
   const animationHelp={fad:'字幕出现和结束时的淡入淡出时长。与分段透明度二选一。',move:'按字幕开始后的时间，从起点移动到终点；坐标以画面左上角为原点。',fade:'按四个时间点在三种透明度间过渡：0 为不透明，255 为完全透明。与淡入淡出二选一。',t:'在指定时间段逐渐改变样式。变化速率为 1 时匀速；自定义可填写 ASS 标签。'};
@@ -67808,7 +67883,6 @@ window.addEventListener('beforeunload', (e) => {
   anchor.querySelector('.msw-option-label').textContent='对齐锚点';$('style-position-layout').append(anchor);
   anchor.dataset.optionHelp='锚点决定文字向哪个方向展开。百分比相对视频画面，不含黑边。';
   for(const key of ['marginL','marginR','marginV'])$('style-position-layout').append($('style-field-'+key).closest('label'));
-  for(const key of ['fontName','latinFontName'])$('style-field-'+key).closest('label').classList.add('msw-property-font');
   $('style-position-scope').closest('label').hidden=true;
   const restoreAppearance=document.createElement('button');restoreAppearance.type='button';restoreAppearance.id='style-inherit-appearance';restoreAppearance.className='msw-style-icon';
   restoreAppearance.title='恢复轨道外观';restoreAppearance.setAttribute('aria-label','恢复轨道外观');
@@ -68116,6 +68190,7 @@ window.addEventListener('beforeunload', (e) => {
       recoveryState(reset,changed,saving||blocked);
     }
     for(const input of fontInputs)fontPicker.sync(input,input.value,input.closest('label').classList.contains('is-mixed'));
+    showFontCategory();
     for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=cueScope()||track&&fixedTrackCore.placement(track)==='fixed';
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
@@ -68512,8 +68587,9 @@ window.addEventListener('beforeunload', (e) => {
     });
   }
   async function fonts(style) {
-    const familyNames=s=>[s.main,s.secondary,s.annotation?.main,s.annotation?.secondary].flatMap(s=>[s?.fontName,s?.latinFontName]);
-    const cueFonts=[...(host.data.subtitles?.cues||[]).map(c=>c.content),...(host.data.segments||[]),...(host.data.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>[c.subtitle_style?.fontName,c.subtitle_style?.latinFontName]);
+    const scriptFamilies=s=>global.AsrEditorUtils.ASS_FONT_SCRIPTS.map(([,k])=>s?.[k]);
+    const familyNames=s=>[s.main,s.secondary,s.annotation?.main,s.annotation?.secondary].flatMap(scriptFamilies);
+    const cueFonts=[...(host.data.subtitles?.cues||[]).map(c=>c.content),...(host.data.segments||[]),...(host.data.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>scriptFamilies(c.subtitle_style));
     const families=[...new Set([...familyNames(style),...cueFonts,...(host.data.subtitles?.tracks||host.data.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
     if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
     const manifest=await fontManifests.get(fontKey);

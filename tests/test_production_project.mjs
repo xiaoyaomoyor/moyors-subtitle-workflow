@@ -5,6 +5,16 @@ const require=createRequire(import.meta.url),flat=require('../web/msw-flat-subti
 const fixture=()=>flat.migrate({segments:[{id:'a',start:0,end:2000,text:'Hello',items:[]}],multi_subtitle:{schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',tracks:[{id:'zh',role:'extension',segments:[{id:'b',start:100,end:2100,text:'你好',items:[]}]}],bindings:[{id:'pair',track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b'],start_offset_ms:100,end_offset_ms:100}]}});
 const comparable=p=>{const n=flat.normalizeGroups(structuredClone(p),{infer:true});delete n.subtitle_view;n.subtitles.cues.sort((a,b)=>a.id.localeCompare(b.id));return n;};
 
+test('translation track selection follows physical ownership even when display columns are swapped',()=>{
+  const p=fixture(),id=p.subtitles.tracks[1].id,a=p.subtitles.cues[0].id,b=p.subtitles.cues[1].id;
+  for(const secondary of [[b],[a]]){
+    p.subtitle_view={...p.subtitle_view,secondary_cue_ids:secondary};const view=bridge.fromProject(p);
+    const selection=bridge.trackSelection(view,id);
+    assert.deepEqual(bridge.translationIds(view,selection),[b]);
+    assert.deepEqual(bridge.translationIds(view,bridge.trackSelection(view,'missing')),[]);
+  }
+});
+
 test('subtitle import explicitly replaces its owner or creates an independent track; binding is optional',()=>{
   globalThis.MSWProject={id:prefix=>prefix+'-'+crypto.randomUUID()};require('../web/msw-flat-editing.js');
   const p=fixture(),view=bridge.fromProject(p),owner=p.subtitles.tracks[1].id;

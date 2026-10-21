@@ -748,7 +748,7 @@ test('split settings default safely, update the open footer and persist after re
 });
 
 for (const surface of ['card', 'waveform']) for (const kind of ['main', 'extension']) {
-  test(`auto-close on another ${kind} ${surface} cancels only the draft and can be disabled`, async ({ page }) => {
+  test(`auto-switch on another ${kind} ${surface} changes only the draft and can be disabled`, async ({ page }) => {
     for (const enabled of [true, false]) {
       await fixture(page);
       await page.evaluate(() => {
@@ -757,6 +757,7 @@ for (const surface of ['card', 'waveform']) for (const kind of ['main', 'extensi
         source.content.end=4000;target.content.end=4000;
         p.subtitles.cues.push({id:'main-b',track_id:source.track_id,content:{start:4000,end:8000,text:'another subtitle',items:[]}},
           {id:'sub-b',track_id:target.track_id,content:{start:4000,end:8000,text:'另一条字幕',items:[]}});
+        p.subtitles.bindings.push({id:'pair-b',source_id:'main-b',target_id:'sub-b',start_offset_ms:0,end_offset_ms:0});
         p.subtitle_view.secondary_cue_ids.push('sub-b');productionCommitProject(p,'Additional cues fixture');
       });
       await openCueEditorSettings(page);
@@ -766,16 +767,19 @@ for (const surface of ['card', 'waveform']) for (const kind of ['main', 'extensi
       await page.evaluate(() => requestSubtitleSplit('main', 0, { timeMs: 2000 }));
       const cue = index => surface === 'waveform'
         ? page.locator(`.waveform-cue-block[data-track="${kind}"][${kind === 'main' ? 'data-idx' : 'data-ext-idx'}="${index}"]`).first()
-        : page.locator(`#cues-container ${kind === 'main' ? `.cue[data-idx="${index}"] .main .text` : `[data-ext-idx="${index}"] .text`}`).first();
+        : page.locator(`#cues-container ${kind === 'main' ? `.cue[data-idx="${index}"] .main .text` : `.multi-cue-column.extension[data-ext-idx="${index}"] .text`}`).first();
       // Click away from the draggable cut marker at the block's center.
       await cue(0).click(surface === 'waveform' ? { position: { x: 24, y: 14 } } : {});
       await expect(panel(page)).toBeVisible();
       await cue(1).click();
       if (enabled) {
+        await expect(panel(page)).toBeVisible();
+        expect(await page.evaluate(() => pendingLinkedSplit.origin.id)).toBe(kind==='main'?'main-b':'sub-b');
+        expect(await page.evaluate(() => pendingLinkedSplit.kind)).toBe('linked');
+        expect(await page.evaluate(() => getCurrentCuePanelTarget()?.index)).toBe(1);
+        await page.evaluate(()=>clearSelection());
         await expect(panel(page)).toBeHidden();
         await expect(page.locator('.waveform-split-preview:visible')).toHaveCount(0);
-        expect(await page.evaluate(() => pendingLinkedSplit)).toBeNull();
-        expect(await page.evaluate(() => getCurrentCuePanelTarget()?.index)).toBe(1);
       } else {
         await expect(panel(page)).toBeVisible();
         expect(await page.evaluate(() => pendingLinkedSplit.cutMs)).toBe(2000);
@@ -785,6 +789,16 @@ for (const surface of ['card', 'waveform']) for (const kind of ['main', 'extensi
     }
   });
 }
+
+test('B closes an unconfirmed split from inside or outside the confirmation',async({page})=>{
+  await fixture(page);const before=await data(page);
+  for(const inside of [true,false]) {
+    await page.evaluate(()=>{selectOnly(0);requestSubtitleSplit('main',0,{timeMs:3000,requireConfirm:true});});
+    if(inside)await page.locator('#multi-subtitle-split-main-text').focus();
+    else await page.evaluate(()=>waveformEditor.focusWaveform());
+    await page.keyboard.press('b');await expect(panel(page)).toBeHidden();expect(await data(page)).toEqual(before);
+  }
+});
 
 for (const width of [1280, 740, 420]) {
   test(`cue editor settings have separated padded groups and usable footer at ${width}px`, async ({ page }, info) => {

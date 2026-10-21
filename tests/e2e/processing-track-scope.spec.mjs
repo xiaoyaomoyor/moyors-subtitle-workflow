@@ -11,6 +11,7 @@ test.beforeAll(async()=>{
  server=await startServer(project,media,await findFreePort());
 });
 test.afterAll(async()=>server?.stop());
+test.afterEach(async({page})=>page.unrouteAll({behavior:'ignoreErrors'}));
 test.beforeEach(async({page})=>{
  await disableOnboarding(page);await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false,clickBehavior:'select-only',selectBoundSubtitlePair:false})));
  await page.route('**/providers',route=>route.fulfill({json:{ok:true,selectedProvider:'custom',providers:[{id:'custom',label:'Test provider',baseUrl:'http://127.0.0.1:1/v1',model:'synthetic',hasApiKey:true}]}}));
@@ -28,9 +29,29 @@ test.beforeEach(async({page})=>{
  });
 });
 const openTranslation=page=>page.locator('#subtitle-translate-btn').evaluate(n=>n.click());
+
+test('translation source selects a physical track independently of selection and snapshots only that track',async({page},info)=>{
+ await openTranslation(page);await page.locator('#translation-source').selectOption('two');
+ await expect(page.locator('#translation-scope')).toHaveText('来源：S1副 · 1');
+ await expect(page.locator('#translation-start')).toBeEnabled();
+ await page.evaluate(()=>selectOnly(0));await openTranslation(page);
+ await expect(page.locator('#translation-scope')).toHaveText('来源：S1副 · 1');
+ let payload;await page.route('**/jobs',async route=>{payload=route.request().postDataJSON();await route.fulfill({status:400,json:{ok:false,error:'Fixture: captured without cloud request'}});});
+ await page.locator('#translation-start').click();
+ await expect.poll(()=>payload?.snapshot?.entries?.length).toBe(1);
+ expect(payload.snapshot.entries.map(e=>e.source.text)).toEqual(['甲乙丙丁戊己']);
+ expect(payload.snapshot.entries[0].target.text).toBe('one two three four');
+ await page.screenshot({path:info.outputPath('translation-source.png')});
+ await page.locator('#translation-source').selectOption('selected');await expect(page.locator('#translation-scope')).toHaveText('来源：S1主 · 1');
+ await page.evaluate(()=>clearSelection());await openTranslation(page);await expect(page.locator('#translation-start')).toBeDisabled();
+});
 test('ASR rejects an empty time selection and expands only the destination track on the right',async({page},info)=>{
  await page.evaluate(()=>{
   const p=MSWProductionProject.toProject(DATA);p.subtitles.bindings=[];productionCommitProject(p,'Unbind test');
+ });
+ await page.evaluate(()=>MSWE.resolve('media').refresh());
+ await expect.poll(()=>page.evaluate(()=>Boolean(MSWE.resolve('media').current))).toBe(true);
+ await page.evaluate(()=>{
   MSWE.resolve('time-range').setRange([]);MSWE.resolve('asr').open('range');
  });
  await expect(page.locator('#msw-asr-scope')).toContainText('有效时间范围');await expect(page.locator('#msw-asr-start')).toBeDisabled();

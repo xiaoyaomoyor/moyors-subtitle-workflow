@@ -18,6 +18,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Final
+from maw.font_scripts import SCRIPT_FONTS
 
 from maw.app_paths import default_app_data_root
 
@@ -249,8 +250,9 @@ def _normalize_style(raw: object, fallback: Mapping[str, object], *, style_id: s
         "marginV": _number(source.get("marginV"), fallback.get("marginV", 40), 0, 9999),
         "encoding": _number(source.get("encoding"), fallback.get("encoding", 1), 0, 255),
     })
-    if 'latinFontName' in source or 'latinFontName' in fallback:
-        base['latinFontName'] = _font_name(source.get('latinFontName', fallback.get('latinFontName')), '')
+    for field in SCRIPT_FONTS:
+        if field in source or field in fallback:
+            base[field] = _font_name(source.get(field, fallback.get(field)), '')
     return base
 
 

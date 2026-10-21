@@ -85,8 +85,9 @@
     });
   }
   async function fonts(style) {
-    const familyNames=s=>[s.main,s.secondary,s.annotation?.main,s.annotation?.secondary].flatMap(s=>[s?.fontName,s?.latinFontName]);
-    const cueFonts=[...(host.data.subtitles?.cues||[]).map(c=>c.content),...(host.data.segments||[]),...(host.data.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>[c.subtitle_style?.fontName,c.subtitle_style?.latinFontName]);
+    const scriptFamilies=s=>global.AsrEditorUtils.ASS_FONT_SCRIPTS.map(([,k])=>s?.[k]);
+    const familyNames=s=>[s.main,s.secondary,s.annotation?.main,s.annotation?.secondary].flatMap(scriptFamilies);
+    const cueFonts=[...(host.data.subtitles?.cues||[]).map(c=>c.content),...(host.data.segments||[]),...(host.data.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>scriptFamilies(c.subtitle_style));
     const families=[...new Set([...familyNames(style),...cueFonts,...(host.data.subtitles?.tracks||host.data.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
     if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
     const manifest=await fontManifests.get(fontKey);

@@ -689,7 +689,7 @@ __WAVEFORM_CSS__
     <div class="settings-panel-section cue-editor-settings-section"><span class="settings-panel-title">联动切分</span>
       <div class="cue-editor-settings-display-group">
         <label class="toggle settings-panel-item" data-option-help="在取消与确认切分之间显示保留两侧原文和仅切当前字幕并解绑。独立切分作用于确认区中高亮的字幕。"><input type="checkbox" id="cue-editor-split-more-actions"> 更多操作</label>
-        <label class="toggle settings-panel-item" data-option-help="鼠标选择本次切分以外的字幕卡片或波形字幕块时，取消尚未确认的切分。"><input type="checkbox" id="cue-editor-split-auto-close" checked> 自动关闭</label>
+        <label class="toggle settings-panel-item" data-option-help="选择其他字幕时，将确认区切换到该组字幕；取消所有字幕选择时关闭。不会提交上一次未确认的切分。再次按 B 也可关闭。"><input type="checkbox" id="cue-editor-split-auto-close" checked> 自动切换</label>
       </div>
     </div>
   </div>
@@ -2668,6 +2668,7 @@ __WAVEFORM_CSS__
     <button type="button" id="subtitle-translation-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕翻译"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
   <div class="gap-remove-panel-body">
+    <div class="msw-processing-fields"><label>翻译源<select id="translation-source" aria-label="翻译源"><option value="selected">所选字幕</option></select></label></div>
     <p id="translation-scope" class="msw-processing-hint" aria-live="polite"></p>
     <p id="translation-unavailable" class="msw-processing-hint" hidden>字幕翻译需要本机 Server 编辑器，请从启动器打开编辑器后使用。</p>
     <div id="translation-controls">
@@ -2676,7 +2677,7 @@ __WAVEFORM_CSS__
         <label id="translation-destination-field" hidden>译文轨道<select id="translation-destination" aria-label="译文轨道"></select></label>
         <label>翻译服务<select id="translation-provider" aria-label="翻译服务"></select></label>
       </div>
-      <p class="msw-processing-hint" data-help-for="translation-destination">只翻译选中的字幕。绑定双方同时选中时按绑定参考方翻译一次；单独选择任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。分组不等于绑定。开始翻译只生成候选；应用到译文轨道或替换所选原文需在结果中选择。</p>
+      <p class="msw-processing-hint" data-help-for="translation-destination">翻译源可选整条轨道或所选字幕。绑定双方同时选中时只翻译参考方；单选任意一方则翻译该方。自动选择优先使用已有绑定，再使用所属组的副轨道，否则新建轨道。翻译结果需在记录中应用。</p>
       <p id="translation-target-summary" class="msw-processing-hint" hidden></p>
       <p id="translation-scope-issue" class="msw-processing-hint" role="status" hidden></p>
       <p id="translation-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="translation-environment-reminder" hidden><button type="button" id="translation-environment-open">前往 LLM 环境配置</button></div>

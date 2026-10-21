@@ -22,6 +22,10 @@
   let pendingSubmission = null;
   let loadingProviders = null, savingSettings = false, providerError = '';
   const destinationRow=el('translation-destination-field'),destination=el('translation-destination');
+  const source=el('translation-source');
+  function sourceSelection() {
+    return source.value==='selected' ? host.selection() : global.MSWProductionProject.trackSelection(host.data,source.value);
+  }
 
   function message(value, error = false) {
     el('translation-message').textContent = t(value);
@@ -59,6 +63,12 @@
   }
   function updateScope() {
     const flat=global.MSWProductionProject?.isView(host.data),selectedDestination=destination.value;
+    const sourceId=source.value;
+    source.replaceChildren(new Option(t('所选字幕'),'selected'),...(flat?host.data.subtitle_tracks.tracks:[]).map(track=>new Option(track.name,track.id)));
+    if(sourceId!=='selected'&&![...source.options].some(o=>o.value===sourceId)) {
+      const missing=new Option(t('来源轨道已删除'),sourceId);missing.disabled=true;source.add(missing);
+    }
+    source.value=sourceId;source.disabled=requestInFlight||Boolean(pendingSubmission);
     destinationRow.hidden=!flat;
     destination.disabled=requestInFlight||Boolean(pendingSubmission);
     if(flat) {
@@ -70,7 +80,7 @@
       }
       if([...destination.options].some(o=>o.value===selectedDestination))destination.value=selectedDestination;
     }
-    const selection = host.selection();
+    const selection = sourceSelection();
     const scope = flat?null:global.MSWTranslation.scope(host.data, selection.mainIds, selection.extensionIds, selection.trackId, selection.hasSelection);
     let scopeIssue='',sourceCount=scope?.sources.length||0;
     if(flat) {
@@ -79,7 +89,7 @@
       el('translation-scope').textContent=report.count?`${t('来源')}：${report.sourceTracks.map(track=>`${track.name} · ${track.count}`).join(' / ')}`
         +(report.pairedCount?` · ${t('绑定双方去重')} ${report.pairedCount}`:''):t('请先选择要翻译的字幕');
       el('translation-target-summary').textContent=report.target?`${t('译文')}：${report.target.created?t('新建')+' ':''}${report.target.name} · ${report.target.count}`:'';
-      scopeIssue=report.count?report.issue:'';
+      scopeIssue=report.count?report.issue:source.value==='selected'?'':t('此轨道没有可翻译的字幕');
     } else {
       el('translation-scope').textContent = `${t(scope.sources.length ? '范围：选中的主字幕' : '范围：未选择字幕')} · ${scope.sources.length}`
         + (scope.ignored ? ` · ${t('已忽略未绑定副字幕')} ${scope.ignored}` : '');
@@ -234,7 +244,7 @@
     }
     const generation = host.generation;
     try {
-      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture('secondary',destination.value) : null;
+      const snapshot = kind === 'translation' && !pendingSubmission ? host.capture('secondary',destination.value,sourceSelection()) : null;
       requestInFlight = true; updateScope();
       if(kind === 'connection_test') report('正在验证连接…');
       const payload = pendingSubmission || { kind, project_id: projectId(), client_token: clientToken(),
@@ -284,6 +294,7 @@
   };
   el('translation-start').addEventListener('click', () => void submit('translation'));
   destination.addEventListener('change',updateScope);
+  source.addEventListener('change',updateScope);
   global.addEventListener('msw:subtitles-changed',()=>{if(floating.isOpen())updateScope();});
   el('translation-test').addEventListener('click', () => void submit('connection_test'));
   el('translation-save-settings').addEventListener('click', async () => {
@@ -299,6 +310,7 @@
   });
   global.addEventListener('msw:project-changed', () => {
     destination.value='';
+    source.value='selected';
     clearTimeout(timer); cursor = 0; jobs.clear(); details.clear(); resultView.reset(); pendingSubmission = null;
     queueMicrotask(() => { updateScope(); renderJobs(); message(''); schedulePoll(0); });
   });

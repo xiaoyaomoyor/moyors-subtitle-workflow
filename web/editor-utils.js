@@ -4,6 +4,15 @@
   'use strict';
 
   const PROJECT_SCHEMA = 'moy.asr.project.v1';
+  // Language picker edits script coverage, never guesses the language of Han
+  // characters or shared Latin letters. fontName remains the fallback face.
+  const ASS_FONT_SCRIPTS = Object.freeze([
+    ['han','fontName','中文／汉字'],['latin','latinFontName','英语等／拉丁字母'],
+    ['kana','kanaFontName','日文／假名'],['hangul','hangulFontName','韩文'],
+    ['cyrillic','cyrillicFontName','俄语等／西里尔字母'],['greek','greekFontName','希腊文'],
+    ['arabic','arabicFontName','阿拉伯文'],['hebrew','hebrewFontName','希伯来文'],
+    ['devanagari','devanagariFontName','印地语等／天城文'],['thai','thaiFontName','泰文'],
+  ]);
   function supportsProjectSchema(project) {
     return Boolean(project && typeof project === 'object' && !Array.isArray(project)
       && (!Object.prototype.hasOwnProperty.call(project, 'schema') || [PROJECT_SCHEMA, 'msw.project.v2', 'msw.project.v3'].includes(project.schema)));
@@ -4339,7 +4348,7 @@
       name: normalizeAssLibraryText(source.name, fallback.name || '样式'),
       builtin: Boolean(fallback.builtin),
       fontName: normalizeAssLibraryText(source.fontName, fallback.fontName || ASS_DEFAULT_FONT_FAMILY, ASS_STYLE_LIBRARY_MAX_FONT_LENGTH),
-      ...('latinFontName' in source || 'latinFontName' in fallback ? {latinFontName:normalizeAssLibraryText(source.latinFontName ?? fallback.latinFontName, '', ASS_STYLE_LIBRARY_MAX_FONT_LENGTH)} : {}),
+      ...Object.fromEntries(ASS_FONT_SCRIPTS.slice(1).map(([,k])=>k).filter(k=>k in source||k in fallback).map(k=>[k,normalizeAssLibraryText(source[k] ?? fallback[k], '', ASS_STYLE_LIBRARY_MAX_FONT_LENGTH)])),
       fontSize: normalizeAssLibraryNumber(source.fontSize, fallback.fontSize || 18, 1, 512),
       primaryColor: normalizeAssLibraryColor(source.primaryColor, fallback.primaryColor || '#ffffff'),
       secondaryColor: normalizeAssLibraryColor(source.secondaryColor, fallback.secondaryColor || '#ffffff'),
@@ -4882,16 +4891,26 @@
     const eventTextColor = style.primaryColor;
     const label = `${speakerName}${speakerLabelSeparator}`;
     if (!assMode) return escapeAssStyledText(`${label}${content}`,style);
-    return `{\\c${assOverrideColorFromHex(speakerColor)}}${escapeAssStyledText(label,style)}{\\c${assOverrideColorFromHex(eventTextColor)}}${style.latinFontName?`{\\fn${String(style.fontName).replace(/[\\{},\x00-\x1f]/g,'')}}`:''}${escapeAssStyledText(content,style)}`;
+    return `{\\c${assOverrideColorFromHex(speakerColor)}}${escapeAssStyledText(label,style)}{\\c${assOverrideColorFromHex(eventTextColor)}}${ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k])?`{\\fn${String(style.fontName).replace(/[\\{},\x00-\x1f]/g,'')}}`:''}${escapeAssStyledText(content,style)}`;
   }
 
   function assTextFont(text,style={}) {
     const cp=String(text).codePointAt(0);
-    return (cp<=0x024f||cp>=0x1e00&&cp<=0x1eff?style.latinFontName:'')||style.fontName;
+    const within=(a,b)=>cp>=a&&cp<=b;
+    const script=cp<=0x024f||within(0x1e00,0x1eff)?'latin'
+      :within(0x3040,0x30ff)||within(0x31f0,0x31ff)||within(0xff66,0xff9f)?'kana'
+      :within(0x1100,0x11ff)||within(0x3130,0x318f)||within(0xa960,0xa97f)||within(0xac00,0xd7ff)?'hangul'
+      :within(0x0400,0x052f)||within(0x2de0,0x2dff)||within(0xa640,0xa69f)?'cyrillic'
+      :within(0x0370,0x03ff)||within(0x1f00,0x1fff)?'greek'
+      :within(0x0600,0x06ff)||within(0x0750,0x077f)||within(0x0870,0x08ff)||within(0xfb50,0xfdff)||within(0xfe70,0xfeff)?'arabic'
+      :within(0x0590,0x05ff)||within(0xfb1d,0xfb4f)?'hebrew'
+      :within(0x0900,0x097f)||within(0xa8e0,0xa8ff)?'devanagari'
+      :within(0x0e00,0x0e7f)?'thai':null;
+    return style[script+'FontName']||style.fontName;
   }
 
   function escapeAssStyledText(text,style={}) {
-    if(!style.latinFontName||style.latinFontName===style.fontName)return escapeAssText(text);
+    if(!ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k]&&style[k]!==style.fontName))return escapeAssText(text);
     let current=style.fontName;
     return Array.from(String(text??''),char=>{
       const family=/\p{Mark}/u.test(char)?current:assTextFont(char,style);
@@ -6959,6 +6978,7 @@ export default MawDynamicCaptions;
     escapeAssStyledText,
     ASS_STYLE_LIBRARY_SCHEMA,
     ASS_DEFAULT_STYLE,
+    ASS_FONT_SCRIPTS,
     ASS_DEFAULT_ASS_STYLE,
     ASS_DEFAULT_EXTENSION_STYLE,
     ASS_DEFAULT_ANIMATIONS,

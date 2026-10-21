@@ -148,6 +148,12 @@
     const snap=F.translation(p,ids,target);
     return {...snap,output_mode:outputMode,...(created?{created_subtitle_track:created}:{})};
   }
+  function trackSelection(view,trackId) {
+    const p=toProject(view),ids=new Set(p.subtitles.cues.filter(c=>c.track_id===trackId).map(c=>c.id));
+    return {mainIds:(view.segments||[]).filter(c=>ids.has(c.id)).map(c=>c.id),
+      extensionIds:(view.multi_subtitle?.tracks||[]).flatMap(t=>t.segments||[]).filter(c=>ids.has(c.id)).map(c=>c.id),
+      hasSelection:true,trackId:null};
+  }
   function translationIds(view,selection,project=null) {
     const ids=new Set([...(selection.mainIds||[]),...(selection.extensionIds||[])]);
     // A selected pair has one source, regardless of the list's left/right layout.
@@ -308,6 +314,6 @@
     for(const t of p.subtitles.tracks)t.enabled=t.enabled&&(!selected||selected.has(t.id));
     return p;
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -4,6 +4,19 @@ import re
 import os
 import sys
 from pathlib import Path
+from maw.font_scripts import SCRIPT_FONTS, script_key
+
+# Representative alphabets, checked against glyph coverage rather than names.
+SCRIPT_SAMPLES = {
+    'kana': 'あいうえおかきくけこさしすせそたちつてとなにぬねのアイウエオカキクケコサシスセソタチツテトナニヌネノ',
+    'hangul': '가나다라마바사아자차카타파하한글한국어',
+    'cyrillic': 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя',
+    'greek': 'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψω',
+    'arabic': 'ابتثجحخدذرزسشصضطظعغفقكلمنهوي',
+    'hebrew': 'אבגדהוזחטיכלמנסעפצקרשת',
+    'devanagari': 'अआइईउऊऋएऐओऔकखगघचछजझटठडढणतथदधनपफबभमयरलवशषसह',
+    'thai': 'กขคงจฉชซญดตถทนบปผฝพฟมยรลวศษสหอฮ',
+}
 
 
 def font_roots() -> tuple[Path, ...]:
@@ -81,7 +94,13 @@ def font_catalog():
                 cmap = font.getBestCmap() or {}
                 cjk = sum(ord(c) in cmap for c in '中文天地人山水日月一二三') >= 10 and sum(0x3400 <= c <= 0x9fff for c in cmap) >= 128
                 latin = all(ord(c) in cmap for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
-                entry = families.setdefault(family.casefold(), dict(family=family, label=label, aliases=set(), cjk=False, latin=False))
+                scripts = {s for s, sample in SCRIPT_SAMPLES.items() if all(ord(c) in cmap for c in sample)}
+                if cjk:
+                    scripts.add('han')
+                if latin:
+                    scripts.add('latin')
+                entry = families.setdefault(family.casefold(), dict(family=family, label=label, aliases=set(), scripts=set(), cjk=False, latin=False))
+                entry['scripts'].update(scripts)
                 entry['aliases'].update(r[2] for r in names if r[2])
                 if chinese:
                     entry['label'] = label
@@ -92,13 +111,12 @@ def font_catalog():
         finally:
             if owner is not None:
                 owner.close()
-    return [dict(entry, aliases=sorted(entry['aliases'])) for entry in sorted(families.values(), key=lambda e: e['family'].casefold())]
+    return [dict(entry, aliases=sorted(entry['aliases']), scripts=sorted(entry['scripts'])) for entry in sorted(families.values(), key=lambda e: e['family'].casefold())]
 
 
 def text_font(char, style):
-    """Latin letters, digits and half-width punctuation use the English face."""
-    cp = ord(char[0]) if char else 0
-    return (style.get('latinFontName') if cp <= 0x024f or 0x1e00 <= cp <= 0x1eff else None) or style.get('fontName', '')
+    """Choose by script; shared Han characters use the fallback face."""
+    return style.get(script_key(char) + 'FontName') or style.get('fontName', '')
 
 
 def font_tag(family):
@@ -119,7 +137,7 @@ def font_tags(text, style):
 def styled_text(text, style):
     from maw.msw.subtitle_style import ass_text
     from maw.subtitle_wrapping import _characters
-    if not style.get('latinFontName') or style['latinFontName'] == style.get('fontName'):
+    if not any(style.get(k) and style[k] != style.get('fontName') for k in SCRIPT_FONTS):
         return ass_text(text)
     units = _characters(text)
     return ''.join(tag + ass_text(unit) for tag, unit in zip(font_tags(units, style), units))
@@ -170,12 +188,16 @@ def wrapped_line_count(text, style, width):
     """
     family = style.get('font_family', '')
     metrics = family_metrics(family, style.get('bold', False), style.get('italic', False)) if family else {}
-    latin = family_metrics(style['latin_font_family'], style.get('bold', False), style.get('italic', False)) if style.get('latin_font_family') else metrics
+    fonts = {'fontName':family, 'latinFontName':style.get('latin_font_family'), **style.get('script_fonts', {})}
+    tables = {family: metrics}
+    for key in SCRIPT_FONTS:
+        if fonts.get(key):
+            tables[fonts[key]] = family_metrics(fonts[key], style.get('bold', False), style.get('italic', False))
     fallback = None
     size, scale, spacing = style['font_size'], style.get('scale_x', 100)/100, style.get('spacing', 0)
     def advance(char):
         nonlocal fallback
-        table = latin if text_font(char, dict(fontName=family, latinFontName=style.get('latin_font_family'))) != family else metrics
+        table = tables[text_font(char, fonts)]
         value = table.get(ord(char))
         if value is None and family:
             if fallback is None:
