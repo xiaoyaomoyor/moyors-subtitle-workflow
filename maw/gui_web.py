@@ -653,6 +653,28 @@ def _queue_idle(method):
 
 @final
 class LauncherApi:
+    def get_user_config(self):
+        from maw.user_config import UserConfig, config_path
+        # load_env migrates only the explicit non-sensitive preference allowlist.
+        from maw.gui_config import load_env
+        load_env(self.paths.env_path)
+        snapshot = UserConfig(config_path(self.paths.env_path)).request()
+        self._user_pref_baseline = snapshot['sections'].get('launcher', {}).copy()
+        return snapshot
+
+    def update_user_config(self, payload):
+        from maw.user_config import UserConfig, config_path, ConfigConflict
+        try:
+            snapshot = UserConfig(config_path(self.paths.env_path)).request(payload)
+            if isinstance(payload, dict) and payload.get('action') == 'migrate':
+                # get_config follows the startup migration and displays these values.
+                self._user_pref_baseline = snapshot['sections'].get('launcher', {}).copy()
+            return snapshot
+        except ConfigConflict as error:
+            return {'error': str(error), 'conflict': error.paths}
+        except (ValueError, OSError):
+            return {'error': '用户配置未保存，原文件已保留'}
+
     def __init__(
         self,
         *,
@@ -1177,7 +1199,17 @@ class LauncherApi:
             zoom_percent = effective_config(self.paths.env_path).zoom_percent
         if updates:
             try:
-                save_env(self.paths.env_path, updates)
+                from maw.user_config import UserConfig, config_path, changes
+                from maw.env_config import aliased_values
+                from maw.user_config import ENV_KEYS
+                store = UserConfig(config_path(self.paths.env_path))
+                baseline = getattr(self, '_user_pref_baseline', None)
+                if baseline is None:
+                    load_env(self.paths.env_path)
+                    baseline = store.read()['sections'].get('launcher', {})
+                preferences = {k: v for k, v in aliased_values(updates).items() if k in ENV_KEYS}
+                store.patch(changes(baseline, {**baseline, **preferences}, ['launcher']))
+                self._user_pref_baseline = {**baseline, **preferences}
             except (OSError, UnicodeError, ValueError) as error:
                 return _error_result("", "config_save_failed", f"{self.paths.env_path}: {error}")
         return {"ok": True, "zoomPercent": zoom_percent}

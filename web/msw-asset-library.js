@@ -26,7 +26,7 @@
     return {short:`${duration} · ${engine} · ${short}`, full:`${duration} · ${engine} · ${name}`};
   }
   let density=3;
-  try {const saved=Number(localStorage.getItem(DENSITY_KEY));if(Number.isInteger(saved)&&saved>=1&&saved<=5)density=saved;}catch(_){}
+  try {const saved=Number((globalThis.MSWConfig?.storage || localStorage).getItem(DENSITY_KEY));if(Number.isInteger(saved)&&saved>=1&&saved<=5)density=saved;}catch(_){}
   function action(label, callback) {
     const button = document.createElement('button');
     button.type = 'button'; button.textContent = t(label);
@@ -409,7 +409,7 @@
   el('asset-density').value = String(density);
   el('asset-density').addEventListener('input', () => {
     density = Number(el('asset-density').value); updateDensity();
-    try { localStorage.setItem(DENSITY_KEY, String(density)); } catch (_) {}
+    try { (globalThis.MSWConfig?.storage || localStorage).setItem(DENSITY_KEY, String(density)); } catch (_) {}
   });
   new ResizeObserver(updateDensity).observe(el('asset-list'));
   global.addEventListener('msw:assets-changed', () => {
@@ -526,15 +526,15 @@
     el('asset-playing').textContent=t('选择音频试听');queueMicrotask(renderAssets);
   });
   el('asset-show-player').addEventListener('change',()=>{
-    try {localStorage.setItem('msw.assets.showPlayer',String(el('asset-show-player').checked));}catch(_){}
+    try {(globalThis.MSWConfig?.storage || localStorage).setItem('msw.assets.showPlayer',String(el('asset-show-player').checked));}catch(_){}
     updateAssetTransport();
   });
-  try {el('asset-show-player').checked=localStorage.getItem('msw.assets.showPlayer')!=='false';}catch(_){}
+  try {el('asset-show-player').checked=(globalThis.MSWConfig?.storage || localStorage).getItem('msw.assets.showPlayer')!=='false';}catch(_){}
   el('asset-show-changes').addEventListener('change',()=>{
-    try {localStorage.setItem('msw.assets.showChanges',String(el('asset-show-changes').checked));}catch(_){}
+    try {(globalThis.MSWConfig?.storage || localStorage).setItem('msw.assets.showChanges',String(el('asset-show-changes').checked));}catch(_){}
     renderAssets();
   });
-  try {el('asset-show-changes').checked=localStorage.getItem('msw.assets.showChanges')==='true';}catch(_){}
+  try {el('asset-show-changes').checked=(globalThis.MSWConfig?.storage || localStorage).getItem('msw.assets.showChanges')==='true';}catch(_){}
   const timeline=host.timeline, MIME='application/x-msw-subtitle-assets';
   timeline?.pane.addEventListener('dragover',event=>{
     if(!event.dataTransfer.types.includes(MIME))return;event.preventDefault();event.stopPropagation();event.dataTransfer.dropEffect='copy';

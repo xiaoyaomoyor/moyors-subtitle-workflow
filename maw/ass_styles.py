@@ -425,7 +425,11 @@ def normalize_ass_style_library(payload: object) -> dict[str, object]:
 def load_ass_style_library(path: Path | None = None) -> dict[str, object]:
     """Load and normalize the shared library; malformed data falls back safely."""
 
-    target = path or default_ass_styles_path()
+    if path is None:
+        from maw.user_config import UserConfig
+        store = UserConfig(default_ass_styles_path().with_name('user-settings.mswconfig'))
+        return normalize_ass_style_library(store.migrate_files()['sections'].get('assStyles', default_ass_style_library()))
+    target = path
     if path is None and not target.exists() and not (os.environ.get("MSW_APP_DATA_ROOT") or os.environ.get("MAW_APP_DATA_ROOT")):
         legacy = target.parent.parent / "MAW" / ASS_STYLE_LIBRARY_FILE_NAME
         if legacy.is_file():
@@ -441,6 +445,10 @@ def save_ass_style_library(payload: object, path: Path | None = None) -> dict[st
     """Normalize and atomically save a user-level library, returning its value."""
 
     normalized = normalize_ass_style_library(payload)
+    if path is None:
+        from maw.user_config import UserConfig
+        UserConfig(default_ass_styles_path().with_name('user-settings.mswconfig')).update(['assStyles'], normalized)
+        return normalized
     target = path or default_ass_styles_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary_name = tempfile.mkstemp(

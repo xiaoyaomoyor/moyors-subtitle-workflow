@@ -105,6 +105,10 @@ def normalize_presets(raw):
 
 
 def load_presets(path: Path | None = None):
+    if path is None:
+        from maw.user_config import UserConfig
+        value = UserConfig(presets_path().with_name('user-settings.mswconfig')).migrate_files()['sections'].get('subtitlePresets', {'presets': []})
+        return normalize_presets({'version': 1, **value})
     try:
         return normalize_presets(json.loads((path or presets_path()).read_text(encoding='utf-8')))
     except FileNotFoundError:
@@ -113,6 +117,10 @@ def load_presets(path: Path | None = None):
 
 def save_presets(raw, path: Path | None = None):
     value = normalize_presets(raw)
+    if path is None:
+        from maw.user_config import UserConfig
+        UserConfig(presets_path().with_name('user-settings.mswconfig')).update(['subtitlePresets'], value)
+        return value
     target = path or presets_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(target, json.dumps(value,ensure_ascii=False,indent=2)+'\n')

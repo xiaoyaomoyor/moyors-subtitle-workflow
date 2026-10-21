@@ -150,6 +150,7 @@ class ServerSettings:
     # 外观偏好（主题预设/自定义颜色/自定义主题列表/逐键暂存）：跟服务器走而不是跟浏览器源走，
     # 换端口（127.0.0.1:8250 / 18924…）或换浏览器不再丢失。
     appearance: dict[str, object] = field(default_factory=dict)
+    config_baseline: dict = field(default_factory=dict, compare=False, repr=False)
 
 
 class SaveProjectError(ValueError):
@@ -252,7 +253,7 @@ def load_default_server_settings() -> ServerSettings:
     legacy_path = legacy_server_settings_path()
     if legacy_path != path and legacy_path.is_file():
         return read_server_settings(legacy_path)
-    return ServerSettings()
+    return read_server_settings(path)
 
 
 def read_server_settings(path: Path) -> ServerSettings:
@@ -260,9 +261,21 @@ def read_server_settings(path: Path) -> ServerSettings:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, json.JSONDecodeError):
-        return ServerSettings()
+        payload = {}
     if not isinstance(payload, dict):
-        return ServerSettings()
+        payload = {}
+    from maw.user_config import UserConfig
+    snapshot = UserConfig(path.with_name('user-settings.mswconfig')).migrate_files()['sections']
+    shared = snapshot.get('server', {})
+    payload.update(shared)
+    browser = snapshot.get('browser', {})
+    appearance = copy.deepcopy(payload.get('appearance') or {})
+    if 'moy.asr.editor.settings.v1' in browser:
+        appearance['settings'] = {k: v for k, v in browser['moy.asr.editor.settings.v1'].items() if k in ('themePreset', 'theme', 'accent', 'colors')}
+    for field_name, key in [('customThemes', 'moy.asr.editor.customThemes.v1'), ('themeStash', 'moy.asr.editor.themeCustomColors.v1')]:
+        if key in browser:
+            appearance[field_name] = browser[key]
+    payload['appearance'] = appearance
 
     projects: list[RecentProject] = []
     seen: set[Path] = set()
@@ -308,6 +321,7 @@ def read_server_settings(path: Path) -> ServerSettings:
         preset_workspaces=preset_workspaces,
         active_workspace_name=active_workspace_name if active_workspace_name in saved_workspaces else "",
         appearance=appearance if isinstance(appearance, dict) else {},
+        config_baseline=copy.deepcopy(shared),
     )
 
 
@@ -319,6 +333,16 @@ def write_server_settings(path: Path, settings: ServerSettings) -> ServerSetting
     """
     with _registry_file_lock(path):
         latest = read_server_settings(path)
+        from maw.user_config import UserConfig, changes
+        store = UserConfig(path.with_name('user-settings.mswconfig'))
+        # Compare the caller's observed settings; preserve unrelated newer fields.
+        defaults = ServerSettings()
+        desired = {key: getattr(settings, key) for key in ('auto_open_last_project', 'saved_workspaces', 'preset_workspaces', 'active_workspace_name')}
+        base = {key: settings.config_baseline.get(key, getattr(defaults, key)) for key in desired}
+        store.migrate({'server': base}, 'server-bootstrap')
+        operations = changes(base, desired, ['server'])
+        shared = store.patch(operations)['sections'].get('server', {})
+        settings = replace(settings, **{key: shared.get(key, getattr(defaults, key)) for key in desired}, config_baseline=copy.deepcopy(shared))
         by_path: dict[Path, RecentProject] = {}
         for item in (*latest.recent_projects, *settings.recent_projects):
             previous = by_path.get(item.path)
@@ -635,6 +659,7 @@ def build_server_page(
     defer_reapeaks: bool = True,
     processing_context: dict | None = None,
     recent_projects: list[dict] | None = None,
+    user_config: dict | None = None,
 ) -> bytes:
     """Render with current web/ assets on every page request to prevent UI drift.
 
@@ -696,6 +721,7 @@ def build_server_page(
         page_data["workspace"].pop("navigation", None)
         page_data["workspace"]["selectedPreset"] = f"saved:{settings.active_workspace_name}"
     page = edit.render_editor_page(
+        **({'user_config_json': json.dumps({'snapshot': user_config, 'url': '/api/msw/user-config', 'token': request_token}, ensure_ascii=False)} if user_config is not None else {}),
         title=title,
         media_html=media_html,
         data_json=json.dumps(page_data, ensure_ascii=False),
@@ -1052,6 +1078,17 @@ class EditorServer(ThreadingHTTPServer):
     def set_appearance(self, appearance: dict[str, object]) -> None:
         """Store the editor appearance blob (theme preset / colors / custom themes)."""
         with self.settings_lock:
+            from maw.user_config import changes
+            store = self.processing_api.user_config
+            before = store.read()['sections'].get('browser', {})
+            after = copy.deepcopy(before)
+            settings_key = 'moy.asr.editor.settings.v1'
+            if isinstance(appearance.get('settings'), dict):
+                after[settings_key] = {**after.get(settings_key, {}), **appearance['settings']}
+            for field_name, key in [('customThemes', 'moy.asr.editor.customThemes.v1'), ('themeStash', 'moy.asr.editor.themeCustomColors.v1')]:
+                if field_name in appearance:
+                    after[key] = appearance[field_name]
+            store.patch(changes(before, after, ['browser']))
             self.settings = replace(self.settings, appearance=copy.deepcopy(appearance))
             self.persist_settings()
 
@@ -2350,6 +2387,9 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self.send_json(HTTPStatus.OK, self.editor_server.reapeaks_status_payload())
             return
         if path == "/":
+            if self.editor_server.settings_path:
+                with self.editor_server.settings_lock:
+                    self.editor_server.settings = read_server_settings(self.editor_server.settings_path)
             with self.editor_server.save_lock:
                 project = self.editor_server.project
                 processing_context = self.editor_server.processing_api.context()
@@ -2361,6 +2401,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
                 defer_reapeaks=self.editor_server.defer_reapeaks,
                 processing_context=processing_context,
                 recent_projects=self.editor_server.recent_projects_payload()["projects"],
+                user_config=self.editor_server.processing_api.user_config.snapshot(),
             )
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")

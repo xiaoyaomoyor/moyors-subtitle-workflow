@@ -22,11 +22,11 @@
   $('refreshLocalRuntime').addEventListener('click', () => void inventory());
   const configFields = ['fireredPunc', 'alignmentModel', 'alignmentModelPath'];
   try {
-    const saved = JSON.parse(localStorage.getItem('msw.local-asr-options') || '{}');
+    const saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem('msw.local-asr-options') || '{}');
     for (const key of configFields) if (typeof saved[key] === 'string') $(key).value = saved[key];
   } catch { /* Older settings remain usable. */ }
   for (const key of configFields) $(key).addEventListener('change', () => {
-    localStorage.setItem('msw.local-asr-options', JSON.stringify(Object.fromEntries(configFields.map(id => [id, $(id).value]))));
+    (globalThis.MSWConfig?.storage || localStorage).setItem('msw.local-asr-options', JSON.stringify(Object.fromEntries(configFields.map(id => [id, $(id).value]))));
   });
   function localVisibility() {
     const local = $('provider').value === 'local';

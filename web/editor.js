@@ -1209,7 +1209,7 @@ const SUBTITLE_FONT_FAMILY_CSS = Object.freeze({
 
 function readEditorSettings() {
   let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(EDITOR_SETTINGS_KEY) || '{}'); } catch (_) { /* invalid storage */ }
+  try { saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(EDITOR_SETTINGS_KEY) || '{}'); } catch (_) { /* invalid storage */ }
   return EDITOR_SETTINGS_UTILS.normalizeEditorSettings({
     ...saved,
     cueListFollowPlayback: saved.cueListFollowPlayback !== false,
@@ -1253,7 +1253,7 @@ const clampGapRemoveLeadMs = (value, fallback) => {
 
 function saveEditorSettings(settings) {
   try {
-    localStorage.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(settings));
+    (globalThis.MSWConfig?.storage || localStorage).setItem(EDITOR_SETTINGS_KEY, JSON.stringify(settings));
   } catch (_) {
     // file:// 隐私模式可能拒绝 localStorage；本次页面仍保持可用。
   }
@@ -1264,10 +1264,10 @@ const EDITOR_SETTINGS = readEditorSettings();
 // waveform height wins; the retired bilingual height is only a fallback.
 if(productionFlatMode()&&!EDITOR_SETTINGS.flatTrackSettingsMigrated) {
   try {
-    const old=JSON.parse(localStorage.getItem(EDITOR_SETTINGS_KEY)||'{}');
-    const key='moy.asr.waveform.settings.v1',wave=JSON.parse(localStorage.getItem(key)||'{}');
+    const old=JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(EDITOR_SETTINGS_KEY)||'{}');
+    const key='moy.asr.waveform.settings.v1',wave=JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(key)||'{}');
     if(!Object.hasOwn(wave,'rowHeight')&&Object.hasOwn(old,'multiSubtitleRowHeight')) {
-      localStorage.setItem(key,JSON.stringify({...wave,rowHeight:EDITOR_SETTINGS.multiSubtitleRowHeight}));
+      (globalThis.MSWConfig?.storage || localStorage).setItem(key,JSON.stringify({...wave,rowHeight:EDITOR_SETTINGS.multiSubtitleRowHeight}));
     }
     EDITOR_SETTINGS.flatTrackSettingsMigrated=true;saveEditorSettings(EDITOR_SETTINGS);
   }catch { /* Storage may be unavailable in portable/private windows. */ }
@@ -1285,7 +1285,7 @@ let assStyleLibraryInFlightRevision = 0;
 function readLocalAssStyleLibrary() {
   try {
     return window.AsrEditorUtils.normalizeAssStyleLibrary(
-      JSON.parse(localStorage.getItem(ASS_STYLE_LIBRARY_STORAGE_KEY) || 'null'),
+      JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(ASS_STYLE_LIBRARY_STORAGE_KEY) || 'null'),
     );
   } catch (_) {
     return window.AsrEditorUtils.defaultAssStyleLibrary();
@@ -1294,7 +1294,7 @@ function readLocalAssStyleLibrary() {
 
 function writeLocalAssStyleLibrary(library) {
   try {
-    localStorage.setItem(
+    (globalThis.MSWConfig?.storage || localStorage).setItem(
       ASS_STYLE_LIBRARY_STORAGE_KEY,
       JSON.stringify(window.AsrEditorUtils.normalizeAssStyleLibrary(library)),
     );
@@ -1377,6 +1377,11 @@ async function persistAssStyleLibrary() {
   assStyleLibrarySaveTimer = 0;
   const revision = assStyleLibraryRevision;
   const normalized = setAssStyleLibrary(ASS_STYLE_LIBRARY, { persistLocal: true });
+  if (window.MSWConfig?.connected) {
+    await window.MSWConfig.flush();
+    assStyleLibraryDirty = false; ASS_STYLE_LIBRARY_READY = true;
+    setAssStyleLibraryStatus('', 'success'); return normalized;
+  }
   if (!assStyleLibraryUsesServerStorage()) {
     if (revision === assStyleLibraryRevision) {
       assStyleLibraryDirty = false;
@@ -1435,7 +1440,7 @@ async function loadAssStyleLibrary({ force = false } = {}) {
     // renderedStickerOverlayEnabled）仍在暂时性死区，同步刷新预览会抛
     // ReferenceError。先等待一轮，保证回调都在脚本求值完成后运行。
     await Promise.resolve();
-    if (!assStyleLibraryUsesServerStorage()) {
+    if (window.MSWConfig?.connected || !assStyleLibraryUsesServerStorage()) {
       ASS_STYLE_LIBRARY_READY = true;
       setAssStyleLibraryStatus('', 'success');
       syncAssStyleManager?.();
@@ -2766,7 +2771,7 @@ function updateEditorSettings(patch) {
 // 启动时拉取服务器副本并覆盖本地（服务器为准）；服务器还没有时把本地现状播种上去；
 // 之后每次外观变更（切预设/取色/自定义主题增删/逐键暂存）去抖写穿，失败静默不打断编辑。
 const APPEARANCE_SETTINGS_KEYS = ['themePreset', 'theme', 'accent', 'colors'];
-const APPEARANCE_URL = SERVER_CONFIG?.settingsUrl ? `${SERVER_CONFIG.settingsUrl}/appearance` : null;
+const APPEARANCE_URL = !window.MSWConfig?.connected && SERVER_CONFIG?.settingsUrl ? `${SERVER_CONFIG.settingsUrl}/appearance` : null;
 const APPEARANCE_STASH_KEY = 'moy.asr.editor.themeCustomColors.v1';
 let appearanceSyncTimer = null;
 let appearanceBootPending = Boolean(APPEARANCE_URL);
@@ -2774,8 +2779,8 @@ let appearanceBootPending = Boolean(APPEARANCE_URL);
 function collectAppearancePayload() {
   let customThemes = [];
   let themeStash = null;
-  try { customThemes = JSON.parse(localStorage.getItem('moy.asr.editor.customThemes.v1') || '[]'); } catch (_) { /* 损坏按空处理 */ }
-  try { themeStash = JSON.parse(localStorage.getItem(APPEARANCE_STASH_KEY) || 'null'); } catch (_) { themeStash = null; }
+  try { customThemes = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem('moy.asr.editor.customThemes.v1') || '[]'); } catch (_) { /* 损坏按空处理 */ }
+  try { themeStash = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(APPEARANCE_STASH_KEY) || 'null'); } catch (_) { themeStash = null; }
   return {
     settings: {
       themePreset: EDITOR_SETTINGS.themePreset || 'default',
@@ -2808,16 +2813,16 @@ function applyServerAppearance(appearance) {
   let keepLocalThemes = false;
   try {
     if (serverThemes && serverThemes.length) {
-      localStorage.setItem('moy.asr.editor.customThemes.v1', JSON.stringify(serverThemes));
+      (globalThis.MSWConfig?.storage || localStorage).setItem('moy.asr.editor.customThemes.v1', JSON.stringify(serverThemes));
     } else if (serverThemes) {
       // 服务器副本为空而本地存有自定义主题：保留本地并回传（见函数尾），
       // 避免某个空端口先播种后，把旧端口里用户唯一的主题副本覆盖掉。
       let localCount = 0;
-      try { localCount = JSON.parse(localStorage.getItem('moy.asr.editor.customThemes.v1') || '[]').length; } catch (_) { localCount = 0; }
+      try { localCount = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem('moy.asr.editor.customThemes.v1') || '[]').length; } catch (_) { localCount = 0; }
       keepLocalThemes = localCount > 0;
     }
     if (appearance.themeStash && typeof appearance.themeStash === 'object') {
-      localStorage.setItem(APPEARANCE_STASH_KEY, JSON.stringify(appearance.themeStash));
+      (globalThis.MSWConfig?.storage || localStorage).setItem(APPEARANCE_STASH_KEY, JSON.stringify(appearance.themeStash));
     }
   } catch (_) { /* 隐私模式忽略 */ }
   const patch = {};
@@ -2854,14 +2859,14 @@ async function syncAppearanceBoot() {
 (function migrateHideDisabledDefault() {
   try {
     const KEY = 'moy.asr.editor.hideDisabledFlipped.v1';
-    if (localStorage.getItem(KEY)) return;
+    if ((globalThis.MSWConfig?.storage || localStorage).getItem(KEY)) return;
     if (!EDITOR_SETTINGS.cueListHideDisabled) {
       updateEditorSettings({ cueListHideDisabled: true });
       hideDisabled = true;
       hideDisabledToggle.checked = false;
       container.classList.add('hide-disabled');
     }
-    localStorage.setItem(KEY, '1');
+    (globalThis.MSWConfig?.storage || localStorage).setItem(KEY, '1');
   } catch (_) { /* 隐私模式忽略 */ }
 })();
 // 字数过滤旧默认值 16 一次性清零（0=不过滤），避免老实例升级后被意外过滤；
@@ -2869,11 +2874,11 @@ async function syncAppearanceBoot() {
 (function migrateCharcountDefault() {
   try {
     const KEY = 'moy.asr.editor.charcountMigrated.v1';
-    if (localStorage.getItem(KEY)) return;
+    if ((globalThis.MSWConfig?.storage || localStorage).getItem(KEY)) return;
     if (EDITOR_SETTINGS.cueListCharcountThreshold === 16) {
       updateEditorSettings({ cueListCharcountThreshold: 0 });
     }
-    localStorage.setItem(KEY, '1');
+    (globalThis.MSWConfig?.storage || localStorage).setItem(KEY, '1');
   } catch (_) { /* 隐私模式忽略 */ }
 })();
 
@@ -4400,7 +4405,7 @@ function restoreHelpPanelSize() {
   if (!helpPanel) return;
   let saved = null;
   try {
-    saved = JSON.parse(localStorage.getItem(HELP_PANEL_SIZE_KEY) || 'null');
+    saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(HELP_PANEL_SIZE_KEY) || 'null');
   } catch (_) {
     saved = null;
   }
@@ -4417,7 +4422,7 @@ if (helpPanel) {
     helpPanelSizeSaveTimer = setTimeout(() => {
       const rect = helpPanel.getBoundingClientRect();
       try {
-        localStorage.setItem(HELP_PANEL_SIZE_KEY, JSON.stringify({
+        (globalThis.MSWConfig?.storage || localStorage).setItem(HELP_PANEL_SIZE_KEY, JSON.stringify({
           width: Math.round(rect.width), height: Math.round(rect.height),
         }));
       } catch (_) {
@@ -4576,14 +4581,14 @@ document.querySelectorAll('.theme-preset').forEach((button) => {
     // 切走前把当前逐键覆盖存入该预设的暂存区（切回时恢复，不再丢失）。
     const CUSTOM_THEME_COLORS_KEY = 'moy.asr.editor.themeCustomColors.v1';
     let stash = {};
-    try { stash = JSON.parse(localStorage.getItem(CUSTOM_THEME_COLORS_KEY) || '{}'); } catch (_) { stash = {}; }
+    try { stash = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(CUSTOM_THEME_COLORS_KEY) || '{}'); } catch (_) { stash = {}; }
     const previousPreset = EDITOR_SETTINGS.themePreset || 'default';
     if (EDITOR_SETTINGS.colors && Object.keys(EDITOR_SETTINGS.colors).length) {
       stash[previousPreset] = EDITOR_SETTINGS.colors;
     } else {
       delete stash[previousPreset];
     }
-    try { localStorage.setItem(CUSTOM_THEME_COLORS_KEY, JSON.stringify(stash)); } catch (_) { /* 隐私模式忽略 */ }
+    try { (globalThis.MSWConfig?.storage || localStorage).setItem(CUSTOM_THEME_COLORS_KEY, JSON.stringify(stash)); } catch (_) { /* 隐私模式忽略 */ }
     scheduleAppearanceSync(); // 逐键暂存变化同步到服务器
     const restored = stash[preset] || null;
     updateEditorSettings({ themePreset: preset, theme: THEME_PRESETS[preset].theme, accent: THEME_PRESETS[preset].accent, colors: restored });
@@ -5860,7 +5865,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
     panel.style.right = 'auto';
     if (persist) {
       try {
-        localStorage.setItem(positionKey, JSON.stringify({ left: nextLeft, top: nextTop }));
+        (globalThis.MSWConfig?.storage || localStorage).setItem(positionKey, JSON.stringify({ left: nextLeft, top: nextTop }));
       } catch (_) {
         // file:// 隐私模式可能拒绝 localStorage；拖动本身仍保持可用。
       }
@@ -5870,7 +5875,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
   function restorePosition() {
     let saved = null;
     try {
-      saved = JSON.parse(localStorage.getItem(positionKey) || 'null');
+      saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(positionKey) || 'null');
     } catch (_) {
       saved = null;
     }
@@ -6000,7 +6005,7 @@ function setGapRemoveAdvancedOpen(open, { persist = true } = {}) {
   gapRemoveAdvancedToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   if (persist) {
     try {
-      localStorage.setItem(GAP_REMOVE_ADVANCED_OPEN_KEY, open ? '1' : '0');
+      (globalThis.MSWConfig?.storage || localStorage).setItem(GAP_REMOVE_ADVANCED_OPEN_KEY, open ? '1' : '0');
     } catch (_) {
       // file:// 隐私模式下 localStorage 可能被拒；折叠状态仅本次会话生效。
     }
@@ -6010,7 +6015,7 @@ function setGapRemoveAdvancedOpen(open, { persist = true } = {}) {
 function restoreGapRemoveAdvancedOpen() {
   let saved = null;
   try {
-    saved = localStorage.getItem(GAP_REMOVE_ADVANCED_OPEN_KEY);
+    saved = (globalThis.MSWConfig?.storage || localStorage).getItem(GAP_REMOVE_ADVANCED_OPEN_KEY);
   } catch (_) {
     saved = null;
   }
@@ -6027,7 +6032,7 @@ function setGapRemoveDisableOpen(open, { persist = true } = {}) {
   gapRemoveDisableToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   if (persist) {
     try {
-      localStorage.setItem(GAP_REMOVE_DISABLE_OPEN_KEY, open ? '1' : '0');
+      (globalThis.MSWConfig?.storage || localStorage).setItem(GAP_REMOVE_DISABLE_OPEN_KEY, open ? '1' : '0');
     } catch (_) {
       // file:// 隐私模式下 localStorage 可能被拒；折叠状态仅本次会话生效。
     }
@@ -6037,7 +6042,7 @@ function setGapRemoveDisableOpen(open, { persist = true } = {}) {
 function restoreGapRemoveDisableOpen() {
   let saved = null;
   try {
-    saved = localStorage.getItem(GAP_REMOVE_DISABLE_OPEN_KEY);
+    saved = (globalThis.MSWConfig?.storage || localStorage).getItem(GAP_REMOVE_DISABLE_OPEN_KEY);
   } catch (_) {
     saved = null;
   }
@@ -6065,7 +6070,7 @@ function setGapRemovePanelPosition(left, top, { persist = false } = {}) {
   gapRemovePanel.style.right = 'auto';
   if (persist) {
     try {
-      localStorage.setItem(GAP_REMOVE_PANEL_POSITION_KEY, JSON.stringify({ left: nextLeft, top: nextTop }));
+      (globalThis.MSWConfig?.storage || localStorage).setItem(GAP_REMOVE_PANEL_POSITION_KEY, JSON.stringify({ left: nextLeft, top: nextTop }));
     } catch (_) {
       // file:// 隐私模式可能拒绝 localStorage；拖动本身仍保持可用。
     }
@@ -6076,7 +6081,7 @@ function restoreGapRemovePanelPosition() {
   if (!gapRemovePanel) return;
   let saved = null;
   try {
-    saved = JSON.parse(localStorage.getItem(GAP_REMOVE_PANEL_POSITION_KEY) || 'null');
+    saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(GAP_REMOVE_PANEL_POSITION_KEY) || 'null');
   } catch (_) {
     saved = null;
   }
@@ -17642,15 +17647,8 @@ function configureServerProjectSettings() {
       const enabled = autoOpenLastProjectToggle.checked;
       autoOpenLastProjectToggle.disabled = true;
       try {
-        const response = await fetch(SERVER_CONFIG.settingsUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ autoOpenLastProject: enabled }),
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.ok) {
-          throw new Error(result.error || `服务器返回 ${response.status}`);
-        }
+        const result = await updateServerWorkspaceSettings({autoOpenLastProject: enabled});
+        if (!result.ok) throw new Error(result.error || '保存失败');
         SERVER_CONFIG.autoOpenLastProject = result.autoOpenLastProject;
       } catch (error) {
         autoOpenLastProjectToggle.checked = SERVER_CONFIG.autoOpenLastProject !== false;
@@ -17740,6 +17738,24 @@ function restoreWorkspaceSelection() {
 }
 
 async function updateServerWorkspaceSettings(payload) {
+  if(window.MSWConfig?.connected) {
+    const before=JSON.parse(JSON.stringify(window.MSW_CONFIG_BOOTSTRAP.snapshot.sections.server||{}));
+    const after=JSON.parse(JSON.stringify(before));
+    if(payload.saveWorkspace){const {name,workspace,overwrite}=payload.saveWorkspace;after.saved_workspaces||={};if(after.saved_workspaces[name]&&!overwrite)throw Error('已有同名工作区');after.saved_workspaces[name]=workspace;after.active_workspace_name=name;}
+    if(payload.savePresetWorkspace){const {preset,workspace}=payload.savePresetWorkspace;after.preset_workspaces||={};after.preset_workspaces[preset]=workspace;}
+    if(payload.deleteWorkspaceName){delete after.saved_workspaces?.[payload.deleteWorkspaceName];if(after.active_workspace_name===payload.deleteWorkspaceName)after.active_workspace_name='';}
+    if(payload.resetPresetWorkspace)delete after.preset_workspaces?.[payload.resetPresetWorkspace];
+    if(typeof payload.activeWorkspaceName==='string')after.active_workspace_name=payload.activeWorkspaceName;
+    if(typeof payload.autoOpenLastProject==='boolean')after.auto_open_last_project=payload.autoOpenLastProject;
+    if(payload.updateWorkspaceNavigation){const {name,preset,navigation}=payload.updateWorkspaceNavigation;const library=name?(after.saved_workspaces||={}):(after.preset_workspaces||={}),key=name||preset;library[key]={...(library[key]||{}),navigation};}
+    const result=await window.MSWConfig.update(['server'],before,after);
+    const saved=result.sections.server||{};
+    window.MSW_CONFIG_BOOTSTRAP.snapshot.sections.server=saved;
+    SERVER_CONFIG.savedWorkspaces=saved.saved_workspaces||{};SERVER_CONFIG.presetWorkspaces=saved.preset_workspaces||{};
+    SERVER_CONFIG.activeWorkspaceName=saved.active_workspace_name||'';SERVER_CONFIG.autoOpenLastProject=saved.auto_open_last_project!==false;
+    return {ok:true,savedWorkspaces:SERVER_CONFIG.savedWorkspaces,presetWorkspaces:SERVER_CONFIG.presetWorkspaces,
+      activeWorkspaceName:SERVER_CONFIG.activeWorkspaceName,autoOpenLastProject:SERVER_CONFIG.autoOpenLastProject};
+  }
   const response = await fetch(SERVER_CONFIG.settingsUrl, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
@@ -19328,7 +19344,7 @@ function applyCanonicalProject(data, filename) {
   clearSelection();
   cueListPlaybackKey = null;
   if (waveformEditor) {
-    waveformEditor.setLayoutData(waveformWorkspaceForProject(DATA), { render: false });
+    waveformEditor.setLayoutData(waveformWorkspaceForProject(DATA), { render: false, persist: false });
     applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
     restoreWorkspaceSelection();
     syncWorkspaceControls();
@@ -23895,7 +23911,7 @@ function initWaveformEditor() {
   });
   waveformEditor.attachPlayer(player);
   setupModuleContextMenu();
-  waveformEditor.setLayoutData(waveformWorkspaceForProject(DATA), { render: false });
+  waveformEditor.setLayoutData(waveformWorkspaceForProject(DATA), { render: false, persist: false });
   applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
   waveformEditor.setSpectralPayload(DATA.spectral || null, { render: false });
   waveformEditor.setReapeaksWaveform(DATA.waveform_reapeaks || null, { render: false });
@@ -25100,7 +25116,7 @@ const PROJECT_SAVED_AT_KEY = 'moy.asr.editor.savedAt.v1';
 
 function readProjectSavedAtMap() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PROJECT_SAVED_AT_KEY) || '{}');
+    const parsed = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(PROJECT_SAVED_AT_KEY) || '{}');
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
@@ -25112,7 +25128,7 @@ function rememberProjectSavedAt(filename) {
   const map = readProjectSavedAtMap();
   map[filename] = new Date().toISOString();
   try {
-    localStorage.setItem(PROJECT_SAVED_AT_KEY, JSON.stringify(map));
+    (globalThis.MSWConfig?.storage || localStorage).setItem(PROJECT_SAVED_AT_KEY, JSON.stringify(map));
   } catch {
     // file:// 隐私模式可能拒绝 localStorage；忽略。
   }
@@ -25189,7 +25205,7 @@ const editorSettingsCategories = [...document.querySelectorAll('#editor-settings
 const EDITOR_SETTINGS_CATEGORY_KEY = 'msw.editor.settings.category.v1';
 let activeSettingsCategory = null;
 try {
-  const savedCategory = localStorage.getItem(EDITOR_SETTINGS_CATEGORY_KEY);
+  const savedCategory = (globalThis.MSWConfig?.storage || localStorage).getItem(EDITOR_SETTINGS_CATEGORY_KEY);
   activeSettingsCategory = editorSettingsCategories.find(category => category.dataset.settingsCategory === savedCategory) || null;
 } catch (_) { /* Browser storage may be unavailable. */ }
 
@@ -25272,7 +25288,7 @@ function buildEditorSettingsNav() {
 function activateEditorSettingsCategory(category) {
   if (category?.dataset.unavailable === 'true') category = null;
   activeSettingsCategory = category || null;
-  try { localStorage.setItem(EDITOR_SETTINGS_CATEGORY_KEY, category?.dataset.settingsCategory || 'all'); } catch (_) {}
+  try { (globalThis.MSWConfig?.storage || localStorage).setItem(EDITOR_SETTINGS_CATEGORY_KEY, category?.dataset.settingsCategory || 'all'); } catch (_) {}
   const showAll = !category;
   document.getElementById('editor-settings-content')?.classList.toggle('show-all-categories', showAll);
   editorSettingsCategories.forEach((other) => {
@@ -25573,9 +25589,9 @@ document.getElementById('interface-colors-reset')?.addEventListener('click', () 
   // 恢复默认同时清掉该预设的暂存覆盖。
   const CUSTOM_THEME_COLORS_KEY = 'moy.asr.editor.themeCustomColors.v1';
   try {
-    const stash = JSON.parse(localStorage.getItem(CUSTOM_THEME_COLORS_KEY) || '{}');
+    const stash = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(CUSTOM_THEME_COLORS_KEY) || '{}');
     delete stash[presetId];
-    localStorage.setItem(CUSTOM_THEME_COLORS_KEY, JSON.stringify(stash));
+    (globalThis.MSWConfig?.storage || localStorage).setItem(CUSTOM_THEME_COLORS_KEY, JSON.stringify(stash));
     scheduleAppearanceSync(); // 暂存清理同步到服务器
   } catch (_) { /* 隐私模式忽略 */ }
   applyThemeAndColors();
@@ -25584,7 +25600,7 @@ document.getElementById('interface-colors-reset')?.addEventListener('click', () 
 const CUSTOM_THEMES_KEY = 'moy.asr.editor.customThemes.v1';
 function readCustomThemes() {
   try {
-    const raw = JSON.parse(localStorage.getItem(CUSTOM_THEMES_KEY) || '[]');
+    const raw = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(CUSTOM_THEMES_KEY) || '[]');
     // 兼容早期快照：缺 theme 字段的记录按深色补默认，不再因字段缺失把用户主题从列表里藏掉
     // （数据一直在 localStorage，此前只是被 filter 静默过滤导致「不见了」的观感）。
     if (!Array.isArray(raw)) return [];
@@ -25596,7 +25612,7 @@ function readCustomThemes() {
   }
 }
 function writeCustomThemes(themes) {
-  try { localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes)); } catch (_) { /* 隐私模式忽略 */ }
+  try { (globalThis.MSWConfig?.storage || localStorage).setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes)); } catch (_) { /* 隐私模式忽略 */ }
   scheduleAppearanceSync(); // 自定义主题增删同步到服务器
 }
 function refreshThemeCustomList() {
@@ -25676,15 +25692,15 @@ document.getElementById('theme-custom-add')?.addEventListener('click', () => {
   // 紫苑预设已回归（配色 = 用户「新的紫苑配色」固化值），不做任何迁移或暂存清理。
   // 另清掉历史「吸收机制」的落盘残留。
   try {
-    localStorage.removeItem('moy.asr.editor.asterPreset.v1');
-    localStorage.removeItem('moy.asr.editor.asterAbsorbed.v1');
+    (globalThis.MSWConfig?.storage || localStorage).removeItem('moy.asr.editor.asterPreset.v1');
+    (globalThis.MSWConfig?.storage || localStorage).removeItem('moy.asr.editor.asterAbsorbed.v1');
     const KEY = 'moy.asr.editor.themeCustomColors.v1';
-    const raw = localStorage.getItem(KEY);
+    const raw = (globalThis.MSWConfig?.storage || localStorage).getItem(KEY);
     if (raw) {
       const stash = JSON.parse(raw);
       if (stash && typeof stash === 'object' && stash.yukari) {
         delete stash.yukari;
-        localStorage.setItem(KEY, JSON.stringify(stash));
+        (globalThis.MSWConfig?.storage || localStorage).setItem(KEY, JSON.stringify(stash));
       }
     }
     if (EDITOR_SETTINGS.themePreset === 'yukari') {
@@ -26283,3 +26299,6 @@ hideDisabledToggle?.addEventListener('change', () => {
 window.addEventListener('beforeunload', (e) => {
   if (hasUnsavedProjectChanges()) { e.preventDefault(); e.returnValue = ''; }
 });
+
+window.addEventListener('msw:config-notice', event => flashHint(event.detail.message, 'warning'));
+if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');

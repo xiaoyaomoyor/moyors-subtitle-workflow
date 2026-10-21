@@ -61,7 +61,7 @@ async function onboardingRequest(status){
 
 function readOnboardingStatus() {
   try {
-    return sharedOnboardingStatus || localStorage.getItem(ONBOARDING_STORAGE_KEY) || '';
+    return sharedOnboardingStatus || (globalThis.MSWConfig?.storage || localStorage).getItem(ONBOARDING_STORAGE_KEY) || '';
   } catch (_) {
     return '';
   }
@@ -69,9 +69,9 @@ function readOnboardingStatus() {
 
 function saveOnboardingStatus(status) {
   sharedOnboardingStatus=status;
-  if(onboardingConfig?.processingUrl)void onboardingRequest(status).catch(()=>{});
+  if(onboardingConfig?.processingUrl&&!window.MSWConfig?.connected)void onboardingRequest(status).catch(()=>{});
   try {
-    localStorage.setItem(ONBOARDING_STORAGE_KEY, status);
+    (globalThis.MSWConfig?.storage || localStorage).setItem(ONBOARDING_STORAGE_KEY, status);
   } catch (_) {
     // file:// 隐私模式下可能拒绝 localStorage；本次页面仍可继续引导。
   }
@@ -645,7 +645,7 @@ document.addEventListener('keydown', (event) => {
   });
   window.MSWE?.register('onboarding', () => window.MSWE_ONBOARDING);
   async function initializeStatus(){
-    try{if(onboardingConfig?.processingUrl){const result=await onboardingRequest();sharedOnboardingStatus=result.status||'';const local=readOnboardingStatus();if(!sharedOnboardingStatus&&['completed','skipped'].includes(local))await onboardingRequest(local);}}
+    try{if(window.MSWConfig?.connected){await MSWConfig.ready;}else if(onboardingConfig?.processingUrl){const result=await onboardingRequest();sharedOnboardingStatus=result.status||'';const local=readOnboardingStatus();if(!sharedOnboardingStatus&&['completed','skipped'].includes(local))await onboardingRequest(local);}}
     catch(_){/* Keep browser fallback available when the server is unreachable. */}
     finally{onboardingReady=true;scheduleOnboardingAfterRender();}
   }

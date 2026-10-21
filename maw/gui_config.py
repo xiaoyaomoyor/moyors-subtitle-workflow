@@ -672,7 +672,16 @@ LEGACY_MODELS: Final[tuple[ModelConfig, ...]] = tuple(model for model in QWEN_MO
 
 
 def load_env(path: Path | None = None) -> dict[str, str]:
-    return read_env(path if path is not None else default_env_path())
+    from maw.user_config import UserConfig, config_path, ENV_KEYS
+    target = path if path is not None else default_env_path()
+    values = read_env(target)
+    store = UserConfig(config_path(target))
+    legacy = {key: value for key, value in aliased_values(values).items() if key in ENV_KEYS}
+    snapshot = store.migrate({'launcher': legacy}, 'environment') if legacy else store.read()
+    for key, value in snapshot['sections'].get('launcher', {}).items():
+        for alias in alias_keys(key):
+            values[alias] = value
+    return values
 
 
 def normalize_zoom_percent(value: object) -> int:
@@ -698,6 +707,17 @@ def save_env(path: Path, updates: Mapping[str, str]) -> None:
     for key, value in updates.items():
         if "\x00" in value or (value and value.splitlines() != [value]):
             raise ValueError(f"{key}: value must not contain control characters")
+    from maw.user_config import UserConfig, config_path, ENV_KEYS
+    preferences = {k: v for k, v in aliased_values(updates).items() if k in ENV_KEYS}
+    if preferences:
+        load_env(path)  # Preserve the previous personal values before the first write.
+        store = UserConfig(config_path(path))
+        previous = store.read()['sections'].get('launcher', {})
+        from maw.user_config import changes
+        store.patch(changes(previous, {**previous, **preferences}, ['launcher']))
+    updates = {k: v for k, v in updates.items() if k.replace('MSW_', 'MAW_', 1) not in ENV_KEYS}
+    if not updates:
+        return
     expanded_updates = aliased_values(updates)
     for key, value in tuple(expanded_updates.items()):
         for alias in alias_keys(key):

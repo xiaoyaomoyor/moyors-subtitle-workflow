@@ -129,7 +129,7 @@ class GuiConfigTests(unittest.TestCase):
 
             self.assertEqual(
                 env_path.read_text(encoding="utf-8"),
-                "# heading\nDASHSCOPE_API_KEY=new\nKEEP_ME=yes\n\n# tail\nMAW_GUI_LANG=en\n",
+                "# heading\nDASHSCOPE_API_KEY=new\nKEEP_ME=yes\n\n# tail\n",
             )
 
     def test_save_env_creates_missing_parent_directories(self) -> None:
@@ -160,7 +160,8 @@ class GuiConfigTests(unittest.TestCase):
 
             gui_config.save_env(env_path, {"MAW_GUI_LAST_LANGUAGE": ""})
 
-            self.assertEqual(env_path.read_text(encoding="utf-8"), "MAW_GUI_LAST_LANGUAGE=\n")
+            self.assertEqual(env_path.read_text(encoding="utf-8"), "")
+            self.assertEqual(gui_config.load_env(env_path)["MAW_GUI_LAST_LANGUAGE"], "")
 
     def test_save_env_creates_from_example_when_absent(self) -> None:
         """Given no env file, When saving, Then the local example is copied first."""
@@ -456,7 +457,7 @@ class GuiConfigTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {}, clear=True):
                 self.assertTrue(gui_config.effective_config(env_path).show_rare_langs)
 
-            _ = env_path.write_text("MAW_GUI_SHOW_RARE_LANGS=false\n", encoding="utf-8")
+            gui_config.save_env(env_path, {"MAW_GUI_SHOW_RARE_LANGS": "false"})
             with mock.patch.dict(os.environ, {}, clear=True):
                 self.assertFalse(gui_config.effective_config(env_path).show_rare_langs)
 
@@ -498,7 +499,7 @@ class GuiConfigTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {}, clear=True):
                 self.assertFalse(gui_config.effective_config(env_path).notify_on_complete)
 
-            _ = env_path.write_text("MAW_GUI_NOTIFY_ON_COMPLETE=on\n", encoding="utf-8")
+            gui_config.save_env(env_path, {"MAW_GUI_NOTIFY_ON_COMPLETE": "on"})
             with mock.patch.dict(os.environ, {}, clear=True):
                 self.assertTrue(gui_config.effective_config(env_path).notify_on_complete)
 

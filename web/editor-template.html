@@ -3,13 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <title>__TITLE__</title>
+<script>window.MSW_CONFIG_BOOTSTRAP = __USER_CONFIG_BOOTSTRAP__;</script>
+<script>__USER_CONFIG_JS__</script>
 <script>
 /* 首帧前应用主题，避免亮色主题下先闪一帧暗色。
    与 editor.js 的 EDITOR_SETTINGS_KEY / theme 字段保持一致；
    file:// 隐私模式下 localStorage 可能抛错，失败则沿用默认暗色。 */
 (function () {
   try {
-    var saved = JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1') || '{}');
+    var saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem('moy.asr.editor.settings.v1') || '{}');
     if (saved && saved.theme === 'light') document.documentElement.dataset.theme = 'light';
     if (saved && typeof saved.accent === 'string' && saved.accent !== 'blue') {
       document.documentElement.dataset.accent = saved.accent;

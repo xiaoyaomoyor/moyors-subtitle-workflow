@@ -322,7 +322,7 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["maskedApiKey"], "")
-        self.assertIn("DASHSCOPE_API_KEY=\n", self.env_path.read_text(encoding="utf-8"))
+        self.assertFalse(self.env_path.exists())  # Saving local preferences needs no credential file.
 
     def test_save_settings_writes_env_without_echoing_key(self) -> None:
         """Given form values, When saved, Then .env is updated and response masks the key."""
@@ -439,7 +439,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(
             self.env_path.read_text(encoding="utf-8"),
-            "# keep\nDASHSCOPE_REGION=beijing\nSTICKER_DIR=stickers\nMAW_GUI_LAST_MODEL=stt-async-v5\nMAW_GUI_LAST_LANGUAGE=\n",
+            "# keep\nDASHSCOPE_REGION=beijing\nSTICKER_DIR=stickers\n",
         )
 
     def test_save_prefs_gui_lang_only_touches_language(self) -> None:
@@ -450,7 +450,8 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         content = self.env_path.read_text(encoding="utf-8")
-        self.assertIn("MAW_GUI_LANG=en", content)
+        self.assertEqual(self.api.get_config()["guiLang"], "en")
+        self.assertNotIn("MAW_GUI_LANG=en", content)
         self.assertIn("DASHSCOPE_API_KEY=sk-keep", content)
         self.assertNotIn("save_settings", content)
 
@@ -460,10 +461,10 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertTrue(self.api.save_prefs({"asrSegmentation": values})["ok"])
         reopened = LauncherApi(paths=self.paths, window_getter=lambda: self.window)
         self.assertEqual(reopened.get_config()["asrSegmentation"], values)
-        before = self.env_path.read_bytes()
+        before = self.env_path.with_name("user-settings.mswconfig").read_bytes()
         for edit in ({"maxWords": "2"}, {"gapSplit": "-1"}, {"maxWords": "20.5"}, {"maxWords": True}):
             self.assertFalse(self.api.save_prefs({"asrSegmentation": {**values, **edit}})["ok"])
-            self.assertEqual(self.env_path.read_bytes(), before)
+            self.assertEqual(self.env_path.with_name("user-settings.mswconfig").read_bytes(), before)
         self.assertTrue(self.api.save_prefs({"asrSegmentation": {}})["ok"])
         self.assertEqual(reopened.get_config()["asrSegmentation"], dict.fromkeys(values, ""))
 
@@ -485,11 +486,11 @@ class GuiWebBridgeTests(unittest.TestCase):
         choices = {"asr": True, "media": False, "translate": "false", "output": 1, "unknown": True}
         self.assertTrue(self.api.save_prefs({"prefabModules": choices})["ok"])
         self.assertEqual(self.api.get_config()["prefabModules"], {"asr": True, "media": True})
-        before = self.env_path.read_bytes()
+        before = self.env_path.with_name("user-settings.mswconfig").read_bytes()
         for invalid in (None, [], "asr", {"unknown": True}, {"asr": "true"}):
             with self.subTest(invalid=invalid):
                 self.assertFalse(self.api.save_prefs({"prefabModules": invalid})["ok"])
-                self.assertEqual(self.env_path.read_bytes(), before)
+                self.assertEqual(self.env_path.with_name("user-settings.mswconfig").read_bytes(), before)
 
     @mock.patch.dict(os.environ, {}, clear=True)
     def test_corrupt_prefab_module_settings_allow_fallback(self) -> None:
@@ -504,13 +505,14 @@ class GuiWebBridgeTests(unittest.TestCase):
             result = self.api.save_prefs({"theme": "dark"})
 
             self.assertTrue(result["ok"])
-            self.assertIn("MAW_GUI_THEME=dark", self.env_path.read_text(encoding="utf-8"))
+            self.assertEqual(self.api.get_config()["theme"], "dark")
+            self.assertFalse(self.env_path.exists())
             self.assertEqual(self.api.get_config()["theme"], "dark")
 
             result = self.api.save_prefs({"theme": "unsupported"})
 
             self.assertTrue(result["ok"])
-            self.assertIn("MAW_GUI_THEME=system", self.env_path.read_text(encoding="utf-8"))
+            self.assertFalse(self.env_path.exists())
             self.assertEqual(self.api.get_config()["theme"], "system")
 
     def test_zoom_preference_round_trips_normalized_through_config(self) -> None:
@@ -518,7 +520,7 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertEqual(result, {"ok": True, "zoomPercent": 115})
         self.assertEqual(self.api.get_config()["zoomPercent"], 115)
-        self.assertIn("MAW_GUI_ZOOM_PERCENT=115", self.env_path.read_text(encoding="utf-8"))
+        self.assertFalse(self.env_path.exists())
 
     def test_zoom_preference_normalizes_malformed_and_out_of_range_values(self) -> None:
         for value, expected in (("NaN", 100), (79, 80), (151, 150)):
@@ -1548,7 +1550,7 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertEqual(remembered["lastModel"], "stt-async-v5")
         self.assertEqual(remembered["lastLanguage"], "")
-        self.assertIsNone(absent["lastLanguage"])
+        self.assertEqual(absent["lastLanguage"], "")  # Migrated memory survives legacy-file edits.
         self.assertEqual(absent["language"], "zh")
 
     def test_start_server_builds_command_and_returns_localhost_url(self) -> None:

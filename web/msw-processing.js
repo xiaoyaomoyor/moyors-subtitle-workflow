@@ -285,11 +285,11 @@
     floating.close(); host.openLlmEnvironment();
   });
   const callKey='msw.translation.call.v1';
-  let savedCall={};try {savedCall=JSON.parse(localStorage.getItem(callKey)||'{}');}catch {}
+  let savedCall={};try {savedCall=JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(callKey)||'{}');}catch {}
   if(['en','zh'].includes(savedCall.language))el('translation-language').value=savedCall.language;
   if(typeof savedCall.prompt==='string')el('translation-prompt').value=savedCall.prompt;
   el('translation-save-call').onclick=()=>{
-    try {localStorage.setItem(callKey,JSON.stringify({provider:el('translation-provider').value,language:el('translation-language').value,prompt:el('translation-prompt').value}));message('翻译设置已保存');}
+    try {(globalThis.MSWConfig?.storage || localStorage).setItem(callKey,JSON.stringify({provider:el('translation-provider').value,language:el('translation-language').value,prompt:el('translation-prompt').value}));message('翻译设置已保存');}
     catch {message('无法保存翻译设置',true);}
   };
   el('translation-start').addEventListener('click', () => void submit('translation'));

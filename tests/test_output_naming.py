@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from maw import gui_config, output_naming as naming
-from maw.env_config import apply_msw_env_aliases
+from maw.env_config import apply_msw_env_aliases, read_env
 
 
 class OutputNamingTests(unittest.TestCase):
@@ -32,6 +32,7 @@ class OutputNamingTests(unittest.TestCase):
 
     def config(self, content):
         self.env_path.write_text(content, encoding="utf-8")
+        gui_config.save_env(self.env_path, read_env(self.env_path))
 
     def test_defaults_and_inactive_per_media_preference(self):
         cfg = gui_config.effective_config()
@@ -54,7 +55,8 @@ class OutputNamingTests(unittest.TestCase):
     def test_saving_alias_updates_existing_keys_without_stale_values(self):
         self.config("# preserve\nMSW_GUI_LANG=zh\nMAW_GUI_LANG=zh\nUNRELATED=keep\n")
         gui_config.save_env(self.env_path, {"MAW_GUI_LANG": "en"})
-        self.assertEqual(self.env_path.read_text(encoding="utf-8"), "# preserve\nMSW_GUI_LANG=en\nMAW_GUI_LANG=en\nUNRELATED=keep\n")
+        self.assertEqual(self.env_path.read_text(encoding="utf-8"), "# preserve\nMSW_GUI_LANG=zh\nMAW_GUI_LANG=zh\nUNRELATED=keep\n")
+        self.assertEqual(gui_config.effective_config().gui_lang, "en")
         gui_config.save_env(self.env_path, {"MSW_GUI_OUTPUT_SUBFOLDER": "true"})
         self.assertTrue(gui_config.effective_config().output_subfolder)
 

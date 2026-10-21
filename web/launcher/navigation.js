@@ -42,7 +42,7 @@
       button.setAttribute("aria-current", selected ? "page" : "false");
     });
     activePage = pageId;
-    try { localStorage.setItem(STORAGE_KEY, pageId); } catch (error) { /* 私密模式等场景忽略 */ }
+    try { (globalThis.MSWConfig?.storage || localStorage).setItem(STORAGE_KEY, pageId); } catch (error) { /* 私密模式等场景忽略 */ }
     var nextScroller = scrollerFor(pageId);
     if (nextScroller) nextScroller.scrollTop = scrollMemory[pageId] || 0;
     document.dispatchEvent(new CustomEvent("mswnavigation", { detail: { page: pageId } }));
@@ -62,11 +62,15 @@
       button.addEventListener("click", function () { show(button.dataset.navPage); });
     });
     var stored = "";
-    try { stored = localStorage.getItem(STORAGE_KEY) || ""; } catch (error) { stored = ""; }
+    try { stored = (globalThis.MSWConfig?.storage || localStorage).getItem(STORAGE_KEY) || ""; } catch (error) { stored = ""; }
     show(PAGE_IDS.indexOf(stored) >= 0 ? stored : "home", { replace: true });
 
   }
 
+  window.addEventListener('mawlauncherready', function () {
+    var stored = (globalThis.MSWConfig?.storage || localStorage).getItem(STORAGE_KEY);
+    if(PAGE_IDS.includes(stored)) show(stored, {replace:true});
+  }, {once:true});
   window.MSWNavigation = {
     show: show,
     back: back,

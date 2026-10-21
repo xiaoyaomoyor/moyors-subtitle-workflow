@@ -36,12 +36,12 @@
         slot.classList.toggle("hidden", slot.dataset.toolAction !== tool);
       });
     }
-    try { localStorage.setItem(STORAGE_KEY, tool); } catch (error) { /* 显示记忆而已 */ }
+    try { (globalThis.MSWConfig?.storage || localStorage).setItem(STORAGE_KEY, tool); } catch (error) { /* 显示记忆而已 */ }
   }
 
   function restore() {
     var saved = "";
-    try { saved = localStorage.getItem(STORAGE_KEY) || ""; } catch (error) { saved = ""; }
+    try { saved = (globalThis.MSWConfig?.storage || localStorage).getItem(STORAGE_KEY) || ""; } catch (error) { saved = ""; }
     select(TOOL_IDS.includes(saved) ? saved : "extractAudio");
   }
 
@@ -133,6 +133,7 @@
     restore();
   }
 
+  window.addEventListener('mawlauncherready', restore, {once:true});
   window.MSWTools = {
     select: select,
     current: function () { return activeTool; },

@@ -312,7 +312,7 @@
   const motionUI=global.MSWSubtitleAnimationUI.create(motionRoot,{context:motionContext,commit:commitMotion,message:(text,error)=>message(text,error)});
   let proof={mode:'project'};
   try {
-    const saved=JSON.parse(localStorage.getItem('msw.subtitle-proof.v1')||'{}');proof.mode=saved.mode||'project';
+    const saved=JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem('msw.subtitle-proof.v1')||'{}');proof.mode=saved.mode||'project';
   } catch(_) {}
   const projectStyle=()=>host.data.preview?.project_style || S.defaults();
   const all=()=>[...S.presets(),...library];
@@ -340,7 +340,7 @@
   const same=(a,b)=>JSON.stringify({...comparable(a),name:''})===JSON.stringify({...comparable(b),name:''});
   const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
-  const persistProof=()=>{try{localStorage.setItem('msw.subtitle-proof.v1',JSON.stringify(proof));}catch(_){message('无法保存本机预览偏好',true);}};
+  const persistProof=()=>{try{(globalThis.MSWConfig?.storage || localStorage).setItem('msw.subtitle-proof.v1',JSON.stringify(proof));}catch(_){message('无法保存本机预览偏好',true);}};
   async function request(route,payload) {
     const response=await fetch(`${host.config.processingUrl}/${route}`,{method:payload?'POST':'GET',headers:{'X-MSW-Token':host.config.requestToken,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{})});
     const result=await response.json();
@@ -598,8 +598,9 @@
     $('style-field-t-tags').value=tags;$('style-field-t-tags').dispatchEvent(new Event('change',{bubbles:true}));
   };
   async function saveLibrary(next) {
-    if(host.config?.processingUrl)await request('subtitle-presets',{version:1,presets:next});
-    else localStorage.setItem('msw.subtitle-presets.v1',JSON.stringify(next));
+    if(global.MSWConfig?.connected){ global.MSWConfig.storage.setItem('msw.subtitle-presets.v1',JSON.stringify(next)); await global.MSWConfig.flush(); }
+    else if(host.config?.processingUrl)await request('subtitle-presets',{version:1,presets:next});
+    else (globalThis.MSWConfig?.storage || localStorage).setItem('msw.subtitle-presets.v1',JSON.stringify(next));
     library=next;
   }
   $('style-save-as').onclick=()=>{
@@ -693,9 +694,9 @@
     ready=false;loadError='';panel.inert=true;$('style-retry').hidden=true;
     const generation=host.generation;
     try {
-      if(host.config?.processingUrl) {
+      if(host.config?.processingUrl && !global.MSWConfig?.connected) {
         library=(await request('subtitle-presets')).presets;
-      } else library=JSON.parse(localStorage.getItem('msw.subtitle-presets.v1')||'[]');
+      } else library=JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem('msw.subtitle-presets.v1')||'[]');
       if(!Array.isArray(library))library=[];
       library=library.filter(s=>!/^legacy-(profile|style|srt-burn)/.test(s.id||''));
       if(generation!==host.generation)return;

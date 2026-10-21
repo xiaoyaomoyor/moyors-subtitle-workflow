@@ -1182,12 +1182,12 @@
   }
 
   function persistGroups() {
-    try { localStorage.setItem(GROUPS_KEY, JSON.stringify(state.groupsCollapsed)); } catch (error) { /* 显示状态而已 */ }
+    try { (globalThis.MSWConfig?.storage || localStorage).setItem(GROUPS_KEY, JSON.stringify(state.groupsCollapsed)); } catch (error) { /* 显示状态而已 */ }
   }
 
   function restoreGroups() {
     try {
-      var saved = JSON.parse(localStorage.getItem(GROUPS_KEY) || "null");
+      var saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(GROUPS_KEY) || "null");
       if (saved && typeof saved === "object") {
         if (typeof saved.recent === "boolean") state.groupsCollapsed.recent = saved.recent;
         if (typeof saved.all === "boolean") state.groupsCollapsed.all = saved.all;

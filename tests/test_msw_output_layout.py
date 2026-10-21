@@ -10,6 +10,7 @@ from threading import Event
 from unittest.mock import Mock, patch
 import wave
 
+from maw.gui_config import save_env
 from maw.gui_web import LauncherApi, LauncherPaths, _sync_local_runtime_root, _batch_unique_output_path
 from maw.gui_workflow import default_srt_path, build_output_paths, unique_output_path
 from maw.media import _media_stem, convert_media_for_browser, resolve_project_media
@@ -49,7 +50,7 @@ class MswOutputLayoutTests(unittest.TestCase):
             for per_video in (False, True):
                 for tagged in (False, True):
                     with self.subTest(organized=organized, per_video=per_video, tagged=tagged):
-                        self.env_path.write_text(f"MSW_GUI_OUTPUT_SUBFOLDER={organized}\nMSW_GUI_PER_VIDEO_SUBFOLDER={per_video}\nMSW_GUI_ATTACH_MODEL_NAME={tagged}\n", encoding="utf-8")
+                        save_env(self.env_path, {"MSW_GUI_OUTPUT_SUBFOLDER": str(organized), "MSW_GUI_PER_VIDEO_SUBFOLDER": str(per_video), "MSW_GUI_ATTACH_MODEL_NAME": str(tagged)})
                         root = self.root / ("视频_msw" if organized and per_video else "_msw")
                         srt = default_srt_path(self.media)
                         self.assertEqual(srt.parent, root if organized else self.root)

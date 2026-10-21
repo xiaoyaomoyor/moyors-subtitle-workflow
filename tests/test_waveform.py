@@ -616,12 +616,12 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('appearance.font_size || EXTENSION_SUBTITLE_DEFAULT_FONT_SIZE', page)
         self.assertIn('id="merge-join-text-continuous"', page)
         self.assertIn('id="merge-join-text-word"', page)
-        # 「延长字幕」已改为「缩放/偏移字幕」详情弹窗（即时执行，可拖动）。
+        # 时间操作使用方向＋秒数，预览后整批应用。
         self.assertIn('id="subtitle-scale-offset-open"', page)
         self.assertIn('id="subtitle-scale-offset-modal"', page)
         self.assertIn('id="subtitle-scale-percent"', page)
-        self.assertIn('id="subtitle-start-offset-ms"', page)
-        self.assertIn('id="subtitle-shift-ms"', page)
+        self.assertIn('id="subtitle-time-operation"', page)
+        self.assertIn('id="subtitle-time-seconds"', page)
         self.assertNotIn('id="subtitle-extend-run"', page)
         self.assertIn('id="waveform-drag-playhead"', page)
         self.assertIn('播放时跳过空隙', page)

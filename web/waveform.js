@@ -809,7 +809,7 @@
 
   function readSettings() {
     try {
-      const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      const parsed = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(SETTINGS_KEY) || '{}');
       const layoutData = normalizeLayoutData({
         preset: parsed.layout,
         splitPercent: parsed.splitPercent,
@@ -853,7 +853,7 @@
 
   function saveSettings(settings) {
     try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      (globalThis.MSWConfig?.storage || localStorage).setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch (_) {
       // file:// privacy modes may reject localStorage; the editor still works.
     }
@@ -3305,7 +3305,7 @@
       this.setStatus('已恢复默认工作区');
     }
 
-    setLayoutData(value, { render = true } = {}) {
+    setLayoutData(value, { render = true, persist = true } = {}) {
       const layout = normalizeLayoutData(value);
       this.settings.layout = layout.preset;
       if (layout.waveformMode) this.settings.mode = layout.waveformMode;
@@ -3318,7 +3318,8 @@
       this.settings.layoutTree = layout.tree;
       this.settings.hiddenModules = [...layout.hiddenModules];
       this.settings.layoutEditing = false;
-      saveSettings(this.settings);
+      if (persist) saveSettings(this.settings);
+      else window.MSWConfig?.observe(SETTINGS_KEY, JSON.stringify(this.settings));
       this.applyLayout();
       if (render) this.render();
     }

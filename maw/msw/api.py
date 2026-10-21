@@ -22,6 +22,13 @@ class ProcessingAPI:
         self.server = server
         self.env_path = env_path
         self.data_root = data_root
+        from maw.user_config import UserConfig
+        self.user_config = UserConfig(data_root / 'user-settings.mswconfig')
+        self.user_config.migrate_files()
+        from maw.gui_config import load_env
+        onboarding = load_env(env_path).get('MSW_EDITOR_ONBOARDING_STATUS')
+        if onboarding in {'completed', 'skipped'}:
+            self.user_config.migrate({'browser': {'moy.asr.editor.onboarding.v1': onboarding}}, 'environment')
         self.lock = threading.RLock()
         self._manager = None
         self._assets = None
@@ -343,7 +350,9 @@ class ProcessingAPI:
                 payload = handler.read_json_request()
             else:
                 payload = {key: values[0] for key, values in parse_qs(url.query).items()}
-            if route == 'subtitle-presets':
+            if route == 'user-config':
+                result = self.user_config.request(payload if post else None)
+            elif route == 'subtitle-presets':
                 from maw.project_subtitle_style import load_presets, save_presets
                 with self.lock:
                     result = save_presets(payload) if post else load_presets()
@@ -383,14 +392,13 @@ class ProcessingAPI:
                         self._local_models = LocalModels(self.env_path)
                     result = self._local_models.operate(payload) if post else self._local_models.snapshot()
             elif route == 'onboarding-status':
-                from maw.gui_config import load_env, save_env
                 with self.lock:
                     if post:
                         value = payload.get('status')
                         if value not in {'completed', 'skipped'}:
                             raise ValueError('引导状态无效')
-                        save_env(self.env_path, {'MSW_EDITOR_ONBOARDING_STATUS': value})
-                    result = {'status': load_env(self.env_path).get('MSW_EDITOR_ONBOARDING_STATUS', '')}
+                        self.user_config.update(['browser', 'moy.asr.editor.onboarding.v1'], value)
+                    result = {'status': self.user_config.read()['sections'].get('browser', {}).get('moy.asr.editor.onboarding.v1', '')}
             elif route == 'version-settings':
                 with self.lock:
                     result = {'settings': self.persistence.versions.configure(payload) if post else self.persistence.versions.settings()}
@@ -666,8 +674,11 @@ class ProcessingAPI:
         except FileNotFoundError as error:
             handler.send_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": str(error)})
         except (ValueError, TypeError, UnicodeError) as error:
+            from maw.user_config import ConfigConflict
+            if isinstance(error, ConfigConflict):
+                status = HTTPStatus.CONFLICT
             handler.send_json(status if status == HTTPStatus.CONFLICT else HTTPStatus.BAD_REQUEST,
-                              {"ok": False, "error": str(error)})
+                              {"ok": False, "error": str(error), **({'conflict': error.paths} if isinstance(error, ConfigConflict) else {})})
         except Exception:
             # Do not send arbitrary transport/configuration exception strings:
             # they can contain secrets or internal paths.

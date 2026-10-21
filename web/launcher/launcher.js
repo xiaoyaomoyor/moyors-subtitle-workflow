@@ -1556,6 +1556,7 @@
   const dragState = { depth: 0 };
   let api = null;
   let prefsTimer = 0;
+  let pendingPrefs = {};
   let defaultOutputRequest = 0;
   let ffmpegRequest = 0;
   let serverStatusRequest = 0;
@@ -1570,7 +1571,7 @@
   const SETTINGS_TAB_KEY = "MSW_SETTINGS_TAB_V1";
   function readStoredSettingsTab() {
     try {
-      const saved = localStorage.getItem(SETTINGS_TAB_KEY) || "";
+      const saved = (globalThis.MSWConfig?.storage || localStorage).getItem(SETTINGS_TAB_KEY) || "";
       return document.querySelector(`[data-settings-tab="${saved}"]`) ? saved : "appearance";
     } catch (error) { return "appearance"; }
   }
@@ -1588,9 +1589,9 @@
         maskedApiKey: saved.apiKey ? "sk-…demo" : "",
         providerId: "qwen",
         modelId: "qwen-audio-3.0-asr-flash-filetrans",
-        lastModel: localStorage.getItem(LAST_MODEL_KEY),
-         lastLanguage: localStorage.getItem(LAST_LANGUAGE_KEY),
-         zoomPercent: Number(localStorage.getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT,
+        lastModel: (globalThis.MSWConfig?.storage || localStorage).getItem(LAST_MODEL_KEY),
+         lastLanguage: (globalThis.MSWConfig?.storage || localStorage).getItem(LAST_LANGUAGE_KEY),
+         zoomPercent: Number((globalThis.MSWConfig?.storage || localStorage).getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT,
         region: saved.region,
         language: saved.language,
         workspaceId: saved.workspaceId,
@@ -1754,7 +1755,7 @@
       prepare_local_model: async ({ modelId }) => { clearTimeout(modelPrepareTimer); modelPrepareTimer = setTimeout(() => { state.config?.providers.find((item) => item.id === "local")?.models.forEach((model) => { if (model.id === modelId) model.localStatus = { ...(model.localStatus || {}), status: "installed", installed: true, runtimeAvailable: true, canPrepare: false, detail: "已检测到本地模型。" }; }); window.MSWLauncher.onBackendEvent({ type: "modelPrepared", modelId }); }, 400); return { ok: true, preparing: true, modelId }; },
       cancel_local_model: async () => { clearTimeout(modelPrepareTimer); setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "localPrepareCancelled" }), 80); return { ok: true, cancelling: true }; },
        send_notification: async () => ({ok: true, sent: false}),
-       save_prefs: async (payload) => { if (payload.asrSegmentation) saved.asrSegmentation = { ...payload.asrSegmentation }; if (payload.prefabModules) saved.prefabModules = { ...payload.prefabModules }; if (Object.prototype.hasOwnProperty.call(payload, "guiLang")) saved.guiLang = payload.guiLang; if (Object.prototype.hasOwnProperty.call(payload, "modelId")) localStorage.setItem(LAST_MODEL_KEY, payload.modelId || ""); if (Object.prototype.hasOwnProperty.call(payload, "language")) localStorage.setItem(LAST_LANGUAGE_KEY, payload.language || ""); if (Object.prototype.hasOwnProperty.call(payload, "showRareLangs")) saved.showRareLangs = Boolean(payload.showRareLangs); for (const key of ["outputSubfolder", "perVideoSubfolder", "attachModelName", "notifyOnComplete"]) { if (Object.prototype.hasOwnProperty.call(payload, key)) saved[key] = Boolean(payload[key]); } if (Object.prototype.hasOwnProperty.call(payload, "theme")) saved.theme = payload.theme || "system"; if (Object.prototype.hasOwnProperty.call(payload, "zoomPercent")) localStorage.setItem(ZOOM_PERCENT_KEY, String(payload.zoomPercent)); return { ok: true, zoomPercent: Number(localStorage.getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT }; },
+       save_prefs: async (payload) => { if (payload.asrSegmentation) saved.asrSegmentation = { ...payload.asrSegmentation }; if (payload.prefabModules) saved.prefabModules = { ...payload.prefabModules }; if (Object.prototype.hasOwnProperty.call(payload, "guiLang")) saved.guiLang = payload.guiLang; if (Object.prototype.hasOwnProperty.call(payload, "modelId")) (globalThis.MSWConfig?.storage || localStorage).setItem(LAST_MODEL_KEY, payload.modelId || ""); if (Object.prototype.hasOwnProperty.call(payload, "language")) (globalThis.MSWConfig?.storage || localStorage).setItem(LAST_LANGUAGE_KEY, payload.language || ""); if (Object.prototype.hasOwnProperty.call(payload, "showRareLangs")) saved.showRareLangs = Boolean(payload.showRareLangs); for (const key of ["outputSubfolder", "perVideoSubfolder", "attachModelName", "notifyOnComplete"]) { if (Object.prototype.hasOwnProperty.call(payload, key)) saved[key] = Boolean(payload[key]); } if (Object.prototype.hasOwnProperty.call(payload, "theme")) saved.theme = payload.theme || "system"; if (Object.prototype.hasOwnProperty.call(payload, "zoomPercent")) (globalThis.MSWConfig?.storage || localStorage).setItem(ZOOM_PERCENT_KEY, String(payload.zoomPercent)); return { ok: true, zoomPercent: Number((globalThis.MSWConfig?.storage || localStorage).getItem(ZOOM_PERCENT_KEY)) || ZOOM_DEFAULT }; },
       open_url: async ({ url }) => { window.open(url, "_blank"); return { ok: true }; },
       open_runtime_folder: async (payload) => { window.__openedRuntimeFolder = payload; return { ok: true }; },
       open_blank_html: async () => ({ ok: true }),
@@ -2429,8 +2430,9 @@
   function finishConfirm(value) { const resolve = window.MSWLauncher.confirmResolve; window.MSWLauncher.confirmResolve = null; $("batchConfirmModal").classList.add("hidden"); resolve?.(value); }
 
   function isThemePreference(value) { return value === "light" || value === "dark" || value === "system"; }
-  function readStoredTheme() { try { const savedTheme = localStorage.getItem(THEME_KEY); return isThemePreference(savedTheme) ? savedTheme : "system"; } catch (error) { return "system"; } }
-  function storeTheme(pref) { try { localStorage.setItem(THEME_KEY, pref); } catch (error) { /* localStorage 不可用时交给后端持久化 */ } }
+  function readStoredTheme() { try { const savedTheme = (globalThis.MSWConfig?.storage || localStorage).getItem(THEME_KEY); return isThemePreference(savedTheme) ? savedTheme : "system"; } catch (error) { return "system"; } }
+  // save_prefs owns this field; the browser copy is only the legacy/offline cache.
+  function storeTheme(pref) { try { localStorage.setItem(THEME_KEY, pref); } catch (error) { /* 后端仍会持久化 */ } }
   function resolveTheme() { if (state.theme === "light" || state.theme === "dark") return state.theme; return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
   function applyTheme() { if (resolveTheme() === "light") document.documentElement.dataset.theme = "light"; else delete document.documentElement.dataset.theme; $("themeLight").classList.toggle("active", state.theme === "light"); $("themeDark").classList.toggle("active", state.theme === "dark"); $("themeSystem").classList.toggle("active", state.theme === "system"); syncNativeThemeChrome(); }
   function syncNativeThemeChrome() {
@@ -2930,7 +2932,14 @@
   function appendTestSuffix(path) { const value = String(path || "").trim(); if (!value || /-test(?=\.[^./\\]+$)/iu.test(value)) return value; const separator = Math.max(value.lastIndexOf("/"), value.lastIndexOf("\\")); const dot = value.lastIndexOf("."); if (dot <= separator) return `${value}-test`; return `${value.slice(0, dot)}-test${value.slice(dot)}`; }
   function removeTestSuffix(path) { return String(path || "").replace(/-test(?=\.[^./\\]+$)/iu, ""); }
   function syncTestRun() { const on = $("testRun").checked; $("testRunHint").classList.toggle("hidden", !on); $("lengthLimit").disabled = on; if (state.srtAuto) { if (!state.initializing) void syncDefaultOutput(); return; } const current = $("srtPath").value.trim(); if (on) { const next = appendTestSuffix(current); state.testSuffixAdded = Boolean(current && next !== current); $("srtPath").value = next; } else if (state.testSuffixAdded) { $("srtPath").value = removeTestSuffix(current); state.testSuffixAdded = false; } }
-  function savePrefsDebounced(payload) { clearTimeout(prefsTimer); prefsTimer = setTimeout(() => bridge("save_prefs", payload), 300); }
+  function savePrefsDebounced(payload) {
+    Object.assign(pendingPrefs, payload); clearTimeout(prefsTimer);
+    prefsTimer = setTimeout(async () => {
+      const changes = pendingPrefs; pendingPrefs = {};
+      const result = await bridge('save_prefs', changes);
+      if (!result.ok) applyErrorResult(result);
+    }, 300);
+  }
   const segmentationFields = ['maxLen','minLen','maxWords','minWords','gapSplit'];
   let segmentationSaveTimer, segmentationWrites = Promise.resolve();
   function saveSegmentation(showInvalid = false) {
@@ -3208,7 +3217,7 @@
     const tab = tabs.find((item) => item.dataset.settingsTab === tabName);
     if (!tab) return;
     activeSettingsTab = tabName;
-    try { localStorage.setItem(SETTINGS_TAB_KEY, tabName); } catch (error) { /* 显示记忆而已 */ }
+    try { (globalThis.MSWConfig?.storage || localStorage).setItem(SETTINGS_TAB_KEY, tabName); } catch (error) { /* 显示记忆而已 */ }
     tabs.forEach((item) => {
       const active = item === tab;
       item.classList.toggle("active", active);
@@ -3380,6 +3389,11 @@
     const realApi = await waitForBackend();
     api = realApi || mockApi();
     window.MSWLauncher.backend = realApi ? "real" : "mock";
+    if (realApi?.get_user_config && window.MSWConfig) {
+      try { await window.MSWConfig.connect(await bridge('get_user_config'), payload => bridge('update_user_config', payload)); }
+      catch (_) { notify('用户配置读取失败，原文件已保留。', {error:true}); }
+    }
+    activeSettingsTab = readStoredSettingsTab();
     const savedTheme = readStoredTheme();
     state.theme = savedTheme;
     applyTheme();
@@ -3585,6 +3599,7 @@
     if (["dropMedia", "dropJson", "dropSubtitle", "dropReject"].includes(event.type) && !state.dropTarget && window.MSWLauncher?.onBatchDrop?.(event.path || "")) { clearDropState(); return; }
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
+  window.addEventListener('msw:config-notice', event => notify(event.detail.message, {error:true}));
   window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, notify, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
 
   window.MSWLauncher.validateQueueRecognition = mediaPath => validateLocal({ mediaPath, srtPath: 'queue.srt' });

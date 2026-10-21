@@ -54,7 +54,7 @@
 
   function loadLlmPrompts() {
     try {
-      const raw = window.localStorage?.getItem(LLM_PROMPTS_KEY);
+      const raw = (globalThis.MSWConfig?.storage || localStorage)?.getItem(LLM_PROMPTS_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
       return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
     } catch (error) {
@@ -64,7 +64,7 @@
 
   function saveLlmPrompts() {
     try {
-      window.localStorage?.setItem(LLM_PROMPTS_KEY, JSON.stringify(llmPrompts));
+      (globalThis.MSWConfig?.storage || localStorage)?.setItem(LLM_PROMPTS_KEY, JSON.stringify(llmPrompts));
     } catch (error) {
       // 某些嵌入式浏览器会禁用 localStorage；内存中的提示词仍可在本次运行中使用。
     }
@@ -91,7 +91,7 @@
 
   function loadAlignmentGapRemove() {
     try {
-      const raw = window.localStorage?.getItem(ALIGNMENT_GAP_REMOVE_KEY);
+      const raw = (globalThis.MSWConfig?.storage || localStorage)?.getItem(ALIGNMENT_GAP_REMOVE_KEY);
       return normalizeAlignmentGapRemove(raw ? JSON.parse(raw) : null);
     } catch (error) {
       return normalizeAlignmentGapRemove(null);
@@ -100,7 +100,7 @@
 
   function saveAlignmentGapRemove(value) {
     try {
-      window.localStorage?.setItem(ALIGNMENT_GAP_REMOVE_KEY, JSON.stringify(value));
+      (globalThis.MSWConfig?.storage || localStorage)?.setItem(ALIGNMENT_GAP_REMOVE_KEY, JSON.stringify(value));
     } catch (error) {
       // 某些嵌入式浏览器会禁用 localStorage；内存中的参数仍可在本次运行中使用。
     }

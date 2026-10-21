@@ -12,8 +12,8 @@
   track.after(confirmTrack);
   confirmTrack.addEventListener('click', () => void media.changeTrack(Number(track.value)));
   // 默认开启「自动波形」：清掉历史遗留的关闭记录，每次加载都默认勾选。
-  if (localStorage.getItem('msw.waveform.auto') === 'false') localStorage.removeItem('msw.waveform.auto');
-  auto.checked = localStorage.getItem('msw.waveform.auto') !== 'false';
+  if ((globalThis.MSWConfig?.storage || localStorage).getItem('msw.waveform.auto') === 'false') (globalThis.MSWConfig?.storage || localStorage).removeItem('msw.waveform.auto');
+  auto.checked = (globalThis.MSWConfig?.storage || localStorage).getItem('msw.waveform.auto') !== 'false';
   byId('waveform-auto-label').hidden = false;
   byId('analysis-unavailable').hidden = true;
   byId('analysis-controls').hidden = false;
@@ -118,7 +118,7 @@
     track.value = media.current?.audio_index ?? 0; track.disabled = false;
   });
   auto.addEventListener('change', () => {
-    localStorage.setItem('msw.waveform.auto', String(auto.checked));
+    (globalThis.MSWConfig?.storage || localStorage).setItem('msw.waveform.auto', String(auto.checked));
     if (auto.checked) void start('waveform'); else void cancel('waveform');
   });
   for (const kind of ['waveform', 'proxy']) {

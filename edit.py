@@ -236,7 +236,11 @@ def render_editor_page(**context: str) -> str:
     brand_icon = "data:image/svg+xml;base64," + base64.b64encode(
         read_web_asset("favicon.svg").encode("utf-8")
     ).decode("ascii")
+    from maw.user_config import REGISTRY
+    config_bootstrap = context.get('user_config_json', json.dumps({'snapshot': {'registry': REGISTRY, 'sections': {}}}))
     replacements = {
+        '__USER_CONFIG_BOOTSTRAP__': config_bootstrap.replace('<', '\\u003c'),
+        '__USER_CONFIG_JS__': read_web_asset('msw-config.js'),
         "__EDITOR_BRAND_ICON__": brand_icon,
         "__EDITOR_CSS__": read_web_asset("editor.css").rstrip() + "\n" + read_web_asset("msw-flat-editor.css").rstrip(),
         "__WAVEFORM_CSS__": read_web_asset("waveform.css").rstrip(),

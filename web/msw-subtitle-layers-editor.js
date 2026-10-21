@@ -9,7 +9,7 @@ function prepareLayerProject(project) {
   if(window.MSWProductionProject.isView(project)){fixedTrackCore.validate(project);return structuredClone(project);}
   if(productionFlatRequested) {
     let mainSplitModeOverride=null;
-    try {mainSplitModeOverride=JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1')||'{}').mainSplitModeOverride;} catch {}
+    try {mainSplitModeOverride=JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem('moy.asr.editor.settings.v1')||'{}').mainSplitModeOverride;} catch {}
     return window.MSWProductionProject.fromProject(project,{mainSplitModeOverride});
   }
   if(project?.schema&&!['moy.asr.project.v1','msw.project.v2','msw.project.v3'].includes(project.schema))throw Error('工程版本不受支持，请使用兼容的编辑器打开');

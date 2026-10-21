@@ -2714,7 +2714,7 @@
   }
 
   function persistLanguage(nextLanguage) {
-    try { global.localStorage?.setItem(STORAGE_KEY, nextLanguage); } catch (_) {}
+    try { (global.MSWConfig?.storage || global.localStorage)?.setItem(STORAGE_KEY, nextLanguage); } catch (_) {}
   }
 
   function languageFromLaunchUrl() {
@@ -2745,7 +2745,7 @@
       return GENERATED_LANGUAGE;
     }
     try {
-      return normalizeLanguage(global.localStorage?.getItem(STORAGE_KEY) || ZH);
+      return normalizeLanguage((global.MSWConfig?.storage || global.localStorage)?.getItem(STORAGE_KEY) || ZH);
     } catch (_) {
       return ZH;
     }

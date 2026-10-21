@@ -51,7 +51,7 @@
 
   function load() {
     var stored = null;
-    try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (error) { stored = null; }
+    try { stored = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(STORAGE_KEY) || "null"); } catch (error) { stored = null; }
     var saved = window.MSWLauncher?.config?.prefabModules;
     var choices = validChoices(saved) ? saved : (validChoices(stored?.enabled) ? stored.enabled : null);
     var enabled = defaults();
@@ -77,7 +77,7 @@
 
   function persist() {
     var enabled = { ...state.enabled };
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, enabled: enabled })); } catch (error) { /* Native preferences still work without browser storage. */ }
+    try { (globalThis.MSWConfig?.storage || localStorage).setItem(STORAGE_KEY, JSON.stringify({ version: 1, enabled: enabled })); } catch (error) { /* Native preferences still work without browser storage. */ }
     // Serialize writes: a slow earlier save must not overwrite a newer selection.
     saveQueue = saveQueue.then(async function () {
       var launcher = window.MSWLauncher;
@@ -169,11 +169,11 @@
   var LOG_CARD_KEY = "MSW_LAUNCHER_LOG_CARD_V1";
 
   function isLogCardEnabled() {
-    try { return localStorage.getItem(LOG_CARD_KEY) === "1"; } catch (error) { return false; }
+    try { return (globalThis.MSWConfig?.storage || localStorage).getItem(LOG_CARD_KEY) === "1"; } catch (error) { return false; }
   }
 
   function setLogCardEnabled(enabled) {
-    try { localStorage.setItem(LOG_CARD_KEY, enabled ? "1" : "0"); } catch (error) { /* 显示状态而已 */ }
+    try { (globalThis.MSWConfig?.storage || localStorage).setItem(LOG_CARD_KEY, enabled ? "1" : "0"); } catch (error) { /* 显示状态而已 */ }
   }
 
   function visibleCards() {
