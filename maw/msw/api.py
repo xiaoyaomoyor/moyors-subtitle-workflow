@@ -23,7 +23,7 @@ class ProcessingAPI:
         self.env_path = env_path
         self.data_root = data_root
         from maw.user_config import UserConfig
-        self.user_config = UserConfig(data_root / 'user-settings.mswconfig')
+        self.user_config = UserConfig(data_root / 'user-settings.mswconfig', env_path=env_path)
         self.user_config.migrate_files()
         from maw.gui_config import load_env
         onboarding = load_env(env_path).get('MSW_EDITOR_ONBOARDING_STATUS')
@@ -155,7 +155,11 @@ class ProcessingAPI:
             if engine not in tts_engines.ENGINES:
                 raise ValueError('不支持的 TTS 引擎')
             atomic_bytes(path, (json.dumps({'engine': engine}) + '\n').encode())
+            self.user_config.update(['defaults', 'tts', 'engine'], engine)
             return engine
+        saved = self.user_config.read()['sections'].get('defaults', {}).get('tts', {}).get('engine')
+        if saved in tts_engines.ENGINES:
+            return saved
         try:
             value = json.loads(path.read_text(encoding='utf-8')).get('engine')
             if value in tts_engines.ENGINES:
@@ -426,7 +430,7 @@ class ProcessingAPI:
                 with self.lock:
                     if post:
                         tts_engines.save(self, payload, select=route == 'tts-settings')
-                    result = {**tts.config_payload(self.env_path), "yukkuri": self.yukkuri.payload(),
+                    result = {**tts.config_payload(self.env_path, config_root=self.data_root), "yukkuri": self.yukkuri.payload(),
                               "engine": self.tts_engine(), 'index_tts': self.index_tts.payload(),
                               'gpt_sovits': self.gpt_sovits.payload(), 'edge_tts': self.edge_tts.payload(),
                               'minimax': self.cloud_tts('minimax').payload(), 'mossland': self.cloud_tts('mossland').payload(),
@@ -478,7 +482,7 @@ class ProcessingAPI:
                 handler.send_file(self.index_tts.root / 'references' / (identity + '.wav'), handler.command != 'HEAD')
                 return True
             elif route == 'qwen-voices' and post:
-                settings = tts.resolve_settings(self.env_path, payload.get('provider', {}), require_voice=False)
+                settings = tts.resolve_settings(self.env_path, payload.get('provider', {}), require_voice=False, config_root=self.data_root)
                 if payload.get('action') == 'create':
                     result = {'operation': self.qwen_voices.start(payload, settings)}
                     status = HTTPStatus.ACCEPTED

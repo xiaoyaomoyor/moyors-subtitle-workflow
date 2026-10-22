@@ -112,6 +112,8 @@ class GptSovits(IndexTts):
     def settings(self):
         try:
             raw = self.read('settings.json', {})
+            from maw.config_defaults import recipe as user_recipe
+            raw['recipe'] = user_recipe(self.root.parent, 'gpt-sovits', raw.get('recipe', {}))
             url, timeout = self.connection(raw)
             r = validate_recipe(raw.get('recipe', {}))
         except (ValueError, AttributeError):

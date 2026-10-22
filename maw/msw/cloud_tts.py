@@ -72,10 +72,13 @@ class CloudTts:
     def stored(self):
         try:
             value = json.loads((self.root / 'settings.json').read_text(encoding='utf-8'))
+            from maw.config_defaults import recipe
+            value['recipe'] = recipe(self.root.parent, self.provider, value['recipe'])
             return {'recipe': self.validate(value['recipe'], require_voice=False),
                     'timeout': number(value.get('timeout', 180), 30, 600, '等待上限', integer=True)}
         except (OSError, ValueError, KeyError, TypeError):
-            return {'recipe': copy.deepcopy(self.default), 'timeout': 180}
+            from maw.config_defaults import recipe
+            return {'recipe': recipe(self.root.parent, self.provider, copy.deepcopy(self.default)), 'timeout': 180}
 
     def key(self, region, supplied=''):
         name = f'MSW_TTS_{self.provider.upper()}_{region.upper()}_API_KEY'
@@ -101,6 +104,8 @@ class CloudTts:
                 region = settings.recipe.get('region', 'default')
                 save_env(self.env_path, {f'MSW_TTS_{self.provider.upper()}_{region.upper()}_API_KEY': settings.api_key})
             atomic_bytes(self.root / 'settings.json', (json.dumps({'recipe': settings.recipe, 'timeout': settings.timeout}, ensure_ascii=False) + '\n').encode())
+            from maw.config_defaults import recipe
+            recipe(self.root.parent, self.provider, settings.recipe, save=True)
 
     def cache_path(self, settings):
         digest = hashlib.sha256((settings.base_url + '\0' + settings.api_key).encode()).hexdigest()

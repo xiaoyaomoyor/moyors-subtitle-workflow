@@ -127,6 +127,8 @@ class EdgeTts:
 
     def settings(self):
         raw = self.read('settings.json', {})
+        from maw.config_defaults import recipe
+        raw['recipe'] = recipe(self.root.parent, 'edge', raw.get('recipe', {}))
         try:
             r = validate_recipe(raw.get('recipe', {}))
             timeout = self.timeout(raw)
@@ -148,6 +150,8 @@ class EdgeTts:
     def save(self, raw):
         self.write('settings.json', {'recipe': validate_recipe(raw.get('recipe', {})),
                                     'timeout': self.timeout({**self.settings(), **raw})})
+        from maw.config_defaults import recipe
+        recipe(self.root.parent, 'edge', validate_recipe(raw.get('recipe', {})), save=True)
         return self.payload()
 
     def resolve(self, raw):

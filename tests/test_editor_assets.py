@@ -95,6 +95,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "editor-onboarding.js",
                 "msw-flat-processing-ui.js",
                 "msw-flat-editor.js",
+                "msw-config-manager.js",
             ),
         )
 

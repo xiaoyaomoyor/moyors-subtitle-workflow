@@ -221,7 +221,8 @@ def load_postprocess_config(path: Path) -> dict[str, object]:
 
 
 def load_postprocess_plan(env_path: Path) -> dict[str, object]:
-    return normalize_plan(load_postprocess_config(postprocess_config_path(env_path)).get("plan"))
+    from maw.config_defaults import plan as user_plan
+    return normalize_plan(user_plan(env_path, normalize_plan(load_postprocess_config(postprocess_config_path(env_path)).get("plan"))))
 
 
 def save_postprocess_plan(env_path: Path, raw_plan: object) -> dict[str, object]:
@@ -229,6 +230,8 @@ def save_postprocess_plan(env_path: Path, raw_plan: object) -> dict[str, object]
     config = load_postprocess_config(path)
     plan = normalize_plan(raw_plan)
     _save_config(path, {"version": POSTPROCESS_PLAN_VERSION, "plan": plan, "verification": config.get("verification", {})})
+    from maw.config_defaults import plan as user_plan
+    user_plan(env_path, plan, save=True)
     return plan
 
 

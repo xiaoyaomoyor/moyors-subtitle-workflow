@@ -214,13 +214,7 @@ __WAVEFORM_CSS__
       </div>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">配置</div>
-      <div class="dropdown-submenu" id="workspace-transfer-dropdown">
-        <div class="dropdown-item dropdown-submenu-toggle" id="workspace-transfer-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出或导入界面配置（布局与颜色）">界面配置</div>
-        <div class="dropdown-menu dropdown-submenu-menu" id="workspace-transfer-menu" role="menu">
-          <div class="dropdown-item" id="workspace-export" role="menuitem" tabindex="0">导出界面配置</div>
-          <div class="dropdown-item" id="workspace-import" role="menuitem" tabindex="0">导入界面配置</div>
-        </div>
-      </div>
+      <button type="button" class="dropdown-item" id="config-manager-open" data-open-config-manager role="menuitem">配置管理</button>
       <div class="dropdown-separator"></div>
       <button type="button" class="dropdown-item" id="page-fullscreen-toggle" role="menuitem" title="让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）"><span>页面全屏</span> <kbd class="menu-kbd">F11</kbd></button>
     </div>
@@ -412,7 +406,6 @@ __WAVEFORM_CSS__
   <option value="three-fold">三折叠布局</option>
   <option value="cinema">大荧幕布局</option>
 </select>
-<input type="file" id="workspace-import-file" accept=".workspace.json,.json,application/json" style="display:none">
 <div class="server-connection-banner" id="server-connection-banner" hidden role="alert" aria-live="assertive">
   <span class="server-connection-banner-icon" aria-hidden="true">!</span>
   <div class="server-connection-banner-copy">

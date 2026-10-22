@@ -1,6 +1,6 @@
 # 配置清单与保存规则
 
-对应六阶段方案的第 1–2 阶段。公共接口为 Python `maw.user_config.UserConfig` 与浏览器 `MSWConfig.storage`；登记表 `maw/user_config.py::REGISTRY` 同时提供给启动器和编辑器，不分别维护两份浏览器键名清单。
+对应六阶段方案的第 1–4 阶段。导入导出入口、分类与生效规则见 [配置管理](CONFIGURATION_MANAGEMENT.md)。公共接口为 Python `maw.user_config.UserConfig` 与浏览器 `MSWConfig.storage`；登记表 `maw/user_config.py::REGISTRY` 同时提供给启动器和编辑器，不分别维护两份浏览器键名清单。
 
 ## 唯一保存来源
 
@@ -24,14 +24,14 @@
 | 工程恢复与导航 | 恢复草稿、savedAt、临时平级轨道交接、工程选中项 | 工程恢复库、原项目专属浏览器键／sessionStorage | 否 | 当前工程 |
 | 项目目录与历史 | 最近／全部工程、固定／NEW、媒体索引 | `server-editor-settings.json` 的 recent_projects、launcher registry／recent／media index | 否（本机工作记录） | 即时 |
 | 当前任务 | 文件队列、轨道范围、识别／导出参数快照、任务进度／结果 | 工作数据库及任务对象；批处理草稿本地存储 | 否 | 启动任务时固定 |
-| 磁盘版本备份策略 | 开启、间隔、保留份数；`maw/msw/versions.py::DiskVersions.settings` 默认 true／300 秒／20 份 | 原 `MSW_EDITOR_VERSION_BACKUP` 专用接口与环境字段；与工程版本内容分开 | 第 3 阶段分类导出适配 | 下一轮备份 |
-| 后处理自动流程 | 文稿／替换规则／OCR／LLM 步骤，含文件依赖；`maw/postprocess_pipeline.py::default_postprocess_plan/normalize_plan` | 原后处理专用配置，校验记录分开解释 | 第 3 阶段检查依赖后分类导出 | 下一次预制；本轮保持专用读写 |
-| TTS 引擎与配方 | 各引擎 recipe、语速、音色引用；各 `maw/msw/*tts.py` 的 DEFAULT_RECIPE / normalize | 已跨浏览器共享的 `tts-engine.json`、各引擎 settings/presets 专用库 | 第 3 阶段仅配方；账号音色／参考音频需依赖检查 | 下一次合成；本轮保持专用读写 |
+| 磁盘版本备份策略 | 开启、间隔、保留份数；`maw/msw/versions.py::DiskVersions.settings` 默认 true／300 秒／20 份 | 公共库 `defaults.recovery`；原环境字段仅首次迁移 | 是，独立分类 | 下一轮备份 |
+| 后处理自动流程 | 文稿／替换规则／OCR／LLM 步骤，含文件依赖；`maw/postprocess_pipeline.py::default_postprocess_plan/normalize_plan` | 公共库 `defaults.postprocess`；专用文件保留文件依赖与验证记录 | 是，排除文件／轨道引用 | 下一次预制；本轮保持专用读写 |
+| TTS 引擎与配方 | 各引擎 recipe、语速、音色引用；各 `maw/msw/*tts.py` 的 DEFAULT_RECIPE / normalize | 公共库 `defaults.tts` 保存公共参数；专用库保留账号音色、连接与参考音频 | 是，仅公共参数及配方库 | 下一次合成；本轮保持专用读写 |
 | 模型与工具环境 | ffmpeg、模型缓存、运行时／服务地址、设备、安装状态、本地 ASR 模型路径 | `.env` 环境字段、runtime manifests、TTS service settings、`msw.local-asr-options` | 默认不导出 | 工具重启或下一次运行，以模块规则为准 |
 | 凭据与账号资源 | API Key、鉴权、业务空间、账号音色、参考音频、模型连接验证 | `.env`／专用账号资源库 | 不进入普通配置文件；本轮不迁移 | 下一次连接 |
 | 媒体缓存 | mopeaks、quapeaks、ReaPeaks、代理、字体缓存 | 原缓存目录／媒体 sidecar | 否 | 可重建；第五阶段统一 |
 
-第二阶段“逐步接入”优先消除浏览器源隔离和重复保存：上表中的公共库项已接入。已有唯一服务器来源、带文件／账号依赖的后处理流程和 TTS 专用库保持原接口；第三阶段为它们增加分类导出适配，不把参考音频、账号音色、连接凭据混入本轮迁移。
+第二阶段统一浏览器偏好；第三阶段增加 `defaults` 公共参数适配。原处理接口继续使用，公共参数从统一库覆盖，连接／资源仍留在专用库。旧文件保留，不作为已迁移字段的反向覆盖来源。
 
 ## 格式与优先级
 
@@ -64,7 +64,7 @@
 - 旧环境文件只迁移 `ENV_KEYS` 明确列出的 GUI 偏好，不复制整个环境。旧密钥、工具路径保持原用途。以后修改这些 GUI 偏好只写公共库；手改旧 `.env` GUI 行不再覆盖已迁移值，显式进程环境变量仍可临时覆盖。
 - 原始旧文件保留。`config-migration-backups/*.mswconfig` 保存非敏感迁移输入；浏览器 `msw.config.legacy.v1` 保存登记项的迁移快照。浏览器项目草稿不进入这些快照。
 - 所有写入使用操作系统文件锁、同目录临时文件、flush/fsync 和原子替换；`.mswconfig.bak` 是上一次成功覆盖前的版本。遇到损坏或未知版本拒绝覆盖，不静默重置个人设置。
-- 客户端提交改动字段及旧值，服务器合并不同字段。同一字段冲突时拒绝整个批次，并在右上角提示；本地 `msw.config.conflict.*` 保留被拒绝的改动。刷新读取已保存值后可重新调整。恢复浏览界面属于第四阶段，不在本轮增加新面板。
+- 客户端提交改动字段及旧值，服务器合并不同字段。同一字段冲突时拒绝整个批次，并在右上角提示；本地 `msw.config.conflict.*` 保留被拒绝的改动。刷新读取已保存值后可重新调整。配置管理提供导入前快照回退；被拒绝的窗口改动继续保留在本机恢复副本中。
 - 断网／服务重启时改动留在 `msw.config.pending.v1`，恢复后重试；操作 ID 防止“服务器已保存但响应丢失”造成重复应用。尚未保存时离开页面会触发浏览器离开确认。
 - 便携 HTML 没有本机服务时继续使用浏览器本地配置，不能宣称跨浏览器自动同步。第三阶段的独立配置文件用于离线搬运。
 - 其他已打开的窗口不会强行切换主题、布局或任务选项；新打开／刷新读取公共库。旧窗口只发送实际改动，同字段冲突要求刷新，避免热更新正在编辑的工程。

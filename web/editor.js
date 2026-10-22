@@ -17671,6 +17671,7 @@ const saveWorkspaceAsButton = document.getElementById('workspace-save-as');
 const deleteWorkspaceButton = document.getElementById('workspace-delete');
 
 function getSavedServerWorkspaces() {
+  if (!SERVER_CONFIG?.settingsUrl) return globalThis.MSWConfig?.snapshot?.sections?.server?.saved_workspaces || {};
   return SERVER_CONFIG?.savedWorkspaces && typeof SERVER_CONFIG.savedWorkspaces === 'object'
     ? SERVER_CONFIG.savedWorkspaces : {};
 }
@@ -17980,49 +17981,24 @@ function configureServerWorkspaceLibrary() {
 
 function configureWorkspaceTransfer() {
   if (!waveformEditor) return;
-  // 「工作区配置 ▾」在服务器版与单文件版都可用，便于以文件显式备份/迁移工作区。
-  const transferDropdown = document.getElementById('workspace-transfer-dropdown');
-  const exportButton = document.getElementById('workspace-export');
-  const importButton = document.getElementById('workspace-import');
-  const importFile = document.getElementById('workspace-import-file');
-  if (transferDropdown) transferDropdown.hidden = false;
-  exportButton?.addEventListener('click', async () => {
-    await downloadFile(buildWorkspaceJson(), `${FILENAME_BASE}.workspace.json`, 'application/json', {
-      desc: '编辑器工作区文件', types: { 'application/json': ['.workspace.json', '.json'] },
-    });
-  });
-  importButton?.addEventListener('click', () => {
-    if (!importFile) return;
-    importFile.value = '';
-    importFile.click();
-  });
-  importFile?.addEventListener('change', async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const data = JSON.parse(await file.text());
-      const workspace = data.workspace || data;
-      pushLayoutUndo('导入界面配置', waveformEditor.getLayoutHistorySnapshot?.());
-      waveformEditor.setLayoutData(workspace);
-      applyEditorDisplaySettings(workspace?.editorDisplay);
-      DATA.workspace = waveformEditor.getLayoutData();
-      if (workspace.colors && typeof workspace.colors === 'object') {
-        updateEditorSettings({ colors: workspace.colors });
-      }
-      if (typeof workspace.themePreset === 'string') {
-        updateEditorSettings({ themePreset: workspace.themePreset });
-      }
-      applyThemeAndColors();
-      flashHint(`已导入界面配置：${file.name}`, 'success');
-    } catch (error) {
-      flashHint(`工作区导入失败：${error.message || error}`, 'warning');
-    }
-  });
   if (SERVER_CONFIG?.settingsUrl) return;  // 服务器版的下拉选择由工作区库接管
+  refreshWorkspaceSelect();
   // 单文件编辑器不承诺 file:// 间的浏览器存储；内置工作区与显式文件迁移最可靠。
   let selectedWorkspaceId = workspacePresetSelect?.value || 'wave-right';
   workspacePresetSelect?.addEventListener('change', () => {
     selectedWorkspaceId = workspacePresetSelect.value;
+    const namedWorkspace = selectedWorkspaceId.startsWith('saved:') ? getSavedServerWorkspaces()[selectedWorkspaceId.slice(6)] : null;
+    if (namedWorkspace) {
+      pushLayoutUndo('切换工作区', waveformEditor.getLayoutHistorySnapshot?.());
+      waveformEditor.setLayoutData(namedWorkspace);
+      applyEditorDisplaySettings(namedWorkspace.editorDisplay);
+      currentServerWorkspaceName = selectedWorkspaceId.slice(6);
+      if (namedWorkspace.colors) updateEditorSettings({colors: namedWorkspace.colors});
+      if (namedWorkspace.themePreset) updateEditorSettings({themePreset: namedWorkspace.themePreset});
+      DATA.workspace = waveformEditor.getLayoutData();
+      applyThemeAndColors();
+      return;
+    }
     if (BUILTIN_WORKSPACE_IDS.includes(selectedWorkspaceId)) {
       waveformEditor.setLayout(selectedWorkspaceId);
       applyEditorDisplaySettings(window.AsrWaveform?.builtinWorkspaces?.[selectedWorkspaceId]?.editorDisplay);
@@ -25628,7 +25604,11 @@ function refreshThemeCustomList() {
     btn.className = 'theme-preset' + (active && EDITOR_SETTINGS.themePreset === value ? ' active' : '');
     btn.dataset.themePreset = value;
     btn.title = `自定义主题「${theme.name}」`;
-    btn.innerHTML = `<span class="theme-swatch" style="background: linear-gradient(135deg, ${theme.colors?.bg || '#22262e'} 50%, ${theme.colors?.accent || theme.accent || '#6ca5e8'} 50%);" aria-hidden="true"></span><span>${theme.name}</span>`;
+    const swatch = document.createElement('span');
+    swatch.className = 'theme-swatch'; swatch.setAttribute('aria-hidden', 'true');
+    swatch.style.background = `linear-gradient(135deg, ${theme.colors?.bg || '#22262e'} 50%, ${theme.colors?.accent || '#6ca5e8'} 50%)`;
+    const title = document.createElement('span'); title.textContent = theme.name;
+    btn.append(swatch, title);
     btn.addEventListener('click', () => {
       applyCustomTheme(theme);
     });

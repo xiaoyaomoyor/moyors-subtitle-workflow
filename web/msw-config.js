@@ -21,7 +21,7 @@
   let native;
   try { native = global.localStorage; } catch (_) { /* Private mode remains usable in memory. */ }
   let registry = {}, view = {}, observed = {}, send = null, queue = [], timer, inFlight, blocked = false, announced = '';
-  let ready = Promise.resolve(), migration;
+  let ready = Promise.resolve(), migration, transfer = [];
   const pendingKey = 'msw.config.pending.v1', backupKey = 'msw.config.legacy.v1';
   const rawGet = key => { try { return native?.getItem(key) ?? null; } catch (_) { return null; } };
   const rawSet = (key, value) => { try { native?.setItem(key, value); } catch (_) { /* Server still persists. */ } };
@@ -108,6 +108,8 @@
   }
   function connect(snapshot, transport) {
     registry = snapshot.registry || {}; view = clone(snapshot.sections || {}); observed = {}; send = transport;
+    transfer=snapshot.transfer||transfer;
+    if(!send){try{view=fill(view,JSON.parse(rawGet('msw.config.offline.v1')||'{}'));}catch(_){}}
     const legacy = collect(snapshot);
     if (!rawGet(backupKey)) rawSet(backupKey, JSON.stringify(legacy));
     view = fill(view, legacy);
@@ -138,7 +140,29 @@
     if(result?.error) throw Error(result.error);
     return result;
   }
-  global.MSWConfig = {storage, connect, flush, diff, observe, update, get connected() { return !!send; }, get ready() { return ready; }, notice: ''};
+  function adopt(snapshot) {
+    // The open UI still displays the old values. Preserve that baseline so its
+    // next one-field edit cannot undo an import's unrelated fields.
+    for(const [key, rule] of Object.entries(registry)) if(!Object.hasOwn(observed,key)) observed[key]=clone(get(view,rule.path));
+    view=clone(snapshot.sections||{});
+    for(const [key,rule] of Object.entries(registry)) {
+      const value=get(view,rule.path);
+      if(value===undefined){try{native?.removeItem(key);}catch(_){}}
+      else rawSet(key,rule.encoding==='text'?String(value):JSON.stringify(value));
+    }
+    if(!send)rawSet('msw.config.offline.v1',JSON.stringify(view));
+  }
+  async function request(payload) {
+    await ready;await flush();
+    if(!send)return global.MSWConfigOffline.request(payload);
+    const result=await send(payload);
+    if(result?.error)throw Object.assign(Error(result.error),{conflict:result.conflict});
+    if(result.snapshot)adopt(result.snapshot);
+    return result;
+  }
+  global.MSWConfig = {storage, connect, flush, diff, observe, update, request, adopt,
+    get snapshot(){return {sections:clone(view),registry:clone(registry),transfer:clone(transfer)};},
+    get connected() { return !!send; }, get ready() { return ready; }, notice: ''};
   if (global.MSW_CONFIG_BOOTSTRAP) {
     const boot = global.MSW_CONFIG_BOOTSTRAP;
     connect(boot.snapshot, boot.url ? http : null);

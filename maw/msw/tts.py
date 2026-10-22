@@ -88,7 +88,7 @@ class TtsSettings:
     reasoning_mode = "off"
 
 
-def config_payload(env_path):
+def config_payload(env_path, *, config_root=None):
     values = load_env(env_path)
     def pick(name, default=""):
         return os.environ.get(name) or values.get(name, default)
@@ -97,15 +97,18 @@ def config_payload(env_path):
         recipe = validate_recipe(json.loads(pick("MSW_TTS_RECIPE", "{}")), require_voice=False)
     except (ValueError, TypeError):
         recipe = dict(DEFAULT_RECIPE)
+    from maw.config_defaults import recipe as user_recipe
+    from maw.user_config import config_path
+    recipe = user_recipe(config_root or config_path(env_path).parent, 'qwen', recipe)
     return {"recipe": recipe, "models": MODELS, "languages": LANGUAGES, **catalog_payload(),
             "regions": [{"id": region, "workspaceId": pick(f"MSW_TTS_{region.upper()}_WORKSPACE_ID"), "hasApiKey": bool(pick(f"MSW_TTS_{region.upper()}_API_KEY")
                 or (region == "beijing" and pick("DASHSCOPE_API_KEY")))} for region in ENDPOINTS]}
 
 
-def resolve_settings(env_path, raw, *, require_voice=True):
+def resolve_settings(env_path, raw, *, require_voice=True, config_root=None):
     if not isinstance(raw, dict):
         raise ValueError("TTS 配置格式无效")
-    recipe = validate_recipe(raw.get("recipe", config_payload(env_path)["recipe"]), require_voice=require_voice)
+    recipe = validate_recipe(raw.get("recipe", config_payload(env_path, config_root=config_root)["recipe"]), require_voice=require_voice)
     values = load_env(env_path)
     key_name = f"MSW_TTS_{recipe['region'].upper()}_API_KEY"
     key = raw.get("apiKey") or os.environ.get(key_name) or values.get(key_name)
@@ -120,13 +123,16 @@ def resolve_settings(env_path, raw, *, require_voice=True):
     return TtsSettings(key.strip(), recipe, workspace)
 
 
-def save_settings(env_path, raw):
+def save_settings(env_path, raw, *, config_root=None):
     import json
-    settings = resolve_settings(env_path, raw, require_voice=False)
+    settings = resolve_settings(env_path, raw, require_voice=False, config_root=config_root)
     save_env(env_path, {f"MSW_TTS_{settings.recipe['region'].upper()}_API_KEY": settings.api_key,
                         f"MSW_TTS_{settings.recipe['region'].upper()}_WORKSPACE_ID": settings.workspace_id,
                         "MSW_TTS_RECIPE": json.dumps(settings.recipe, ensure_ascii=False)})
-    return config_payload(env_path)
+    from maw.config_defaults import recipe as user_recipe
+    from maw.user_config import config_path
+    user_recipe(config_root or config_path(env_path).parent, 'qwen', settings.recipe, save=True)
+    return config_payload(env_path, config_root=config_root)
 
 
 def validate_snapshot(raw, provider_id="qwen"):

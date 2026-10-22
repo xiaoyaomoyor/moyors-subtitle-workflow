@@ -62,6 +62,9 @@ class DiskVersions:
                 raw = json.loads(load_env(self.api.env_path).get('MSW_EDITOR_VERSION_BACKUP', '{}'))
             except ValueError:
                 raw = {}
+            from maw.config_defaults import value
+            raw = value(self.api.user_config, 'recovery', {
+                'enabled': raw.get('enabled', True), 'interval': raw.get('interval', 300), 'limit': raw.get('limit', 20)})
         if not isinstance(raw, dict):
             raise ValueError('版本备份设置无效')
         enabled, interval, limit = raw.get('enabled', True), raw.get('interval', 300), raw.get('limit', 20)
@@ -71,7 +74,7 @@ class DiskVersions:
 
     def configure(self, raw):
         settings = self.settings(raw)
-        save_env(self.api.env_path, {'MSW_EDITOR_VERSION_BACKUP': json.dumps(settings)})
+        self.api.user_config.update(['defaults', 'recovery'], settings)
         return settings
 
     def _location(self):

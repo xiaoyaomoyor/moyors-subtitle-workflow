@@ -72,3 +72,14 @@ test('offline portable storage stays usable and does not expose project keys to 
   assert.equal(config.storage.getItem('project-draft'),'private content');
   await config.flush();
 });
+
+test('imported defaults survive subsequent one-field edits in the still-open UI',async()=>{
+  const {config}=client(),calls=[];
+  await config.connect(snapshot({theme:'dark',seekStepMs:1000}),async p=>{calls.push(p);return {};});
+  config.adopt(snapshot({theme:'light',seekStepMs:2750}));
+  config.storage.setItem(key,JSON.stringify({theme:'dark',seekStepMs:1000,cueListShowTime:false}));
+  await config.flush();
+  const batch=calls.find(p=>p.action==='patch');
+  assert.equal(batch.changes.length,1);assert.equal(batch.changes[0].path.at(-1),'cueListShowTime');
+  assert.equal(JSON.parse(config.storage.getItem(key)).seekStepMs,2750);
+});

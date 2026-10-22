@@ -32,6 +32,7 @@
     }
   </style>
   <link rel="stylesheet" href="launcher.css">
+  <link rel="stylesheet" href="../msw-config-manager.css">
 </head>
 <body>
   <div id="launcherToasts" class="launcher-toasts" aria-live="polite" aria-relevant="additions"></div>
@@ -1329,6 +1330,7 @@
               <div class="rail-group-title" data-i18n="tools_rail_files_general">常规</div>
               <button id="settingsRailAppearance" class="settings-tab active" type="button" role="tab" tabindex="0" aria-selected="true" aria-controls="settingsAppearancePanel" data-settings-tab="appearance" data-i18n="settings_tab_appearance">外观与语言</button>
               <button id="settingsRailFiles" class="settings-tab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="settingsFilesPanel" data-settings-tab="files" data-i18n="settings_tab_files">文件与输出</button>
+              <button type="button" class="settings-tab" id="launcher-config-manager-open" data-open-config-manager>配置管理</button>
             </div>
             <div class="rail-group">
               <div class="rail-group-title" data-i18n="settings_rail_processing_group">处理</div>
@@ -1369,6 +1371,7 @@
   </div>
 
   <script src="../msw-config.js"></script>
+  <script src="../msw-config-manager.js"></script>
   <script src="navigation.js"></script>
   <script src="launcher.js"></script>
   <script src="project-home.js"></script>

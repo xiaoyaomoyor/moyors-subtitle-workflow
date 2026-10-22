@@ -118,7 +118,8 @@ def _safe_json(value, depth=0):
             if not isinstance(key, str) or key in ('__proto__', 'constructor', 'prototype'):
                 raise ValueError('无效配置字段')
             if key.lower().replace('_', '').replace('-', '') in {
-                    'apikey', 'accesstoken', 'refreshtoken', 'authorization', 'password', 'secret', 'requesttoken'}:
+                    'apikey', 'accesstoken', 'refreshtoken', 'authorization', 'password', 'secret', 'requesttoken',
+                    'accesskeyid', 'accesskeysecret', 'secretkey', 'privatekey', 'workspaceid', 'bearertoken', 'clientsecret'}:
                 raise ValueError('用户偏好不接受密钥或凭据')
             _safe_json(child, depth + 1)
     elif isinstance(value, list):
@@ -127,7 +128,7 @@ def _safe_json(value, depth=0):
 
 
 def validate(sections):
-    if not isinstance(sections, dict) or set(sections) - {'browser', 'launcher', 'server', 'subtitlePresets', 'assStyles'}:
+    if not isinstance(sections, dict) or set(sections) - {'browser', 'launcher', 'server', 'subtitlePresets', 'assStyles', 'defaults'}:
         raise ValueError('不支持的配置分类')
     _safe_json(sections)
     if len(json.dumps(sections, ensure_ascii=False, allow_nan=False).encode()) > LIMIT:
@@ -162,10 +163,15 @@ def validate(sections):
         raise ValueError('工作区名称无效')
     if 'subtitlePresets' in sections:
         from maw.project_subtitle_style import normalize_presets
+        if not isinstance(sections['subtitlePresets'], dict):
+            raise ValueError('字幕预设库格式无效')
         normalize_presets({'version': 1, **sections['subtitlePresets']})
     if 'assStyles' in sections:
         if not isinstance(sections['assStyles'], dict):
             raise ValueError('样式库格式无效')
+    if 'defaults' in sections:
+        from maw.config_defaults_schema import validate as validate_defaults
+        validate_defaults(sections['defaults'])
 
 
 def _atomic(path, value):
@@ -186,8 +192,9 @@ class ConfigConflict(ValueError):
 
 
 class UserConfig:
-    def __init__(self, path=None):
+    def __init__(self, path=None, *, env_path=None):
         self.path = Path(path) if path is not None else config_path()
+        self.env_path = env_path
 
     def read(self):
         try:
@@ -206,7 +213,8 @@ class UserConfig:
         return data
 
     def snapshot(self):
-        return {**self.read(), 'registry': REGISTRY}
+        from maw.config_transfer import metadata
+        return {**self.read(), 'registry': REGISTRY, 'transfer': metadata()}
 
     def _write(self, before, after):
         validate(after['sections'])
@@ -326,4 +334,7 @@ class UserConfig:
             return self.migrate(values, 'browser')
         if payload.get('action') == 'patch':
             return self.patch(payload.get('changes'))
+        if payload.get('action') in {'catalog', 'export', 'preview', 'import', 'snapshots', 'restore-preview', 'restore', 'convert-workspace'}:
+            from maw.config_transfer import request
+            return request(self, payload)
         raise ValueError('未知配置操作')

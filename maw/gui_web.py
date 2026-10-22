@@ -653,26 +653,58 @@ def _queue_idle(method):
 
 @final
 class LauncherApi:
+    def choose_user_config_file(self):
+        from maw.user_config import LIMIT
+        chosen = _file_dialog(open_dialog=True, file_types=('MSW configuration (*.mswconfig;*.workspace.json)',))
+        if not chosen:
+            return {'cancelled': True}
+        path = Path(chosen[0])
+        try:
+            if not path.name.lower().endswith(('.mswconfig', '.workspace.json')):
+                return {'error': '请选择 .mswconfig 或 .workspace.json 文件'}
+            if path.stat().st_size > LIMIT:
+                return {'error': '配置文件超过 4 MB'}
+            return {'name': path.name, 'content': path.read_text(encoding='utf-8-sig')}
+        except (OSError, UnicodeError):
+            return {'error': '无法读取配置文件'}
+
+    def save_user_config_file(self, payload):
+        result = self.update_user_config({'action': 'export', 'categories': payload.get('categories')})
+        if result.get('error'):
+            return result
+        chosen = _file_dialog(open_dialog=False, save_filename='MSW.mswconfig', file_types=('MSW configuration (*.mswconfig)',))
+        if not chosen:
+            return {'cancelled': True}
+        from maw.file_io import atomic_write_text
+        path = Path(chosen[0]).with_suffix('.mswconfig')
+        from maw.user_config import config_path
+        if path.resolve() == config_path(self.paths.env_path).resolve():
+            return {'error': '请另选文件名，不能覆盖正在使用的内部配置库'}
+        atomic_write_text(path, json.dumps(result['package'], ensure_ascii=False, indent=2) + '\n')
+        return {'ok': True, 'notes': result['notes']}
+
     def get_user_config(self):
         from maw.user_config import UserConfig, config_path
         # load_env migrates only the explicit non-sensitive preference allowlist.
         from maw.gui_config import load_env
         load_env(self.paths.env_path)
-        snapshot = UserConfig(config_path(self.paths.env_path)).request()
+        snapshot = UserConfig(config_path(self.paths.env_path), env_path=self.paths.env_path).request()
         self._user_pref_baseline = snapshot['sections'].get('launcher', {}).copy()
         return snapshot
 
     def update_user_config(self, payload):
         from maw.user_config import UserConfig, config_path, ConfigConflict
         try:
-            snapshot = UserConfig(config_path(self.paths.env_path)).request(payload)
+            snapshot = UserConfig(config_path(self.paths.env_path), env_path=self.paths.env_path).request(payload)
             if isinstance(payload, dict) and payload.get('action') == 'migrate':
                 # get_config follows the startup migration and displays these values.
                 self._user_pref_baseline = snapshot['sections'].get('launcher', {}).copy()
             return snapshot
         except ConfigConflict as error:
             return {'error': str(error), 'conflict': error.paths}
-        except (ValueError, OSError):
+        except ValueError as error:
+            return {'error': str(error)}
+        except OSError:
             return {'error': '用户配置未保存，原文件已保留'}
 
     def __init__(

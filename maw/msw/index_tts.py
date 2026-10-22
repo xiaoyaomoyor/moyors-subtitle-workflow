@@ -94,15 +94,27 @@ class IndexTts:
         try:
             if path.stat().st_size > 4 * 1024 * 1024:
                 return copy.deepcopy(default)
-            return json.loads(path.read_text(encoding='utf-8'))
+            value = json.loads(path.read_text(encoding='utf-8'))
         except (OSError, ValueError):
-            return copy.deepcopy(default)
+            value = copy.deepcopy(default)
+        if name == 'presets.json':
+            from maw.config_defaults import presets
+            value = presets(self.root.parent, 'gpt-sovits' if self.root.name == 'gpt-sovits' else 'indextts', value)
+        return value
 
     def write(self, name, value):
         atomic_bytes(self.root / name, (json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode())
+        if name == 'settings.json' and 'recipe' in value:
+            from maw.config_defaults import recipe
+            recipe(self.root.parent, value['recipe']['provider'], value['recipe'], save=True)
+        if name == 'presets.json':
+            from maw.config_defaults import presets
+            presets(self.root.parent, 'gpt-sovits' if self.root.name == 'gpt-sovits' else 'indextts', value, save=True)
 
     def settings(self):
         raw = self.read('settings.json', {})
+        from maw.config_defaults import recipe as user_recipe
+        raw['recipe'] = user_recipe(self.root.parent, 'indextts', raw.get('recipe', {}))
         try:
             recipe = validate_recipe(raw.get('recipe', {}))
             url, timeout = self.connection(raw)

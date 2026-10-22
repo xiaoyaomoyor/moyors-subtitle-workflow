@@ -61,7 +61,7 @@ def resolve(api, raw):
         return api.index_tts.resolve(raw)
     if selected.id == 'yukkuri':
         return module.resolve_settings(api.yukkuri, raw)
-    settings = module.resolve_settings(api.env_path, raw)
+    settings = module.resolve_settings(api.env_path, raw, config_root=api.data_root)
     if settings.recipe.get('model_type') != 'CustomVoice':
         api.qwen_voices.validate_voice(settings)
     return settings
@@ -80,7 +80,7 @@ def save(api, raw, *, select=False):
     elif selected.id == 'yukkuri':
         api.yukkuri.save(engine='yukkuri' if select else api.yukkuri.payload()['engine'], recipe=raw['recipe'])
     else:
-        import_module('maw.msw.tts').save_settings(api.env_path, raw)
+        import_module('maw.msw.tts').save_settings(api.env_path, raw, config_root=api.data_root)
         if select:
             api.yukkuri.save(engine='qwen')
     if select:

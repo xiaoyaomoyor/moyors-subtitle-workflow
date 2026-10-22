@@ -258,7 +258,8 @@ class RuntimeController:
 
     def payload(self):
         with self.lock:
-            return {"recipe": dict(self.settings["recipe"]), "engine": self.settings["engine"],
+            from maw.config_defaults import recipe
+            return {"recipe": recipe(self.base.parent, 'yukkuri', self.settings["recipe"]), "engine": self.settings["engine"],
                     "runtime_path": self.settings["runtime_path"], "voices": VOICES, **self.state}
 
     def save(self, *, engine=None, recipe=None, runtime_path=None):
@@ -277,6 +278,9 @@ class RuntimeController:
             pending.write_text(json.dumps(value, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
             pending.replace(self.settings_path)
             self.settings = value
+            if recipe is not None:
+                from maw.config_defaults import recipe as user_recipe
+                user_recipe(self.base.parent, 'yukkuri', value['recipe'], save=True)
 
     def start(self, action, directory=""):
         if action not in {"install", "check", "cancel"}:
