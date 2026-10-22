@@ -100,18 +100,25 @@
     return {changed:preview.changed};
   }};
 
-  let dialog, categories=[], currentFile=null, preview=null, sourceId='', mode='export', busy=false, cacheReport=null;
+  let dialog, categories=[], knownCategories=[], currentFile=null, preview=null, sourceId='', mode='export', busy=false, cacheReport=null;
   const $=id=>dialog.querySelector('#config-'+id);
   const request=payload=>global.MSWConfig.request(payload);
   function message(text){$('message').textContent=text;}
   function invalidate(){preview=null;$('apply').disabled=true;$('preview-result').replaceChildren();}
   const selected=()=>[...dialog.querySelectorAll('[data-config-category]:checked')].map(x=>x.value);
+  function syncAll(){
+    const inputs=[...dialog.querySelectorAll('[data-config-category]:not(:disabled)')],count=inputs.filter(x=>x.checked).length;
+    $('all').checked=inputs.length>0&&count===inputs.length;
+    $('all').indeterminate=count>0&&count<inputs.length;
+    $('all').disabled=!inputs.length;
+  }
   function checkboxes(ids){
     $('categories').replaceChildren(...categories.map(row=>{
       const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=row.id;input.dataset.configCategory='';
-      input.checked=ids?ids.includes(row.id):row.id!=='onboarding';input.disabled=ids?!ids.includes(row.id):false;
-      input.addEventListener('change',invalidate);label.append(input,document.createTextNode(row.name));return label;
+      input.checked=ids?ids.includes(row.id):true;input.disabled=ids?!ids.includes(row.id):false;
+      input.addEventListener('change',()=>{syncAll();invalidate();});label.append(input,document.createTextNode(row.name));return label;
     }));
+    syncAll();
   }
   function renderPreview(value){
     $('preview-result').replaceChildren();
@@ -128,14 +135,15 @@
     let raw=JSON.parse(content.replace(/^\uFEFF/,''));safe(raw);
     if(!raw.format&&name.endsWith('.workspace.json'))raw=(await request({action:'convert-workspace',workspace:raw,name:name.replace(/\.workspace\.json$/i,'').slice(0,60)})).package;
     if(raw.format!=='msw-config'||raw.version!==1||!Array.isArray(raw.categories))throw Error('配置格式或版本不受支持');
-    const known=global.MSWConfig.connected?categories:global.MSWConfig.snapshot.transfer;
+    const known=global.MSWConfig.connected?knownCategories:global.MSWConfig.snapshot.transfer;
     if(raw.categories.some(id=>!known.some(x=>x.id===id)))throw Error('配置包含未知分类，请检查文件版本。');
     currentFile=raw;sourceId='';$('filename').textContent=name;checkboxes(raw.categories);invalidate();
-    message(raw.kind==='workspace'?'此文件将保存为工作区预设；当前布局不变。':!global.MSWConfig.connected&&raw.categories.some(id=>!offlineIds.includes(id))?'此处仅导入界面与字幕偏好；启动器、处理、配音和备份策略请在本机服务版中导入。':'请选择要导入的分类，然后预览变更。');
+    message(raw.kind==='workspace'?'保存为工作区预设，当前布局不变。':raw.categories.some(id=>['assStyles','onboarding'].includes(id))?'已略过旧样式库和首次提示状态，请选择其余分类。':!global.MSWConfig.connected&&raw.categories.some(id=>!offlineIds.includes(id))?'启动器、处理、配音和工程备份设置需在本机服务版导入。':'请选择要导入的分类，然后预览变更。');
   }
   async function changeMode(value){
     mode=value;invalidate();currentFile=null;sourceId='';$('filename').textContent='';message('');checkboxes(value==='export'?null:[]);
-    for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.setAttribute('aria-selected',String(tab.dataset.configMode===value));
+    for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.setAttribute(tab.getAttribute('role')==='tab'?'aria-selected':'aria-pressed',String(tab.dataset.configMode===value));
+    $('restore-note').hidden=value!=='restore';
     $('file-row').hidden=value!=='import';$('snapshots').hidden=value!=='restore';$('policy-row').hidden=value==='export';$('export').hidden=value!=='export';$('preview').hidden=value==='export';$('apply').hidden=value==='export';
     $('policy-note').hidden=value==='export'||$('policy').value!=='replace';
     const cache=value==='cache';
@@ -143,25 +151,28 @@
     $('cache-panel').hidden=!cache;
     if(cache){$('policy-row').hidden=true;$('policy-note').hidden=true;$('preview').hidden=true;$('apply').hidden=true;}
     if(value==='restore'){
-      const {snapshots}=await request({action:'snapshots'});$('snapshots').replaceChildren(new Option('选择回退快照',''),...snapshots.map(row=>new Option(`${new Date(row.created).toLocaleString()} · ${row.label}`,row.id)));
-      if(!snapshots.length)message('导入前会自动创建快照，目前还没有记录。');
+      const {snapshots}=await request({action:'snapshots'});$('snapshots').replaceChildren(new Option('选择配置备份',''),...snapshots.map(row=>new Option(`${new Date(row.created).toLocaleString()} · ${row.label}`,row.id)));
+      if(!snapshots.length)message('尚无配置备份；导入配置前会自动保存。');
     }
   }
-  const embeddedHost=document.getElementById('editor-config-manager');
+  const editorHost=document.getElementById('editor-config-manager');
+  const embeddedHost=editorHost||document.getElementById('launcher-config-manager');
   let initialized=false;
   function build(){
     dialog=document.createElement(embeddedHost?'section':'dialog');dialog.className='msw-config-manager'+(embeddedHost?' config-embedded':'');dialog.setAttribute('aria-label','配置管理');
     dialog.innerHTML=`${embeddedHost?'':'<header><strong id="config-title">配置管理</strong><button type="button" id="config-close" aria-label="关闭">×</button></header>'}
-      <div class="config-body"><p class="config-scope">管理用户默认值。当前工程与运行中任务不变；界面配置在重开窗口后生效。</p>
-      <nav role="tablist" aria-label="配置操作"><button data-config-mode="export" role="tab">导出</button><button data-config-mode="import" role="tab">导入</button><button data-config-mode="restore" role="tab">快照回退</button><button data-config-mode="cache" role="tab">波形缓存</button></nav>
-      <div id="config-cache-panel" hidden><p>优先复用完整缓存。仅清理其中已包含的重复基础波形，文件移入回收站。</p><div class="config-file-row"><button id="config-cache-analyze" type="button">分析当前媒体</button><button id="config-cache-clean" type="button" disabled>清理重复缓存</button></div><div id="config-cache-result"></div></div>
+      <div class="config-body"><p class="config-scope">导入、导出个人设置；不会改动当前工程。</p>
+      <nav role="tablist" aria-label="配置操作"><button data-config-mode="export" role="tab">导出</button><button data-config-mode="import" role="tab">导入</button></nav>
+      <details class="config-maintenance"><summary>备份与清理</summary><div class="config-maintenance-actions"><button data-config-mode="restore" aria-pressed="false" type="button">恢复配置备份</button><button data-config-mode="cache" aria-pressed="false" type="button">清理重复波形缓存</button></div></details>
+      <p id="config-restore-note" class="config-scope" hidden>恢复导入前的个人设置，可按分类选择；不恢复工程内容。</p>
+      <div id="config-cache-panel" hidden><p class="config-scope">缓存用于加快波形加载。这里只清理重复副本，移入回收站；不影响媒体和字幕。</p><div class="config-file-row"><button id="config-cache-analyze" type="button">分析当前媒体</button><button id="config-cache-clean" type="button" disabled>清理重复缓存</button></div><div id="config-cache-result"></div></div>
       <div id="config-file-row" class="config-file-row" hidden><button id="config-choose" type="button">选择配置文件</button><span id="config-filename"></span><input id="config-file" type="file" accept=".mswconfig,.workspace.json" hidden></div>
-      <select id="config-snapshots" aria-label="配置快照" hidden></select>
-      <fieldset><legend>配置分类 <button type="button" id="config-all">全选／取消</button></legend><div id="config-categories"></div></fieldset>
+      <select id="config-snapshots" aria-label="配置备份" hidden></select>
+      <fieldset><legend><label><input type="checkbox" id="config-all">配置分类</label></legend><div id="config-categories"></div></fieldset>
       <label id="config-policy-row" hidden><span>已有配置</span><select id="config-policy"><option value="keep">保留本机，补充缺失项</option><option value="replace">使用导入配置，覆盖所选分类</option></select></label>
       <p id="config-policy-note" class="config-policy-note" hidden>覆盖时，所选分类中未包含的设置回到默认；未选择的分类保持不变。</p>
       <div id="config-preview-result" aria-live="polite"></div><p id="config-message" role="status"></p>
-      <details class="config-scope-details"><summary>包含哪些内容？</summary><p>用户默认：界面、操作和处理偏好。工程配置：字幕、样式、位置、素材和工程布局，随 .mosp 保存。本次任务：范围、输入文件及运行参数，导入配置不会改动。密钥、账号音色、本机路径和项目历史不导出。</p></details></div>
+      <details class="config-scope-details"><summary>包含哪些内容？</summary><p>翻译与文本处理：翻译偏好、提示词、替换规则和后处理参数。配音设置：引擎、语速等合成偏好。工程备份设置：自动备份开关、间隔和保留数量。</p><p>字幕与素材随工程保存；密钥、私人音色、文件路径和备份文件不导出。界面设置在重开窗口后生效。</p></details></div>
       <footer><button id="config-export" type="button">导出 .mswconfig</button><button id="config-preview" type="button" hidden>预览变更</button><button id="config-apply" type="button" hidden disabled>确认应用</button></footer>`;
     (embeddedHost||document.body).append(dialog);
     if(!embeddedHost){$('close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
@@ -173,7 +184,7 @@
     $('cache-analyze').onclick=()=>run(async()=>{cacheReport=null;$('cache-clean').disabled=true;const report=await request({action:'cache-analyze'});if(!report.cancelled)showCache(report);});
     $('cache-clean').onclick=()=>run(async()=>{if(!cacheReport)return;const token=cacheReport.token;cacheReport=null;$('cache-clean').disabled=true;const report=await request({action:'cache-clean',token});showCache(report);message([`已将 ${report.removed} 项重复缓存移入回收站。`,...(report.warnings||[])].join(' '));});
     for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.onclick=()=>run(()=>changeMode(tab.dataset.configMode));
-    $('all').onclick=()=>{const inputs=[...dialog.querySelectorAll('[data-config-category]:not(:disabled)')],checked=inputs.some(x=>!x.checked);inputs.forEach(x=>x.checked=checked);invalidate();};
+    $('all').onchange=()=>{const checked=$('all').checked;dialog.querySelectorAll('[data-config-category]:not(:disabled)').forEach(x=>x.checked=checked);syncAll();invalidate();};
     $('policy').onchange=()=>{invalidate();$('policy-note').hidden=$('policy').value!=='replace';};
     $('snapshots').onchange=()=>{sourceId=$('snapshots').value;checkboxes(sourceId?categories.map(x=>x.id):[]);invalidate();};
     $('choose').onclick=()=>{
@@ -192,7 +203,7 @@
       message(result.package.categories.length>ids.length?'已导出，并包含预览所需的字幕预设。':'配置文件已导出。');
     });
     $('preview').onclick=()=>run(async()=>{
-      if(mode==='import'&&!currentFile||mode==='restore'&&!sourceId)throw Error('请先选择配置文件或快照');
+      if(mode==='import'&&!currentFile||mode==='restore'&&!sourceId)throw Error('请先选择配置文件或配置备份');
       const payload={categories:selected(),policy:$('policy').value,...(mode==='restore'?{id:sourceId}:{package:currentFile})};
       preview={payload,result:await request({...payload,action:mode==='restore'?'restore-preview':'preview'})};renderPreview(preview.result);
     });
@@ -207,18 +218,24 @@
     cacheReport=null;$('cache-clean').disabled=true;$('cache-result').replaceChildren();
     dialog.querySelector('[data-config-mode="cache"]').hidden=!global.MSWConfig.connected;
     $('cache-analyze').textContent=global.MSWLauncher?'选择媒体并分析':'分析当前媒体';
-    await run(async()=>{categories=(await request({action:'catalog'})).categories;await changeMode('export');initialized=true;if(!global.MSWConfig.connected)message('便携 HTML：仅管理此浏览器的界面与字幕偏好；处理默认值请使用本机服务版。');});
+    await run(async()=>{knownCategories=(await request({action:'catalog'})).categories;categories=knownCategories.filter(row=>!row.retired&&!['assStyles','onboarding'].includes(row.id));await changeMode('export');initialized=true;if(!global.MSWConfig.connected)message('便携 HTML：仅管理此浏览器的界面与字幕偏好；处理设置请使用本机服务版。');});
   }
   async function open(){
     if(embeddedHost){
-      global.MSWE_EDITOR_BRIDGE.openConfigSettings();
+      if(editorHost)global.MSWE_EDITOR_BRIDGE.openConfigSettings();
+      else global.MSWLauncher.openSettings('configurationSettingsSection');
       if(!initialized&&!busy)await initialize();
     }else{
       if(!dialog)build();if(!dialog.open)dialog.showModal();
       await initialize();
     }
   }
-  if(embeddedHost){build();global.addEventListener('msw:settings-opened',()=>{if(!initialized&&!busy)void initialize();});}
+  if(embeddedHost){
+    build();
+    global.addEventListener(editorHost?'msw:settings-opened':'msw:launcher-settings-tab',event=>{
+      if((editorHost||event.detail?.tab==='configuration')&&!initialized&&!busy)void initialize();
+    });
+  }
   global.MSWConfigManager={open};
   global.addEventListener('keydown',event=>{if(dialog?.open&&dialog.contains(event.target))event.stopPropagation();},true);
   document.addEventListener('click',event=>{if(event.target.closest('[data-open-config-manager]'))void open();});

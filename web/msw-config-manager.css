@@ -5,7 +5,7 @@
   --cfg-border: var(--border, #454952);
   box-sizing: border-box; width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 40px);
   padding: 0; border: 1px solid var(--cfg-border); border-radius: 10px;
-  background: var(--cfg-bg); color: var(--cfg-text); font: inherit; box-shadow: 0 14px 48px #0005;
+  background: var(--cfg-bg); color: var(--cfg-text); font: inherit; font-size: 13px; line-height: 1.5; box-shadow: 0 14px 48px #0005;
 }
 .msw-config-manager::backdrop { background: #0005; }
 .msw-config-manager header, .msw-config-manager footer { display: flex; align-items: center; gap: 10px; padding: 12px 18px; }
@@ -14,18 +14,19 @@
 .msw-config-manager footer { justify-content: flex-end; border-top: 1px solid var(--cfg-border); }
 .msw-config-manager .config-body { overflow: auto; max-height: calc(100vh - 185px); padding: 16px 18px; }
 .msw-config-manager p { margin: 8px 0; line-height: 1.55; }
-.msw-config-manager .config-scope, .msw-config-manager .config-policy-note, .msw-config-manager .config-scope-details { color: var(--cfg-muted); font-size: .9em; }
+.msw-config-manager .config-scope, .msw-config-manager .config-policy-note, .msw-config-manager .config-scope-details { color: var(--cfg-muted); }
+.msw-config-manager label, .msw-config-manager legend, .msw-config-manager summary { font: inherit; letter-spacing: normal; }
 .msw-config-manager nav { display: flex; gap: 6px; margin: 16px 0; }
 .msw-config-manager button, .msw-config-manager select { min-height: 32px; border: 1px solid var(--cfg-border); border-radius: 6px; background: transparent; color: inherit; padding: 5px 10px; font: inherit; cursor: pointer; }
 .msw-config-manager button:hover { background: color-mix(in srgb, var(--accent, #7ca6dd) 12%, transparent); }
-.msw-config-manager button[aria-selected="true"], .msw-config-manager #config-apply:enabled { border-color: var(--accent, #7ca6dd); color: var(--accent, #7ca6dd); background: color-mix(in srgb, var(--accent, #7ca6dd) 12%, transparent); }
+.msw-config-manager button[aria-selected="true"], .msw-config-manager button[aria-pressed="true"], .msw-config-manager #config-apply:enabled { border-color: var(--accent, #7ca6dd); color: var(--accent, #7ca6dd); background: color-mix(in srgb, var(--accent, #7ca6dd) 12%, transparent); }
 .msw-config-manager button:disabled { opacity: .45; cursor: default; }
 .msw-config-manager fieldset { min-width: 0; margin: 18px 0; padding: 12px; border: 1px solid var(--cfg-border); border-radius: 6px; }
 .msw-config-manager legend { padding: 0 5px; }
-.msw-config-manager #config-all { border: 0; font-size: .85em; color: var(--cfg-muted); }
 .msw-config-manager #config-categories { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px 18px; }
-.msw-config-manager #config-categories label { display: flex; align-items: center; gap: 8px; }
-.msw-config-manager input[type="checkbox"] { appearance: auto; width: 16px; height: 16px; margin: 0; accent-color: var(--accent, #7ca6dd); }
+.msw-config-manager #config-categories label, .msw-config-manager legend label { display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; }
+.msw-config-manager #config-categories label:has(input:disabled) { opacity: .45; cursor: default; }
+.msw-config-manager input[type="checkbox"] { appearance: auto; flex: 0 0 16px; width: 16px; height: 16px; margin: 0; accent-color: var(--accent, #7ca6dd); }
 .msw-config-manager .config-file-row, .msw-config-manager #config-policy-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .msw-config-manager #config-filename { overflow-wrap: anywhere; color: var(--cfg-muted); }
 .msw-config-manager #config-snapshots { width: 100%; }
@@ -36,6 +37,9 @@
 .msw-config-manager #config-message { margin: 14px 0; }
 .msw-config-manager [hidden] { display: none !important; }
 .msw-config-manager summary { cursor: pointer; margin-top: 12px; }
+.msw-config-manager .config-maintenance { color: var(--cfg-muted); }
+.msw-config-manager .config-maintenance-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 16px; }
+.msw-config-manager .config-maintenance-actions button { color: var(--cfg-text); }
 .msw-config-manager #config-preview-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; font-size: .85em; }
 .msw-config-manager[aria-busy="true"] button { pointer-events: none; opacity: .55; }
 .msw-config-manager.config-embedded { width: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
@@ -45,4 +49,4 @@
 .config-embedded fieldset { margin: 16px 0; }
 .config-embedded #config-categories { grid-template-columns: repeat(auto-fit,minmax(min(100%,150px),1fr)); gap: 12px; }
 .config-embedded #config-policy-row select { min-width: 0; max-width: 100%; }
-#editor-config-manager { width: 100%; min-width: 0; }
+#editor-config-manager, #launcher-config-manager { width: 100%; min-width: 0; }

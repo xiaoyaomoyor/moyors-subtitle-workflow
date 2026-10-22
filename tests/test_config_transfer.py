@@ -1,4 +1,3 @@
-import copy
 import json
 import tempfile
 import unittest
@@ -6,8 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from maw.user_config import UserConfig, ConfigConflict
-from maw.config_transfer import package, parse, workspace, CATEGORIES
-from maw.config_defaults import public_recipe, public_plan, recipe
+from maw.config_transfer import package, parse, workspace
+from maw.config_defaults import public_recipe, public_plan
 
 
 class TransferTests(unittest.TestCase):
@@ -61,6 +60,29 @@ class TransferTests(unittest.TestCase):
         for content in [{'apiKey': 'private'}, {'__proto__': {}}, {'secret': 'x'}]:
             with self.assertRaises(ValueError):
                 parse(package({'browser': {'moy.asr.editor.settings.v1': content}}, ['interface']))
+
+    def test_catalog_retires_old_library_and_onboarding_without_losing_stored_data(self):
+        key = 'moy.asr.editor.onboarding.v1'
+        self.store.update(['browser', key], 'done')
+        rows = self.store.request({'action': 'catalog'})['categories']
+        visible = [row['id'] for row in rows if not row['retired']]
+        self.assertEqual(len(visible), 8)
+        self.assertNotIn('assStyles', visible)
+        self.assertNotIn('onboarding', visible)
+        names = {row['id']: row['name'] for row in rows}
+        self.assertEqual(names['processing'], '翻译与文本处理')
+        self.assertEqual(names['tts'], '配音设置')
+        self.assertEqual(names['recovery'], '工程备份设置')
+        exported = self.store.request({'action': 'export', 'categories': visible})['package']
+        self.assertNotIn('assStyles', exported['sections'])
+        self.assertNotIn(key, exported['sections'].get('browser', {}))
+        # Old files can still be validated; importing active categories must not
+        # apply their retired contents or erase the user's internal state.
+        old = package({'browser': {key: 'skipped', 'mawe.language': 'en'}}, ['interface', 'onboarding'])
+        self.imported(old, categories=['interface'])
+        current = self.store.read()['sections']['browser']
+        self.assertEqual(current[key], 'done')
+        self.assertEqual(current['mawe.language'], 'en')
 
     def test_invalid_files_atomic(self):
         raw = package({'browser': {'mawe.language': 'en'}}, ['interface'])

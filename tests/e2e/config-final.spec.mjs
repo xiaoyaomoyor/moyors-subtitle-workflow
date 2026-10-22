@@ -13,7 +13,7 @@ test('cache analysis uses the active media and cannot delete unreviewed files',a
   try{
     await page.goto(server.url);await page.waitForFunction(()=>window.MSWConfig?.connected);
     const before=await page.evaluate(()=>JSON.stringify(DATA));
-    await page.evaluate(()=>MSWConfigManager.open());await page.locator('[data-config-mode="cache"]').click();
+    await page.evaluate(()=>MSWConfigManager.open());await page.locator('.config-maintenance summary').click();await page.locator('[data-config-mode="cache"]').click();
     await page.locator('#config-cache-analyze').click();
     await expect(page.locator('#config-cache-result')).toContainText('synthetic.wav');
     await expect(page.locator('#config-cache-clean')).toBeDisabled();

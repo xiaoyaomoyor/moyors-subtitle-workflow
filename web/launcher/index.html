@@ -1298,6 +1298,12 @@
             </div>
           </div>
           </section>
+          <section id="settingsConfigurationPanel" class="settings-panel hidden" role="tabpanel" aria-labelledby="launcher-config-manager-open" data-settings-panel="configuration" aria-hidden="true">
+            <div id="configurationSettingsSection" class="settings-section">
+              <h3>配置管理</h3>
+              <div id="launcher-config-manager"></div>
+            </div>
+          </section>
           <section id="settingsCachePanel" class="settings-panel hidden" role="tabpanel" aria-labelledby="settingsRailCache" data-settings-panel="cache" aria-hidden="true">
           <div id="cacheSettingsSection" class="settings-section">
             <h3 data-i18n="settings_cache">缓存与诊断</h3>
@@ -1330,7 +1336,7 @@
               <div class="rail-group-title" data-i18n="tools_rail_files_general">常规</div>
               <button id="settingsRailAppearance" class="settings-tab active" type="button" role="tab" tabindex="0" aria-selected="true" aria-controls="settingsAppearancePanel" data-settings-tab="appearance" data-i18n="settings_tab_appearance">外观与语言</button>
               <button id="settingsRailFiles" class="settings-tab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="settingsFilesPanel" data-settings-tab="files" data-i18n="settings_tab_files">文件与输出</button>
-              <button type="button" class="settings-tab" id="launcher-config-manager-open" data-open-config-manager>配置管理</button>
+              <button type="button" class="settings-tab" id="launcher-config-manager-open" role="tab" tabindex="-1" aria-selected="false" aria-controls="settingsConfigurationPanel" data-settings-tab="configuration">配置管理</button>
             </div>
             <div class="rail-group">
               <div class="rail-group-title" data-i18n="settings_rail_processing_group">处理</div>

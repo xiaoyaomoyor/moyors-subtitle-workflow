@@ -12,14 +12,14 @@
 | 编辑器语言 | `web/editor-i18n.js::normalizeLanguage`，默认中文 | 公共库 `browser.mawe.language` | 是 | 当前窗口即时 |
 | 独立预览样式选择 | `web/msw-project-style-ui.js` 的 proof 状态，默认跟随工程 | 公共库 `browser.msw.subtitle-proof.v1` | 是，须检查预设依赖 | 下次预览；不修改工程样式 |
 | 字幕样式预设库 | 用户保存的外观、动画、字体类别等；`maw/project_subtitle_style.py::normalize_presets`，用户库默认空，内置预设来自代码 | 公共库 `subtitlePresets` | 是 | 新应用预设时；已写入工程的样式保持原值 |
-| ASS 样式库 | `maw/ass_styles.py::default_ass_style_library/normalize_ass_style_library` | 公共库 `assStyles` | 是 | 新应用／输出请求时 |
+| 旧 ASS 样式库 | `maw/ass_styles.py::default_ass_style_library/normalize_ass_style_library`，仅内部旧协议保留 | 公共库 `assStyles` | 不再提供可选分类；内部备份仍保留 | 旧内部调用 |
 | 工作区库 | 保存的工作区、内置布局覆盖、当前工作区；`ServerSettings` 与 `normalizeLayoutData` | 公共库 `server` | 是，排除导航历史 | 显式切换／新打开编辑器 |
 | 启动器通用偏好 | 语言、主题、缩放、常用语言、上次模型／识别语言、输出子目录、模型名后缀、完成通知、预制模块、断句限制；`maw/gui_config.py::EffectiveConfig/effective_config` | 公共库 `launcher`（原 GUI 环境字段为迁移输入） | 是 | 界面即时或下一次任务；已运行任务不变 |
 | 启动器界面记忆 | 当前页面／工具、设置页、日志卡、工程分组折叠；各 `web/launcher/*.js` 常量 | 公共库 `browser.MSW_*` 登记项 | 是 | 新打开窗口 |
 | 文本处理偏好 | 翻译调用选择、语言／提示词、启动器 LLM 提示词和口播对齐空隙参数；各处理模块的 defaults/normalize | 公共库对应 `browser` 项 | 是 | 下一次调用 |
 | 面板位置与折叠 | 各浮窗 position key，未保存时由布局代码居中／锚定 | 公共库 `browser` 的 panels 分类 | 是 | 下次打开面板；小屏仍由布局代码约束 |
 | 素材库显示 | 列数、播放器、变化标记；`web/msw-asset-library.js` | 公共库 browser 对应三个字段 | 是 | 下次打开／本窗口操作即时 |
-| 引导状态与内部迁移标记 | onboarding status、旧列表开关修正标记 | 公共库 `browser`；迁移旧服务端引导状态，旧接口也读写公共库 | 引导可选；迁移标记不导出 | 下次打开 |
+| 引导状态与内部迁移标记 | onboarding status、旧列表开关修正标记 | 公共库 `browser`；迁移旧服务端引导状态，旧接口也读写公共库 | 不再提供引导状态分类；迁移标记不导出 | 下次打开 |
 | 工程内容 | 字幕轨道／对应关系、单条外观／动画／位置、空隙、贴片、工程工作区、媒体引用；`JSON_SCHEMA.md` | `.mosp` | 随工程，不进入用户配置 | 工程编辑／保存 |
 | 工程恢复与导航 | 恢复草稿、savedAt、临时平级轨道交接、工程选中项 | 工程恢复库、原项目专属浏览器键／sessionStorage | 否 | 当前工程 |
 | 项目目录与历史 | 最近／全部工程、固定／NEW、媒体索引 | `server-editor-settings.json` 的 recent_projects、launcher registry／recent／media index | 否（本机工作记录） | 即时 |

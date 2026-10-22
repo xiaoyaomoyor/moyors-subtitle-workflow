@@ -13,8 +13,11 @@ from maw.user_config import (FORMAT, VERSION, LIMIT, MISSING, REGISTRY, ENV_KEYS
 CATEGORIES = {
     'interface': '界面与编辑操作', 'waveform': '波形与工作区', 'launcher': '启动器',
     'subtitlePresets': '字幕样式预设', 'preview': '预览偏好', 'assStyles': 'ASS 样式库',
-    'processing': '文本处理默认值', 'tts': '配音配方', 'recovery': '备份策略', 'onboarding': '首次使用提示',
+    'processing': '翻译与文本处理', 'tts': '配音设置', 'recovery': '工程备份设置', 'onboarding': '首次使用提示',
 }
+# Keep their schema available to validate existing files and internal backups,
+# but do not offer retired libraries or onboarding flags as user preferences.
+RETIRED_CATEGORIES = {'assStyles', 'onboarding'}
 GROUPS = {'editor': 'interface', 'appearance': 'interface', 'language': 'interface', 'panels': 'interface'}
 
 
@@ -49,7 +52,8 @@ def select(sections, categories):
 
 
 def metadata():
-    return [dict(id=key, name=name, paths=paths(key)) for key, name in CATEGORIES.items()]
+    return [dict(id=key, name=name, paths=paths(key), retired=key in RETIRED_CATEGORIES)
+            for key, name in CATEGORIES.items()]
 
 
 def category_list(raw):

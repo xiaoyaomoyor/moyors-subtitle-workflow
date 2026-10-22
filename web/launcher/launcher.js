@@ -3231,6 +3231,7 @@
     });
     const scroll = document.querySelector(".settings-scroll");
     if (scroll) scroll.scrollTop = 0;
+    window.dispatchEvent(new CustomEvent('msw:launcher-settings-tab', {detail: {tab: tabName}}));
   }
   function settingsTabForSection(sectionId) {
     return $(sectionId)?.closest("[data-settings-panel]")?.dataset.settingsPanel || "";
