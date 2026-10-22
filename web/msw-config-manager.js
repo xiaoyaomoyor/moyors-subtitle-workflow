@@ -147,9 +147,11 @@
       if(!snapshots.length)message('导入前会自动创建快照，目前还没有记录。');
     }
   }
+  const embeddedHost=document.getElementById('editor-config-manager');
+  let initialized=false;
   function build(){
-    dialog=document.createElement('dialog');dialog.className='msw-config-manager';dialog.setAttribute('aria-labelledby','config-title');
-    dialog.innerHTML=`<header><strong id="config-title">配置管理</strong><button type="button" id="config-close" aria-label="关闭">×</button></header>
+    dialog=document.createElement(embeddedHost?'section':'dialog');dialog.className='msw-config-manager'+(embeddedHost?' config-embedded':'');dialog.setAttribute('aria-label','配置管理');
+    dialog.innerHTML=`${embeddedHost?'':'<header><strong id="config-title">配置管理</strong><button type="button" id="config-close" aria-label="关闭">×</button></header>'}
       <div class="config-body"><p class="config-scope">管理用户默认值。当前工程与运行中任务不变；界面配置在重开窗口后生效。</p>
       <nav role="tablist" aria-label="配置操作"><button data-config-mode="export" role="tab">导出</button><button data-config-mode="import" role="tab">导入</button><button data-config-mode="restore" role="tab">快照回退</button><button data-config-mode="cache" role="tab">波形缓存</button></nav>
       <div id="config-cache-panel" hidden><p>优先复用完整缓存。仅清理其中已包含的重复基础波形，文件移入回收站。</p><div class="config-file-row"><button id="config-cache-analyze" type="button">分析当前媒体</button><button id="config-cache-clean" type="button" disabled>清理重复缓存</button></div><div id="config-cache-result"></div></div>
@@ -161,8 +163,8 @@
       <div id="config-preview-result" aria-live="polite"></div><p id="config-message" role="status"></p>
       <details class="config-scope-details"><summary>包含哪些内容？</summary><p>用户默认：界面、操作和处理偏好。工程配置：字幕、样式、位置、素材和工程布局，随 .mosp 保存。本次任务：范围、输入文件及运行参数，导入配置不会改动。密钥、账号音色、本机路径和项目历史不导出。</p></details></div>
       <footer><button id="config-export" type="button">导出 .mswconfig</button><button id="config-preview" type="button" hidden>预览变更</button><button id="config-apply" type="button" hidden disabled>确认应用</button></footer>`;
-    document.body.append(dialog);
-    $('close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
+    (embeddedHost||document.body).append(dialog);
+    if(!embeddedHost){$('close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
     const showCache=report=>{
       cacheReport=report;$('cache-result').replaceChildren();$('cache-clean').disabled=!report.count;
       const heading=document.createElement('p');heading.textContent=`${report.media} · 可清理 ${report.count} 项（${(report.bytes/1024).toFixed(1)} KB）`;$('cache-result').append(heading);
@@ -200,13 +202,23 @@
       invalidate();message(result.changed?'配置已保存。请重开窗口使用新的界面设置；当前工程与任务保持不变。':'配置相同，无需更改。');
     });
   }
-  async function open(){
-    if(!dialog)build();if(!dialog.open)dialog.showModal();
+  async function initialize(){
+    if(!dialog)build();
     cacheReport=null;$('cache-clean').disabled=true;$('cache-result').replaceChildren();
     dialog.querySelector('[data-config-mode="cache"]').hidden=!global.MSWConfig.connected;
     $('cache-analyze').textContent=global.MSWLauncher?'选择媒体并分析':'分析当前媒体';
-    await run(async()=>{categories=(await request({action:'catalog'})).categories;await changeMode('export');if(!global.MSWConfig.connected)message('便携 HTML：仅管理此浏览器的界面与字幕偏好；处理默认值请使用本机服务版。');});
+    await run(async()=>{categories=(await request({action:'catalog'})).categories;await changeMode('export');initialized=true;if(!global.MSWConfig.connected)message('便携 HTML：仅管理此浏览器的界面与字幕偏好；处理默认值请使用本机服务版。');});
   }
+  async function open(){
+    if(embeddedHost){
+      global.MSWE_EDITOR_BRIDGE.openConfigSettings();
+      if(!initialized&&!busy)await initialize();
+    }else{
+      if(!dialog)build();if(!dialog.open)dialog.showModal();
+      await initialize();
+    }
+  }
+  if(embeddedHost){build();global.addEventListener('msw:settings-opened',()=>{if(!initialized&&!busy)void initialize();});}
   global.MSWConfigManager={open};
   global.addEventListener('keydown',event=>{if(dialog?.open&&dialog.contains(event.target))event.stopPropagation();},true);
   document.addEventListener('click',event=>{if(event.target.closest('[data-open-config-manager]'))void open();});

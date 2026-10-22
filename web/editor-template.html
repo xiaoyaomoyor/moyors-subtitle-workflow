@@ -213,9 +213,6 @@ __WAVEFORM_CSS__
         <div class="dropdown-menu dropdown-submenu-menu" id="show-module-menu" role="menu"></div>
       </div>
       <div class="dropdown-separator"></div>
-      <div class="menu-group-title">配置</div>
-      <button type="button" class="dropdown-item" id="config-manager-open" data-open-config-manager role="menuitem">配置管理</button>
-      <div class="dropdown-separator"></div>
       <button type="button" class="dropdown-item" id="page-fullscreen-toggle" role="menuitem" title="让整个编辑器页面铺满屏幕（浏览器全屏，Esc 退出）"><span>页面全屏</span> <kbd class="menu-kbd">F11</kbd></button>
     </div>
   </div>
@@ -1371,6 +1368,11 @@ __WAVEFORM_CSS__
   <div class="settings-modal-body" id="editor-settings-panel">
       <nav class="settings-modal-nav" id="editor-settings-nav" aria-label="设置分类"></nav>
       <div class="settings-modal-content" id="editor-settings-content">
+
+        <div class="editor-settings-group settings-category" data-settings-category="configuration" id="configuration-settings-category">
+          <div class="settings-category-header">配置管理</div>
+          <div class="editor-settings-sub-group"><span class="editor-settings-title">配置管理</span><div id="editor-config-manager"></div></div>
+        </div>
 
         <div class="editor-settings-group settings-category" data-settings-category="environment" id="tts-environment-category">
           <div class="settings-category-header">环境配置</div>

@@ -149,21 +149,30 @@ def normalize_language_code(value: object) -> str:
 
 
 def infer_language_code(text: str) -> str:
-    """Infer only script-identifiable languages; do not call all Latin text English."""
-    if any("\uac00" <= char <= "\ud7af" for char in text):
+    """Infer from the dominant script, never from an isolated foreign phrase.
+
+    ASR can return quoted dialogue (or hallucinations) in another script. A
+    single kana token must not turn a long Latin transcript into character-mode
+    subtitles. Count letters only, so digits/punctuation do not skew inference;
+    Latin/Cyrillic/etc. remain unknown rather than falsely labelled English.
+    Provider language and explicit hints still take precedence in resolve_language.
+    """
+    letters = [char for char in text if unicodedata.category(char).startswith('L')]
+    total = len(letters)
+    if not total:
+        return ""
+    hangul = sum("\uac00" <= char <= "\ud7af" or "\u1100" <= char <= "\u11ff"
+                 or "\u3130" <= char <= "\u318f" for char in letters)
+    kana = sum("\u3040" <= char <= "\u30ff" or "\u31f0" <= char <= "\u31ff"
+               or "\uff66" <= char <= "\uff9d" for char in letters)
+    han = sum("\u3400" <= char <= "\u4dbf" or "\u4e00" <= char <= "\u9fff"
+              or "\uf900" <= char <= "\ufaff" or "\U00020000" <= char <= "\U000323af"
+              for char in letters)
+    if hangul * 2 > total:
         return "ko"
-    if any(
-        "\u3040" <= char <= "\u30ff"
-        or "\u31f0" <= char <= "\u31ff"
-        for char in text
-    ):
+    if (kana + han) * 2 > total and kana * 10 >= kana + han:
         return "ja"
-    if any(
-        "\u3400" <= char <= "\u4dbf"
-        or "\u4e00" <= char <= "\u9fff"
-        or "\uf900" <= char <= "\ufaff"
-        for char in text
-    ):
+    if han * 2 > total:
         return "zh"
     return ""
 

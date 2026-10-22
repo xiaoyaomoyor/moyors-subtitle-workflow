@@ -25311,6 +25311,7 @@ function applyEditorSettingsSearch(query) {
   content?.classList.add('show-all-categories');
   editorSettingsCategories.forEach((category) => {
     let categoryMatchCount = 0;
+    const categoryHit = settingsCategoryLabel(category).toLowerCase().includes(normalized);
     // 无子分区（如外观）的分类直接以子组行作为可搜索单元。
     const subsections = category.querySelectorAll('.settings-subsection');
     const searchScopes = subsections.length
@@ -25326,7 +25327,7 @@ function applyEditorSettingsSearch(query) {
       rowScope.forEach((row) => {
         if (row.classList.contains('editor-settings-title')) return;
         const rowText = `${row.textContent || ''}\n${row.getAttribute('title') || ''}`.toLowerCase();
-        const hit = rowText.includes(normalized) && !row.hidden;
+        const hit = (categoryHit || rowText.includes(normalized)) && !row.hidden;
         row.classList.toggle('search-hidden', !hit);
         if (hit) matchCount += 1;
       });
@@ -26220,6 +26221,11 @@ window.MSWE_EDITOR_BRIDGE = Object.freeze({
   flashHint,
   scrollCueToCenter,
   setEditorSettingsPanelOpen,
+  openConfigSettings: () => {
+    setEditorSettingsPanelOpen(true);
+    activateEditorSettingsCategory(document.getElementById('configuration-settings-category'));
+    document.getElementById('editor-settings-content').scrollTop = 0;
+  },
   modKeyLabel,
   splitKeyLabel,
   openHelp: () => helpFloatingPanel.open(),

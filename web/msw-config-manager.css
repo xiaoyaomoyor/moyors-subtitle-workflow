@@ -38,3 +38,11 @@
 .msw-config-manager summary { cursor: pointer; margin-top: 12px; }
 .msw-config-manager #config-preview-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; font-size: .85em; }
 .msw-config-manager[aria-busy="true"] button { pointer-events: none; opacity: .55; }
+.msw-config-manager.config-embedded { width: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.config-embedded .config-body { max-height: none; overflow: visible; padding: 0; }
+.config-embedded footer { padding: 14px 0 0; flex-wrap: wrap; }
+.config-embedded nav { flex-wrap: wrap; margin: 14px 0; }
+.config-embedded fieldset { margin: 16px 0; }
+.config-embedded #config-categories { grid-template-columns: repeat(auto-fit,minmax(min(100%,150px),1fr)); gap: 12px; }
+.config-embedded #config-policy-row select { min-width: 0; max-width: 100%; }
+#editor-config-manager { width: 100%; min-width: 0; }

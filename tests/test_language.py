@@ -37,6 +37,23 @@ class LanguageContractTests(unittest.TestCase):
             "segment",
         )
 
+    def test_isolated_foreign_words_do_not_reclassify_latin_transcript(self) -> None:
+        for quote in ('こんにちは', '你好', '안녕하세요'):
+            text = 'This is a long discussion of games and their design. ' * 3 + quote
+            self.assertEqual(resolve_language('', None, text), ('', 'unknown'))
+            self.assertEqual(split_mode_for_text(text), 'word')
+
+    def test_dominant_script_preserves_cjk_and_korean_without_numeric_bias(self) -> None:
+        for text, code in [('这是一个有关游戏设计的介绍', 'zh'), ('日本語の字幕です', 'ja'),
+                           ('ｺﾝﾆﾁﾊ', 'ja'), ('안녕하세요 반갑습니다', 'ko'),
+                           ('1234567890 --- 中文', 'zh'), ('这里讨论的是中文句子里面偶尔出现的の字', 'zh')]:
+            with self.subTest(text=text):
+                self.assertEqual(infer_language_code(text), code)
+        self.assertEqual(infer_language_code('...123'), '')
+        # Keep explicit provider/hint semantics; only fallback inference changes.
+        self.assertEqual(resolve_language('ja', None, 'English words'), ('ja', 'detected'))
+        self.assertEqual(resolve_language('', 'zh', 'English words'), ('zh', 'hint'))
+
     def test_timestamp_range_rejects_negative_and_overflowed_ranges(self) -> None:
         self.assertIsNone(normalize_timestamp_range(-0.1, 0.2, scale=1000))
         self.assertIsNone(normalize_timestamp_range(1, 2, scale=1e308))

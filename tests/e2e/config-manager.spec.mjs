@@ -20,9 +20,21 @@ test('editor import previews, isolates categories, preserves project and rolls b
     await page.goto(server.url);await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);
     await page.evaluate(async()=>{applyCanonicalProject({segments:[{id:'sample',start:0,end:3000,text:'Keep project style and content',items:[]}]},'fixture.mosp');updateEditorSettings({autoSaveProject:false,mediaSeekStepMs:1000});await MSWConfig.flush();});
     const before=await page.evaluate(()=>JSON.stringify(DATA));
-    await page.locator('[data-menubar-item="window"] .menubar-tab').click();await page.locator('#config-manager-open').click();
+    await expect(page.locator('#config-manager-open')).toHaveCount(0);
+    await page.locator('[data-menubar-item="edit"] .menubar-tab').click();await page.locator('#editor-settings-toggle').click();
+    await page.locator('#editor-settings-nav [data-settings-category="configuration"]').click();
+    await expect(page.locator('#editor-settings-modal')).toBeVisible();
+    await expect(page.locator('dialog.msw-config-manager')).toHaveCount(0);
+    // Opening global settings also initializes environment defaults. Finish
+    // those independent migrations before testing an import/restore snapshot.
+    await page.waitForLoadState('networkidle');
+    await page.locator('#editor-settings-search').fill('配置管理');
+    await expect(page.locator('#config-export')).toBeVisible();
+    await page.locator('#editor-settings-search').fill('');
     await expect(page.locator('.msw-config-manager')).toBeVisible();
     await upload(page,file({browser:{'moy.asr.editor.settings.v1':{mediaSeekStepMs:2750,autoSaveProject:false}}}));
+    await page.locator('#editor-settings-close').click();await open(page);
+    await expect(page.locator('#config-filename')).toHaveText('Test.mswconfig');
     await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();
     await expect(page.locator('#config-preview-result')).toContainText('界面与编辑操作');await expect(page.locator('#config-apply')).toBeEnabled();
     expect(await page.evaluate(()=>EDITOR_SETTINGS.mediaSeekStepMs)).toBe(1000);
@@ -40,7 +52,7 @@ test('editor import previews, isolates categories, preserves project and rolls b
     await page.locator('[data-config-category][value="interface"]').check();
     await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();await expect(page.locator('#config-apply')).toBeEnabled();
     await page.locator('#config-apply').click();await expect(page.locator('#config-message')).toContainText('配置已保存');
-    await page.locator('#config-close').click();await page.reload();await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);
+    await page.locator('#editor-settings-close').click();await page.reload();await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);
     expect(await page.evaluate(()=>EDITOR_SETTINGS.mediaSeekStepMs)).toBe(1000);
     await open(page);const downloadPromise=page.waitForEvent('download');await page.locator('#config-export').click();const downloaded=await downloadPromise;
     const exported=JSON.parse(readFileSync(await downloaded.path(),'utf8'));expect(exported.format).toBe('msw-config');expect(exported.revision).toBeUndefined();
@@ -70,7 +82,7 @@ test('portable editor transfers browser preferences and named legacy workspace',
   await upload(page,ws,'Sample.workspace.json');await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();await expect(page.locator('#config-apply')).toBeEnabled();await page.locator('#config-apply').click();
   expect(await page.evaluate(()=>MSWConfig.snapshot.sections.server.saved_workspaces.Sample.schema)).toBe('moy.asr.editor.workspace.v1');
   await upload(page,file({browser:{'moy.asr.editor.settings.v1':{mediaSeekStepMs:3250,theme:'light'}}}));await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();await page.locator('#config-apply').click();
-  await expect(page.locator('#config-message')).toContainText('配置已保存');await page.locator('#config-close').click();await page.reload();await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);
+  await expect(page.locator('#config-message')).toContainText('配置已保存');await page.locator('#editor-settings-close').click();await page.reload();await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);
   expect(await page.evaluate(()=>EDITOR_SETTINGS.mediaSeekStepMs)).toBe(3250);await open(page);await page.setViewportSize({width:560,height:760});
   const size=await page.locator('.msw-config-manager').evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth}));expect(size.scroll).toBeLessThanOrEqual(size.width);
   await page.screenshot({path:'output/config-manager-light-small.png'});

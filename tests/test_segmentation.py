@@ -8,6 +8,7 @@ from generate_subtitle_qwen_api import (
     split_words_to_segments_western,
 )
 from maw.project import validate_project
+from maw.language import resolve_language, split_mode_for_text
 
 
 def _words(pairs):
@@ -15,6 +16,26 @@ def _words(pairs):
 
 
 class WesternSplitTests(unittest.TestCase):
+    def test_latin_asr_with_one_japanese_aside_uses_word_limit(self) -> None:
+        # Cloud tokens can split a name/apostrophe. A later foreign-language
+        # aside used to classify the entire transcript as Japanese, cutting
+        # English at max_len characters, even with max_words=20.
+        parts = ["Welcome", " to", " Al", "ex", "'", "s", " Corner.",
+                 " Today", " we", " discuss", " the", " fundamentals", " of",
+                 " cooperative", " games", " and", " what", " makes", " them", " fun."]
+        items = _words([(v, i * 100, (i + 1) * 100) for i, v in enumerate(parts)])
+        items.append({'text': 'あ、これはゲームです。', 'start': 4000, 'end': 5000})
+        text = ''.join(item['text'] for item in items)
+        language, source = resolve_language('', None, text)
+        self.assertEqual((language, source), ('', 'unknown'))
+        segments = split_segments_auto(items, max_len=18, min_len=5,
+                                       max_words=20, min_words=3, gap_split_ms=800,
+                                       split_mode=split_mode_for_text(text, language))
+        self.assertEqual([s['text'] for s in segments], ["Welcome to Alex's Corner.",
+            ' Today we discuss the fundamentals of cooperative games and what makes them fun.',
+            'あ、これはゲームです。'])
+        self.assertEqual([item for s in segments for item in s['items']], items)
+
     def test_western_splits_complete_sentences_like_real_data(self) -> None:
         # 真实语料（merge 后）：旧逻辑输出 "The editing process. Now" + ", don't get me wrong,"
         items = _words([
