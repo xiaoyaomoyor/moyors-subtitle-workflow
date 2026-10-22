@@ -91,7 +91,7 @@ def _raise_if_cancelled(cancel_event) -> None:
         raise MediaCacheCancelled("waveform generation cancelled")
 
 
-def embed_media_caches(
+def _embed_media_caches(
     project: dict[str, Any],
     media_path: Path | str,
     *,
@@ -102,8 +102,9 @@ def embed_media_caches(
     default_audio_track: int = 0,
     decode_audio_track: int | None = None,
     cancel_event=None,
-    reuse_existing: bool = False,
+    reuse_existing: bool = True,
     force_rebuild: bool = False,
+    progress=None,
 ) -> MediaCacheResult:
     """嵌入波形缓存并生成 .ReaPeaks 缓存（best-effort）。
 
@@ -155,7 +156,7 @@ def embed_media_caches(
         decode_path = source_path
     # Explicit decode indices describe a derived file, never the original source.
     decode_audio_track = audio_track if decode_path == source_path else (decode_audio_track or 0)
-    if reuse_existing:
+    if reuse_existing and decode_path.is_file():
         project = {**project, "media_metadata": {**project.get("media_metadata", {}), "selected_audio_track": audio_track}}
         project = discard_stale_inline_caches(project, decode_path)
         for key in ("waveform", "waveform_reapeaks"):
@@ -169,14 +170,15 @@ def embed_media_caches(
         try:
             payload, _ = load_or_extract_waveform(project.get("waveform"), decode_path,
                 ffmpeg_bin=ffmpeg_bin, audio_track=decode_audio_track,
-                default_audio_track=default_audio_track, cancel_event=cancel_event)
+                default_audio_track=default_audio_track, cancel_event=cancel_event, progress=progress, persist=False)
             waveform_result = EmbeddedWaveformResult({**project, "waveform": payload})
         except Exception as error:
             waveform_result = EmbeddedWaveformResult(dict(project), error)
     else:
         waveform_result = embed_waveform(
             project, decode_path, ffmpeg_bin=ffmpeg_bin,
-            audio_track=decode_audio_track, cancel_event=cancel_event)
+            audio_track=decode_audio_track, cancel_event=cancel_event,
+            **({'progress': progress} if progress is not None else {}))
     _raise_if_cancelled(cancel_event)
     if (
         waveform_result.error is not None
@@ -194,6 +196,7 @@ def embed_media_caches(
             ffmpeg_bin=ffmpeg_bin,
             audio_track=0,
             cancel_event=cancel_event,
+            **({'progress': progress} if progress is not None else {}),
         )
     if waveform_result.error is not None and isinstance(waveform_result.error, MediaCacheCancelled):
         raise MediaCacheCancelled(str(waveform_result.error))
@@ -242,7 +245,7 @@ def embed_media_caches(
         default_audio_track=default_audio_track,
         self_peaks=self_peaks,
         self_peaks_media_path=decode_path,
-        **({"force": force_rebuild, "cancel_event": cancel_event} if reuse_existing or force_rebuild else {}),
+        force=force_rebuild, cancel_event=cancel_event,
     )
     _raise_if_cancelled(cancel_event)
     if reapeaks_path is not None:
@@ -317,3 +320,12 @@ def embed_media_caches(
         waveform_error=waveform_result.error,
         reapeaks_path=reapeaks_path,
     )
+
+
+def embed_media_caches(project, media_path, **options):
+    """Shared producer; serialize the same source across launcher and editor processes."""
+    from maw.cache_management import cache_lock
+    source = options.get('source_media_path') or media_path
+    with cache_lock(source):
+        _raise_if_cancelled(options.get('cancel_event'))
+        return _embed_media_caches(project, media_path, **options)

@@ -27,4 +27,4 @@
 
 旧数据只读迁移，保留原文件及浏览器原始快照；已经迁入的值不会被另一个端口的旧缓存覆盖。首次迁移、失败、冲突和离线边界须有自动化验证。
 
-第 3–4 阶段操作与生效规则见 [配置管理](CONFIGURATION_MANAGEMENT.md)，施工记录见 [本轮验证](TEST_FEEDBACK_CONFIG_PHASE34_20261022.md)。后续继续第 5 阶段波形缓存管理、第 6 阶段跨环境整体验证。
+六阶段实现及本机验收已完成。操作与生效规则见 [配置管理](CONFIGURATION_MANAGEMENT.md)，记录见 [第 3–4 阶段](TEST_FEEDBACK_CONFIG_PHASE34_20261022.md)及[第 5–6 阶段](TEST_FEEDBACK_CONFIG_PHASE56_20261022.md)。Windows 上覆盖 Chromium、Firefox、原生 WebView2 与便携 HTML；实际发行安装包以及 macOS／Linux 的发布验收仍需在对应环境执行。

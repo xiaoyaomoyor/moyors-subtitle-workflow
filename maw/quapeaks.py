@@ -494,6 +494,12 @@ def find_reapeaks_hit(
                     kind="exact" if candidate_track == audio_track else "default_fallback",
                 )
             if _header_matches_media(candidate, media_path):
+                try:
+                    parsed = ReapeaksFile(str(candidate))
+                    if not parsed.mipmaps:
+                        continue
+                except (OSError, ValueError, IndexError, struct.error):
+                    continue  # A truncated primary cache must not hide a valid legacy copy.
                 return ReapeaksHit(
                     path=candidate,
                     audio_track=candidate_track,
@@ -1235,6 +1241,8 @@ def generate_for_media(
             existing_hit is not None
             and existing_hit.kind == "exact"
             and (not include_spectral or _reapeaks_contains_spectral(existing))
+            and (self_peaks is None or find_self_wave_container(signature_path,
+                audio_track=cache_audio_track, default_audio_track=default_audio_track) == existing)
         ):
             return existing
     # 优先解码源媒体；源不可读或解不出音频时退回调用方给的派生文件，

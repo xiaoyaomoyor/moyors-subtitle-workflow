@@ -58,12 +58,12 @@ class MediaJobsTests(unittest.TestCase):
         self.assertEqual(first['status'], 'succeeded', first)
         artifact = self.media.jobs.artifact(first)
         self.assertEqual(artifact.suffix, '.mopeaks')
-        self.assertEqual(artifact.read_bytes()[:4], b'MPK1')
+        self.assertFalse(artifact.exists(), 'shared cache must not be copied to task storage')
         self.assertEqual(self.submit(media)['id'], first['id'])
         with self.assertRaises(KeyError):
             self.media.jobs.result(first['id'], 'other')
         again = self.media.register(self.source, 'temporary')
-        with mock.patch('maw.msw.media_jobs.extract_waveform', side_effect=AssertionError('cache missed')):
+        with mock.patch('maw.waveform.extract_waveform', side_effect=AssertionError('cache missed')):
             second = self.wait(self.submit(again))
         self.assertEqual(second['status'], 'succeeded', second)
         self.source.write_bytes(self.source.read_bytes() + b'changed')
@@ -77,13 +77,25 @@ class MediaJobsTests(unittest.TestCase):
             entered.set()
             cancel_event.wait(10)
             raise WaveformError('cancelled')
-        with mock.patch('maw.msw.media_jobs.extract_waveform', side_effect=block):
+        with mock.patch('maw.waveform.extract_waveform', side_effect=block):
             job = self.submit(media)
             self.assertTrue(entered.wait(5))
             self.media.jobs.cancel(job['id'], 'temporary')
             self.assertEqual(self.wait(job)['status'], 'cancelled')
         self.assertFalse(self.media.jobs.artifact(job).exists())
         self.assertEqual(self.wait(self.submit(media))['status'], 'succeeded')
+
+    def test_complete_shared_cache_remains_usable_without_generation_tools(self):
+        from types import SimpleNamespace
+        media = self.media.register(self.source, 'temporary')
+        self.assertEqual(self.wait(self.submit(media))['status'], 'succeeded')
+        again = self.media.register(self.source, 'temporary')
+        with mock.patch.object(self.media.api.exports, 'tools', return_value=SimpleNamespace(ffmpeg=None)), \
+             mock.patch('maw.quapeaks._load_rust_kernel', side_effect=AssertionError('cached read needs no kernel')), \
+             mock.patch('maw.waveform.extract_waveform', side_effect=AssertionError('cached read needs no decoder')):
+            job = self.wait(self.submit(again))
+        self.assertEqual(job['status'], 'succeeded', job)
+        self.assertIsNotNone(self.media.jobs.result(job['id'], 'temporary')['waveform'])
 
     def test_pre_cancelled_stream_extraction_does_not_start_ffmpeg(self):
         cancel = threading.Event(); cancel.set()
@@ -131,10 +143,11 @@ class MediaJobsTests(unittest.TestCase):
         jobs.persist(); jobs.close()
         self.media._waveforms = MediaJobs(self.media)
         self.assertEqual(self.media.jobs.result(old['id'], 'temporary')['waveform'], peaks)
-        with mock.patch('maw.msw.media_jobs.extract_waveform', side_effect=AssertionError('legacy cache was lost')):
+        with mock.patch('maw.waveform.extract_waveform', side_effect=AssertionError('legacy cache was lost')):
             result = self.wait(self.submit(media))
         self.assertEqual(result['status'], 'succeeded', result)
-        self.assertEqual(self.media.jobs.artifact(result).read_bytes()[:4], b'MPK1')
+        self.assertIsNotNone(self.media.jobs.read_waveform(result, media))
+        self.assertFalse(self.media.jobs.artifact(result).exists())
         self.assertEqual(json.loads(artifact.read_text(encoding='utf-8')), peaks)
 
     def test_container_default_second_track_and_explicit_first_track_have_separate_caches(self):
@@ -153,5 +166,5 @@ class MediaJobsTests(unittest.TestCase):
             waveform = self.media.jobs.result(result['id'], 'temporary')['waveform']
             self.assertEqual(waveform['audio_track'], record['audio_index'])
             self.assertEqual(any(base64.b64decode(waveform['data'])), audible)
-        self.assertTrue((maw_root(video) / (video.name + '.mopeaks')).is_file())
-        self.assertTrue((maw_root(video) / (video.name + '.track-1.mopeaks')).is_file())
+        self.assertTrue((maw_root(video) / (video.name + '.quapeaks')).is_file())
+        self.assertTrue((maw_root(video) / (video.name + '.track-1.quapeaks')).is_file())

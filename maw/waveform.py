@@ -382,6 +382,7 @@ def embed_waveform(
     ffmpeg_bin: str | None = None,
     audio_track: int = 0,
     cancel_event: threading.Event | None = None,
+    progress: Any = None,
 ) -> EmbeddedWaveformResult:
     """Return a project copy with embedded peaks, or the original project on failure."""
     try:
@@ -391,6 +392,7 @@ def embed_waveform(
             ffmpeg_bin=ffmpeg_bin,
             audio_track=audio_track,
             cancel_event=cancel_event,
+            **({'progress': progress} if progress is not None else {}),
         )
     except Exception as exc:  # noqa: BLE001
         return EmbeddedWaveformResult(project=project, error=exc)
@@ -409,6 +411,7 @@ def load_or_extract_waveform(
     default_audio_track: int | None = None,
     cancel_event: Any = None,
     progress: Any = None,
+    persist: bool = True,
 ) -> tuple[dict[str, Any], bool]:
     """Return cached peaks when valid, otherwise extract a fresh payload."""
     if not isinstance(audio_track, int) or isinstance(audio_track, bool) or audio_track < 0:
@@ -416,7 +419,8 @@ def load_or_extract_waveform(
     from maw import quapeaks, mopeaks
     for loader in (quapeaks.load_self_wave_payload, mopeaks.load_mopeaks):
         cached = loader(media_path, audio_track=audio_track, default_audio_track=default_audio_track)
-        if cached is not None and cached['peaks_per_second'] == peaks_per_second:
+        if (cached is not None and audio_track_from_payloads(cached) == audio_track
+                and cached['peaks_per_second'] == peaks_per_second):
             return cached, False
     if (
         waveform_matches_media(existing, media_path, audio_track=audio_track)
@@ -437,9 +441,10 @@ def load_or_extract_waveform(
         cancel_event=cancel_event,
         progress=progress,
     )
-    try:
-        save_waveform_sidecar(payload, media_path, default_audio_track=default_audio_track)
-    except OSError:
-        # A read-only media folder must not prevent HTML generation.
-        pass
+    if persist:
+        try:
+            save_waveform_sidecar(payload, media_path, default_audio_track=default_audio_track)
+        except OSError:
+            # A read-only media folder must not prevent HTML generation.
+            pass
     return payload, True

@@ -119,17 +119,19 @@ def plan(env_path, original, *, save=False):
 def seed(store, env_path=None):
     """Fill defaults from existing public settings before a transfer, without resource scans."""
     root = store.path.parent
+    existing = store.read()['sections'].get('defaults', {})
     folders = {'edge': 'edge-tts', 'indextts': 'index-tts', 'gpt-sovits': 'gpt-sovits',
                'yukkuri': 'yukkuri', 'minimax': 'minimax', 'mossland': 'mossland'}
     for provider, folder in folders.items():
         path = root / folder / 'settings.json'
-        if path.is_file():
+        if provider not in existing.get('tts', {}) and path.is_file():
             if path.stat().st_size > 4 * 1024 * 1024:
                 raise ValueError('旧配音配置过大')
             raw = json.loads(path.read_text(encoding='utf-8-sig'))
             recipe(root, provider, raw.get('recipe', {}))
         library_path = root / folder / 'presets.json'
-        if provider in ('indextts', 'gpt-sovits') and library_path.is_file():
+        if (provider in ('indextts', 'gpt-sovits')
+                and provider not in existing.get('tts', {}).get('presets', {}) and library_path.is_file()):
             if library_path.stat().st_size > 4 * 1024 * 1024:
                 raise ValueError('旧配音预设库过大')
             presets(root, provider, json.loads(library_path.read_text(encoding='utf-8-sig')))
@@ -137,14 +139,16 @@ def seed(store, env_path=None):
         from maw.gui_config import load_env
         from maw.postprocess_pipeline import load_postprocess_config, postprocess_config_path
         values = load_env(env_path)
-        if values.get('MSW_TTS_RECIPE'):
+        if 'qwen' not in existing.get('tts', {}) and values.get('MSW_TTS_RECIPE'):
             recipe(root, 'qwen', json.loads(values['MSW_TTS_RECIPE']))
-        backup = json.loads(values.get('MSW_EDITOR_VERSION_BACKUP', '{}'))
-        value(store, 'recovery', {'enabled': backup.get('enabled', True),
-                                'interval': backup.get('interval', 300), 'limit': backup.get('limit', 20)})
-        value(store, 'postprocess', load_postprocess_config(postprocess_config_path(env_path))['plan'])
+        if 'recovery' not in existing:
+            backup = json.loads(values.get('MSW_EDITOR_VERSION_BACKUP', '{}'))
+            value(store, 'recovery', {'enabled': backup.get('enabled', True),
+                                    'interval': backup.get('interval', 300), 'limit': backup.get('limit', 20)})
+        if 'postprocess' not in existing:
+            value(store, 'postprocess', load_postprocess_config(postprocess_config_path(env_path))['plan'])
     path = root / 'tts-engine.json'
-    if path.is_file():
+    if 'engine' not in existing.get('tts', {}) and path.is_file():
         raw = json.loads(path.read_text(encoding='utf-8'))
         engine = raw.get('engine', 'qwen')
         if engine in RECIPE_MODULES:

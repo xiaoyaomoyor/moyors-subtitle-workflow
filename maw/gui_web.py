@@ -695,6 +695,27 @@ class LauncherApi:
     def update_user_config(self, payload):
         from maw.user_config import UserConfig, config_path, ConfigConflict
         try:
+            if isinstance(payload, dict) and payload.get('action') in ('cache-analyze', 'cache-clean'):
+                from maw.cache_management import manage
+                from maw.project_io import default_audio_track_from_metadata
+                if payload['action'] == 'cache-analyze':
+                    chosen = _file_dialog(open_dialog=True, file_types=('Media (*.*)',))
+                    if not chosen:
+                        return {'cancelled': True}
+                    source = Path(chosen[0]).resolve(strict=True)
+                    from maw.media import probe_audio_tracks
+                    tracks = probe_audio_tracks(source, ffprobe_path=_postprocess_ffmpeg_tools(self.paths.env_path).ffprobe)
+                    if tracks is None:
+                        raise ValueError('无法读取媒体音轨，请检查 FFprobe 配置')
+                    metadata = {'audio_tracks': tracks}
+                    self._config_cache_media = (source, metadata)
+                else:
+                    if not payload.get('token') or not getattr(self, '_config_cache_media', None):
+                        raise ValueError('请先选择媒体并分析缓存')
+                    source, metadata = self._config_cache_media
+                return manage(source, tracks=[t['audio_index'] for t in metadata.get('audio_tracks', [])] or [0],
+                              default_audio_track=default_audio_track_from_metadata(metadata),
+                              token=payload.get('token') if payload['action'] == 'cache-clean' else None)
             snapshot = UserConfig(config_path(self.paths.env_path), env_path=self.paths.env_path).request(payload)
             if isinstance(payload, dict) and payload.get('action') == 'migrate':
                 # get_config follows the startup migration and displays these values.

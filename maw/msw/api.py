@@ -355,7 +355,22 @@ class ProcessingAPI:
             else:
                 payload = {key: values[0] for key, values in parse_qs(url.query).items()}
             if route == 'user-config':
-                result = self.user_config.request(payload if post else None)
+                if post and payload.get('action') in ('cache-analyze', 'cache-clean'):
+                    from maw.cache_management import manage
+                    from maw.project_io import default_audio_track_from_metadata
+                    with self.server.save_lock:
+                        project = self.server.project
+                        source = project.source_media_path or project.media_path
+                        metadata = project.data.get('media_metadata', {})
+                    if source is None or not source.is_file():
+                        raise ValueError('请先打开或导入媒体')
+                    if payload['action'] == 'cache-clean' and not payload.get('token'):
+                        raise ValueError('请先分析缓存')
+                    result = manage(source, tracks=[t['audio_index'] for t in metadata.get('audio_tracks', [])] or [0],
+                                    default_audio_track=default_audio_track_from_metadata(metadata),
+                                    token=payload.get('token') if payload['action'] == 'cache-clean' else None)
+                else:
+                    result = self.user_config.request(payload if post else None)
             elif route == 'subtitle-presets':
                 from maw.project_subtitle_style import load_presets, save_presets
                 with self.lock:
