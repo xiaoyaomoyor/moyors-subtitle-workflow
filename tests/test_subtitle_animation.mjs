@@ -5,6 +5,44 @@ import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import production from '../web/msw-production-project.js';
 
+test('unified fixed timing survives conversion, short cues, edits and project transactions',()=>{
+  let a=A.defaults();
+  for(const name of ['fade','slide','transform','blink','typewriter'])a=A.resolve(a,A.authorPatch(a,name,{type:'toggle',value:true},2000));
+  a=A.resolve(a,A.authorPatch(a,'all',{type:'timing',value:'ms',referenceDuration:2000},8000));
+  assert.equal(a.timing,'ms');assert.equal(a.effects.slide.in,300);assert.equal(a.effects.slide.endAnchor,'end');
+  assert.equal(a.effects.blink.period,400);assert.equal(a.effects.blink.periodUnit,'ms');
+  const saved=structuredClone(a),c=A.resolve(a,A.authorPatch(a,'all',{type:'mode',value:'custom'},2000));
+  assert.equal(c.effects.curves.unit,'ms');assert.equal(c.effects.curves.pulse.period,400);
+  for(const duration of [200,800,2000,7500])for(let time=0;time<=duration;time+=17){
+    for(const key of Object.keys(A.sample(a,time,duration,20)))assert.ok(Math.abs(A.sample(a,time,duration,20)[key]-A.sample(c,time,duration,20)[key])<1e-6,`${duration}/${time}/${key}`);
+  }
+  assert.deepEqual(a,saved);
+  let p=production.toProject({segments:[{start:0,end:1000,text:'one'}]});const id=p.subtitles.cues[0].id;
+  p=edit.updateAnimation(p,[{id,animation:c}]);assert.equal(p.subtitles.cues[0].content.subtitle_animation.timing,'ms');
+  assert.equal(edit.updateAnimation(p,[{id}],{reset:'all'}).subtitles.cues[0].content.subtitle_animation,undefined);
+  const restore=A.resolve(c,A.authorPatch(c,'slide',{type:'reset'},2000));assert.equal(restore.effects.slide.endAnchor,'end');
+  for(const bad of [NaN,-1,60001]){const v=structuredClone(c);v.effects.curves.channels.opacity[0].time=bad;assert.equal(A.valid(v),false);}
+  const ratio=A.resolve(c,A.authorPatch(c,'all',{type:'timing',value:'percent',referenceDuration:2000}));assert.equal(ratio.timing,'percent');assert.ok(A.valid(ratio));
+});
+
+test('end-anchored custom keys keep identical exit time for different lengths',()=>{
+  const a=A.defaults();a.mode='custom';a.timing='ms';a.effects.curves={enabled:true,unit:'ms',channels:{opacity:[
+    {time:0,value:0,easing:'linear',anchor:'start'},{time:300,value:100,easing:'linear',anchor:'start'},
+    {time:300,value:100,easing:'linear',anchor:'end'},{time:0,value:0,easing:'linear',anchor:'end'}]}};
+  assert.ok(A.valid(a));
+  for(const d of [1000,5000]){assert.equal(A.sample(a,150,d).opacity,.5);assert.equal(A.sample(a,d-150,d).opacity,.5);}
+  assert.equal(A.sample(a,75,300).opacity,.5);assert.equal(A.sample(a,225,300).opacity,.5);
+  assert.equal(a.effects.curves.channels.opacity[1].time,300);
+});
+
+test('zero-duration entry and exit do not turn into a full-cue ramp on conversion',()=>{
+  for(const name of ['fade','slide'])for(const entry of [0,300])for(const exit of [0,300]){
+    let a=A.defaults();a.timing='ms';a.effects[name]={...A.presetDefault(name),unit:'ms',enabled:true,start:0,end:0,endAnchor:'end',in:entry,out:exit};
+    const c=A.resolve(a,A.authorPatch(a,'all',{type:'mode',value:'custom'},2000));assert.ok(A.valid(c));
+    for(const duration of [200,2000])for(let t=0;t<=duration;t+=10)for(const key of ['x','opacity'])assert.ok(Math.abs(A.sample(a,t,duration)[key]-A.sample(c,t,duration)[key])<1e-7,`${name} ${entry}/${exit} ${t}/${duration}`);
+  }
+});
+
 test('fixed fades anchor to both cue ends and compress only when too short',()=>{
   let a=A.defaults();a=A.resolve(a,A.authorPatch(a,'fade',{type:'timing',value:'ms',in:300,out:500},2000));
   a=A.resolve(a,A.authorPatch(a,'fade',{type:'toggle',value:true},2000));

@@ -22,6 +22,30 @@ async function idle(page){await expect.poll(()=>page.evaluate(()=>MSWSubtitleRen
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 async function field(page,name,value){await page.locator('#style-field-'+name).fill(String(value));await page.locator('#style-field-'+name).blur();await idle(page);}
 
+test('fixed keyframes anchor from cue end, preserve multi-selection, undo and saved timing',async({page},info)=>{
+  await page.evaluate(()=>addToSelection(1));await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await page.locator('#motion-timing').selectOption('ms');await page.locator('#motion-custom').click();
+  await frame(page,0,100);await frame(page,2.2,100);await frame(page,2.5,0);
+  for(const index of [2,1]){
+    await page.locator(`#curve-graph [data-point="${index}"]`).click({button:'right'});
+    await page.locator('#ctxmenu .item').filter({hasText:/^终点前$/}).click();await idle(page);
+  }
+  await expect(page.locator('#curve-time-label')).toHaveText('终点前 (秒)');
+  await page.locator('#curve-time').fill('0.400');await page.locator('#curve-time').blur();await idle(page);
+  const saved=await snap(page),changed=saved.subtitles.cues.filter(c=>c.content.subtitle_animation);
+  expect(changed).toHaveLength(2);
+  for(const cue of changed){
+    expect(cue.content.subtitle_animation).toMatchObject({timing:'ms',effects:{curves:{unit:'ms',channels:{opacity:[{time:0,anchor:'start'},{time:400,anchor:'end'},{time:0,anchor:'end'}]}}}});
+  }
+  await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles).not.toEqual(saved.subtitles);
+  await page.evaluate(()=>performRedo());await idle(page);expect((await snap(page)).subtitles).toEqual(saved.subtitles);
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);await page.reload();await idle(page);
+  expect((await snap(page)).subtitles).toEqual(saved.subtitles);
+  await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await page.locator('#curve-graph').scrollIntoViewIfNeeded();
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('anchored-curves.png')});
+});
+
 test('selected frame time edits in place, drag keeps guides, playhead creates a local frame',async({page})=>{
   await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-custom').click();
   await frame(page,10,20);await frame(page,90,90);
@@ -44,23 +68,23 @@ test('selected frame time edits in place, drag keeps guides, playhead creates a 
 
 test('fixed fades use equal seconds on different cue lengths; slide and stretch convert with typewriter',async({page},info)=>{
   await page.evaluate(()=>addToSelection(1));await page.locator('#style-animation').evaluate(el=>el.open=true);
-  await page.locator('#motion-preset-fade').click();await page.locator('#motion-fade-timing').selectOption('ms');
-  await page.evaluate(()=>{
-    const p=JSON.parse(buildJson()),other=p.subtitles.cues.find(c=>c.content.text==='Second subtitle');
-    other.content.subtitle_animation.effects.fade={enabled:true,unit:'percent',in:10,out:10};
-    productionCommitProject(p,'mixed timing fixture',p.subtitles.cues.filter(c=>['First subtitle','Second subtitle'].includes(c.content.text)).map(c=>c.id));
-  });
-  for(const [k,v] of [['in','0.300'],['out','0.400']]){await page.locator('#motion-fade-'+k+'-seconds').fill(v);await page.locator('#motion-fade-'+k+'-seconds').blur();}
+  await page.locator('#motion-preset-fade').click();await page.locator('#motion-timing').selectOption('ms');
+  await expect(page.locator('#motion-fade-timing,#motion-fade-durations')).toHaveCount(0);
+  for(const [edge,key,count] of [[1,'ArrowRight',5],[2,'ArrowLeft',15]]){
+    await page.locator(`#motion-fade-graph [data-edge="${edge}"]`).focus();
+    for(let i=0;i<count;i++)await page.keyboard.press(key);
+  }
   await idle(page);let p=await snap(page);
-  for(const cue of p.subtitles.cues.filter(c=>['First subtitle','Second subtitle'].includes(c.content.text)))expect(cue.content.subtitle_animation.effects.fade).toEqual({enabled:true,unit:'ms',in:300,out:400});
+  for(const cue of p.subtitles.cues.filter(c=>['First subtitle','Second subtitle'].includes(c.content.text)))expect(cue.content.subtitle_animation.effects.fade).toEqual({enabled:true,unit:'ms',in:300,out:400,start:0,end:0,endAnchor:'end'});
   await page.evaluate(()=>selectOnly(0));
-  for(const name of ['slide','transform','typewriter'])await page.locator('#motion-preset-'+name).click();
+  for(const name of ['slide','transform','typewriter','blink'])await page.locator('#motion-preset-'+name).click();
   await page.locator('#motion-slide-direction').selectOption('up');await idle(page);
   p=await snap(page);const before=p.subtitles.cues[0].content.subtitle_animation;
   expect(before.effects.transform).toMatchObject({fromScale:100,toScale:115});
   await page.screenshot({path:info.outputPath('preset-blocks.png')});
   await page.locator('#motion-custom').click();await idle(page);
   await expect(page.locator('#motion-custom-typewriter')).toBeVisible();
+  await expect(page.locator('#curve-pulse')).toBeVisible();
   const after=(await snap(page)).subtitles.cues[0].content.subtitle_animation;
   const difference=await page.evaluate(({before,after})=>{const A=MSWSubtitleAnimation,a=A.normalize(before),b=A.normalize(after);let max=0;for(let time=0;time<=2500;time+=31)for(const key of ['opacity','x','y','scale','revealed'])max=Math.max(max,Math.abs(A.sample(a,time,2500,12)[key]-A.sample(b,time,2500,12)[key]));return max;},{before,after});
   expect(difference).toBeLessThan(.002);
@@ -77,15 +101,16 @@ async function effect(page,name,key,value){
   },{name,key,value});await idle(page);
 }
 async function axis(page,label,value){
+  if(label==='X 轴'){await page.locator('#motion-timing').selectOption(value==='时间百分比'?'percent':'ms');await idle(page);return;}
   await page.locator('#curve-graph').click({button:'right',position:{x:70,y:40}});
   await page.locator('#ctxmenu .ctx-submenu-toggle').filter({hasText:label}).hover();
   await page.locator('#ctxmenu .ctx-submenu.open .item').filter({hasText:new RegExp('^'+value+'$')}).click();
   await idle(page);
 }
 async function frame(page,time,value){
-  await page.locator('#curve-graph').click({position:{x:50,y:18}});
+  await page.locator('#curve-graph').click({position:{x:15,y:12}});
   await page.locator('#curve-time').fill(String(time));await page.locator('#curve-time').blur();
-  if(await page.locator('#curve-add').isDisabled()){const idx=await page.evaluate(time=>{const graph=document.getElementById('curve-graph');return [...graph.querySelectorAll('[data-point]')].findIndex(el=>el.getAttribute('aria-label').includes('，'+(document.getElementById('curve-time-label').textContent.includes('秒')?Number(time).toFixed(3)+' s':time+'%')+'，'));},time);if(idx>=0)await page.locator('#curve-graph [data-point="'+idx+'"]').click();}
+  if(await page.locator('#curve-add').isDisabled()){const idx=await page.evaluate(time=>{const graph=document.getElementById('curve-graph');return [...graph.querySelectorAll('[data-point]')].findIndex(el=>el.getAttribute('aria-label').includes((document.getElementById('curve-time-label').textContent.includes('秒')?Number(time).toFixed(3)+' s':time+'%')+'，'));},time);if(idx>=0)await page.locator('#curve-graph [data-point="'+idx+'"]').click();}
   await page.locator('#curve-value').fill(String(value));await page.locator('#curve-value').blur();
   if(await page.locator('#curve-add').isEnabled())await page.locator('#curve-add').click();
   await idle(page);
@@ -171,6 +196,10 @@ test('presets and custom graphs stay compact in a narrow dock without duplicate 
   await expect(page.locator('#motion-clear,#motion-preview,#motion-unit,#motion-parameter,#curve-active,#curve-easing')).toHaveCount(0);
   expect(await page.locator('#subtitle-properties-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
   await page.locator('#subtitle-properties').screenshot({path:info.outputPath('animation-narrow-presets.png')});
+  await page.locator('#motion-timing').selectOption('ms');
+  await page.evaluate(()=>document.documentElement.dataset.theme='light');
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('animation-narrow-fixed-light.png')});
+  await page.locator('#motion-timing').selectOption('percent');
   await page.locator('#motion-custom').click();await page.locator('#curve-reset').click();await frame(page,10,20);await frame(page,90,90);
   expect(await page.locator('#subtitle-properties-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
   await page.locator('#curve-graph').hover({position:{x:120,y:95}});
@@ -388,18 +417,18 @@ test('seconds display and input preserve milliseconds and allow equal-time curve
   await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-custom').click();
   await axis(page,'X 轴','精确时间（秒）');await frame(page,0,0);await frame(page,.3,100);
   await expect(page.locator('#curve-time')).toHaveValue('0.300');
-  await expect(page.locator('#curve-time-label')).toHaveText('时间 (秒)');
+  await expect(page.locator('#curve-time-label')).toHaveText('起点后 (秒)');
   const changed=(await snap(page)).subtitles.cues.filter(c=>c.content.subtitle_animation);
   expect(changed).toHaveLength(2);
   for(const c of changed){
     expect(c.content.subtitle_animation.effects.curves).toMatchObject({unit:'ms',channels:{opacity:[{time:0,value:0},{time:300,value:100}]}});
   }
-  await expect(page.locator('#curve-graph')).toContainText('3.000 s');
+  await expect(page.locator('#curve-graph')).toContainText('2.500 s');
   await page.locator('#curve-graph').hover({position:{x:100,y:90}});
   await expect(page.locator('.curve-hover-x')).toHaveText(/^\d+\.\d{3} s$/);
   await axis(page,'X 轴','时间百分比');
   const converted=(await snap(page)).subtitles.cues.filter(c=>c.content.subtitle_animation);
-  expect(converted.map(c=>c.content.subtitle_animation.effects.curves.channels.opacity[1].time)).toEqual([12,10]);
+  expect(converted.map(c=>c.content.subtitle_animation.effects.curves.channels.opacity[1].time)).toEqual([12,12]);
   await axis(page,'X 轴','精确时间（秒）');
   const saved=await snap(page);expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
   await page.reload();await idle(page);expect((await snap(page)).subtitles).toEqual(saved.subtitles);

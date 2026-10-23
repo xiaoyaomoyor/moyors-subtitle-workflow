@@ -18,6 +18,35 @@ def model(**effects):
 
 
 class SubtitleAnimationTests(unittest.TestCase):
+    def test_anchored_timing_matches_browser_and_preview_export_at_every_duration(self):
+        script="""const A=require('./web/msw-subtitle-animation.js');let a=A.defaults();
+        for(const name of ['fade','slide','transform','blink','typewriter'])a=A.resolve(a,A.authorPatch(a,name,{type:'toggle',value:true},2000));
+        a=A.resolve(a,A.authorPatch(a,'all',{type:'timing',value:'ms',referenceDuration:2000}));
+        const c=A.resolve(a,A.authorPatch(a,'all',{type:'mode',value:'custom'},2000));
+        console.log(JSON.stringify({a,c,samples:[200,800,2000,7000].map(d=>Array.from({length:21},(_,i)=>A.sample(c,d*i/20,d,10)))}));"""
+        result=json.loads(subprocess.check_output(['node','-e',script],cwd=ROOT,text=True))
+        original=copy.deepcopy(result['c'])
+        for duration,samples in zip((200,800,2000,7000),result['samples']):
+            for mode in ('a','c'):
+                a=result[mode]
+                self.assertTrue(animation.valid(a))
+                for i,expected in enumerate(samples):
+                    for key,value in animation.sample(a,duration*i/20,duration,10).items():
+                        self.assertAlmostEqual(value,expected[key],places=6)
+                cuts=animation.boundaries(a,duration,10)
+                self.assertEqual(cuts[0],0)
+                self.assertEqual(cuts[-1],duration)
+                p=self.project(a)
+                p['subtitles']['cues'][0]['content']['end']=1000+duration
+                flat.validate(p)
+                plan=dict(intervals=[dict(start_ms=0,end_ms=43200000,output_start_ms=0)])
+                self.assertEqual(preview_ass(dict(project=p,video=dict(width=640,height=360)))['ass'],styled_ass(p,plan,'both',dict(width=640,height=360)))
+        self.assertEqual(result['c'],original)
+        for bad in ('middle',None,1):
+            a=copy.deepcopy(original)
+            a['effects']['curves']['channels']['opacity'][0]['anchor']=bad
+            self.assertFalse(animation.valid(a))
+
     def test_slide_fixed_fade_and_retained_reveal_match_browser_and_ass(self):
         a=model(fade=dict(enabled=True,unit='ms',**{'in':300,'out':500}),
                 slide=dict(enabled=True,direction='up',distance=140),typewriter=dict(enabled=True))

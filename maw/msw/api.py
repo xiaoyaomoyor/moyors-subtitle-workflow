@@ -392,7 +392,7 @@ class ProcessingAPI:
                 result = {"subtitleTracks": 1, "subtitleLayout": 5, "translation": True, "tts": True, "asr": True, "assets": True, "mediaImport": True, "audioExport": True, "videoExport": True, "timelineExport": True, "persistentJobs": True, "projectPersistence": True, **self.context()}
                 from maw.msw.audio_exports import configured_tools
                 result['flatSubtitles'] = 1
-                result['subtitleAnimation'] = 2
+                result['subtitleAnimation'] = 3
                 result.update(mediaAnalysis=True, waveform=True, mediaToolsReady=configured_tools(self.env_path).complete)
             elif route == 'media-tools':
                 with self.lock:

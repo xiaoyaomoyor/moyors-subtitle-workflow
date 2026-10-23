@@ -13,10 +13,11 @@ test('cache analysis uses the active media and cannot delete unreviewed files',a
   try{
     await page.goto(server.url);await page.waitForFunction(()=>window.MSWConfig?.connected);
     const before=await page.evaluate(()=>JSON.stringify(DATA));
-    await page.evaluate(()=>MSWConfigManager.open());await page.locator('.config-maintenance summary').click();await page.locator('[data-config-mode="cache"]').click();
-    await page.locator('#config-cache-analyze').click();
-    await expect(page.locator('#config-cache-result')).toContainText('synthetic.wav');
-    await expect(page.locator('#config-cache-clean')).toBeDisabled();
+    await page.evaluate(()=>MSWConfigManager.open());
+    await expect(page.locator('[data-config-mode]')).toHaveCount(2);
+    await expect(page.locator('#config-cache-analyze')).toHaveCount(0);
+    const report=await page.evaluate(()=>MSWConfig.request({action:'cache-analyze'}));
+    expect(report.media).toBe('synthetic.wav');expect(report.count).toBe(0);
     const denied=await page.evaluate(async()=>{try{await MSWConfig.request({action:'cache-clean',token:'invalid-preview'});return '';}catch(e){return e.message;}});
     expect(denied).toContain('重新分析');
     expect(await page.evaluate(()=>JSON.stringify(DATA))).toBe(before);

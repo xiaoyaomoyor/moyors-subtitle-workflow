@@ -621,20 +621,25 @@
   const names=Object.keys(definitions),clone=v=>JSON.parse(JSON.stringify(v));
   const object=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
   const timings=name=>name==='curves'?[]:name==='fade'?['in','out']:['start','end'];
+  const anchor=p=>p.anchor||'start';
+  const pointOrder=(a,b)=>anchor(a)!==anchor(b)?(anchor(a)==='start'?-1:1):(a.time-b.time)*(anchor(a)==='end'?-1:1);
+  const sortPoints=points=>points.sort(pointOrder);
   function validChannels(raw,unit){
     return object(raw)&&Object.entries(raw).every(([key,points])=>{
       const c=channels[key];return c&&Array.isArray(points)&&points.length>0&&points.length<=32&&points.every((p,i)=>
-        object(p)&&Object.keys(p).length===3&&['time','value','easing'].every(k=>Object.hasOwn(p,k))&&
+        object(p)&&Object.keys(p).every(k=>['time','value','easing','anchor'].includes(k))&&['time','value','easing'].every(k=>Object.hasOwn(p,k))&&
+        (!Object.hasOwn(p,'anchor')||['start','end'].includes(p.anchor))&&
         typeof p.time==='number'&&Number.isFinite(p.time)&&p.time>=0&&p.time<=(unit==='percent'?100:60000)&&
-        (!i||p.time>points[i-1].time)&&typeof p.value==='number'&&Number.isFinite(p.value)&&p.value>=c.min&&p.value<=c.max&&
+        (!i||pointOrder(points[i-1],p)<0)&&typeof p.value==='number'&&Number.isFinite(p.value)&&p.value>=c.min&&p.value<=c.max&&
         ['linear','smooth','hold'].includes(p.easing));
     });
   }
   function valid(raw){
-    if(!object(raw)||raw.schema!==schema||!object(raw.effects)||Object.keys(raw).some(k=>!['schema','effects','mode'].includes(k))||
+    if(!object(raw)||raw.schema!==schema||!object(raw.effects)||Object.keys(raw).some(k=>!['schema','effects','mode','timing'].includes(k))||
+      (Object.hasOwn(raw,'timing')&&!['percent','ms'].includes(raw.timing))||
       (Object.hasOwn(raw,'mode')&&!['presets','custom'].includes(raw.mode)))return false;
     return Object.entries(raw.effects).every(([name,e])=>{
-      const d=definitions[name],extra=name==='fade'?['start','end']:name==='blink'?['periodUnit']:name==='typewriter'?['custom']:[];
+      const d=definitions[name],extra=[...(name==='curves'?['pulse']:['endAnchor']),...(name==='fade'?['start','end']:name==='blink'?['periodUnit']:name==='typewriter'?['custom']:[])];
       if(!d||!object(e)||Object.keys(d).some(k=>!Object.hasOwn(e,k))||Object.keys(e).some(k=>!Object.hasOwn(d,k)&&!extra.includes(k)))return false;
       if(name==='fade'&&Object.hasOwn(e,'start')!==Object.hasOwn(e,'end'))return false;
       for(const [k,v] of Object.entries(e)){
@@ -643,18 +648,21 @@
         else if(k==='unit'||k==='periodUnit'){if(!['percent','ms'].includes(v))return false;}
         else if(k==='easing'){if(!['linear','ease-in','ease-out','smooth'].includes(v))return false;}
         else if(k==='channels'){if(!validChannels(v,e.unit))return false;}
+        else if(k==='endAnchor'){if(!['start','end'].includes(v)||!Object.hasOwn(e,'end'))return false;}
+        else if(k==='pulse'){if(!valid({schema,effects:{blink:v}}))return false;}
         else{
           const bounds=[...timings(name),'start','end',...(name==='slide'?['in','out']:[])].includes(k)?[0,e.unit==='percent'?100:60000]:k==='distance'?[0,4096]:k==='period'?(e.periodUnit==='percent'?[1,100]:[80,60000]):k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
           if(typeof v!=='number'||!Number.isFinite(v)||v<bounds[0]||v>bounds[1])return false;
         }
       }
+      if(e.endAnchor==='end')return true;
       if((name==='fade'||name==='slide')&&Object.hasOwn(e,'start'))return e.end>e.start&&e.in+e.out<=e.end-e.start+1e-8;
       return name==='curves'||name==='fade'||e.end>e.start;
     });
   }
-  function normalize(raw){if(!valid(raw))throw Error('字幕动画参数无效');return {schema,...(raw.mode?{mode:raw.mode}:{}),effects:{...clone(definitions),...clone(raw.effects)}};}
+  function normalize(raw){if(!valid(raw))throw Error('字幕动画参数无效');return {schema,...(raw.mode?{mode:raw.mode}:{}),...(raw.timing?{timing:raw.timing}:{}),effects:{...clone(definitions),...clone(raw.effects)}};}
   const defaults=()=>({schema,effects:clone(definitions)});
-  function resolve(base,override){const mode=override?.mode??base?.mode;return base===undefined&&override===undefined?null:normalize({schema,...(mode?{mode}:{}),effects:{...(base?.effects||{}),...(override?.effects||{})}});}
+  function resolve(base,override){const mode=override?.mode??base?.mode,timing=override?.timing??base?.timing;return base===undefined&&override===undefined?null:normalize({schema,...(mode?{mode}:{}),...(timing?{timing}:{}),effects:{...(base?.effects||{}),...(override?.effects||{})}});}
   function active(raw){
     if(!raw.mode)return raw;
     return {...raw,effects:Object.fromEntries(Object.entries(raw.effects).map(([key,e])=>[key,
@@ -671,14 +679,15 @@
   }
   function presetTimes(name,e){return ['fade','slide'].includes(name)?[e.start,e.start+e.in,e.end-e.out,e.end]:[e.start,e.end];}
   function dragPreset(name,original,{edge,band},value,delta,modifiers={}){
-    const p=presetTimes(name,original),round=v=>Math.round(v*1e9)/1e9;
+    const p=presetTimes(name,original),round=v=>Math.round(v*1e9)/1e9,limit=original._extent||100,scale=original.unit==='ms'?1000:1;
+    const snap=(v,lo,hi)=>snapValue(v/scale,modifiers,lo/scale,hi/scale,scale===1000?.001:.1)*scale;
     if(band!==undefined){
       const [a,b]=['fade','slide'].includes(name)?(band==='in'?[0,1]:[2,3]):[0,1];
-      delta=snapValue(p[a]+delta,modifiers,a?p[a-1]:0,(b<p.length-1?p[b+1]:100)-(p[b]-p[a]))-p[a];
+      delta=snap(p[a]+delta,a?p[a-1]:0,(b<p.length-1?p[b+1]:limit)-(p[b]-p[a]))-p[a];
       for(let i=a;i<=b;i++)p[i]=round(p[i]+delta);
     }else{
-      const i=Number(edge),gap=['fade','slide'].includes(name)?0:.1;
-      p[i]=snapValue(value,modifiers,i?p[i-1]+gap:0,i<p.length-1?p[i+1]-gap:100);
+      const i=Number(edge),gap=['fade','slide'].includes(name)?0:scale===1000?1:.1;
+      p[i]=snap(value,i?p[i-1]+gap:0,i<p.length-1?p[i+1]-gap:limit);
     }
     if(p.at(-1)-p[0]<.099999999)return {};
     return {start:p[0],end:p.at(-1),...(['fade','slide'].includes(name)?{in:round(p[1]-p[0]),out:round(p[3]-p[2])}:{})};
@@ -693,7 +702,7 @@
   function presetState(raw,name,duration=1000){
     const source=normalize(raw).effects[name];
     if(JSON.stringify(source)===JSON.stringify(definitions[name]))return presetDefault(name);
-    const e=clone(source);
+    const e=source.endAnchor?clockEffect(source,duration):clone(source);
     if(e.unit==='ms'){
       for(const key of ['in','out','start','end'])if(Object.hasOwn(e,key))e[key]=clamp(e[key]*100/Math.max(1,duration),0,100);
       e.unit='percent';
@@ -709,9 +718,56 @@
     if(name==='blink'&&e.periodUnit!=='percent')Object.assign(e,{period:clamp(e.period*100/duration,1,100),periodUnit:'percent'});
     return e;
   }
+  function authorState(raw,name,duration=1000){
+    const source=normalize(raw).effects[name];
+    const e=JSON.stringify(source)===JSON.stringify(definitions[name])?presetDefault(name):clone(source);
+    if(name==='fade'&&e.unit==='ms'&&!Object.hasOwn(e,'start'))Object.assign(e,{start:0,end:0,endAnchor:'end'});
+    return raw.timing?effectUnit(e,name,raw.timing,duration):e;
+  }
+  function anchoredCurves(raw,duration){
+    const a=normalize(raw),c={enabled:true,unit:'ms',channels:{}};
+    const effects=Object.fromEntries(names.filter(n=>n!=='curves').map(n=>[n,effectUnit(authorState(a,n,duration),n,'ms',duration)]));
+    const point=(time,value,easing='linear',anchor='start')=>({time,value,easing,anchor});
+    const ends=e=>{
+      const start=e.start||0,end=e.end??0,tail=e.endAnchor==='end'||!Object.hasOwn(e,'end');
+      return [point(start,0),point(start+e.in,0),point(tail?end+e.out:end-e.out,0,'linear',tail?'end':'start'),point(end,0,'linear',tail?'end':'start')];
+    };
+    const zeroPhases=(points,e,isFade)=>{
+      if(!e.out){
+        if(isFade&&e.endAnchor==='end'&&e.end===0)points.pop();
+        else {points.splice(2,1);points[1].easing='hold';}
+      }
+      if(!e.in){
+        const first=points.shift();
+        if(e.start>0)points.unshift({...first,time:0,easing:'hold'});
+      }
+      return points;
+    };
+    const {fade:f,blink:b,transform:t,slide:s}=effects;
+    if(t.enabled)for(const [key,suffix] of [['opacity','Opacity'],['x','X'],['y','Y'],['scale','Scale'],['rotation','Rotation']]){
+      if(t['from'+suffix]===channels[key].initial&&t['to'+suffix]===channels[key].initial)continue;
+      if(!['linear','smooth'].includes(t.easing))throw Error('请将原有舒展过渡改为匀速或平滑，再转为自定义');
+      c.channels[key]=[point(t.start,t['from'+suffix],t.easing),point(t.end,t['to'+suffix],'linear',t.endAnchor||'start')];
+    }
+    if(f.enabled){
+      if(c.channels.opacity)throw Error('请先分别编辑淡入淡出与原有透明度变换，再转为自定义');
+      c.channels.opacity=zeroPhases(ends(f).map((p,i)=>({...p,value:i===1||i===2?100:0})),f,true);
+    }
+    if(s.enabled){
+      const key=['left','right'].includes(s.direction)?'x':'y',sign=['left','up'].includes(s.direction)?-1:1;
+      if(c.channels[key])throw Error('滑入滑出与原有位移动画重合，请先保留其中一种再转为自定义');
+      c.channels[key]=zeroPhases(ends(s).map((p,i)=>({...p,value:(!i?-1:i===3?1:0)*sign*s.distance,easing:i===0||i===2?'smooth':'linear'})),s,false);
+    }
+    // A finite list of baked keys cannot represent a fixed period on arbitrary
+    // cue lengths. Retain the oscillator as editable curve modulation.
+    if(b.enabled)c.pulse=clone(b);
+    for(const [key,p] of Object.entries(c.channels))c.channels[key]=sortPoints(p).filter((p,i,all)=>!i||pointOrder(all[i-1],p)!==0);
+    return c;
+  }
   // Bake only active numeric channels. Preserve discontinuities and reject a
   // conversion that cannot fit the editable curve budget instead of losing it.
   function curvesFromPresets(raw,duration=1000){
+    if(timingMode(raw)==='ms')return anchoredCurves(raw,duration);
     const a=normalize(raw);a.mode='presets';
     const {fade:f,blink:b,transform:t,slide:s}=a.effects,c={enabled:true,unit:'percent',channels:{}};
     const phase=e=>[ms(e,'start',duration),ms(e,'start',duration)+ms(e,'in',duration),ms(e,'end',duration)-ms(e,'out',duration),ms(e,'end',duration)];
@@ -756,6 +812,13 @@
   // Authoring modes retain both banks. Only the active bank is sampled/exported.
   function authorPatch(raw,name,action,duration=1000){
     const a=normalize(raw),patch={schema,effects:{}};
+    if(action.type==='timing'&&name==='all'){
+      patch.timing=action.value;
+      const reference=action.referenceDuration||duration;
+      for(const key of names)patch.effects[key]=effectUnit(authorState(a,key,reference),key,action.value,reference);
+      if(!valid(patch))throw Error('转换后的动画时间超出范围');
+      return patch;
+    }
     if(action.type==='mode'){
       patch.mode=action.value;
       if(action.value==='custom'){
@@ -769,24 +832,26 @@
     if(action.type==='custom-typewriter')return {schema,mode:'custom',effects:{typewriter:{...a.effects.typewriter,custom:action.value}}};
     if(name==='curves'){
       const c=clone(a.effects.curves);
-      if(action.type==='unit')patch.effects.curves=convertUnit(c,action.value,duration);
-      else if(action.type==='reset')patch.effects.curves=clone(definitions.curves);
+      if(action.type==='unit')return authorPatch(a,'all',{type:'timing',value:action.value,referenceDuration:action.referenceDuration},duration);
+      else if(action.type==='reset')patch.effects.curves={...clone(definitions.curves),unit:timingMode(a)};
+      else if(action.type==='pulse'){if(action.value===null)delete c.pulse;else c.pulse={...c.pulse,...action.value};patch.effects.curves=c;}
       else if(action.type==='playhead'){
         if(action.time<0||action.time>duration)throw Error('请将播放头移到所选字幕共同覆盖的时间内');
         const time=action.time*(c.unit==='percent'?100/duration:1),points=c.channels[action.channel]||[];
         const value=sample(a,action.time,duration)[action.channel]*(action.channel==='opacity'?100:1);
-        c.channels[action.channel]=[...points.filter(p=>Math.abs(p.time-time)>.001),{time,value,easing:'linear'}].sort((a,b)=>a.time-b.time);c.enabled=true;patch.effects.curves=c;
+        c.channels[action.channel]=sortPoints([...points.filter(p=>anchor(p)!=='start'||Math.abs(p.time-time)>.001),{time,value,easing:'linear',...(c.unit==='ms'?{anchor:'start'}:{})}]);c.enabled=true;patch.effects.curves=c;
       }
       else{
         // Multi-selection edits normalize other channels to the displayed unit.
-        const next=convertUnit(c,action.unit||c.unit,duration);
+        const next=effectUnit(c,'curves',action.unit||c.unit,duration);
         next.enabled=true;
         if(action.points===null)delete next.channels[action.channel];else next.channels[action.channel]=clone(action.points);
         patch.effects.curves=next;
       }
       patch.mode='custom';
     }else{
-      let e=action.type==='reset'?{...presetDefault(name),enabled:a.effects[name].enabled}:name==='fade'&&a.effects.fade.unit==='ms'&&!Object.hasOwn(a.effects.fade,'start')?clone(a.effects.fade):presetState(a,name,duration);
+      let e=action.type==='reset'?{...effectUnit(presetDefault(name),name,timingMode(a),action.referenceDuration||duration),enabled:a.effects[name].enabled}:authorState(a,name,action.referenceDuration||duration);
+      if(action.displayUnit)e=effectUnit(e,name,action.displayUnit,action.referenceDuration||duration);
       if(name==='fade'&&action.type==='values'&&action.timeUnit){
         if(action.timeUnit==='ms')e={enabled:e.enabled,unit:'ms',in:ms(e,'in',duration),out:ms(e,'out',duration)};
         else e=presetState(a,name,duration);
@@ -805,9 +870,74 @@
   }
   const ms=(e,key,duration)=>e[key]*(e.unit==='percent'?duration/100:1);
   const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+  const timingMode=raw=>raw.timing||(authoringMode(raw)==='custom'?raw.effects.curves.unit:raw.effects.fade.unit);
+  // Stored offsets are never clamped to one reference cue. Resolve at the last
+  // moment so a short cue cannot overwrite the author's requested durations.
+  function clockEffect(e,duration){
+    const n=clone(e);if(!e.endAnchor)return n;
+    const start=ms(e,'start',duration),finish=ms(e,'end',duration),a=ms(e,'in',duration)||0,z=ms(e,'out',duration)||0;
+    const extent=e.endAnchor==='end'?start+a+finish+z:Math.max(finish,start+a+z);
+    const ratio=Math.min(1,duration/Math.max(extent,1e-9));
+    Object.assign(n,{unit:'ms',start:start*ratio,end:e.endAnchor==='end'?duration-finish*ratio:finish*ratio});
+    for(const key of ['in','out'])if(Object.hasOwn(e,key))n[key]=ms(e,key,duration)*ratio;
+    // A range with both ends at the compressed junction has zero exposure.
+    if(!Object.hasOwn(e,'in')&&n.end<=n.start)n.end=n.start+1e-7;
+    delete n.endAnchor;return n;
+  }
+  function pointExtent(points,unit){
+    return Math.max(0,...points.filter(p=>anchor(p)==='start').map(p=>p.time))+Math.max(0,...points.filter(p=>anchor(p)==='end').map(p=>p.time));
+  }
+  function resolvePoints(points,unit,duration){
+    const factor=unit==='percent'?duration/100:1;
+    const ratio=points.some(p=>p.anchor)?Math.min(1,duration/Math.max(1e-9,pointExtent(points,unit)*factor)):1;
+    const result=[];
+    for(const p of points){
+      const time=anchor(p)==='end'?duration-p.time*factor*ratio:p.time*factor*ratio;
+      const next={...p,time};delete next.anchor;
+      // Keep both limits at a compressed junction: replacing the incoming key
+      // would incorrectly interpolate toward the outgoing jump value.
+      result.push(next);
+    }
+    return result;
+  }
+  function runtime(raw,duration){
+    const next={...raw,effects:{...raw.effects}};
+    for(const [name,e] of Object.entries(next.effects))if(e.endAnchor)next.effects[name]=clockEffect(e,duration);
+    const c=next.effects.curves;
+    if(c?.enabled){
+      next.effects.curves={...c,unit:'ms',channels:Object.fromEntries(Object.entries(c.channels).map(([key,p])=>[key,resolvePoints(p,c.unit,duration)]))};
+      if(c.pulse)next.effects.blink=clockEffect(c.pulse,duration);
+    }
+    return next;
+  }
+  function effectUnit(effect,name,unit,duration){
+    if(effect.unit===unit)return clone(effect);
+    const n=clone(effect);
+    if(name==='curves'){
+      if(unit==='percent')for(const points of Object.values(n.channels)){
+        const ratio=points.some(p=>p.anchor)?Math.min(1,duration/Math.max(1e-9,pointExtent(points,n.unit))):1;
+        for(const p of points)p.time*=ratio*100/duration;
+      }
+      else for(const points of Object.values(n.channels))for(const p of points){p.time*=duration/100;p.anchor=anchor(p);}
+      if(n.pulse)n.pulse=effectUnit(n.pulse,'blink',unit,duration);
+    }else if(unit==='ms'){
+      for(const key of ['start','end','in','out'])if(Object.hasOwn(n,key))n[key]*=duration/100;
+      if(name==='fade'&&!Object.hasOwn(n,'start'))Object.assign(n,{start:0,end:duration});
+      if(['fade','slide','blink'].includes(name)){n.end=duration-n.end;n.endAnchor='end';}else n.endAnchor='start';
+    }else{
+      const timed=clockEffect(n,duration);
+      for(const key of ['start','end','in','out'])if(Object.hasOwn(timed,key))n[key]=timed[key]*100/duration;
+      delete n.endAnchor;
+    }
+    if(name==='blink'){
+      const period=n.period*(n.periodUnit==='percent'?duration/100:1);
+      n.period=unit==='ms'?clamp(period,80,60000):clamp(period*100/duration,1,100);n.periodUnit=unit;
+    }
+    n.unit=unit;return n;
+  }
   const ease=(p,mode)=>mode==='ease-in'?p*p:mode==='ease-out'?1-(1-p)**2:mode==='smooth'?p*p*(3-2*p):p;
   function curveValue(points,time){
-    if(time<=points[0].time)return points[0].value;
+    if(time<points[0].time)return points[0].value;
     for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(time<b.time){
       const p=a.easing==='hold'?0:ease((time-a.time)/(b.time-a.time),a.easing);return a.value+(b.value-a.value)*p;
     }}
@@ -882,7 +1012,7 @@
     return editChannel(a,key,points);
   }
   function sample(raw,elapsed,duration,count=0){
-    raw=active(raw);
+    raw=runtime(active(raw),duration);
     const {fade:f,typewriter:w,blink:b,transform:t,slide:s}=raw.effects;
     const time=clamp(elapsed,0,duration),state={opacity:1,x:0,y:0,scale:100,rotation:0,revealed:count};
     if(f.enabled){let a=ms(f,'in',duration),z=ms(f,'out',duration),start=Object.hasOwn(f,'start')?ms(f,'start',duration):0,end=Object.hasOwn(f,'end')?ms(f,'end',duration):duration;if(a+z>end-start){const ratio=(end-start)/(a+z);a*=ratio;z*=ratio;}state.opacity=time<start||time>end?0:clamp(Math.min(a?(time-start)/a:1,z?(end-time)/z:1,1));}
@@ -921,7 +1051,7 @@
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
   }
-  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets};
+  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets,timingMode,clockEffect,pointExtent,resolvePoints,sortPoints,anchor,effectUnit,authorState};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);
 

@@ -25,11 +25,11 @@ def valid_channels(raw, unit):
         if key not in CHANNELS or not isinstance(points, list) or not 1 <= len(points) <= 32:
             return False
         for i, p in enumerate(points):
-            if not isinstance(p, dict) or set(p) != {'time','value','easing'}:
+            if not isinstance(p, dict) or not {'time','value','easing'} <= set(p) or set(p)-{'time','value','easing','anchor'} or p.get('anchor','start') not in ('start','end'):
                 return False
             if any(type(p[k]) not in (int,float) or not math.isfinite(p[k]) for k in ('time','value')):
                 return False
-            if not (0 <= p['time'] <= (100 if unit == 'percent' else 60000)) or (i and p['time'] <= points[i-1]['time']):
+            if not (0 <= p['time'] <= (100 if unit == 'percent' else 60000)) or (i and point_order(p) <= point_order(points[i-1])):
                 return False
             if not CHANNELS[key][0] <= p['value'] <= CHANNELS[key][1] or p['easing'] not in ('linear','smooth','hold'):
                 return False
@@ -37,13 +37,16 @@ def valid_channels(raw, unit):
 
 
 def valid(raw):
-    if not isinstance(raw, dict) or not {'schema', 'effects'} <= set(raw) or set(raw)-{'schema','effects','mode'} or raw['schema'] != SCHEMA or not isinstance(raw['effects'], dict):
+    if not isinstance(raw, dict) or not {'schema', 'effects'} <= set(raw) or set(raw)-{'schema','effects','mode','timing'} or raw['schema'] != SCHEMA or not isinstance(raw['effects'], dict):
         return False
     if 'mode' in raw and raw['mode'] not in ('presets','custom'):
+        return False
+    if 'timing' in raw and raw['timing'] not in ('percent','ms'):
         return False
     for name, effect in raw['effects'].items():
         default = DEFINITIONS.get(name)
         extra = {'start','end'} if name == 'fade' else {'periodUnit'} if name == 'blink' else {'custom'} if name == 'typewriter' else set()
+        extra |= {'pulse'} if name == 'curves' else {'endAnchor'}
         if not default or not isinstance(effect, dict) or not set(default) <= set(effect) or set(effect)-set(default)-extra:
             return False
         if name == 'fade' and ('start' in effect) != ('end' in effect):
@@ -59,6 +62,10 @@ def valid(raw):
                 ok = value in ('linear', 'ease-in', 'ease-out', 'smooth')
             elif key == 'channels':
                 ok = valid_channels(value, effect['unit'])
+            elif key == 'endAnchor':
+                ok = value in ('start','end') and 'end' in effect
+            elif key == 'pulse':
+                ok = valid(dict(schema=SCHEMA,effects=dict(blink=value)))
             else:
                 low, high = ((0, 100 if effect['unit'] == 'percent' else 60000) if key in (*timings(name),'start','end', *(('in','out') if name=='slide' else ()))
                              else (0,4096) if key == 'distance'
@@ -67,6 +74,8 @@ def valid(raw):
                 ok = type(value) in (int, float) and math.isfinite(value) and low <= value <= high
             if not ok:
                 return False
+        if effect.get('endAnchor') == 'end':
+            continue
         if name not in ('fade','curves') and effect['end'] <= effect['start']:
             return False
         if name in ('fade','slide') and 'start' in effect and (effect['end'] <= effect['start'] or effect['in']+effect['out'] > effect['end']-effect['start']+1e-8):
@@ -77,14 +86,14 @@ def valid(raw):
 def normalize(raw):
     if not valid(raw):
         raise ValueError('字幕动画参数无效')
-    return dict(schema=SCHEMA, **({'mode':raw['mode']} if 'mode' in raw else {}), effects={**deepcopy(DEFINITIONS), **deepcopy(raw['effects'])})
+    return dict(schema=SCHEMA, **{k:raw[k] for k in ('mode','timing') if k in raw}, effects={**deepcopy(DEFINITIONS), **deepcopy(raw['effects'])})
 
 
 def resolve(base=None, override=None):
     if base is None and override is None:
         return None
-    mode = (override or {}).get('mode',(base or {}).get('mode'))
-    return normalize(dict(schema=SCHEMA, **({'mode':mode} if mode else {}), effects={**(base or {}).get('effects', {}), **(override or {}).get('effects', {})}))
+    options = {k:(override or {}).get(k,(base or {}).get(k)) for k in ('mode','timing')}
+    return normalize(dict(schema=SCHEMA, **{k:v for k,v in options.items() if v}, effects={**(base or {}).get('effects', {}), **(override or {}).get('effects', {})}))
 
 
 def active(raw):
@@ -102,8 +111,53 @@ def clamp(value, low=0, high=1):
     return max(low, min(high, value))
 
 
+def point_order(point):
+    return (1, -point['time']) if point.get('anchor') == 'end' else (0, point['time'])
+
+
+def clock_effect(effect, duration):
+    n = deepcopy(effect)
+    if not effect.get('endAnchor'):
+        return n
+    start, finish = (ms(effect,k,duration) for k in ('start','end'))
+    a, z = (ms(effect,k,duration) if k in effect else 0 for k in ('in','out'))
+    extent = start+a+finish+z if effect['endAnchor']=='end' else max(finish,start+a+z)
+    ratio = min(1,duration/max(extent,1e-9))
+    n.update(unit='ms',start=start*ratio,end=duration-finish*ratio if effect['endAnchor']=='end' else finish*ratio)
+    for key in ('in','out'):
+        if key in n:
+            n[key]=ms(effect,key,duration)*ratio
+    if 'in' not in effect and n['end']<=n['start']:
+        n['end']=n['start']+1e-7
+    del n['endAnchor']
+    return n
+
+
+def resolve_points(points, unit, duration):
+    factor = duration/100 if unit=='percent' else 1
+    extent = sum(max([p['time'] for p in points if p.get('anchor','start')==side] or [0]) for side in ('start','end'))
+    ratio = min(1,duration/max(1e-9,extent*factor)) if any('anchor' in p for p in points) else 1
+    result=[]
+    for p in points:
+        time = duration-p['time']*factor*ratio if p.get('anchor')=='end' else p['time']*factor*ratio
+        n={k:v for k,v in p.items() if k!='anchor'}
+        n['time']=time
+        result.append(n)
+    return result
+
+
+def runtime(raw, duration):
+    effects={key:clock_effect(e,duration) if e.get('endAnchor') else e for key,e in raw['effects'].items()}
+    c=effects.get('curves')
+    if c and c['enabled']:
+        effects['curves']={**c,'unit':'ms','channels':{key:resolve_points(p,c['unit'],duration) for key,p in c['channels'].items()}}
+        if c.get('pulse'):
+            effects['blink']=clock_effect(c['pulse'],duration)
+    return {**raw,'effects':effects}
+
+
 def curve_value(points, time):
-    if time <= points[0]['time']:
+    if time < points[0]['time']:
         return points[0]['value']
     for a, b in zip(points, points[1:]):
         if time < b['time']:
@@ -114,7 +168,7 @@ def curve_value(points, time):
 
 
 def sample(raw, elapsed, duration, count=0):
-    raw = active(raw)
+    raw = runtime(active(raw), duration)
     f, w, b, t = (raw['effects'][key] for key in ('fade','typewriter','blink','transform'))
     time = clamp(elapsed, 0, duration)
     state = dict(opacity=1, x=0, y=0, scale=100, rotation=0, revealed=count)
@@ -160,7 +214,7 @@ def sample(raw, elapsed, duration, count=0):
 
 def boundaries(raw, duration, count):
     """Critical times plus bounded smooth interpolation; never a wall-clock timer."""
-    raw = active(raw)
+    raw = runtime(active(raw), duration)
     cuts = {0, duration}
     for name, effect in raw['effects'].items():
         if not effect['enabled']:

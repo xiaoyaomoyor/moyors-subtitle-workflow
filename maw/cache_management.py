@@ -22,6 +22,8 @@ def cached_waveform(media, *, audio_track=0, default_audio_track=0):
     for reader in (quapeaks.load_self_wave_payload, mopeaks.load_mopeaks):
         value = reader(media, **options)
         if value and value.get('audio_track', 0) == audio_track:
+            if reader is quapeaks.load_self_wave_payload:
+                auto_cleanup(media, **options)
             return value
     return load_waveform_sidecar(media, audio_track=audio_track)
 
@@ -33,6 +35,7 @@ def _stamp(path):
 
 def _inspect(media, tracks, default_audio_track):
     media = Path(media).resolve(strict=True)
+    default_audio_track = 0 if default_audio_track is None else default_audio_track
     state = [_stamp(media)]
     rows, removable = [], []
     for track in sorted(set(tracks)):
@@ -94,3 +97,28 @@ def manage(media, *, tracks=(0,), default_audio_track=0, token=None):
                 warnings.append(f'{path.name}：未能移入回收站，已保留')
         result, _ = _inspect(media, tracks, default_audio_track)
         return {**result, 'removed': removed, 'warnings': warnings}
+
+
+def auto_cleanup(media, *, audio_track=0, default_audio_track=0):
+    """Best-effort housekeeping of this media/track, never a directory sweep.
+
+    Call outside the generation lock. Inspect and trash while holding that same
+    lock, so another producer cannot replace the complete cache in between.
+    Failure must not interrupt waveform loading or generation.
+    """
+    try:
+        with cache_lock(media):
+            _, removable = _inspect(media, (audio_track,), default_audio_track)
+            if not removable:
+                return 0
+            from send2trash import send2trash
+            removed = 0
+            for path in removable:
+                try:
+                    send2trash(str(path))
+                    removed += 1
+                except OSError:
+                    pass
+            return removed
+    except (OSError, ValueError):
+        return 0

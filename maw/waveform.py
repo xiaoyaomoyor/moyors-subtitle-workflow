@@ -421,6 +421,12 @@ def load_or_extract_waveform(
         cached = loader(media_path, audio_track=audio_track, default_audio_track=default_audio_track)
         if (cached is not None and audio_track_from_payloads(cached) == audio_track
                 and cached['peaks_per_second'] == peaks_per_second):
+            # The shared producer calls with persist=False under its generation
+            # lock and performs cleanup after releasing it.
+            if persist and loader is quapeaks.load_self_wave_payload:
+                from maw.cache_management import auto_cleanup
+                auto_cleanup(media_path, audio_track=audio_track,
+                             default_audio_track=default_audio_track)
             return cached, False
     if (
         waveform_matches_media(existing, media_path, audio_track=audio_track)

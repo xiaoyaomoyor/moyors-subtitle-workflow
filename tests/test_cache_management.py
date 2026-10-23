@@ -31,7 +31,9 @@ class CacheManagementTests(unittest.TestCase):
             initial = self.build()
         fallback = mopeaks.mopeaks_path(self.media)
         self.assertTrue(fallback.is_file())
-        upgraded = self.build()
+        # Simulate a directory written before automatic housekeeping existed.
+        with patch('maw.cache_management.auto_cleanup'):
+            upgraded = self.build()
         self.assertIsNotNone(upgraded.reapeaks_path)
         return initial, fallback, upgraded.reapeaks_path
 
@@ -105,9 +107,36 @@ class CacheManagementTests(unittest.TestCase):
         container.write_bytes(container.read_bytes()[:18])
         self.assertEqual(manage(self.media)['count'], 0)
         self.assertIsNotNone(cached_waveform(self.media))
-        self.build()
-        self.assertTrue(fallback.exists())
+        with patch('send2trash.send2trash', side_effect=lambda path: Path(path).rename(self.root / 'trashed.mopeaks')):
+            self.build()
+        self.assertFalse(fallback.exists())
         self.assertIsNotNone(quapeaks.load_self_wave_payload(self.media))
+
+    def test_upgrade_automatically_trashes_only_verified_duplicate(self):
+        with patch('maw.quapeaks._load_rust_kernel', return_value=None):
+            self.build()
+        fallback = mopeaks.mopeaks_path(self.media)
+        with patch('send2trash.send2trash', side_effect=lambda path: Path(path).rename(self.root / 'trashed.mopeaks')) as trash:
+            result = self.build()
+        trash.assert_called_once_with(str(fallback))
+        self.assertFalse(fallback.exists())
+        self.assertTrue(result.reapeaks_path.is_file())
+
+    def test_read_automatically_cleans_duplicates_without_changing_waveform(self):
+        initial, fallback, container = self.duplicates()
+        with patch('send2trash.send2trash', side_effect=lambda path: Path(path).rename(self.root / 'trashed.mopeaks')):
+            loaded, extracted = waveform.load_or_extract_waveform(None, self.media)
+        self.assertFalse(extracted)
+        self.assertEqual(loaded['data'], initial.project['waveform']['data'])
+        self.assertFalse(fallback.exists())
+        self.assertTrue(container.exists())
+
+    def test_automatic_cleanup_failure_does_not_break_reading(self):
+        initial, fallback, _ = self.duplicates()
+        with patch('send2trash.send2trash', side_effect=OSError('test-only denied')):
+            value = cached_waveform(self.media)
+        self.assertEqual(value['data'], initial.project['waveform']['data'])
+        self.assertTrue(fallback.exists())
 
     def test_copy_media_and_cache_folder_preserves_identity(self):
         result = self.build()

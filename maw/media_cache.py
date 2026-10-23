@@ -324,8 +324,12 @@ def _embed_media_caches(
 
 def embed_media_caches(project, media_path, **options):
     """Shared producer; serialize the same source across launcher and editor processes."""
-    from maw.cache_management import cache_lock
+    from maw.cache_management import cache_lock, auto_cleanup
     source = options.get('source_media_path') or media_path
     with cache_lock(source):
         _raise_if_cancelled(options.get('cancel_event'))
-        return _embed_media_caches(project, media_path, **options)
+        result = _embed_media_caches(project, media_path, **options)
+    for candidate in dict.fromkeys((source, media_path)):
+        auto_cleanup(candidate, audio_track=options.get('audio_track', 0),
+                     default_audio_track=options.get('default_audio_track', 0))
+    return result

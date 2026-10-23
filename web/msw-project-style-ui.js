@@ -23,7 +23,7 @@
     <details id="style-general" class="msw-style-section" open><summary>基础</summary><div id="style-basic-fields" class="msw-style-fields"></div></details>
     <details id="style-more" class="msw-style-section"><summary>进阶</summary><div id="style-emphasis-fields" class="msw-style-checks"></div><div id="style-advanced-fields" class="msw-style-fields"></div></details>
     <details id="style-animation" class="msw-style-section"><summary><span class="msw-option-label">动画</span></summary><div id="style-animation-fields"></div></details>
-    <small data-help-for="style-animation" hidden>轨道默认只作用于当前主/副轨道；所选字幕按效果覆盖，其余跟随轨道。时间从每条字幕开始计算。新动画会替代原有 ASS 动画；恢复轨道动画可取消单条覆盖。</small>
+    <small data-help-for="style-animation" hidden>按比例随字幕长度变化；固定时长分别从起点、终点计算。所选字幕未覆盖的效果跟随轨道，恢复轨道动画可取消单条覆盖。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   $('style-save-as').insertAdjacentHTML('beforebegin',iconButton('style-overwrite','覆盖预设','overwrite'));
@@ -349,7 +349,7 @@
       // an older animation validator. Diagnose that mismatch, not corrupt data.
       if(route==='subtitle-preview'&&/字幕动画.*无效参数/.test(result.error||'')){
         const capability=await request('capabilities').catch(()=>null);
-        if(capability&&!(capability.subtitleAnimation>=2))throw Error('编辑器服务仍使用旧版动画规则，请重启编辑器服务并刷新页面；当前动画设置已保留');
+        if(capability&&!(capability.subtitleAnimation>=3))throw Error('编辑器服务仍使用旧版动画规则，请重启编辑器服务并刷新页面；当前动画设置已保留');
       }
       throw Error(result.error||'样式请求失败');
     }

@@ -44,8 +44,11 @@ test('editor import previews, isolates categories, preserves project and rolls b
     await all.check();
     const fonts=await page.locator('.msw-config-manager').evaluate(e=>[...e.querySelectorAll('legend label,#config-categories label,nav button,footer button')].map(x=>getComputedStyle(x).fontSize));
     expect(new Set(fonts).size).toBe(1);
-    await expect(page.locator('[data-config-mode="restore"]')).toBeHidden();
+    await expect(page.locator('[data-config-mode]')).toHaveCount(2);
+    await expect(page.locator('[data-config-mode="restore"]')).toHaveCount(0);
     await upload(page,file({browser:{'moy.asr.editor.settings.v1':{mediaSeekStepMs:2750,autoSaveProject:false}}}));
+    await expect(page.locator('#config-file-row #config-policy')).toBeVisible();
+    await expect(page.locator('#config-policy-row')).toContainText('导入机制');
     await expect(all).toBeChecked(); // Unavailable categories do not affect the header.
     await expect(page.locator('[data-config-category]:enabled')).toHaveCount(1);
     await page.locator('#editor-settings-close').click();await open(page);
@@ -60,13 +63,13 @@ test('editor import previews, isolates categories, preserves project and rolls b
     // A later edit in this still-open page must not undo imported defaults.
     await page.evaluate(async()=>{updateEditorSettings({cueListShowTime:false});await MSWConfig.flush();});
     expect(await page.evaluate(()=>JSON.parse(MSWConfig.storage.getItem('moy.asr.editor.settings.v1')).mediaSeekStepMs)).toBe(2750);
-    await page.locator('.config-maintenance summary').click();await page.locator('[data-config-mode="restore"]').click();
-    await page.locator('#config-snapshots').selectOption({index:1});
-    await page.locator('#config-all').click();
-    // all were selected, so clear then select just interface.
-    await page.locator('[data-config-category][value="interface"]').check();
-    await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();await expect(page.locator('#config-apply')).toBeEnabled();
-    await page.locator('#config-apply').click();await expect(page.locator('#config-message')).toContainText('配置已保存');
+    // Automatic pre-import backup remains internal; the UI only offers import/export.
+    await page.evaluate(async()=>{
+      const {snapshots}=await MSWConfig.request({action:'snapshots'});
+      const payload={id:snapshots[0].id,categories:['interface'],policy:'replace'};
+      const preview=await MSWConfig.request({...payload,action:'restore-preview'});
+      await MSWConfig.request({...payload,action:'restore',revision:preview.revision,token:preview.token});
+    });
     await page.locator('#editor-settings-close').click();await page.reload();await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);
     expect(await page.evaluate(()=>EDITOR_SETTINGS.mediaSeekStepMs)).toBe(1000);
     await open(page);const downloadPromise=page.waitForEvent('download');await page.locator('#config-export').click();const downloaded=await downloadPromise;

@@ -100,7 +100,7 @@
     return {changed:preview.changed};
   }};
 
-  let dialog, categories=[], knownCategories=[], currentFile=null, preview=null, sourceId='', mode='export', busy=false, cacheReport=null;
+  let dialog, categories=[], knownCategories=[], currentFile=null, preview=null, busy=false;
   const $=id=>dialog.querySelector('#config-'+id);
   const request=payload=>global.MSWConfig.request(payload);
   function message(text){$('message').textContent=text;}
@@ -137,23 +137,14 @@
     if(raw.format!=='msw-config'||raw.version!==1||!Array.isArray(raw.categories))throw Error('配置格式或版本不受支持');
     const known=global.MSWConfig.connected?knownCategories:global.MSWConfig.snapshot.transfer;
     if(raw.categories.some(id=>!known.some(x=>x.id===id)))throw Error('配置包含未知分类，请检查文件版本。');
-    currentFile=raw;sourceId='';$('filename').textContent=name;checkboxes(raw.categories);invalidate();
+    currentFile=raw;$('filename').textContent=name;checkboxes(raw.categories);invalidate();
     message(raw.kind==='workspace'?'保存为工作区预设，当前布局不变。':raw.categories.some(id=>['assStyles','onboarding'].includes(id))?'已略过旧样式库和首次提示状态，请选择其余分类。':!global.MSWConfig.connected&&raw.categories.some(id=>!offlineIds.includes(id))?'启动器、处理、配音和工程备份设置需在本机服务版导入。':'请选择要导入的分类，然后预览变更。');
   }
   async function changeMode(value){
-    mode=value;invalidate();currentFile=null;sourceId='';$('filename').textContent='';message('');checkboxes(value==='export'?null:[]);
-    for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.setAttribute(tab.getAttribute('role')==='tab'?'aria-selected':'aria-pressed',String(tab.dataset.configMode===value));
-    $('restore-note').hidden=value!=='restore';
-    $('file-row').hidden=value!=='import';$('snapshots').hidden=value!=='restore';$('policy-row').hidden=value==='export';$('export').hidden=value!=='export';$('preview').hidden=value==='export';$('apply').hidden=value==='export';
+    invalidate();currentFile=null;$('filename').textContent='';message('');checkboxes(value==='export'?null:[]);
+    for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.setAttribute('aria-selected',String(tab.dataset.configMode===value));
+    $('file-row').hidden=value!=='import';$('export').hidden=value!=='export';$('preview').hidden=value==='export';$('apply').hidden=value==='export';
     $('policy-note').hidden=value==='export'||$('policy').value!=='replace';
-    const cache=value==='cache';
-    $('categories').closest('fieldset').hidden=cache;
-    $('cache-panel').hidden=!cache;
-    if(cache){$('policy-row').hidden=true;$('policy-note').hidden=true;$('preview').hidden=true;$('apply').hidden=true;}
-    if(value==='restore'){
-      const {snapshots}=await request({action:'snapshots'});$('snapshots').replaceChildren(new Option('选择配置备份',''),...snapshots.map(row=>new Option(`${new Date(row.created).toLocaleString()} · ${row.label}`,row.id)));
-      if(!snapshots.length)message('尚无配置备份；导入配置前会自动保存。');
-    }
   }
   const editorHost=document.getElementById('editor-config-manager');
   const embeddedHost=editorHost||document.getElementById('launcher-config-manager');
@@ -163,30 +154,17 @@
     dialog.innerHTML=`${embeddedHost?'':'<header><strong id="config-title">配置管理</strong><button type="button" id="config-close" aria-label="关闭">×</button></header>'}
       <div class="config-body"><p class="config-scope">导入、导出个人设置；不会改动当前工程。</p>
       <nav role="tablist" aria-label="配置操作"><button data-config-mode="export" role="tab">导出</button><button data-config-mode="import" role="tab">导入</button></nav>
-      <details class="config-maintenance"><summary>备份与清理</summary><div class="config-maintenance-actions"><button data-config-mode="restore" aria-pressed="false" type="button">恢复配置备份</button><button data-config-mode="cache" aria-pressed="false" type="button">清理重复波形缓存</button></div></details>
-      <p id="config-restore-note" class="config-scope" hidden>恢复导入前的个人设置，可按分类选择；不恢复工程内容。</p>
-      <div id="config-cache-panel" hidden><p class="config-scope">缓存用于加快波形加载。这里只清理重复副本，移入回收站；不影响媒体和字幕。</p><div class="config-file-row"><button id="config-cache-analyze" type="button">分析当前媒体</button><button id="config-cache-clean" type="button" disabled>清理重复缓存</button></div><div id="config-cache-result"></div></div>
-      <div id="config-file-row" class="config-file-row" hidden><button id="config-choose" type="button">选择配置文件</button><span id="config-filename"></span><input id="config-file" type="file" accept=".mswconfig,.workspace.json" hidden></div>
-      <select id="config-snapshots" aria-label="配置备份" hidden></select>
+      <div id="config-file-row" class="config-file-row" hidden><button id="config-choose" type="button">选择配置文件</button><label id="config-policy-row"><span>导入机制</span><select id="config-policy"><option value="keep">保留本机，补充缺失项</option><option value="replace">使用导入配置，覆盖所选分类</option></select></label><span id="config-filename"></span><input id="config-file" type="file" accept=".mswconfig,.workspace.json" hidden></div>
       <fieldset><legend><label><input type="checkbox" id="config-all">配置分类</label></legend><div id="config-categories"></div></fieldset>
-      <label id="config-policy-row" hidden><span>已有配置</span><select id="config-policy"><option value="keep">保留本机，补充缺失项</option><option value="replace">使用导入配置，覆盖所选分类</option></select></label>
       <p id="config-policy-note" class="config-policy-note" hidden>覆盖时，所选分类中未包含的设置回到默认；未选择的分类保持不变。</p>
       <div id="config-preview-result" aria-live="polite"></div><p id="config-message" role="status"></p>
       <details class="config-scope-details"><summary>包含哪些内容？</summary><p>翻译与文本处理：翻译偏好、提示词、替换规则和后处理参数。配音设置：引擎、语速等合成偏好。工程备份设置：自动备份开关、间隔和保留数量。</p><p>字幕与素材随工程保存；密钥、私人音色、文件路径和备份文件不导出。界面设置在重开窗口后生效。</p></details></div>
       <footer><button id="config-export" type="button">导出 .mswconfig</button><button id="config-preview" type="button" hidden>预览变更</button><button id="config-apply" type="button" hidden disabled>确认应用</button></footer>`;
     (embeddedHost||document.body).append(dialog);
     if(!embeddedHost){$('close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
-    const showCache=report=>{
-      cacheReport=report;$('cache-result').replaceChildren();$('cache-clean').disabled=!report.count;
-      const heading=document.createElement('p');heading.textContent=`${report.media} · 可清理 ${report.count} 项（${(report.bytes/1024).toFixed(1)} KB）`;$('cache-result').append(heading);
-      for(const row of report.files){const line=document.createElement('div');line.className='config-change';line.textContent=`${row.name} · 音轨 ${row.track} · ${row.reason}`;$('cache-result').append(line);}
-    };
-    $('cache-analyze').onclick=()=>run(async()=>{cacheReport=null;$('cache-clean').disabled=true;const report=await request({action:'cache-analyze'});if(!report.cancelled)showCache(report);});
-    $('cache-clean').onclick=()=>run(async()=>{if(!cacheReport)return;const token=cacheReport.token;cacheReport=null;$('cache-clean').disabled=true;const report=await request({action:'cache-clean',token});showCache(report);message([`已将 ${report.removed} 项重复缓存移入回收站。`,...(report.warnings||[])].join(' '));});
     for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.onclick=()=>run(()=>changeMode(tab.dataset.configMode));
     $('all').onchange=()=>{const checked=$('all').checked;dialog.querySelectorAll('[data-config-category]:not(:disabled)').forEach(x=>x.checked=checked);syncAll();invalidate();};
     $('policy').onchange=()=>{invalidate();$('policy-note').hidden=$('policy').value!=='replace';};
-    $('snapshots').onchange=()=>{sourceId=$('snapshots').value;checkboxes(sourceId?categories.map(x=>x.id):[]);invalidate();};
     $('choose').onclick=()=>{
       if(global.MSWLauncher?.backend==='real')void run(async()=>{const result=await MSWLauncher.callBackend('choose_user_config_file',{});if(result.error)throw Error(result.error);if(!result.cancelled)await loadFile(result.name,result.content);});
       else{$('file').value='';$('file').click();}
@@ -203,21 +181,18 @@
       message(result.package.categories.length>ids.length?'已导出，并包含预览所需的字幕预设。':'配置文件已导出。');
     });
     $('preview').onclick=()=>run(async()=>{
-      if(mode==='import'&&!currentFile||mode==='restore'&&!sourceId)throw Error('请先选择配置文件或配置备份');
-      const payload={categories:selected(),policy:$('policy').value,...(mode==='restore'?{id:sourceId}:{package:currentFile})};
-      preview={payload,result:await request({...payload,action:mode==='restore'?'restore-preview':'preview'})};renderPreview(preview.result);
+      if(!currentFile)throw Error('请先选择配置文件');
+      const payload={categories:selected(),policy:$('policy').value,package:currentFile};
+      preview={payload,result:await request({...payload,action:'preview'})};renderPreview(preview.result);
     });
     $('apply').onclick=()=>run(async()=>{
       if(!preview)return;
-      const result=await request({...preview.payload,revision:preview.result.revision,token:preview.result.token,action:mode==='restore'?'restore':'import'});
+      const result=await request({...preview.payload,revision:preview.result.revision,token:preview.result.token,action:'import'});
       invalidate();message(result.changed?'配置已保存。请重开窗口使用新的界面设置；当前工程与任务保持不变。':'配置相同，无需更改。');
     });
   }
   async function initialize(){
     if(!dialog)build();
-    cacheReport=null;$('cache-clean').disabled=true;$('cache-result').replaceChildren();
-    dialog.querySelector('[data-config-mode="cache"]').hidden=!global.MSWConfig.connected;
-    $('cache-analyze').textContent=global.MSWLauncher?'选择媒体并分析':'分析当前媒体';
     await run(async()=>{knownCategories=(await request({action:'catalog'})).categories;categories=knownCategories.filter(row=>!row.retired&&!['assStyles','onboarding'].includes(row.id));await changeMode('export');initialized=true;if(!global.MSWConfig.connected)message('便携 HTML：仅管理此浏览器的界面与字幕偏好；处理设置请使用本机服务版。');});
   }
   async function open(){

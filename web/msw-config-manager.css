@@ -28,8 +28,10 @@
 .msw-config-manager #config-categories label:has(input:disabled) { opacity: .45; cursor: default; }
 .msw-config-manager input[type="checkbox"] { appearance: auto; flex: 0 0 16px; width: 16px; height: 16px; margin: 0; accent-color: var(--accent, #7ca6dd); }
 .msw-config-manager .config-file-row, .msw-config-manager #config-policy-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.msw-config-manager #config-filename { overflow-wrap: anywhere; color: var(--cfg-muted); }
-.msw-config-manager #config-snapshots { width: 100%; }
+.msw-config-manager #config-filename { flex: 1 0 100%; overflow-wrap: anywhere; color: var(--cfg-muted); }
+.msw-config-manager #config-filename:empty { display: none; }
+.msw-config-manager #config-policy-row { flex: 1 1 240px; gap: 8px; }
+.msw-config-manager #config-policy { flex: 1; min-width: 0; }
 .msw-config-manager select option { background: var(--cfg-bg); color: var(--cfg-text); }
 .msw-config-manager .config-change { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--cfg-border); }
 .msw-config-manager .config-change span:last-child { color: var(--cfg-muted); text-align: right; }
@@ -37,9 +39,6 @@
 .msw-config-manager #config-message { margin: 14px 0; }
 .msw-config-manager [hidden] { display: none !important; }
 .msw-config-manager summary { cursor: pointer; margin-top: 12px; }
-.msw-config-manager .config-maintenance { color: var(--cfg-muted); }
-.msw-config-manager .config-maintenance-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 16px; }
-.msw-config-manager .config-maintenance-actions button { color: var(--cfg-text); }
 .msw-config-manager #config-preview-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; font-size: .85em; }
 .msw-config-manager[aria-busy="true"] button { pointer-events: none; opacity: .55; }
 .msw-config-manager.config-embedded { width: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: transparent; }

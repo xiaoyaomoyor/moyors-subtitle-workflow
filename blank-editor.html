@@ -5597,10 +5597,14 @@
 .msw-motion-range-graph .motion-range-fill { cursor:ew-resize; stroke:var(--text-secondary); stroke-width:1; fill:color-mix(in srgb,var(--accent) 26%,var(--bg-panel)); }
 .msw-motion-heading { flex-wrap:wrap; gap:8px; }
 .msw-motion-heading > select { width:auto; min-width:90px; max-width:150px; }
-#motion-fade-durations { display:flex; flex-wrap:wrap; gap:8px; }
-#motion-fade-durations[hidden] { display:none; }
-#motion-fade-durations label { display:flex; align-items:center; gap:4px; font-size:.85em; }
-#motion-fade-durations input { width:80px; min-width:0; }
+#subtitle-properties #motion-timing { width:auto; flex:0 0 auto; min-width:100px; max-width:130px; }
+.msw-curve-pulse { margin-top:8px; color:var(--text-muted); font-size:12px; }
+.msw-curve-pulse[hidden] { display:none; }
+.msw-curve-pulse > summary { cursor:pointer; }
+.msw-curve-pulse > div, .msw-curve-pulse label { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+.msw-curve-pulse > div { margin-top:6px; gap:12px; }
+#subtitle-properties .msw-curve-pulse input { width:78px; min-width:0; }
+.curve-pulse-line { opacity:.5; stroke-dasharray:3 2; }
 #motion-custom-typewriter { margin-bottom:8px; }
 .motion-range-hit { fill:transparent; stroke:none; }
 .motion-range-node { cursor:ew-resize; }
@@ -5741,8 +5745,10 @@
 .msw-config-manager #config-categories label:has(input:disabled) { opacity: .45; cursor: default; }
 .msw-config-manager input[type="checkbox"] { appearance: auto; flex: 0 0 16px; width: 16px; height: 16px; margin: 0; accent-color: var(--accent, #7ca6dd); }
 .msw-config-manager .config-file-row, .msw-config-manager #config-policy-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.msw-config-manager #config-filename { overflow-wrap: anywhere; color: var(--cfg-muted); }
-.msw-config-manager #config-snapshots { width: 100%; }
+.msw-config-manager #config-filename { flex: 1 0 100%; overflow-wrap: anywhere; color: var(--cfg-muted); }
+.msw-config-manager #config-filename:empty { display: none; }
+.msw-config-manager #config-policy-row { flex: 1 1 240px; gap: 8px; }
+.msw-config-manager #config-policy { flex: 1; min-width: 0; }
 .msw-config-manager select option { background: var(--cfg-bg); color: var(--cfg-text); }
 .msw-config-manager .config-change { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--cfg-border); }
 .msw-config-manager .config-change span:last-child { color: var(--cfg-muted); text-align: right; }
@@ -5750,9 +5756,6 @@
 .msw-config-manager #config-message { margin: 14px 0; }
 .msw-config-manager [hidden] { display: none !important; }
 .msw-config-manager summary { cursor: pointer; margin-top: 12px; }
-.msw-config-manager .config-maintenance { color: var(--cfg-muted); }
-.msw-config-manager .config-maintenance-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 16px; }
-.msw-config-manager .config-maintenance-actions button { color: var(--cfg-text); }
 .msw-config-manager #config-preview-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; font-size: .85em; }
 .msw-config-manager[aria-busy="true"] button { pointer-events: none; opacity: .55; }
 .msw-config-manager.config-embedded { width: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
@@ -18516,20 +18519,25 @@ export default MawDynamicCaptions;
   const names=Object.keys(definitions),clone=v=>JSON.parse(JSON.stringify(v));
   const object=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
   const timings=name=>name==='curves'?[]:name==='fade'?['in','out']:['start','end'];
+  const anchor=p=>p.anchor||'start';
+  const pointOrder=(a,b)=>anchor(a)!==anchor(b)?(anchor(a)==='start'?-1:1):(a.time-b.time)*(anchor(a)==='end'?-1:1);
+  const sortPoints=points=>points.sort(pointOrder);
   function validChannels(raw,unit){
     return object(raw)&&Object.entries(raw).every(([key,points])=>{
       const c=channels[key];return c&&Array.isArray(points)&&points.length>0&&points.length<=32&&points.every((p,i)=>
-        object(p)&&Object.keys(p).length===3&&['time','value','easing'].every(k=>Object.hasOwn(p,k))&&
+        object(p)&&Object.keys(p).every(k=>['time','value','easing','anchor'].includes(k))&&['time','value','easing'].every(k=>Object.hasOwn(p,k))&&
+        (!Object.hasOwn(p,'anchor')||['start','end'].includes(p.anchor))&&
         typeof p.time==='number'&&Number.isFinite(p.time)&&p.time>=0&&p.time<=(unit==='percent'?100:60000)&&
-        (!i||p.time>points[i-1].time)&&typeof p.value==='number'&&Number.isFinite(p.value)&&p.value>=c.min&&p.value<=c.max&&
+        (!i||pointOrder(points[i-1],p)<0)&&typeof p.value==='number'&&Number.isFinite(p.value)&&p.value>=c.min&&p.value<=c.max&&
         ['linear','smooth','hold'].includes(p.easing));
     });
   }
   function valid(raw){
-    if(!object(raw)||raw.schema!==schema||!object(raw.effects)||Object.keys(raw).some(k=>!['schema','effects','mode'].includes(k))||
+    if(!object(raw)||raw.schema!==schema||!object(raw.effects)||Object.keys(raw).some(k=>!['schema','effects','mode','timing'].includes(k))||
+      (Object.hasOwn(raw,'timing')&&!['percent','ms'].includes(raw.timing))||
       (Object.hasOwn(raw,'mode')&&!['presets','custom'].includes(raw.mode)))return false;
     return Object.entries(raw.effects).every(([name,e])=>{
-      const d=definitions[name],extra=name==='fade'?['start','end']:name==='blink'?['periodUnit']:name==='typewriter'?['custom']:[];
+      const d=definitions[name],extra=[...(name==='curves'?['pulse']:['endAnchor']),...(name==='fade'?['start','end']:name==='blink'?['periodUnit']:name==='typewriter'?['custom']:[])];
       if(!d||!object(e)||Object.keys(d).some(k=>!Object.hasOwn(e,k))||Object.keys(e).some(k=>!Object.hasOwn(d,k)&&!extra.includes(k)))return false;
       if(name==='fade'&&Object.hasOwn(e,'start')!==Object.hasOwn(e,'end'))return false;
       for(const [k,v] of Object.entries(e)){
@@ -18538,18 +18546,21 @@ export default MawDynamicCaptions;
         else if(k==='unit'||k==='periodUnit'){if(!['percent','ms'].includes(v))return false;}
         else if(k==='easing'){if(!['linear','ease-in','ease-out','smooth'].includes(v))return false;}
         else if(k==='channels'){if(!validChannels(v,e.unit))return false;}
+        else if(k==='endAnchor'){if(!['start','end'].includes(v)||!Object.hasOwn(e,'end'))return false;}
+        else if(k==='pulse'){if(!valid({schema,effects:{blink:v}}))return false;}
         else{
           const bounds=[...timings(name),'start','end',...(name==='slide'?['in','out']:[])].includes(k)?[0,e.unit==='percent'?100:60000]:k==='distance'?[0,4096]:k==='period'?(e.periodUnit==='percent'?[1,100]:[80,60000]):k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
           if(typeof v!=='number'||!Number.isFinite(v)||v<bounds[0]||v>bounds[1])return false;
         }
       }
+      if(e.endAnchor==='end')return true;
       if((name==='fade'||name==='slide')&&Object.hasOwn(e,'start'))return e.end>e.start&&e.in+e.out<=e.end-e.start+1e-8;
       return name==='curves'||name==='fade'||e.end>e.start;
     });
   }
-  function normalize(raw){if(!valid(raw))throw Error('字幕动画参数无效');return {schema,...(raw.mode?{mode:raw.mode}:{}),effects:{...clone(definitions),...clone(raw.effects)}};}
+  function normalize(raw){if(!valid(raw))throw Error('字幕动画参数无效');return {schema,...(raw.mode?{mode:raw.mode}:{}),...(raw.timing?{timing:raw.timing}:{}),effects:{...clone(definitions),...clone(raw.effects)}};}
   const defaults=()=>({schema,effects:clone(definitions)});
-  function resolve(base,override){const mode=override?.mode??base?.mode;return base===undefined&&override===undefined?null:normalize({schema,...(mode?{mode}:{}),effects:{...(base?.effects||{}),...(override?.effects||{})}});}
+  function resolve(base,override){const mode=override?.mode??base?.mode,timing=override?.timing??base?.timing;return base===undefined&&override===undefined?null:normalize({schema,...(mode?{mode}:{}),...(timing?{timing}:{}),effects:{...(base?.effects||{}),...(override?.effects||{})}});}
   function active(raw){
     if(!raw.mode)return raw;
     return {...raw,effects:Object.fromEntries(Object.entries(raw.effects).map(([key,e])=>[key,
@@ -18566,14 +18577,15 @@ export default MawDynamicCaptions;
   }
   function presetTimes(name,e){return ['fade','slide'].includes(name)?[e.start,e.start+e.in,e.end-e.out,e.end]:[e.start,e.end];}
   function dragPreset(name,original,{edge,band},value,delta,modifiers={}){
-    const p=presetTimes(name,original),round=v=>Math.round(v*1e9)/1e9;
+    const p=presetTimes(name,original),round=v=>Math.round(v*1e9)/1e9,limit=original._extent||100,scale=original.unit==='ms'?1000:1;
+    const snap=(v,lo,hi)=>snapValue(v/scale,modifiers,lo/scale,hi/scale,scale===1000?.001:.1)*scale;
     if(band!==undefined){
       const [a,b]=['fade','slide'].includes(name)?(band==='in'?[0,1]:[2,3]):[0,1];
-      delta=snapValue(p[a]+delta,modifiers,a?p[a-1]:0,(b<p.length-1?p[b+1]:100)-(p[b]-p[a]))-p[a];
+      delta=snap(p[a]+delta,a?p[a-1]:0,(b<p.length-1?p[b+1]:limit)-(p[b]-p[a]))-p[a];
       for(let i=a;i<=b;i++)p[i]=round(p[i]+delta);
     }else{
-      const i=Number(edge),gap=['fade','slide'].includes(name)?0:.1;
-      p[i]=snapValue(value,modifiers,i?p[i-1]+gap:0,i<p.length-1?p[i+1]-gap:100);
+      const i=Number(edge),gap=['fade','slide'].includes(name)?0:scale===1000?1:.1;
+      p[i]=snap(value,i?p[i-1]+gap:0,i<p.length-1?p[i+1]-gap:limit);
     }
     if(p.at(-1)-p[0]<.099999999)return {};
     return {start:p[0],end:p.at(-1),...(['fade','slide'].includes(name)?{in:round(p[1]-p[0]),out:round(p[3]-p[2])}:{})};
@@ -18588,7 +18600,7 @@ export default MawDynamicCaptions;
   function presetState(raw,name,duration=1000){
     const source=normalize(raw).effects[name];
     if(JSON.stringify(source)===JSON.stringify(definitions[name]))return presetDefault(name);
-    const e=clone(source);
+    const e=source.endAnchor?clockEffect(source,duration):clone(source);
     if(e.unit==='ms'){
       for(const key of ['in','out','start','end'])if(Object.hasOwn(e,key))e[key]=clamp(e[key]*100/Math.max(1,duration),0,100);
       e.unit='percent';
@@ -18604,9 +18616,56 @@ export default MawDynamicCaptions;
     if(name==='blink'&&e.periodUnit!=='percent')Object.assign(e,{period:clamp(e.period*100/duration,1,100),periodUnit:'percent'});
     return e;
   }
+  function authorState(raw,name,duration=1000){
+    const source=normalize(raw).effects[name];
+    const e=JSON.stringify(source)===JSON.stringify(definitions[name])?presetDefault(name):clone(source);
+    if(name==='fade'&&e.unit==='ms'&&!Object.hasOwn(e,'start'))Object.assign(e,{start:0,end:0,endAnchor:'end'});
+    return raw.timing?effectUnit(e,name,raw.timing,duration):e;
+  }
+  function anchoredCurves(raw,duration){
+    const a=normalize(raw),c={enabled:true,unit:'ms',channels:{}};
+    const effects=Object.fromEntries(names.filter(n=>n!=='curves').map(n=>[n,effectUnit(authorState(a,n,duration),n,'ms',duration)]));
+    const point=(time,value,easing='linear',anchor='start')=>({time,value,easing,anchor});
+    const ends=e=>{
+      const start=e.start||0,end=e.end??0,tail=e.endAnchor==='end'||!Object.hasOwn(e,'end');
+      return [point(start,0),point(start+e.in,0),point(tail?end+e.out:end-e.out,0,'linear',tail?'end':'start'),point(end,0,'linear',tail?'end':'start')];
+    };
+    const zeroPhases=(points,e,isFade)=>{
+      if(!e.out){
+        if(isFade&&e.endAnchor==='end'&&e.end===0)points.pop();
+        else {points.splice(2,1);points[1].easing='hold';}
+      }
+      if(!e.in){
+        const first=points.shift();
+        if(e.start>0)points.unshift({...first,time:0,easing:'hold'});
+      }
+      return points;
+    };
+    const {fade:f,blink:b,transform:t,slide:s}=effects;
+    if(t.enabled)for(const [key,suffix] of [['opacity','Opacity'],['x','X'],['y','Y'],['scale','Scale'],['rotation','Rotation']]){
+      if(t['from'+suffix]===channels[key].initial&&t['to'+suffix]===channels[key].initial)continue;
+      if(!['linear','smooth'].includes(t.easing))throw Error('请将原有舒展过渡改为匀速或平滑，再转为自定义');
+      c.channels[key]=[point(t.start,t['from'+suffix],t.easing),point(t.end,t['to'+suffix],'linear',t.endAnchor||'start')];
+    }
+    if(f.enabled){
+      if(c.channels.opacity)throw Error('请先分别编辑淡入淡出与原有透明度变换，再转为自定义');
+      c.channels.opacity=zeroPhases(ends(f).map((p,i)=>({...p,value:i===1||i===2?100:0})),f,true);
+    }
+    if(s.enabled){
+      const key=['left','right'].includes(s.direction)?'x':'y',sign=['left','up'].includes(s.direction)?-1:1;
+      if(c.channels[key])throw Error('滑入滑出与原有位移动画重合，请先保留其中一种再转为自定义');
+      c.channels[key]=zeroPhases(ends(s).map((p,i)=>({...p,value:(!i?-1:i===3?1:0)*sign*s.distance,easing:i===0||i===2?'smooth':'linear'})),s,false);
+    }
+    // A finite list of baked keys cannot represent a fixed period on arbitrary
+    // cue lengths. Retain the oscillator as editable curve modulation.
+    if(b.enabled)c.pulse=clone(b);
+    for(const [key,p] of Object.entries(c.channels))c.channels[key]=sortPoints(p).filter((p,i,all)=>!i||pointOrder(all[i-1],p)!==0);
+    return c;
+  }
   // Bake only active numeric channels. Preserve discontinuities and reject a
   // conversion that cannot fit the editable curve budget instead of losing it.
   function curvesFromPresets(raw,duration=1000){
+    if(timingMode(raw)==='ms')return anchoredCurves(raw,duration);
     const a=normalize(raw);a.mode='presets';
     const {fade:f,blink:b,transform:t,slide:s}=a.effects,c={enabled:true,unit:'percent',channels:{}};
     const phase=e=>[ms(e,'start',duration),ms(e,'start',duration)+ms(e,'in',duration),ms(e,'end',duration)-ms(e,'out',duration),ms(e,'end',duration)];
@@ -18651,6 +18710,13 @@ export default MawDynamicCaptions;
   // Authoring modes retain both banks. Only the active bank is sampled/exported.
   function authorPatch(raw,name,action,duration=1000){
     const a=normalize(raw),patch={schema,effects:{}};
+    if(action.type==='timing'&&name==='all'){
+      patch.timing=action.value;
+      const reference=action.referenceDuration||duration;
+      for(const key of names)patch.effects[key]=effectUnit(authorState(a,key,reference),key,action.value,reference);
+      if(!valid(patch))throw Error('转换后的动画时间超出范围');
+      return patch;
+    }
     if(action.type==='mode'){
       patch.mode=action.value;
       if(action.value==='custom'){
@@ -18664,24 +18730,26 @@ export default MawDynamicCaptions;
     if(action.type==='custom-typewriter')return {schema,mode:'custom',effects:{typewriter:{...a.effects.typewriter,custom:action.value}}};
     if(name==='curves'){
       const c=clone(a.effects.curves);
-      if(action.type==='unit')patch.effects.curves=convertUnit(c,action.value,duration);
-      else if(action.type==='reset')patch.effects.curves=clone(definitions.curves);
+      if(action.type==='unit')return authorPatch(a,'all',{type:'timing',value:action.value,referenceDuration:action.referenceDuration},duration);
+      else if(action.type==='reset')patch.effects.curves={...clone(definitions.curves),unit:timingMode(a)};
+      else if(action.type==='pulse'){if(action.value===null)delete c.pulse;else c.pulse={...c.pulse,...action.value};patch.effects.curves=c;}
       else if(action.type==='playhead'){
         if(action.time<0||action.time>duration)throw Error('请将播放头移到所选字幕共同覆盖的时间内');
         const time=action.time*(c.unit==='percent'?100/duration:1),points=c.channels[action.channel]||[];
         const value=sample(a,action.time,duration)[action.channel]*(action.channel==='opacity'?100:1);
-        c.channels[action.channel]=[...points.filter(p=>Math.abs(p.time-time)>.001),{time,value,easing:'linear'}].sort((a,b)=>a.time-b.time);c.enabled=true;patch.effects.curves=c;
+        c.channels[action.channel]=sortPoints([...points.filter(p=>anchor(p)!=='start'||Math.abs(p.time-time)>.001),{time,value,easing:'linear',...(c.unit==='ms'?{anchor:'start'}:{})}]);c.enabled=true;patch.effects.curves=c;
       }
       else{
         // Multi-selection edits normalize other channels to the displayed unit.
-        const next=convertUnit(c,action.unit||c.unit,duration);
+        const next=effectUnit(c,'curves',action.unit||c.unit,duration);
         next.enabled=true;
         if(action.points===null)delete next.channels[action.channel];else next.channels[action.channel]=clone(action.points);
         patch.effects.curves=next;
       }
       patch.mode='custom';
     }else{
-      let e=action.type==='reset'?{...presetDefault(name),enabled:a.effects[name].enabled}:name==='fade'&&a.effects.fade.unit==='ms'&&!Object.hasOwn(a.effects.fade,'start')?clone(a.effects.fade):presetState(a,name,duration);
+      let e=action.type==='reset'?{...effectUnit(presetDefault(name),name,timingMode(a),action.referenceDuration||duration),enabled:a.effects[name].enabled}:authorState(a,name,action.referenceDuration||duration);
+      if(action.displayUnit)e=effectUnit(e,name,action.displayUnit,action.referenceDuration||duration);
       if(name==='fade'&&action.type==='values'&&action.timeUnit){
         if(action.timeUnit==='ms')e={enabled:e.enabled,unit:'ms',in:ms(e,'in',duration),out:ms(e,'out',duration)};
         else e=presetState(a,name,duration);
@@ -18700,9 +18768,74 @@ export default MawDynamicCaptions;
   }
   const ms=(e,key,duration)=>e[key]*(e.unit==='percent'?duration/100:1);
   const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+  const timingMode=raw=>raw.timing||(authoringMode(raw)==='custom'?raw.effects.curves.unit:raw.effects.fade.unit);
+  // Stored offsets are never clamped to one reference cue. Resolve at the last
+  // moment so a short cue cannot overwrite the author's requested durations.
+  function clockEffect(e,duration){
+    const n=clone(e);if(!e.endAnchor)return n;
+    const start=ms(e,'start',duration),finish=ms(e,'end',duration),a=ms(e,'in',duration)||0,z=ms(e,'out',duration)||0;
+    const extent=e.endAnchor==='end'?start+a+finish+z:Math.max(finish,start+a+z);
+    const ratio=Math.min(1,duration/Math.max(extent,1e-9));
+    Object.assign(n,{unit:'ms',start:start*ratio,end:e.endAnchor==='end'?duration-finish*ratio:finish*ratio});
+    for(const key of ['in','out'])if(Object.hasOwn(e,key))n[key]=ms(e,key,duration)*ratio;
+    // A range with both ends at the compressed junction has zero exposure.
+    if(!Object.hasOwn(e,'in')&&n.end<=n.start)n.end=n.start+1e-7;
+    delete n.endAnchor;return n;
+  }
+  function pointExtent(points,unit){
+    return Math.max(0,...points.filter(p=>anchor(p)==='start').map(p=>p.time))+Math.max(0,...points.filter(p=>anchor(p)==='end').map(p=>p.time));
+  }
+  function resolvePoints(points,unit,duration){
+    const factor=unit==='percent'?duration/100:1;
+    const ratio=points.some(p=>p.anchor)?Math.min(1,duration/Math.max(1e-9,pointExtent(points,unit)*factor)):1;
+    const result=[];
+    for(const p of points){
+      const time=anchor(p)==='end'?duration-p.time*factor*ratio:p.time*factor*ratio;
+      const next={...p,time};delete next.anchor;
+      // Keep both limits at a compressed junction: replacing the incoming key
+      // would incorrectly interpolate toward the outgoing jump value.
+      result.push(next);
+    }
+    return result;
+  }
+  function runtime(raw,duration){
+    const next={...raw,effects:{...raw.effects}};
+    for(const [name,e] of Object.entries(next.effects))if(e.endAnchor)next.effects[name]=clockEffect(e,duration);
+    const c=next.effects.curves;
+    if(c?.enabled){
+      next.effects.curves={...c,unit:'ms',channels:Object.fromEntries(Object.entries(c.channels).map(([key,p])=>[key,resolvePoints(p,c.unit,duration)]))};
+      if(c.pulse)next.effects.blink=clockEffect(c.pulse,duration);
+    }
+    return next;
+  }
+  function effectUnit(effect,name,unit,duration){
+    if(effect.unit===unit)return clone(effect);
+    const n=clone(effect);
+    if(name==='curves'){
+      if(unit==='percent')for(const points of Object.values(n.channels)){
+        const ratio=points.some(p=>p.anchor)?Math.min(1,duration/Math.max(1e-9,pointExtent(points,n.unit))):1;
+        for(const p of points)p.time*=ratio*100/duration;
+      }
+      else for(const points of Object.values(n.channels))for(const p of points){p.time*=duration/100;p.anchor=anchor(p);}
+      if(n.pulse)n.pulse=effectUnit(n.pulse,'blink',unit,duration);
+    }else if(unit==='ms'){
+      for(const key of ['start','end','in','out'])if(Object.hasOwn(n,key))n[key]*=duration/100;
+      if(name==='fade'&&!Object.hasOwn(n,'start'))Object.assign(n,{start:0,end:duration});
+      if(['fade','slide','blink'].includes(name)){n.end=duration-n.end;n.endAnchor='end';}else n.endAnchor='start';
+    }else{
+      const timed=clockEffect(n,duration);
+      for(const key of ['start','end','in','out'])if(Object.hasOwn(timed,key))n[key]=timed[key]*100/duration;
+      delete n.endAnchor;
+    }
+    if(name==='blink'){
+      const period=n.period*(n.periodUnit==='percent'?duration/100:1);
+      n.period=unit==='ms'?clamp(period,80,60000):clamp(period*100/duration,1,100);n.periodUnit=unit;
+    }
+    n.unit=unit;return n;
+  }
   const ease=(p,mode)=>mode==='ease-in'?p*p:mode==='ease-out'?1-(1-p)**2:mode==='smooth'?p*p*(3-2*p):p;
   function curveValue(points,time){
-    if(time<=points[0].time)return points[0].value;
+    if(time<points[0].time)return points[0].value;
     for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(time<b.time){
       const p=a.easing==='hold'?0:ease((time-a.time)/(b.time-a.time),a.easing);return a.value+(b.value-a.value)*p;
     }}
@@ -18777,7 +18910,7 @@ export default MawDynamicCaptions;
     return editChannel(a,key,points);
   }
   function sample(raw,elapsed,duration,count=0){
-    raw=active(raw);
+    raw=runtime(active(raw),duration);
     const {fade:f,typewriter:w,blink:b,transform:t,slide:s}=raw.effects;
     const time=clamp(elapsed,0,duration),state={opacity:1,x:0,y:0,scale:100,rotation:0,revealed:count};
     if(f.enabled){let a=ms(f,'in',duration),z=ms(f,'out',duration),start=Object.hasOwn(f,'start')?ms(f,'start',duration):0,end=Object.hasOwn(f,'end')?ms(f,'end',duration):duration;if(a+z>end-start){const ratio=(end-start)/(a+z);a*=ratio;z*=ratio;}state.opacity=time<start||time>end?0:clamp(Math.min(a?(time-start)/a:1,z?(end-time)/z:1,1));}
@@ -18816,7 +18949,7 @@ export default MawDynamicCaptions;
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
   }
-  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets};
+  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets,timingMode,clockEffect,pointExtent,resolvePoints,sortPoints,anchor,effectUnit,authorState};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);
 
@@ -20174,8 +20307,8 @@ export default MawDynamicCaptions;
           if(!motion.valid(change.animation))fail('字幕动画覆盖包含无效参数');
           Object.assign(effects,change.animation.effects);
         }
-        const mode=change.animation?.mode??c.subtitle_animation?.mode;
-        if(Object.keys(effects).length||mode)c.subtitle_animation={schema:motion.schema,...(mode?{mode}:{}),effects};else delete c.subtitle_animation;
+        const mode=change.animation?.mode??c.subtitle_animation?.mode,timing=change.animation?.timing??c.subtitle_animation?.timing;
+        if(Object.keys(effects).length||mode||timing)c.subtitle_animation={schema:motion.schema,...(mode?{mode}:{}),...(timing?{timing}:{}),effects};else delete c.subtitle_animation;
       }
     });
   }
@@ -67463,7 +67596,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   const icons={linear:'M-5 0L0-5L5 0L0 5Z',smooth:'M-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0',hold:'M-5-5H5V5H-5Z'};
   function create(root,{context,commit,message}){
     root.className='msw-curves';
-    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击空白处准备新帧，选中帧后输入或拖动修改。右键切换坐标、过渡或删除。时间相对字幕起点；Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。">
+    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击空白处新建，选中帧后输入或拖动修改。固定时长可右键选起点后或终点前；短字幕自动缩短。Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。">
       <label><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" value="0" required></label>
       <label><span id="curve-value-label">不透明度 (%)</span><input id="curve-value" type="number" step="any" value="100" required></label>
       <button id="curve-add" type="button" class="msw-style-icon" title="在此时间新建关键帧" aria-label="在此时间新建关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
@@ -67475,15 +67608,33 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     let channel='opacity',state,points=[],selected=-1,drag=null,geometry,signature='',targetSignature='',cursor={time:0,value:100},mixed=false;
     const timeScale=()=>state.unit==='ms'?1000:1;
     const timeText=t=>state.unit==='ms'?(t/1000).toFixed(3)+' s':number(t)+'%';
+    const same=(a,b)=>A.anchor(a)===A.anchor(b)&&Math.abs(a.time-b.time)<.001;
+    const pointTime=(p,end=geometry?.end||100)=>A.anchor(p)==='end'?end-p.time:p.time;
+    const pointLabel=p=>(A.anchor(p)==='end'?'终点前 ':state.unit==='ms'?'起点后 ':'')+timeText(p.time);
     const fingerprint=()=>JSON.stringify(context().items.map(i=>[i.row?.cue_id,i.track.id,i.value]));
     const blocked=()=>context().blocked||A.authoringMode(context().items[0]?.value||A.defaults())!=='custom';
+    const pulse=document.createElement('details');pulse.id='curve-pulse';pulse.className='msw-curve-pulse';pulse.hidden=true;
+    pulse.innerHTML='<summary>循环闪烁</summary><div><label>循环间隔 <input id="curve-pulse-period" type="number" step="0.001" required><span id="curve-pulse-unit">s</span></label><label>最低不透明度 <input id="curve-pulse-opacity" type="number" min="0" max="100" step="1" required>%</label><button type="button" id="curve-pulse-remove" class="msw-style-icon" title="移除循环闪烁" aria-label="移除循环闪烁"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>';
+    root.append(pulse);pulse.dataset.optionHelp='保留原闪烁间隔；关键帧调整整体不透明度。';
+    function syncPulse(){
+      const b=state.pulse;pulse.hidden=!b;if(!b)return;
+      const fixed=b.periodUnit!=='percent',input=$('curve-pulse-period');
+      input.min=fixed?'.080':'1';input.max=fixed?'60':'100';input.value=String(b.period/(fixed?1000:1));
+      $('curve-pulse-unit').textContent=fixed?'s':'%';$('curve-pulse-opacity').value=String(b.opacity);
+      for(const el of pulse.querySelectorAll('input,button'))el.disabled=blocked();
+    }
+    for(const field of ['period','opacity'])$('curve-pulse-'+field).onchange=e=>{
+      if(!e.target.reportValidity()){syncPulse();return;}
+      apply({type:'pulse',value:{[field]:Number(e.target.value)*(field==='period'&&state.pulse.periodUnit!=='percent'?1000:1)}});
+    };
+    $('curve-pulse-remove').onclick=()=>apply({type:'pulse',value:null});
     function apply(action){
       try{commit('curves','author',action);message('');}catch(e){message(e.message,true);}sync();
     }
-    function save(next){apply({type:'channel',channel,points:next.length?next:null,unit:state.unit});}
+    function save(next){apply({type:'channel',channel,points:next.length?A.sortPoints(next):null,unit:state.unit});}
     function controls(){
       const c=A.channels[channel],off=blocked();
-      $('curve-time-label').textContent=state.unit==='percent'?'时间 (%)':'时间 (秒)';
+      $('curve-time-label').textContent=state.unit==='percent'?(A.anchor(cursor)==='end'?'终点前 (%)':'时间 (%)'):A.anchor(cursor)==='end'?'终点前 (秒)':'起点后 (秒)';
       $('curve-value-label').textContent=labels[channel]+(channel==='rotation'?' (°)':['x','y'].includes(channel)?' (px)':' (%)');
       $('curve-time').max=state.unit==='percent'?'100':'60';
       $('curve-time').step=state.unit==='percent'?'any':'0.001';
@@ -67491,13 +67642,13 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       $('curve-time').value=state.unit==='ms'?(cursor.time/1000).toFixed(3):String(number(cursor.time));$('curve-value').value=String(number(cursor.value));
       $('curve-time').disabled=$('curve-value').disabled=$('curve-reset').disabled=off;
       $('curve-playhead').disabled=off||!context().items.some(i=>i.preview);
-      $('curve-add').disabled=off||points.length>=32||points.some(p=>Math.abs(p.time-cursor.time)<.001);
+      $('curve-add').disabled=off||points.length>=32||points.some(p=>same(p,cursor));
       $('curve-note').textContent=mixed?'多个值：显示首条，编辑仅统一当前参数。':'';
       graph.setAttribute('aria-disabled',String(off));
     }
     function draw(){
-      const c=A.channels[channel],duration=Math.max(1,...context().items.map(i=>i.duration||1000));
-      let end=state.unit==='percent'?100:Math.min(60000,Math.max(duration,...Object.values(state.channels).flat().map(p=>p.time),cursor.time,1));
+      const c=A.channels[channel],duration=context().items[0]?.duration||1000;
+      let end=state.unit==='percent'?100:Math.max(duration,...Object.values(state.channels).map(p=>A.pointExtent(p,state.unit)),A.pointExtent(points,state.unit),cursor.time,1);
       const values=points.map(p=>p.value),pad=Math.max(20,(Math.max(c.initial,...values)-Math.min(c.initial,...values))*.15);
       let low=Math.max(c.min,Math.min(c.initial,...values)-pad),high=Math.min(c.max,Math.max(c.initial,...values)+pad);
       if(channel==='opacity'){low=0;high=100;}if(high===low)high=low+1;
@@ -67506,22 +67657,31 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       geometry={end,low,high,X,Y,width};
       graph.setAttribute('viewBox',`0 0 ${width} 200`);
       const commands=[];
+      const visible=points.map(p=>({...p,time:pointTime(p,end)}));
       if(points.length){
-        commands.push(`M${X(0)},${Y(points[0].value)}`,`L${X(points[0].time)},${Y(points[0].value)}`);
+        commands.push(`M${X(0)},${Y(points[0].value)}`,`L${X(visible[0].time)},${Y(points[0].value)}`);
         for(let i=1;i<points.length;i++){
-          const a=points[i-1],b=points[i],steps=a.easing==='smooth'?32:1;
+          const a=visible[i-1],b=visible[i],steps=a.easing==='smooth'?32:1;
           if(a.easing==='hold')commands.push(`L${X(b.time)},${Y(a.value)}`);
-          for(let j=1;j<=steps;j++){const t=a.time+(b.time-a.time)*j/steps;commands.push(`L${X(t)},${Y(A.curveValue(points,t))}`);}
+          for(let j=1;j<=steps;j++){const t=a.time+(b.time-a.time)*j/steps;commands.push(`L${X(t)},${Y(A.curveValue(visible,t))}`);}
         }
         commands.push(`L${X(end)},${Y(points.at(-1).value)}`);
       }else commands.push(`M${X(0)},${Y(c.initial)}H${X(end)}`);
-      const other=[...new Set(Object.entries(state.channels).filter(([key])=>key!==channel).flatMap(([,p])=>p.map(v=>v.time)))];
+      const other=[...new Set(Object.entries(state.channels).filter(([key])=>key!==channel).flatMap(([,p])=>p.map(v=>pointTime(v,end))))];
+      let pulseLine='';
+      if(channel==='opacity'&&state.pulse){
+        const duration=state.unit==='percent'?1000:end,b=A.clockEffect(state.pulse,duration),period=b.period*(b.periodUnit==='percent'?duration/100:1),steps=Math.min(2000,Math.max(200,Math.ceil(duration/period*12)));
+        const path=Array.from({length:steps+1},(_,i)=>{
+          const t=end*i/steps,ms=t*(state.unit==='percent'?duration/100:1),lo=A.ms(b,'start',duration),hi=A.ms(b,'end',duration),blink=ms>=lo&&ms<hi&&Math.floor((ms-lo)/(period/2))%2?b.opacity/100:1;
+          return `${i?'L':'M'}${X(t)},${Y((visible.length?A.curveValue(visible,t):100)*blink)}`;
+        }).join(' ');pulseLine=`<path class="curve-line curve-pulse-line" d="${path}"/>`;
+      }
       graph.innerHTML=[0,.5,1].map(p=>`<path class="curve-grid" d="M44 ${Y(low+(high-low)*p)}H${width-16}M${X(end*p)} 24V164"/>
         <text x="39" y="${Y(low+(high-low)*p)+4}" text-anchor="end">${number(low+(high-low)*p)}</text>
         <text x="${X(end*p)}" y="188" text-anchor="${p===1?'end':p===0?'start':'middle'}">${timeText(end*p)}</text>`).join('')+
-        `<text x="46" y="14">${labels[channel]}</text><path class="curve-line${points.length?'':' is-empty'}" d="${commands.join(' ')}"/>`+
+        `<text x="46" y="14">${labels[channel]}</text><path class="curve-line${points.length?'':' is-empty'}" d="${commands.join(' ')}"/>`+pulseLine+
         other.map(t=>`<path class="curve-other-frame" d="M${X(t)} 161V169"><title>其他参数的关键帧：${timeText(t)}</title></path>`).join('')+
-        points.map((p,i)=>`<g data-point="${i}" class="curve-handle${selected===i?' selected':''}" tabindex="${blocked()?-1:0}" role="button" aria-label="关键帧 ${i+1}，${timeText(p.time)}，${number(p.value)}" transform="translate(${X(p.time)} ${Y(p.value)})">
+        points.map((p,i)=>`<g data-point="${i}" class="curve-handle${selected===i?' selected':''}" tabindex="${blocked()?-1:0}" role="button" aria-label="关键帧 ${i+1}，${pointLabel(p)}，${number(p.value)}" transform="translate(${X(visible[i].time)} ${Y(p.value)})">
           <circle class="curve-hit" r="10"/><path d="${icons[p.easing]}"/><title>${{linear:'匀速',smooth:'平滑',hold:'定格'}[p.easing]}</title></g>`).join('')+
         '<g class="curve-crosshair" pointer-events="none" visibility="hidden"><path/><text class="curve-hover-y" text-anchor="end"/><text class="curve-hover-x" text-anchor="middle"/></g>';
     }
@@ -67529,23 +67689,18 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       if(!context().items.length&&!state)state=clone(A.defaults().effects.curves);
       const c=context(),key=fingerprint();
       if(drag){if(blocked()||key!==signature)cancel();else return;}
-      signature=key;state=clone(c.items[0]?.value.effects.curves||A.defaults().effects.curves);
+      signature=key;const nextState=clone(c.items[0]?.value.effects.curves||A.defaults().effects.curves);
+      if(state&&state.unit!==nextState.unit){selected=-1;cursor={time:0,value:A.channels[channel].initial};}
+      state=nextState;
       const target=JSON.stringify(c.items.map(i=>[i.row?.cue_id,i.track.id]));
       if(target!==targetSignature){targetSignature=target;selected=-1;cursor={time:0,value:A.channels[channel].initial};}
       points=clone(state.channels[channel]||[]);
       mixed=c.items.some(i=>JSON.stringify(i.value.effects.curves.channels[channel]||[])!==JSON.stringify(points)||i.value.effects.curves.unit!==state.unit);
-      if(selected>=0)selected=points.findIndex(p=>Math.abs(p.time-cursor.time)<.001);
+      if(selected>=0)selected=points.findIndex(p=>same(p,cursor));
       if(selected>=0)cursor={...points[selected]};
-      controls();draw();
+      controls();draw();syncPulse();
     }
     function selectChannel(key){cancel();channel=key;selected=-1;cursor.value=A.channels[key].initial;sync();}
-    function changeUnit(unit){
-      try{
-        for(const i of context().items)A.convertUnit(i.value.effects.curves,unit,i.duration);
-        if(unit!==state.unit)cursor.time*=unit==='ms'?(context().items[0]?.duration||1000)/100:100/(context().items[0]?.duration||1000);
-        apply({type:'unit',value:unit});
-      }catch(e){message(e.message,true);}
-    }
     function at(e){
       const r=graph.getBoundingClientRect(),g=geometry,c=A.channels[channel];
       const time=Math.max(0,Math.min(g.end,(e.clientX-r.left-44)/Math.max(1,r.width-60)*g.end));
@@ -67554,16 +67709,16 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     }
     function add(point=cursor){
       if(blocked()||points.length>=32)return;
-      const old=points.findIndex(p=>Math.abs(p.time-point.time)<.001);
+      const old=points.findIndex(p=>same(p,point));
       if(old>=0){selected=old;cursor={...points[old]};controls();draw();return;}
       cursor={...point};
       selected=0;
-      save([...points,{time:point.time,value:point.value,easing:'linear'}].sort((a,b)=>a.time-b.time));
+      save([...points,{time:point.time,value:point.value,easing:'linear',...(state.unit==='ms'?{anchor:A.anchor(point)}:{})}]);
     }
     $('curve-add').onclick=()=>{if($('curve-time').reportValidity()&&$('curve-value').reportValidity())add();};
     $('curve-playhead').onclick=()=>{
       const c=context(),i=c.items[0];if(!i?.preview)return;
-      cursor.time=(c.playhead-i.preview.cue.start)*(state.unit==='percent'?100/i.duration:1);selected=0;
+      cursor.time=(c.playhead-i.preview.cue.start)*(state.unit==='percent'?100/i.duration:1);cursor.anchor='start';selected=0;
       apply({type:'playhead',channel});
     };
     $('curve-reset').onclick=()=>{cursor={time:0,value:A.channels[channel].initial};apply({type:'reset'});};
@@ -67571,9 +67726,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       if(!$('curve-time').reportValidity()){controls();return;}
       const time=number(Number($('curve-time').value)*timeScale());
       if(selected>=0){
-        if(points.some((p,i)=>i!==selected&&Math.abs(p.time-time)<.001)){message('此时间已有关键帧',true);controls();return;}
+        if(points.some((p,i)=>i!==selected&&same(p,{...cursor,time}))){message('此时间已有关键帧',true);controls();return;}
         const next=clone(points);next[selected].time=time;cursor.time=time;
-        save(next.sort((a,b)=>a.time-b.time));
+        save(next);
       }else{cursor.time=time;controls();draw();}
     };
     $('curve-value').onchange=()=>{
@@ -67588,6 +67743,17 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       const safe=fn=>()=>{if(stamp===fingerprint()&&!blocked())fn();};
       document.getElementById('ctxmenu').replaceChildren();
       if(index>=0){
+        if(state.unit==='ms'){
+          for(const [anchor,label] of [['start','起点后'],['end','终点前']]){
+            const item=global.ctxAppendItem(label,safe(()=>{
+              const next=clone(points),p=next[index],absolute=pointTime(p);
+              p.time=number(anchor==='end'?geometry.end-absolute:absolute);p.anchor=anchor;
+              if(p.time>60000||next.some((v,i)=>i!==index&&same(v,p))){message('此时间已有关键帧，或超出 60 秒范围',true);return;}
+              cursor={...p};save(next);
+            }));item.classList.toggle('ctx-choice-selected',A.anchor(points[index])===anchor);
+          }
+          global.ctxAppendSeparator();
+        }
         for(const [easing,label] of Object.entries({linear:'匀速',smooth:'平滑',hold:'定格'})){
           const item=global.ctxAppendItem(label,safe(()=>{const next=clone(points);next[index].easing=easing;save(next);}));
           item.classList.toggle('ctx-choice-selected',points[index].easing===easing);
@@ -67598,16 +67764,12 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       }else{
         global.ctxAppendItem('在这里新建关键帧',safe(()=>add(here)),{disabled:points.length>=32});
         global.ctxAppendSeparator();
-        global.ctxAppendExpandableSettings('X 轴 · 时间',[
-          {label:'时间百分比',selected:state.unit==='percent',action:safe(()=>changeUnit('percent'))},
-          {label:'精确时间（秒）',selected:state.unit==='ms',action:safe(()=>changeUnit('ms'))}
-        ]);
         global.ctxAppendExpandableSettings('Y 轴 · 参数',Object.entries(labels).map(([key,label])=>({label,selected:channel===key,action:safe(()=>selectChannel(key))})));
       }
       global.ctxShowAt(e.clientX,e.clientY);
     }
     graph.oncontextmenu=menu;
-    function cancel(){if(!drag)return;const d=drag;drag=null;points=d.original;cursor=d.cursor;selected=points.findIndex(p=>p.time===cursor.time);controls();draw();}
+    function cancel(){if(!drag)return;const d=drag;drag=null;points=d.original;cursor=d.cursor;selected=points.findIndex(p=>same(p,cursor));controls();draw();}
     graph.onpointerdown=e=>{
       if(e.button!==0||blocked())return;
       e.preventDefault();e.stopPropagation();
@@ -67633,10 +67795,11 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       if(e.pointerId!==drag.id)return;
       if(fingerprint()!==signature||blocked()){cancel();sync();return;}
       e.preventDefault();const v=at(e),p=points[selected];
-      const scale=timeScale(),lo=selected?points[selected-1].time+.001:0,hi=selected<points.length-1?points[selected+1].time-.001:geometry.end;
-      if(lo<=hi)p.time=number(A.snapValue(v.time/scale,e,lo/scale,hi/scale,.001)*scale);
+      const scale=timeScale(),lo=selected?pointTime(points[selected-1])+.001:0,hi=selected<points.length-1?pointTime(points[selected+1])-.001:geometry.end;
+      if(lo<=hi){const tail=A.anchor(p)==='end',max=state.unit==='ms'?60000:100;
+        p.time=number(A.snapValue((tail?geometry.end-v.time:v.time)/scale,e,Math.max(0,tail?geometry.end-hi:lo)/scale,Math.min(max,tail?geometry.end-lo:hi)/scale,.001)*scale);}
       const bounds=A.channels[channel];
-      p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();crosshair(p);
+      p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();crosshair({...p,time:pointTime(p)});
     };
     graph.onpointerleave=()=>{if(!drag)graph.querySelector('.curve-crosshair')?.setAttribute('visibility','hidden');};
     graph.onpointerup=e=>{
@@ -67654,7 +67817,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       e.preventDefault();e.stopPropagation();const next=clone(points),p=next[i],c=A.channels[channel];
       if(e.key==='Delete')next.splice(i,1);
       else if(e.key==='ArrowUp'||e.key==='ArrowDown')p.value=Math.max(c.min,Math.min(c.max,p.value+(e.key==='ArrowUp'?1:-1)));
-      else p.time=Math.max(i?next[i-1].time+.001:0,Math.min(i<next.length-1?next[i+1].time-.001:geometry.end,p.time+(e.key==='ArrowLeft'?-1:1)*(state.unit==='ms'?10:1)));
+      else {const absolute=Math.max(i?pointTime(next[i-1])+.001:0,Math.min(i<next.length-1?pointTime(next[i+1])-.001:geometry.end,pointTime(p)+(e.key==='ArrowLeft'?-1:1)*(state.unit==='ms'?10:1)));p.time=Math.min(state.unit==='ms'?60000:100,A.anchor(p)==='end'?geometry.end-absolute:absolute);}
       cursor={...p};save(next);graph.querySelector(`[data-point="${i}"]`)?.focus({preventScroll:true});
     };
     global.addEventListener('blur',cancel);
@@ -67674,16 +67837,20 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   const inheritIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v11h13M14 11l4 4-4 4M9 4h11M9 8h11"/></svg>';
   const readout=v=>Math.round(v*10)/10;
   const parameters=(name,e)=>name==='blink'?
-    [{key:'period',title:'循环间隔',min:1,max:100,lane:0},{key:'opacity',title:'最低不透明度',min:0,max:100,lane:1}]:
+    [{key:'period',title:'循环间隔',min:e.periodUnit==='ms'?80:1,max:e.periodUnit==='ms'?Math.max(2000,e.period):100,lane:0,scale:e.periodUnit==='ms'?1000:1},{key:'opacity',title:'最低不透明度',min:0,max:100,lane:1}]:
     name==='transform'?[{key:'toScale',title:'缩放强度',min:1,max:Math.max(200,e.toScale),lane:0}]:name==='slide'?[{key:'distance',title:'滑动距离',min:0,max:Math.max(480,e.distance),lane:0}]:[];
   function create(root,{context,commit,message}){
-    root.innerHTML=`<div class="msw-motion-presets" data-option-help="拖动手柄调整时间，拖动色块移动区间；虚线手柄调整强度。Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。关闭效果保留参数。"></div>
+    root.innerHTML=`<div class="msw-motion-presets" data-option-help="拖动手柄调整时间，拖动色块移动区间。固定时长的退场从结尾计算；短字幕自动缩短入场和退场。Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。关闭效果保留参数。"></div>
       <div id="motion-preset-controls"></div><div id="motion-curve-editor" hidden></div>`;
     const $=id=>root.querySelector('#'+id),bar=root.firstElementChild;
     let signature='',drag=null,states={},custom=false;
+    const reference=()=>context().items[0]?.duration||1000;
+    const timing=document.createElement('select');timing.id='motion-timing';timing.ariaLabel='动画时间方式';timing.innerHTML='<option value="percent">按比例</option><option value="ms">固定时长</option>';bar.append(timing);
+    timing.onchange=()=>{cancel();curves.cancel();apply('all',{type:'timing',value:timing.value,referenceDuration:reference()});};
     const fingerprint=()=>JSON.stringify(context().items.map(i=>[i.row?.cue_id,i.track.id,i.value]));
     function apply(name,action){
-      if(name==='fade'&&action.type==='values')action={...action,timeUnit:fixedFade()?'ms':'percent'};
+      action={referenceDuration:reference(),...action};
+      if(action.type==='values')action={...action,displayUnit:timing.value,referenceDuration:reference()};
       try{commit(name,'author',action);message('');}catch(e){message(e.message,true);}sync();
     }
     function cancel(){
@@ -67695,12 +67862,12 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       b.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg><span>'+label+'</span>';
       b.onclick=()=>{cancel();apply(name,{type:'toggle',value:b.classList.contains('is-mixed')||b.getAttribute('aria-pressed')!=='true'});};bar.append(b);
       const section=document.createElement('section');section.id='motion-'+name;section.className='msw-motion-effect';section.hidden=true;
-      section.innerHTML=`<div class="msw-motion-heading"><span>${label}</span>${name==='fade'?'<select id="motion-fade-timing" aria-label="淡入淡出时间方式"><option value="percent">按比例</option><option value="ms">固定时长</option></select><span id="motion-fade-durations" hidden><label>淡入 <input id="motion-fade-in-seconds" type="number" min="0" max="60" step="0.001" aria-label="淡入秒数"> s</label><label>淡出 <input id="motion-fade-out-seconds" type="number" min="0" max="60" step="0.001" aria-label="淡出秒数"> s</label></span>':name==='slide'?'<select id="motion-slide-direction" aria-label="滑动方向"><option value="right">向右</option><option value="left">向左</option><option value="down">向下</option><option value="up">向上</option></select>':''}<button type="button" class="msw-style-icon" id="motion-${name}-reset" title="恢复${label}默认值" aria-label="恢复${label}默认值">${resetIcon}</button></div>
+      section.innerHTML=`<div class="msw-motion-heading"><span>${label}</span>${name==='slide'?'<select id="motion-slide-direction" aria-label="滑动方向"><option value="right">向右</option><option value="left">向左</option><option value="down">向下</option><option value="up">向上</option></select>':''}<button type="button" class="msw-style-icon" id="motion-${name}-reset" title="恢复${label}默认值" aria-label="恢复${label}默认值">${resetIcon}</button></div>
         <svg id="motion-${name}-graph" class="msw-motion-range-graph" preserveAspectRatio="none" role="group" aria-label="${label}时间区间"></svg>`;
       $('motion-preset-controls').append(section);
       $('motion-'+name+'-reset').onclick=()=>apply(name,{type:'reset'});
       const graph=$('motion-'+name+'-graph');
-      function valueAt(e){const r=graph.getBoundingClientRect();return (e.clientX-r.left-26)/Math.max(1,r.width-52)*100;}
+      function valueAt(e){const r=graph.getBoundingClientRect();return (e.clientX-r.left-26)/Math.max(1,r.width-52)*states[name]._extent;}
       graph.onpointerdown=e=>{
         if(e.button!==0||context().blocked||custom)return;
         const node=e.target.closest('[data-edge],[data-band],[data-parameter]');if(!node)return;
@@ -67713,15 +67880,16 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
         if(drag?.name!==name||drag.id!==e.pointerId)return;
         if(fingerprint()!==signature||context().blocked){cancel();sync();return;}
         e.preventDefault();
-        drag.patch=drag.parameter?
-          {[drag.parameter.key]:A.snapValue(valueAt(e)*drag.parameter.max/100,e,drag.parameter.min,drag.parameter.max)}:
+        const param=drag.parameter,scale=param?.scale||1;
+        drag.patch=param?
+          {[param.key]:A.snapValue(valueAt(e)/states[name]._extent*param.max/scale,e,param.min/scale,param.max/scale,scale===1000?.001:.1)*scale}:
           A.dragPreset(name,drag.original,drag,valueAt(e),valueAt(e)-drag.start,e);
         states[name]={...drag.original,...drag.patch};draw(name);
       };
       graph.onpointerup=e=>{
         if(drag?.name!==name||drag.id!==e.pointerId)return;
         const d=drag,next=clone(states[name]);drag=null;
-        if(name==='fade'&&fixedFade()){const duration=context().items[0]?.duration||1000,key=Number(d.edge)===1?'in':'out';d.patch={[key]:next[key]*duration/100};}
+        if(Object.hasOwn(d.patch,'end')&&next.endAnchor==='end')d.patch.end=next._extent-d.patch.end;
         if(fingerprint()!==signature||context().blocked){sync();return;}
         if(JSON.stringify(next)!==JSON.stringify(d.original))apply(name,{type:'values',value:d.patch});
       };
@@ -67731,18 +67899,15 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
         if(!node||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)||context().blocked||custom)return;
         e.preventDefault();e.stopPropagation();
         const parameter=parameters(name,states[name]).find(p=>p.key===node.dataset.parameter),edge=node.dataset.edge;
-        const current=parameter?states[name][parameter.key]:A.presetTimes(name,states[name])[Number(edge)],min=parameter?.min??0,max=parameter?.max??100;
-        const value=e.key==='Home'?min:e.key==='End'?max:current+(e.key==='ArrowLeft'?-1:1)*(e.ctrlKey&&e.shiftKey?5:1);
-        let patch=parameter?{[parameter.key]:A.snapValue(value,e,min,max)}:A.dragPreset(name,states[name],{edge},value,0,e);
-        if(name==='fade'&&fixedFade()){const e={...states[name],...patch},duration=context().items[0]?.duration||1000,key=Number(edge)===1?'in':'out';patch={[key]:e[key]*duration/100};}
+        const current=parameter?states[name][parameter.key]:A.presetTimes(name,states[name])[Number(edge)],min=parameter?.min??0,max=parameter?.max??states[name]._extent,scale=parameter?.scale||(parameter?1:states[name].unit==='ms'?1000:1);
+        const value=e.key==='Home'?min:e.key==='End'?max:current+(e.key==='ArrowLeft'?-1:1)*(e.ctrlKey?(e.shiftKey?5:1)*scale:scale===1000?10:1);
+        let patch=parameter?{[parameter.key]:A.snapValue(value/scale,e,min/scale,max/scale,.001)*scale}:A.dragPreset(name,states[name],{edge},value,0,e);
+        if(Object.hasOwn(patch,'end')&&states[name].endAnchor==='end')patch.end=states[name]._extent-patch.end;
         apply(name,{type:'values',value:patch});
         graph.querySelector(parameter?`[data-parameter="${parameter.key}"]`:`[data-edge="${edge}"]`)?.focus({preventScroll:true});
       };
       new ResizeObserver(()=>{if(states[name]&&!drag)draw(name);}).observe(graph);
     }
-    const fixedFade=()=>context().items[0]?.value.effects.fade.unit==='ms'&&!Object.hasOwn(context().items[0].value.effects.fade,'start');
-    $('motion-fade-timing').onchange=e=>{const c=context(),f=c.items[0].value.effects.fade,d=c.items[0].duration;apply('fade',{type:'timing',value:e.target.value,in:Math.round(A.ms(f,'in',d)),out:Math.round(A.ms(f,'out',d))});};
-    for(const key of ['in','out'])$('motion-fade-'+key+'-seconds').onchange=e=>{if(e.target.reportValidity())apply('fade',{type:'values',value:{[key]:Number(e.target.value)*1000}});else sync();};
     $('motion-slide-direction').onchange=e=>apply('slide',{type:'values',value:{direction:e.target.value}});
     const mode=document.createElement('button');mode.id='motion-custom';mode.type='button';mode.className='msw-motion-preset msw-motion-custom';mode.textContent='自定义';bar.append(mode);
     const inherit=document.createElement('button');inherit.id='motion-inherit';inherit.type='button';inherit.className='msw-style-icon';inherit.title=inherit.ariaLabel='恢复轨道动画';inherit.innerHTML=inheritIcon;bar.append(inherit);
@@ -67752,25 +67917,26 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     mode.onclick=()=>{cancel();curves.cancel();apply('all',{type:'mode',value:custom?'presets':'custom'});};
     inherit.onclick=()=>{try{commit('all','reset');message('');}catch(e){message(e.message,true);}sync();};
     function draw(name){
-      const graph=$('motion-'+name+'-graph'),width=Math.max(180,graph.clientWidth||320),e=states[name],p=A.presetTimes(name,e),x=v=>26+v/100*(width-52);
+      const graph=$('motion-'+name+'-graph'),width=Math.max(180,graph.clientWidth||320),e=states[name],p=A.presetTimes(name,e),x=v=>26+v/e._extent*(width-52);
       const scalar=parameters(name,drag?.name===name?drag.original:e),height=scalar.length?92:82,off=context().blocked,tab=off?-1:0;
-      const pair=['fade','slide'].includes(name),fixed=name==='fade'&&fixedFade(),titles=name==='fade'?['淡入开始','淡入结束','淡出开始','淡出结束']:name==='slide'?['滑入开始','滑入结束','滑出开始','滑出结束']:['开始','结束'];
+      const pair=['fade','slide'].includes(name),titles=name==='fade'?['淡入开始','淡入结束','淡出开始','淡出结束']:name==='slide'?['滑入开始','滑入结束','滑出开始','滑出结束']:['开始','结束'];
+      const timeLabel=(v,i)=>e.unit==='ms'?((e.endAnchor==='end'&&i>=(pair?2:1)?'终−':'起+')+((e.endAnchor==='end'&&i>=(pair?2:1)?e._extent-v:v)/1000).toFixed(3)+' s'):readout(v)+'%';
       graph.setAttribute('viewBox',`0 0 ${width} ${height}`);graph.style.height=height+'px';
       const bands=pair?[[0,1,'in'],[2,3,'out']]:[[0,1,'range']];
       graph.innerHTML=`<rect class="motion-range-rail" x="26" y="17" width="${width-52}" height="22" rx="4"/>`+
-        bands.map(([a,b,id])=>`<rect class="motion-range-fill" ${fixed?'':`data-band="${id}"`} x="${x(p[a])}" y="17" width="${Math.max(1,x(p[b])-x(p[a]))}" height="22" rx="4"><title>${fixed?'固定淡入／淡出':'拖动整个效果区间'}</title></rect>`).join('')+
-        p.map((v,i)=>fixed&&(i===0||i===3)?'':`<g class="motion-range-node" data-edge="${i}" tabindex="${tab}" role="slider" aria-disabled="${off}" aria-label="${titles[i]}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${readout(v)}" aria-valuetext="${readout(v)}%">
+        bands.map(([a,b,id])=>`<rect class="motion-range-fill" data-band="${id}" x="${x(p[a])}" y="17" width="${Math.max(1,x(p[b])-x(p[a]))}" height="22" rx="4"><title>拖动整个效果区间</title></rect>`).join('')+
+        p.map((v,i)=>`<g class="motion-range-node" data-edge="${i}" tabindex="${tab}" role="slider" aria-disabled="${off}" aria-label="${titles[i]}" aria-valuemin="0" aria-valuemax="${e._extent}" aria-valuenow="${readout(v)}" aria-valuetext="${timeLabel(v,i)}">
           <path class="motion-range-handle" transform="translate(${x(v)} ${i%2?56:0}) scale(1 ${i%2?-1:1})" d="M0 25L-5.5 17A7 7 0 1 1 5.5 17Z"/>
           <rect class="motion-range-hit" x="${x(v)-10}" y="${i%2?39:2}" width="20" height="18"/>
-          <title>${titles[i]} ${readout(v)}%</title></g>
-          <text x="${x(v)}" y="${i%2&&(pair||x(v)-x(p[i-1])<42)?79:65}" text-anchor="${v<6?'start':v>94?'end':'middle'}">${readout(v)}%</text>`).join('')+
+          <title>${titles[i]} ${timeLabel(v,i)}</title></g>
+          <text x="${x(v)}" y="${i%2&&(pair||x(v)-x(p[i-1])<100)?79:65}" text-anchor="${v/e._extent<.15?'start':v/e._extent>.85?'end':'middle'}">${timeLabel(v,i)}</text>`).join('')+
         scalar.map(({key,title,min,max,lane},i)=>{
-          const px=x(e[key]/max*100),y=lane?32:24,summary=key==='toScale'?`缩放 100% → ${readout(e[key])}%`:key==='distance'?`距离 ${readout(e[key])} px`:`${lane?'不透明':'间隔'} ${readout(e[key])}%`;
+          const px=x(e[key]/max*e._extent),y=lane?32:24,summary=key==='toScale'?`缩放 100% → ${readout(e[key])}%`:key==='distance'?`距离 ${readout(e[key])} px`:key==='period'&&e.periodUnit==='ms'?`间隔 ${(e[key]/1000).toFixed(3)} s`:`${lane?'不透明':'间隔'} ${readout(e[key])}%`;
           return `<g id="motion-${name}-${key}" class="motion-parameter-node" data-parameter="${key}" tabindex="${tab}" role="slider" aria-disabled="${off}" aria-label="${title}" aria-valuemin="${min}" aria-valuemax="${max}" aria-valuenow="${readout(e[key])}" aria-valuetext="${summary}">
             <path class="motion-parameter-stem" d="M${px} 18V38"/>
             <path class="motion-parameter-symbol" transform="translate(${px} ${y})" d="${lane?'M0-4L4 0L0 4L-4 0Z':'M-3-3H3V3H-3Z'}"/>
             <rect class="motion-range-hit" x="${px-8}" y="${lane?28:19}" width="16" height="9"/>
-            <title>${title}：${readout(e[key])}%${key==='toScale'?`，结束缩放 ${readout(e.toScale)}%`:''}</title></g>
+            <title>${summary}</title></g>
             <path class="motion-parameter-symbol" transform="translate(${26+i*(width-52)/2} 85)" d="${lane?'M0-3L3 0L0 3L-3 0Z':'M-2.5-2.5H2.5V2.5H-2.5Z'}"/>
             <text x="${34+i*(width-52)/2}" y="89">${summary}</text>`;
         }).join('');
@@ -67784,8 +67950,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       mode.setAttribute('aria-pressed',String(custom));mode.disabled=c.blocked;
       $('motion-preset-controls').hidden=custom;$('motion-curve-editor').hidden=!custom;
       reveal.hidden=!custom||!first.effects.typewriter.enabled||!first.effects.typewriter.custom;reveal.disabled=c.blocked;
-      $('motion-fade-timing').value=fixedFade()?'ms':'percent';$('motion-fade-durations').hidden=!fixedFade();
-      for(const key of ['in','out'])$('motion-fade-'+key+'-seconds').value=(first.effects.fade[key]/1000).toFixed(3);
+      timing.value=A.timingMode(first);timing.disabled=c.blocked;
       $('motion-slide-direction').value=first.effects.slide.direction;
       inherit.hidden=!c.cue;inherit.disabled=c.blocked||!c.items.some(i=>i.override);
       for(const name of Object.keys(labels)){
@@ -67793,8 +67958,13 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
         button.setAttribute('aria-pressed',String(enabled));button.disabled=c.blocked||custom;
         const mixed=c.items.some(i=>i.value.effects[name].enabled!==enabled);
         button.classList.toggle('is-mixed',mixed);button.title=mixed?'所选字幕有多个值，点击统一开启':labels[name];
-        try{states[name]=A.presetState(first,name,c.items[0]?.duration||1000);}
+        try{states[name]=A.effectUnit(A.authorState(first,name,reference()),name,timing.value,reference());}
         catch(_){states[name]={...A.presetDefault(name),enabled};}
+        const e=states[name];
+        if(name==='fade'&&!Object.hasOwn(e,'start'))Object.assign(e,{start:0,end:e.unit==='ms'?0:100,...(e.unit==='ms'?{endAnchor:'end'}:{})});
+        const extent=e.endAnchor==='end'?e.start+e.end+(e.in||0)+(e.out||0):e.end;
+        e._extent=e.unit==='ms'?Math.max(1000,reference(),extent):100;
+        if(e.endAnchor==='end')e.end=e._extent-e.end;
         const section=$('motion-'+name);section.hidden=!(enabled||mixed);
         for(const el of section.querySelectorAll('input,button,select'))el.disabled=c.blocked;
         draw(name);
@@ -67978,7 +68148,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     <details id="style-general" class="msw-style-section" open><summary>基础</summary><div id="style-basic-fields" class="msw-style-fields"></div></details>
     <details id="style-more" class="msw-style-section"><summary>进阶</summary><div id="style-emphasis-fields" class="msw-style-checks"></div><div id="style-advanced-fields" class="msw-style-fields"></div></details>
     <details id="style-animation" class="msw-style-section"><summary><span class="msw-option-label">动画</span></summary><div id="style-animation-fields"></div></details>
-    <small data-help-for="style-animation" hidden>轨道默认只作用于当前主/副轨道；所选字幕按效果覆盖，其余跟随轨道。时间从每条字幕开始计算。新动画会替代原有 ASS 动画；恢复轨道动画可取消单条覆盖。</small>
+    <small data-help-for="style-animation" hidden>按比例随字幕长度变化；固定时长分别从起点、终点计算。所选字幕未覆盖的效果跟随轨道，恢复轨道动画可取消单条覆盖。</small>
     <p id="style-message" class="msw-processing-message" role="status"></p><button type="button" id="style-retry" hidden>重新加载样式</button>`;
   $('style-main').insertAdjacentHTML('afterend',iconButton('style-swap','交换主副样式（保留位置）','swap'));
   $('style-save-as').insertAdjacentHTML('beforebegin',iconButton('style-overwrite','覆盖预设','overwrite'));
@@ -68304,7 +68474,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       // an older animation validator. Diagnose that mismatch, not corrupt data.
       if(route==='subtitle-preview'&&/字幕动画.*无效参数/.test(result.error||'')){
         const capability=await request('capabilities').catch(()=>null);
-        if(capability&&!(capability.subtitleAnimation>=2))throw Error('编辑器服务仍使用旧版动画规则，请重启编辑器服务并刷新页面；当前动画设置已保留');
+        if(capability&&!(capability.subtitleAnimation>=3))throw Error('编辑器服务仍使用旧版动画规则，请重启编辑器服务并刷新页面；当前动画设置已保留');
       }
       throw Error(result.error||'样式请求失败');
     }
@@ -70328,7 +70498,7 @@ document.addEventListener('keydown', (event) => {
     return {changed:preview.changed};
   }};
 
-  let dialog, categories=[], knownCategories=[], currentFile=null, preview=null, sourceId='', mode='export', busy=false, cacheReport=null;
+  let dialog, categories=[], knownCategories=[], currentFile=null, preview=null, busy=false;
   const $=id=>dialog.querySelector('#config-'+id);
   const request=payload=>global.MSWConfig.request(payload);
   function message(text){$('message').textContent=text;}
@@ -70365,23 +70535,14 @@ document.addEventListener('keydown', (event) => {
     if(raw.format!=='msw-config'||raw.version!==1||!Array.isArray(raw.categories))throw Error('配置格式或版本不受支持');
     const known=global.MSWConfig.connected?knownCategories:global.MSWConfig.snapshot.transfer;
     if(raw.categories.some(id=>!known.some(x=>x.id===id)))throw Error('配置包含未知分类，请检查文件版本。');
-    currentFile=raw;sourceId='';$('filename').textContent=name;checkboxes(raw.categories);invalidate();
+    currentFile=raw;$('filename').textContent=name;checkboxes(raw.categories);invalidate();
     message(raw.kind==='workspace'?'保存为工作区预设，当前布局不变。':raw.categories.some(id=>['assStyles','onboarding'].includes(id))?'已略过旧样式库和首次提示状态，请选择其余分类。':!global.MSWConfig.connected&&raw.categories.some(id=>!offlineIds.includes(id))?'启动器、处理、配音和工程备份设置需在本机服务版导入。':'请选择要导入的分类，然后预览变更。');
   }
   async function changeMode(value){
-    mode=value;invalidate();currentFile=null;sourceId='';$('filename').textContent='';message('');checkboxes(value==='export'?null:[]);
-    for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.setAttribute(tab.getAttribute('role')==='tab'?'aria-selected':'aria-pressed',String(tab.dataset.configMode===value));
-    $('restore-note').hidden=value!=='restore';
-    $('file-row').hidden=value!=='import';$('snapshots').hidden=value!=='restore';$('policy-row').hidden=value==='export';$('export').hidden=value!=='export';$('preview').hidden=value==='export';$('apply').hidden=value==='export';
+    invalidate();currentFile=null;$('filename').textContent='';message('');checkboxes(value==='export'?null:[]);
+    for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.setAttribute('aria-selected',String(tab.dataset.configMode===value));
+    $('file-row').hidden=value!=='import';$('export').hidden=value!=='export';$('preview').hidden=value==='export';$('apply').hidden=value==='export';
     $('policy-note').hidden=value==='export'||$('policy').value!=='replace';
-    const cache=value==='cache';
-    $('categories').closest('fieldset').hidden=cache;
-    $('cache-panel').hidden=!cache;
-    if(cache){$('policy-row').hidden=true;$('policy-note').hidden=true;$('preview').hidden=true;$('apply').hidden=true;}
-    if(value==='restore'){
-      const {snapshots}=await request({action:'snapshots'});$('snapshots').replaceChildren(new Option('选择配置备份',''),...snapshots.map(row=>new Option(`${new Date(row.created).toLocaleString()} · ${row.label}`,row.id)));
-      if(!snapshots.length)message('尚无配置备份；导入配置前会自动保存。');
-    }
   }
   const editorHost=document.getElementById('editor-config-manager');
   const embeddedHost=editorHost||document.getElementById('launcher-config-manager');
@@ -70391,30 +70552,17 @@ document.addEventListener('keydown', (event) => {
     dialog.innerHTML=`${embeddedHost?'':'<header><strong id="config-title">配置管理</strong><button type="button" id="config-close" aria-label="关闭">×</button></header>'}
       <div class="config-body"><p class="config-scope">导入、导出个人设置；不会改动当前工程。</p>
       <nav role="tablist" aria-label="配置操作"><button data-config-mode="export" role="tab">导出</button><button data-config-mode="import" role="tab">导入</button></nav>
-      <details class="config-maintenance"><summary>备份与清理</summary><div class="config-maintenance-actions"><button data-config-mode="restore" aria-pressed="false" type="button">恢复配置备份</button><button data-config-mode="cache" aria-pressed="false" type="button">清理重复波形缓存</button></div></details>
-      <p id="config-restore-note" class="config-scope" hidden>恢复导入前的个人设置，可按分类选择；不恢复工程内容。</p>
-      <div id="config-cache-panel" hidden><p class="config-scope">缓存用于加快波形加载。这里只清理重复副本，移入回收站；不影响媒体和字幕。</p><div class="config-file-row"><button id="config-cache-analyze" type="button">分析当前媒体</button><button id="config-cache-clean" type="button" disabled>清理重复缓存</button></div><div id="config-cache-result"></div></div>
-      <div id="config-file-row" class="config-file-row" hidden><button id="config-choose" type="button">选择配置文件</button><span id="config-filename"></span><input id="config-file" type="file" accept=".mswconfig,.workspace.json" hidden></div>
-      <select id="config-snapshots" aria-label="配置备份" hidden></select>
+      <div id="config-file-row" class="config-file-row" hidden><button id="config-choose" type="button">选择配置文件</button><label id="config-policy-row"><span>导入机制</span><select id="config-policy"><option value="keep">保留本机，补充缺失项</option><option value="replace">使用导入配置，覆盖所选分类</option></select></label><span id="config-filename"></span><input id="config-file" type="file" accept=".mswconfig,.workspace.json" hidden></div>
       <fieldset><legend><label><input type="checkbox" id="config-all">配置分类</label></legend><div id="config-categories"></div></fieldset>
-      <label id="config-policy-row" hidden><span>已有配置</span><select id="config-policy"><option value="keep">保留本机，补充缺失项</option><option value="replace">使用导入配置，覆盖所选分类</option></select></label>
       <p id="config-policy-note" class="config-policy-note" hidden>覆盖时，所选分类中未包含的设置回到默认；未选择的分类保持不变。</p>
       <div id="config-preview-result" aria-live="polite"></div><p id="config-message" role="status"></p>
       <details class="config-scope-details"><summary>包含哪些内容？</summary><p>翻译与文本处理：翻译偏好、提示词、替换规则和后处理参数。配音设置：引擎、语速等合成偏好。工程备份设置：自动备份开关、间隔和保留数量。</p><p>字幕与素材随工程保存；密钥、私人音色、文件路径和备份文件不导出。界面设置在重开窗口后生效。</p></details></div>
       <footer><button id="config-export" type="button">导出 .mswconfig</button><button id="config-preview" type="button" hidden>预览变更</button><button id="config-apply" type="button" hidden disabled>确认应用</button></footer>`;
     (embeddedHost||document.body).append(dialog);
     if(!embeddedHost){$('close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
-    const showCache=report=>{
-      cacheReport=report;$('cache-result').replaceChildren();$('cache-clean').disabled=!report.count;
-      const heading=document.createElement('p');heading.textContent=`${report.media} · 可清理 ${report.count} 项（${(report.bytes/1024).toFixed(1)} KB）`;$('cache-result').append(heading);
-      for(const row of report.files){const line=document.createElement('div');line.className='config-change';line.textContent=`${row.name} · 音轨 ${row.track} · ${row.reason}`;$('cache-result').append(line);}
-    };
-    $('cache-analyze').onclick=()=>run(async()=>{cacheReport=null;$('cache-clean').disabled=true;const report=await request({action:'cache-analyze'});if(!report.cancelled)showCache(report);});
-    $('cache-clean').onclick=()=>run(async()=>{if(!cacheReport)return;const token=cacheReport.token;cacheReport=null;$('cache-clean').disabled=true;const report=await request({action:'cache-clean',token});showCache(report);message([`已将 ${report.removed} 项重复缓存移入回收站。`,...(report.warnings||[])].join(' '));});
     for(const tab of dialog.querySelectorAll('[data-config-mode]'))tab.onclick=()=>run(()=>changeMode(tab.dataset.configMode));
     $('all').onchange=()=>{const checked=$('all').checked;dialog.querySelectorAll('[data-config-category]:not(:disabled)').forEach(x=>x.checked=checked);syncAll();invalidate();};
     $('policy').onchange=()=>{invalidate();$('policy-note').hidden=$('policy').value!=='replace';};
-    $('snapshots').onchange=()=>{sourceId=$('snapshots').value;checkboxes(sourceId?categories.map(x=>x.id):[]);invalidate();};
     $('choose').onclick=()=>{
       if(global.MSWLauncher?.backend==='real')void run(async()=>{const result=await MSWLauncher.callBackend('choose_user_config_file',{});if(result.error)throw Error(result.error);if(!result.cancelled)await loadFile(result.name,result.content);});
       else{$('file').value='';$('file').click();}
@@ -70431,21 +70579,18 @@ document.addEventListener('keydown', (event) => {
       message(result.package.categories.length>ids.length?'已导出，并包含预览所需的字幕预设。':'配置文件已导出。');
     });
     $('preview').onclick=()=>run(async()=>{
-      if(mode==='import'&&!currentFile||mode==='restore'&&!sourceId)throw Error('请先选择配置文件或配置备份');
-      const payload={categories:selected(),policy:$('policy').value,...(mode==='restore'?{id:sourceId}:{package:currentFile})};
-      preview={payload,result:await request({...payload,action:mode==='restore'?'restore-preview':'preview'})};renderPreview(preview.result);
+      if(!currentFile)throw Error('请先选择配置文件');
+      const payload={categories:selected(),policy:$('policy').value,package:currentFile};
+      preview={payload,result:await request({...payload,action:'preview'})};renderPreview(preview.result);
     });
     $('apply').onclick=()=>run(async()=>{
       if(!preview)return;
-      const result=await request({...preview.payload,revision:preview.result.revision,token:preview.result.token,action:mode==='restore'?'restore':'import'});
+      const result=await request({...preview.payload,revision:preview.result.revision,token:preview.result.token,action:'import'});
       invalidate();message(result.changed?'配置已保存。请重开窗口使用新的界面设置；当前工程与任务保持不变。':'配置相同，无需更改。');
     });
   }
   async function initialize(){
     if(!dialog)build();
-    cacheReport=null;$('cache-clean').disabled=true;$('cache-result').replaceChildren();
-    dialog.querySelector('[data-config-mode="cache"]').hidden=!global.MSWConfig.connected;
-    $('cache-analyze').textContent=global.MSWLauncher?'选择媒体并分析':'分析当前媒体';
     await run(async()=>{knownCategories=(await request({action:'catalog'})).categories;categories=knownCategories.filter(row=>!row.retired&&!['assStyles','onboarding'].includes(row.id));await changeMode('export');initialized=true;if(!global.MSWConfig.connected)message('便携 HTML：仅管理此浏览器的界面与字幕偏好；处理设置请使用本机服务版。');});
   }
   async function open(){
