@@ -114,6 +114,11 @@ def validate(project):
     _json_value(project)
     if not isinstance(project, dict) or project.get("schema") != SCHEMA:
         _fail("不支持的工程版本")
+    if isinstance(project.get('preview'), dict) and 'speaker_palette' in project['preview']:
+        from maw.msw.speaker_palette import validate as validate_speakers
+        validate_speakers(project['preview']['speaker_palette'])
+        if 'speaker_label_export' in project['preview'] and type(project['preview']['speaker_label_export']) is not bool:
+            _fail('说话人名称导出选项无效')
     if any(k in project for k in STRUCTURAL):
         _fail("新工程不能同时保存旧主副正文或归属")
     if "timebase" in project:

@@ -2,7 +2,7 @@
 let fixedPreviewCache = null;
 let fixedExactGeometry = null;
 let fixedGeometrySerial=0;
-function fixedGeometryKey() { const preview=window.MSWSubtitleStyle?.currentPreview();return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,preview&&{style:preview.style,target:preview.target,scope:preview.scope,trackIds:preview.trackIds},getSpeakerLabelSettings()]); }
+function fixedGeometryKey() { const preview=window.MSWSubtitleStyle?.currentPreview();return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,preview&&{style:preview.style,target:preview.target,scope:preview.scope,trackIds:preview.trackIds,speakerLabels:preview.speakerLabels},getSpeakerLabelSettings()]); }
 function fixedReceiveGeometry(geometry) {
   if(productionFlatMode()) {
     const refs=new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,fixedTrackCore.key({role:s.role,track_id:s.track_id,cue_id:c.id})])));
@@ -75,7 +75,9 @@ function fixedMeasureText(row, projectStyle, width) {
   const role=row.role==='main'?'main':'secondary',style=projectStyle[role];
   const labels=getSpeakerLabelSettings(),segments=row.role==='main'?DATA.segments:getExtensionTrack(row.track_id)?.segments||[];
   const speaker=labels.enabled&&labels.mapping_enabled?window.AsrEditorUtils.speakerLabelForSegment(row.cue,segments,labels.names):'';
-  const prefix=speaker?speaker+labels.separator:'';
+  const profile=window.MSWSpeaker.profile(DATA,row.cue,segments[row.cue.color_ref?.headIdx]);
+  const exportView=window.MSWSubtitleStyle?.currentPreview()?.scope==='export';
+  const prefix=DATA.preview?.speaker_palette?window.MSWSpeaker.prefix(exportView?{preview:{...DATA.preview,speaker_label_export:document.getElementById('video-export-speaker-labels').checked}}:DATA,profile):speaker?speaker+labels.separator:'';
   const text=prefix+window.MSWProjectStyle.wrapText(row.cue.text,style);
   const key=JSON.stringify([text,prefix,style,width]);if(fixedTextMeasures.has(key))return fixedTextMeasures.get(key);
   if(!fixedMeasureRoot){fixedMeasureRoot=document.createElement('div');fixedMeasureRoot.className='fixed-subtitle-measure';document.body.append(fixedMeasureRoot);}
@@ -108,7 +110,7 @@ function fixedMeasureText(row, projectStyle, width) {
 }
 function fixedPreviewLayout(rect=fixedVideoRect()) {
   const preview=window.MSWSubtitleStyle?.currentPreview(),proof=preview?.scope==='proof'||preview?.other?preview.style:null;
-  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,preview?.scope,preview?.trackIds,DATA.preview?.project_style,getSpeakerLabelSettings()]);
+  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,preview?.scope,preview?.trackIds,preview?.speakerLabels,DATA.preview?.project_style,getSpeakerLabelSettings()]);
   if(!fixedPreviewCache||fixedPreviewCache.key!==key) {
     const project=preview?.scope==='export'&&productionFlatMode()?MSWProductionProject.fromProject(MSWProductionProject.exportScope(DATA,preview.trackIds)):DATA;
     const layout=window.MSWTrackPresentation.layout(project,{width:rect.referenceWidth,languageId:getActiveExtensionTrack()?.id,
@@ -171,7 +173,8 @@ function fixedRefreshSubtitlePreview(tMs) {
     const variant=assPreviewStyleVariant(style,entry.cue,segments,getSubtitleAppearance());
     for(const key of ['primaryColor','outlineColor'])if(entry.cue.subtitle_style?.[key])variant[key]=entry.cue.subtitle_style[key];
     const paletteColor=COLOR_BY_NAME[MULTI_SUBTITLE_UTILS.effectiveColorName(entry.cue,segments)]?.value;
-    speaker.style.color=['text','speaker'].includes(getSubtitleAppearance().ass_color_style||DEFAULT_ASS_COLOR_STYLE)?paletteColor||'':'';
+    const speakerProfile=window.MSWSpeaker.profile(DATA,entry.cue,segments[entry.cue.color_ref?.headIdx]);
+    speaker.style.color=speakerProfile?(['text','speaker'].includes(speakerProfile.mode)?speakerProfile.color:''):['text','speaker'].includes(getSubtitleAppearance().ass_color_style||DEFAULT_ASS_COLOR_STYLE)?paletteColor||'':'';
     const profile={animations:entry.animations};
     const motion=entry.motion?window.MSWSubtitleAnimation.sample(entry.motion,tMs-entry.cue.start,entry.cue.end-entry.cue.start,window.MSWProjectStyle.characters(size.text).filter(c=>c.trim()).length):null;
     const animation=motion?{opacity:motion.opacity,transformProgress:null}:window.AsrEditorUtils.assPreviewAnimationState(profile,tMs-entry.cue.start,entry.cue.end-entry.cue.start,

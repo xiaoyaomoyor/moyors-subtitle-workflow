@@ -1759,13 +1759,8 @@ const COLOR_PALETTE_DEFAULTS = Object.fromEntries(
   window.ASR_EDITOR_PALETTE.map((color) => [color.name, color.value]),
 );
 function buildEditorColorPalette() {
-  // 自定义五色关闭时（subtitleColorPaletteEnabled ≠ true）一律使用内置色值。
-  const configured = currentSubtitleColorPalette();
-  return window.ASR_EDITOR_PALETTE.map((c) => ({
-    name: c.name,
-    label: COLOR_LABELS[c.name] || c.name,
-    value: configured[c.name] || c.value,
-  }));
+  const palette=window.MSWSpeaker.ensure(DATA,EDITOR_SETTINGS.subtitleColorPaletteEnabled?EDITOR_SETTINGS.subtitleColorPalette:null,true);
+  return palette.rows.map(r=>({name:r.id,label:r.name,value:r.color}));
 }
 let COLOR_PALETTE = buildEditorColorPalette();
 let COLOR_BY_NAME = Object.fromEntries(COLOR_PALETTE.map(c => [c.name, c]));
@@ -1999,6 +1994,7 @@ function snapshotPreviewState() {
     extensionOverlay: !!extensionOverlayToggle?.checked,
     extensionSubtitle: { ...getStoredExtensionSubtitleAppearance() },
     sticker: { ...getStickerGeometry() },
+    speakerPalette: structuredClone(DATA.preview?.speaker_palette),
     speakerExport: { exportSpeakerLabels: EDITOR_SETTINGS.exportSpeakerLabels,
       exportSpeakerLabelsExplicit: EDITOR_SETTINGS.exportSpeakerLabelsExplicit },
   };
@@ -2014,6 +2010,7 @@ function applyPreviewState(state) {
   if (state.subtitle) setPreviewGeometry(state.subtitle, { markDirty: true, replaceAppearance: true });
   if (state.extensionSubtitle) restoreExtensionSubtitleAppearance(state.extensionSubtitle, { markDirty: true });
   if (state.sticker) setStickerGeometry(state.sticker, { markDirty: true });
+  if(state.speakerPalette){DATA.preview.speaker_palette=structuredClone(state.speakerPalette);rebuildEditorColorPalette();if(typeof fixedPreviewInvalidate==='function')fixedPreviewInvalidate();}
   if (state.speakerExport) { updateEditorSettings(state.speakerExport); syncSpeakerControls(); }
   refreshPreviewGeometryEditable();
   update();
@@ -13248,9 +13245,10 @@ document.addEventListener('keydown', (e) => {
   openStickerPicker(idxs, idxs.length > 1);
 });
 
-// 数字键 1~5：给选中字幕标记对应颜色（红黄蓝绿紫）；0：清除颜色。
+// 数字键 1~9：给选中字幕标记对应颜色（红黄蓝绿紫）；0：清除颜色。
 document.addEventListener('keydown', (e) => {
-  if (!/^[0-5]$/.test(e.key)) return;
+  if (!/^[0-9]$/.test(e.key)) return;
+  if(e.key!=='0'&&!COLOR_PALETTE[Number(e.key)-1])return;
   if (editingState || e.repeat) return;
   const a = document.activeElement;
   if (a && (
@@ -14908,6 +14906,7 @@ function assPreviewMetrics() {
 }
 
 function assPreviewStyleVariant(style, segment, segments, appearance) {
+  if(DATA.preview?.speaker_palette)return window.MSWSpeaker.appearance(style,segment,window.MSWSpeaker.profile(DATA,segment,segments?.[segment?.color_ref?.headIdx]));
   // ASS 预览的颜色映射只跟随 ass_color_style；color_underline 只控制 CSS 预览。
   const colorName = segment
     ? MULTI_SUBTITLE_UTILS.effectiveColorName(segment, segments) : null;
@@ -15322,7 +15321,8 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const mainColorName = mainVisible && seg
     ? MULTI_SUBTITLE_UTILS.effectiveColorName(seg, DATA.segments)
     : null;
-  const speakerLabel = mainVisible && speakerLabels.mapping_enabled && speakerLabels.enabled
+  const speakerProfile = window.MSWSpeaker.profile(DATA,seg,DATA.segments[seg?.color_ref?.headIdx]);
+  const speakerLabel = mainVisible && speakerProfile?.mode==='speaker'
     ? window.AsrEditorUtils.speakerLabelForSegment(
       seg, DATA.segments, speakerLabels.names,
     )
@@ -15334,12 +15334,13 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
       : COLOR_BY_NAME[mainColorName].value
     : '';
   const speakerLabelText = speakerLabelVisible
-    ? `${speakerLabel}${speakerLabels.separator}`
+    ? `${speakerLabel}${speakerProfile.separator}`
     : '';
   const previewStyle=window.MSWSubtitleStyle?.currentPreview().style;
   const mainText = mainVisible ? window.MSWProjectStyle.wrapText(seg.text,previewStyle?.main) : '';
   const wrappedExtension=extensionVisible?window.MSWProjectStyle.wrapText(extension.text,previewStyle?.secondary):'';
-  const extensionText = extensionVisible ? (speakerLabels.mapping_enabled && speakerLabels.enabled ? window.AsrEditorUtils.formatSpeakerLabelledText(wrappedExtension, extension, getActiveExtensionTrack()?.segments || [], speakerLabels.names, speakerLabels.separator) : wrappedExtension) : '';
+  const extensionProfile=window.MSWSpeaker.profile(DATA,extension,getActiveExtensionTrack()?.segments[extension?.color_ref?.headIdx]);
+  const extensionText = extensionVisible ? window.MSWSpeaker.prefix(DATA,extensionProfile)+wrappedExtension : '';
   if (overlayMainSpeakerLabelEl.classList.contains('hidden') === speakerLabelVisible) {
     overlayMainSpeakerLabelEl.classList.toggle('hidden', !speakerLabelVisible);
   }
@@ -15371,8 +15372,9 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const overlayCueText = overlayCueVisible ? String(overlayCue.text || '') : '';
   // 叠加轨说话人标签：颜色→说话人映射按叠加轨自身数组解析，与主字幕同源。
   const overlayColorContext = getOverlayTrack()?.segments || [];
+  const overlayProfile=window.MSWSpeaker.profile(DATA,overlayCue,overlayColorContext[overlayCue?.color_ref?.headIdx]);
   const overlaySpeakerLabel = overlayCueVisible
-    && speakerLabels.mapping_enabled && speakerLabels.enabled
+    && overlayProfile?.mode==='speaker'
     ? window.AsrEditorUtils.speakerLabelForSegment(
       overlayCue, overlayColorContext, speakerLabels.names,
     )
@@ -15394,7 +15396,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
         : COLOR_BY_NAME[overlaySpeakerColorName].value
     : '';
   const overlaySpeakerLabelText = overlaySpeakerLabelVisible
-    ? `${overlaySpeakerLabel}${speakerLabels.separator}`
+    ? `${overlaySpeakerLabel}${overlayProfile.separator}`
     : '';
   if (overlayTrackSpeakerLabelEl.classList.contains('hidden') === overlaySpeakerLabelVisible) {
     overlayTrackSpeakerLabelEl.classList.toggle('hidden', !overlaySpeakerLabelVisible);
@@ -15688,56 +15690,66 @@ overlayToggle.addEventListener('change', () => {
 // 程序内开关（不暴露 GUI）：导出 SRT 时保留禁用项的时间轴序号但内容替换为空白
 let EXPORT_KEEP_DISABLED_PLACEHOLDER = false;
 
-function speakerSettings() {return window.AsrEditorUtils.normalizeSpeakerLabelSettings(DATA.preview?.subtitle?.speaker_labels);}
+function speakerSettings() {
+  const palette=window.MSWSpeaker.ensure(DATA);
+  return {mapping_enabled:true,enabled:true,separator:'：',names:Object.fromEntries(palette.rows.map(r=>[r.id,r.name])),palette};
+}
 function speakerExportOptions() {
-  const settings=speakerSettings();
-  return {speakerLabelsEnabled:EDITOR_SETTINGS.exportSpeakerLabels===true&&settings.mapping_enabled,
-    speakerLabels:{...settings.names},speakerLabelSeparator:settings.separator};
+  const rows=speakerSettings().palette.rows;
+  return {speakerLabelsEnabled:EDITOR_SETTINGS.exportSpeakerLabels===true,
+    speakerLabels:Object.fromEntries(rows.map(r=>[r.id,r.name])),speakerLabelSeparator:'：',
+    speakerSeparators:Object.fromEntries(rows.map(r=>[r.id,r.separator]))};
 }
 function syncSpeakerControls() {
-  const settings=speakerSettings();
-  document.getElementById('speaker-mapping-enabled').checked=settings.mapping_enabled;
-  document.getElementById('speaker-preview-enabled').checked=settings.enabled;
-  document.getElementById('speaker-label-separator').value=settings.separator;
-  document.querySelectorAll('[data-speaker-name]').forEach(node=>{node.value=settings.names[node.dataset.speakerName];});
-  document.getElementById('subtitle-color-style').value=DATA.preview?.subtitle?.color_style||'underline';
-  document.getElementById('export-speaker-labels').checked=EDITOR_SETTINGS.exportSpeakerLabels===true;
+  const palette=window.MSWSpeaker.ensure(DATA),body=document.getElementById('speaker-palette-rows');
+  if(!body)return;
+  const key=JSON.stringify(palette);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
+  const titles=['不着色','字幕填充色','字幕描边色','字幕背景框色','说话人名称色'];
+  const create=(entry,index)=>{
+    const tr=document.createElement('tr');tr.dataset.speakerId=entry?.id||'all';
+    const number=document.createElement('th');number.scope='row';number.textContent=index;tr.append(number);
+    for(const field of ['name','color','mode','separator']) {
+      const td=document.createElement('td');let input;
+      if(field==='name'&&!entry){td.textContent='全部说话人';tr.append(td);continue;}
+      if(field==='mode'){input=document.createElement('select');if(!entry)input.add(new Option('混合',''));window.MSWSpeaker.modes.forEach((value,i)=>input.add(new Option(titles[i],value)));}
+      else {input=document.createElement('input');input.type=field==='color'?'color':'text';if(field!=='color')input.maxLength=field==='name'?64:16;}
+      const values=palette.rows.map(r=>r[field]),same=values.every(v=>v===values[0]);
+      input.value=entry?entry[field]:same?values[0]:field==='color'?values[0]:'';
+      input.setAttribute('aria-label',(entry?entry.name:'全部说话人')+' '+({name:'名称',color:'颜色',mode:'着色模式',separator:'分隔符'}[field]));
+      if(!entry&&!same)input.title='多个值；修改后应用到全部说话人';
+      input.onchange=()=>{
+        const value=input.value;if(field==='mode'&&!value)return;
+        if(field==='name'&&!value.trim()){input.value=entry.name;return;}
+        pushPreviewUndo('调整说话人色系',snapshotPreviewState());
+        for(const r of entry?[entry]:palette.rows)r[field]=field==='name'?value.trim():value;
+        speakerPaletteChanged();
+      };td.append(input);tr.append(td);
+    }body.append(tr);
+  };
+  create(null,0);palette.rows.forEach((entry,i)=>create(entry,i+1));
+  document.getElementById('speaker-palette-add').disabled=palette.rows.length>=1024;
 }
-assColorSpeakerExportLink?.addEventListener('click', event => {
-  event.preventDefault();
-  document.getElementById('speaker-label-settings').scrollIntoView({block:'center'});
-  document.getElementById('export-speaker-labels').focus();
-});
-document.getElementById('speaker-label-settings').addEventListener('change',event=>{
-  if(event.target.id==='subtitle-color-style')return; // The direct appearance handler already records this change.
-  if(event.target.id.startsWith('export-')){
-    updateEditorSettings({exportSpeakerLabels:document.getElementById('export-speaker-labels').checked,
-      ...(event.target.id==='export-speaker-labels' ? {exportSpeakerLabelsExplicit:true} : {}),
-      exportSpeakerNamesAsSuffix:document.getElementById('export-speaker-names-suffix').checked});return;
-  }
-  pushPreviewUndo('调整说话人与预览样式',snapshotPreviewState());
-  const settings=window.AsrEditorUtils.normalizeSpeakerLabelSettings({mapping_enabled:document.getElementById('speaker-mapping-enabled').checked,
-    enabled:document.getElementById('speaker-preview-enabled').checked,separator:document.getElementById('speaker-label-separator').value,
-    names:Object.fromEntries([...document.querySelectorAll('[data-speaker-name]')].map(node=>[node.dataset.speakerName,node.value]))});
-  if(event.target.id==='speaker-mapping-enabled' && settings.mapping_enabled && settings.enabled && !EDITOR_SETTINGS.exportSpeakerLabelsExplicit) {
-    updateEditorSettings({exportSpeakerLabels:true});
-  }
-  setSubtitleAppearance({speaker_labels:settings,color_style:document.getElementById('subtitle-color-style').value});syncSpeakerControls();update();
-});
-document.getElementById('export-speaker-labels').checked=EDITOR_SETTINGS.exportSpeakerLabels===true;
-document.getElementById('export-speaker-names-suffix').checked=EDITOR_SETTINGS.exportSpeakerNamesAsSuffix===true;
+function speakerPaletteChanged() {
+  previewGeometryDirty=true;rebuildEditorColorPalette();syncSpeakerControls();
+  if(typeof fixedPreviewInvalidate==='function')fixedPreviewInvalidate();
+  renderAll({waveform:'full'});refreshSubtitlePreview();window.MSWSubtitleRenderer?.invalidate();scheduleAutoSaveFlush();
+}
+document.getElementById('speaker-palette-add').onclick=()=>{
+  const palette=window.MSWSpeaker.ensure(DATA);if(palette.rows.length>=1024)return;
+  pushPreviewUndo('添加说话人',snapshotPreviewState());
+  let i=palette.rows.length;while(palette.rows.some(r=>r.id==='speaker-'+(i+1)))i++;
+  palette.rows.push(window.MSWSpeaker.row(i,'speaker-'+(i+1)));speakerPaletteChanged();
+  document.querySelector('#speaker-palette-rows tr:last-child input')?.focus();
+};
+for(const [id,key] of [['export-speaker-labels','exportSpeakerLabels'],['export-speaker-names-suffix','exportSpeakerNamesAsSuffix']]) {
+  const input=document.getElementById(id);input.checked=EDITOR_SETTINGS[key]===true;
+  input.addEventListener('click',e=>e.stopPropagation());input.onchange=()=>updateEditorSettings({[key]:input.checked});
+}
 function getSpeakerLabelSettings() { return speakerSettings(); }
 function setSpeakerLabelSettings(value) { setSubtitleAppearance({speaker_labels:value}); }
 function syncSpeakerLabelControls() { syncSpeakerControls(); }
-function speakerLabelExportOptions() {
-  const settings = getSpeakerLabelSettings();
-  return {
-    speakerLabelsEnabled: EDITOR_SETTINGS.exportSpeakerLabels === true
-      && settings.mapping_enabled === true,
-    speakerLabels: settings.names,
-    speakerLabelSeparator: settings.separator,
-  };
-}
+function speakerLabelExportOptions() {return speakerExportOptions();}
+window.addEventListener('msw:project-changed',()=>{rebuildEditorColorPalette();syncSpeakerControls();});
 
 // 合并导出池：主轨 + 叠加轨按 start 归并。叠加段的 color_ref 指向叠加轨
 // 自身数组，不能在合并后的大数组里按下标解析，因此同时返回归属集合，
@@ -16200,6 +16212,7 @@ function buildJson() {
   const preview = { ...DATA.preview, subtitle: { ...getPreviewGeometry(), ...getSubtitleAppearance() } };
   delete preview.burn_ass_library;
   delete preview.burn_speaker_labels;
+  delete preview.speaker_label_export;
   if (DATA.preview?.burn_subtitles) preview.burn_subtitles = JSON.parse(JSON.stringify(DATA.preview.burn_subtitles));
   if (getActiveExtensionTrack() || DATA.preview?.extension_subtitle) {
     preview.extension_subtitle = { ...getStoredExtensionSubtitleAppearance() };
@@ -22168,11 +22181,18 @@ function detachColorFromGroup(idx) {
 }
 
 function assignColor(idxs, colorName) {
-  if (!idxs.length) return;
+  if (!idxs.length || !fixedCanEdit(idxs.map(i=>DATA.segments[i]),'main')) return;
   const def = COLOR_BY_NAME[colorName];
   if (!def) return;
   pushUndo('标记颜色');
   const sorted = [...idxs].sort((a, b) => a - b);
+  if(productionFlatMode()) {
+    // Each selected cue owns its identity. Never reference a different physical
+    // track or recolor unselected members of a former color group.
+    splitGroupsAtCutPoints(new Set(sorted),'color','color_ref');
+    for(const idx of sorted){const cue=DATA.segments[idx];cue.color={name:colorName,value:def.value,start:cue.start,end:cue.end};cue.color_ref=null;}
+    refreshColorAssignmentUi();return;
+  }
   if (sorted.length === 1) {
     const idx = sorted[0];
     // 如果当前条已经是 head，同步更新所有引用 idx 的 ref.name
@@ -22263,6 +22283,7 @@ function removeColorCascade(idx) {
 }
 
 function clearColorOnTargets(idxs) {
+  if(!fixedCanEdit(idxs.map(i=>DATA.segments[i]),'main'))return;
   pushUndo('清除颜色');
   // 一次性切除所有目标 idx，触发组拆分
   splitGroupsAtCutPoints(new Set(idxs), 'color', 'color_ref');
@@ -23098,6 +23119,16 @@ function copySelectedSubtitlesToAssets() {
   } catch(error) {flashHint(error.message,'warning');}
 }
 
+function appendSpeakerMarkMenu(assign) {
+  const row=document.createElement('div');row.className='speaker-mark-picker';
+  const label=document.createElement('div');label.className='item';label.textContent='说话人颜色';
+  const hint=document.createElement('kbd');hint.textContent='1~9';label.append(hint);row.append(label);
+  const swatches=document.createElement('div');swatches.className='speaker-mark-swatches';
+  COLOR_PALETTE.forEach((c,i)=>{const button=document.createElement('button');button.type='button';button.style.backgroundColor=c.value;
+    button.title=c.label+(i<9?'（'+(i+1)+'）':'');button.setAttribute('aria-label',button.title);button.dataset.speaker=c.name;
+    button.onclick=e=>{e.stopPropagation();ctxmenu.classList.remove('show');assign(c.name);};swatches.append(button);});row.append(swatches);
+  ctxAppendExpandableSettings('标记字幕',[{node:row},{label:'清除颜色',action:()=>assign(null)}]);
+}
 function appendSubtitleExtendedActions() {
   if(productionFlatMode())ctxAppendSettingsEntry('字幕属性',()=>window.MSWSubtitleStyle?.open('cue'));
   ctxAppendExpandableSettings('扩展操作', [
@@ -23158,45 +23189,8 @@ function showContextMenu(x, y, idx, waveformTimeMs = null, track = null) {
     const s = document.createElement('div'); s.className = 'sep'; ctxmenu.appendChild(s);
   }
 
-  // 颜色子菜单：首行「标记颜色 + 1~5 键位提示」，下方一排加大号色块（好辨认也好点击）
   function addColorSubmenu(targets) {
-    const row = document.createElement('div');
-    row.className = 'item';
-    row.style.cssText = 'cursor:default;display:block;';
-    row.addEventListener('click', e => e.stopPropagation());
-    const head = document.createElement('div');
-    head.style.cssText = 'display:flex;align-items:center;';
-    const lbl = document.createElement('span');
-    lbl.textContent = '标记颜色';
-    head.appendChild(lbl);
-    const rangeHint = document.createElement('kbd');
-    rangeHint.textContent = '1~5';
-    rangeHint.style.marginLeft = 'auto';
-    head.appendChild(rangeHint);
-    row.appendChild(head);
-    const swatches = document.createElement('div');
-    swatches.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
-    COLOR_PALETTE.forEach((c, colorIndex) => {
-      const sw = document.createElement('span');
-      sw.title = `${c.label}（按 ${colorIndex + 1}）`;
-      sw.style.cssText = `width:22px;height:22px;border-radius:50%;background:${c.value};border:1px solid rgba(255,255,255,.25);cursor:pointer;display:inline-block;box-sizing:border-box;flex:0 0 auto;`;
-      sw.addEventListener('mouseenter', () => sw.style.transform = 'scale(1.15)');
-      sw.addEventListener('mouseleave', () => sw.style.transform = '');
-      sw.addEventListener('click', (e) => {
-        e.stopPropagation();
-        ctxmenu.classList.remove('show');
-        if (track) assignExtensionColor(targets, c.name, track); else assignColor(targets, c.name);
-      });
-      swatches.appendChild(sw);
-    });
-    row.appendChild(swatches);
-    ctxmenu.appendChild(row);
-    // 「清除颜色」项：仅当选中范围内有颜色时显示
-    const hasColorInRange = targets.some(i =>
-      segments[i].color || segments[i].color_ref);
-    if (hasColorInRange) {
-      addItem('清除颜色', '0', () => track ? assignExtensionColor(targets, null, track) : clearColorOnTargets(targets), { danger: true });
-    }
+    appendSpeakerMarkMenu(name=>track?assignExtensionColor(targets,name,track):name?assignColor(targets,name):clearColorOnTargets(targets));
   }
 
   if (!isMulti) {
@@ -23346,45 +23340,12 @@ function showOverlayContextMenu(x, y, index) {
   addItem('共有状态合并', () => mergeOverlaySegments([...selectedOverlayIdxs], 'common'), {disabled:!canMerge, kbd:`${modKeyLabel()}+Shift+C`});
   addItem('转为主字幕', () => convertOverlayCueToMain(index), { disabled: mainOccupied });
   addSep();
-  // 组 2：外观（表情包与颜色），交互与主字幕菜单对齐（1~5 快捷键同源）。
+  // 组 2：外观（表情包与颜色），交互与主字幕菜单对齐（1~9 快捷键同源）。
   addItem('分配表情包…', () => openStickerPicker([index], false, { overlay: true }));
   if (segment.sticker || segment.sticker_ref) {
     addItem('删除表情包', () => clearOverlaySticker(index));
   }
-  const colorRow = document.createElement('div');
-  colorRow.className = 'item';
-  colorRow.style.cssText = 'cursor:default;display:block;';
-  colorRow.addEventListener('click', (e) => e.stopPropagation());
-  const colorHead = document.createElement('div');
-  colorHead.style.cssText = 'display:flex;align-items:center;';
-  const colorLabel = document.createElement('span');
-  colorLabel.textContent = '标记颜色';
-  colorHead.appendChild(colorLabel);
-  const colorRangeHint = document.createElement('kbd');
-  colorRangeHint.textContent = '1~5';
-  colorRangeHint.style.marginLeft = 'auto';
-  colorHead.appendChild(colorRangeHint);
-  colorRow.appendChild(colorHead);
-  const swatches = document.createElement('div');
-  swatches.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
-  COLOR_PALETTE.forEach((c, colorIndex) => {
-    const swatch = document.createElement('span');
-    swatch.title = `${c.label}色（按 ${colorIndex + 1}）`;
-    swatch.style.cssText = `width:22px;height:22px;border-radius:50%;background:${c.value};border:1px solid rgba(255,255,255,.25);cursor:pointer;display:inline-block;box-sizing:border-box;flex:0 0 auto;`;
-    swatch.addEventListener('mouseenter', () => swatch.style.transform = 'scale(1.15)');
-    swatch.addEventListener('mouseleave', () => swatch.style.transform = '');
-    swatch.addEventListener('click', (e) => {
-      e.stopPropagation();
-      ctxmenu.classList.remove('show');
-      assignOverlayColor([index], c.name);
-    });
-    swatches.appendChild(swatch);
-  });
-  colorRow.appendChild(swatches);
-  ctxmenu.appendChild(colorRow);
-  if (segment.color || segment.color_ref) {
-    addItem('清除颜色', () => clearOverlayColorOnTargets([index]), { danger: true });
-  }
+  appendSpeakerMarkMenu(name=>name?assignOverlayColor([index],name):clearOverlayColorOnTargets([index]));
   addSep();
   // 组 3：状态与删除（Alt+点击波形块亦可切换，此处为菜单入口）
   addItem(
@@ -25813,6 +25774,7 @@ function applyProcessingResults(jobs, target, strategy, media, options = {}) {
   if(plan.project.subtitle_tracks)DATA.subtitle_tracks=plan.project.subtitle_tracks;
   if(plan.project.subtitle_layers)DATA.subtitle_layers=plan.project.subtitle_layers;
   normalizeMultiSubtitleState(); projectImportDirty = true; cueListPlaybackKey = null;
+  rebuildEditorColorPalette();syncSpeakerControls();
   renderAll({waveform:'full'});restoreEditorSelection(selection);waveformEditor?.restoreNavigation(navigation);
   window.MSWResultApply.captureState(DATA, jobs, target);
   scheduleAutoSaveFlush();window.dispatchEvent(new Event('msw:assets-changed'));
@@ -26134,6 +26096,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     project.preview.burn_ass_library=structuredClone(ASS_STYLE_LIBRARY);
     const options=speakerExportOptions();
     project.preview.burn_speaker_labels={enabled:options.speakerLabelsEnabled,names:{...options.speakerLabels},separator:options.speakerLabelSeparator};
+    delete project.preview.speaker_label_export;
     project.color_palette=structuredClone(COLOR_PALETTE);
     return project;
   },
@@ -26149,6 +26112,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     if (project.preview?.project_style || project.preview?.ass_library_exports === true) {
       project.preview.burn_ass_library = JSON.parse(JSON.stringify(ASS_STYLE_LIBRARY));
       const options = speakerExportOptions();
+      project.preview.speaker_label_export=options.speakerLabelsEnabled;
       project.preview.burn_speaker_labels = {enabled:options.speakerLabelsEnabled,
         names:{...options.speakerLabels}, separator:options.speakerLabelSeparator};
     }
@@ -26170,7 +26134,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   },
   persistStyleMigration: () => { previewGeometryDirty = true; projectImportDirty = true; scheduleAutoSaveFlush(); },
   refreshStylePreview: () => refreshSubtitlePreview(),
-  subtitleRenderSettings: () => ({...speakerExportOptions(),colorStyles:COLOR_PALETTE,assColorStyle:getSubtitleAppearance().ass_color_style}),
+  subtitleRenderSettings: () => ({speakerPalette:DATA.preview?.speaker_palette,...speakerExportOptions(),colorStyles:COLOR_PALETTE,assColorStyle:getSubtitleAppearance().ass_color_style}),
   subtitlePreviewTarget: () => {
     const main=overlayToggle.checked&&!subtitleTrackMuted('main');
     const secondary=extensionOverlayToggle?.checked&&DATA.multi_subtitle?.enabled&&!subtitleTrackMuted('extension');

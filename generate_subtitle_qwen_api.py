@@ -2605,8 +2605,6 @@ def main():
         if args.speaker_colors:
             stats = apply_speaker_colors(segments)
             print(f"[speaker] 已为 {stats['colored_segments']} 条字幕写入颜色快照")
-            if stats["overflow"]:
-                print("[警告] 说话人超过 5 个，颜色已循环复用，请在编辑器中手动调整")
 
     print(f"[输出] 正在生成 SRT（{len(segments)} 条字幕）...")
     srt_content = generate_srt(segments)

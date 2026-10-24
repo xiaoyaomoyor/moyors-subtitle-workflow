@@ -304,7 +304,7 @@ class SpeakerColorTests(unittest.TestCase):
         result = validate_project({"segments": segments})
         self.assertTrue(result.ok, msg=str([e.to_json() for e in result.errors]))
 
-    def test_colors_overflow_cycles_palette_and_flags(self) -> None:
+    def test_colors_extend_palette_without_reusing_identity(self) -> None:
         segments = [
             _segment(i * 100, i * 100 + 100, f"s{i}", speaker=str(i + 1))
             for i in range(6)
@@ -312,10 +312,10 @@ class SpeakerColorTests(unittest.TestCase):
 
         stats = soniox.apply_speaker_colors(segments)
 
-        self.assertTrue(stats["overflow"])
+        self.assertFalse(stats["overflow"])
         self.assertEqual(len(stats["speakers"]), 6)
-        # 第 6 个 speaker 循环回第 1 个颜色
-        self.assertEqual(segments[5]["color"]["name"], segments[0]["color"]["name"])
+        self.assertEqual(segments[5]["color"]["name"], "speaker-6")
+        self.assertNotEqual(segments[5]["color"]["value"], segments[0]["color"]["value"])
 
     def test_colors_no_speakers_is_noop(self) -> None:
         segments = [_segment(0, 100, "a")]

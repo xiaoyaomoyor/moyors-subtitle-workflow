@@ -10,22 +10,24 @@ test.beforeEach(async({page})=>{
   process.env.MAW_ENV_FILE=join(root,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(root,'app-data');
   writeFileSync(process.env.MAW_ENV_FILE,'VOLC_API_KEY=synthetic\nMAW_OPENAI_ASR_API_KEY=synthetic\n');
   server=await startServer(projectPath,mediaPath,await findFreePort());await disableOnboarding(page);
+  await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false})));
   await page.goto(server.url);await expect(page.locator('.cue')).toHaveCount(1);
   await page.evaluate(()=>updateEditorSettings({autoSaveProject:false}));
+  await page.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);
 });
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();});
 
 test('speaker settings preview and SRT are undoable and leave source text untouched',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await toggleEditorSettings(page);await page.locator('.settings-nav-item[data-settings-category="subtitle-speakers"]').click();
-  await page.locator('#speaker-mapping-enabled').check();await page.locator('#speaker-preview-enabled').check();
-  await page.locator('[data-speaker-name="red"]').fill('Alice');await page.locator('[data-speaker-name="red"]').press('Tab');
-  await page.locator('#export-speaker-labels').check();await page.locator('#subtitle-color-style').selectOption('text');
-  await page.evaluate(()=>{player.currentTime=.2;update();});
+  const row=page.locator('#speaker-palette-rows tr[data-speaker-id="red"]');
+  await row.locator('td:nth-child(2) input').fill('Alice');await row.locator('td:nth-child(2) input').press('Tab');
+  await row.locator('select').selectOption('speaker');
+  await page.evaluate(()=>{updateEditorSettings({exportSpeakerLabels:true});player.currentTime=.2;update();});
   expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Hello');
   expect(await page.evaluate(()=>buildSrt())).toContain('Alice：Hello');
-  await expect(page.locator('#overlay-main-text')).toContainText('Alice');
-  await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.preview.subtitle.color_style)).not.toBe('text');
+  await expect(page.locator('.fixed-subtitle-row')).toContainText('Alice');
+  await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[2].mode)).toBe('text');
   await page.screenshot({path:join(root,'speakers.png'),fullPage:true});expect(errors).toEqual([]);
 });
 
@@ -121,11 +123,12 @@ test('color SRT export freezes speaker names and text before the file picker',as
   const downloads=[];page.on('download',item=>downloads.push(item));
   await page.evaluate(()=>{
     DATA.segments.push({id:'blue',start:1500,end:2000,text:'Blue text',color:{name:'blue',start:1500,end:2000}});
-    const settings={mapping_enabled:true,enabled:false,names:{red:'Alice',blue:'Bob'},separator:': '};
-    setSubtitleAppearance({speaker_labels:settings});
+    DATA.subtitle_tracks.assignments.push({role:'main',track_id:null,cue_id:'blue',subtitle_track_id:DATA.subtitle_tracks.tracks[0].id});
+    for(const row of DATA.preview.speaker_palette.rows){row.name={red:'Alice',blue:'Bob'}[row.id]||row.name;row.separator=': ';}
+    rebuildEditorColorPalette();
     updateEditorSettings({exportSpeakerLabels:true,exportSpeakerNamesAsSuffix:true,exportColorUnified:true,exportStartAtZero:false});
     window.showSaveFilePicker=async()=>{
-      DATA.segments[0].text='Late change';DATA.preview.subtitle.speaker_labels.names.red='Changed';
+      DATA.segments[0].text='Late change';DATA.preview.speaker_palette.rows[2].name='Changed';
       updateEditorSettings({exportColorUnified:false,exportStartAtZero:true});
       return {name:'chosen.srt'};
     };

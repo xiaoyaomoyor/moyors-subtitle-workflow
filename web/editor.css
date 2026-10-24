@@ -4909,7 +4909,7 @@
 }
 
 /* Speaker controls share the MSW settings layout and stay usable in narrow panels. */
-#speaker-label-settings input:not([type="checkbox"]) { min-width: 0; width: min(12em, 55%); }
+#speaker-label-settings input:not([type="checkbox"]) { min-width: 0; width: 100%; box-sizing: border-box; }
 #project-version-settings input[type="number"] { width: 7em; min-width: 0; }
 #speaker-label-settings input:not([type="checkbox"]), #project-version-settings input[type="number"] {
   background: var(--form-input-bg); color: var(--text-primary); border: 1px solid var(--border);
@@ -5436,3 +5436,21 @@
 #subtitle-properties :is(#curve-graph,.motion-range-node,.motion-parameter-node,input[type=range]):focus:not(:focus-visible) { outline:none; box-shadow:none; }
 .curve-menu-icon { flex:0 0 14px; width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.4; }
 #ctxmenu .item:has(.curve-menu-icon) { gap:8px; }
+.speaker-palette-scroll { overflow-x:auto; margin:10px 0; }
+.speaker-palette-table { width:100%; border-collapse:separate; border-spacing:6px; font-size:inherit; }
+.speaker-palette-table th { text-align:left; color:var(--text-secondary); font-weight:500; white-space:nowrap; }
+.speaker-palette-table th:first-child { width:36px; text-align:center; }
+.speaker-palette-table td { padding:0; }
+.speaker-palette-table input:not([type=color]), .speaker-palette-table select { width:100%; min-width:0; box-sizing:border-box; }
+.speaker-palette-table td:nth-child(2) { min-width:100px; }
+.speaker-palette-table td:nth-child(3) { width:58px; }
+.speaker-palette-table input[type=color] { width:52px; height:32px; padding:3px; cursor:pointer; }
+.speaker-palette-table td:nth-child(4) { min-width:130px; }
+.speaker-palette-table td:nth-child(5) { width:75px; }
+.speaker-palette-table tr:first-child td, .speaker-palette-table tr:first-child th { padding-bottom:10px; border-bottom:1px solid var(--border); }
+#speaker-palette-add { width:30px; height:30px; padding:0; font-size:22px; line-height:1; color:var(--btn-text); background:var(--btn-bg); border:1px solid var(--btn-border); border-radius:var(--radius-sm); }
+#speaker-palette-add:hover { background:var(--btn-bg-hover); }
+.speaker-mark-picker { width:236px; max-width:70vw; }
+.speaker-mark-swatches { display:grid; grid-template-columns:repeat(7,24px); gap:8px; padding:8px 10px 12px; max-height:220px; overflow-y:auto; }
+.speaker-mark-swatches button { display:block; width:24px; height:24px; min-width:0; padding:0; border:1px solid var(--border); border-radius:50%; cursor:pointer; }
+.speaker-mark-swatches button:hover { box-shadow:0 0 0 2px var(--text-secondary); }

@@ -1079,7 +1079,25 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 
 重新生成贴片时，可选 `source_ref.spoken_text`（1–12000 字符）记录需要原样重放的已保存读音；油库里绕过文本到假名的再次转换，IndexTTS 仍限制其输入为 600 字符。显示文字仍来自 `text`。任务快照的正文和重放读音总计最多 1000000 字符。重新生成从素材白名单配方读取调用参数，凭据／服务地址／本地资源位置使用当前环境配置；外部音频不伪造 TTS 配方。
 
-### beta.6 说话人导出兼容
+### 说话人色系（2026-10）
+
+当前工程使用 `preview.speaker_palette = {"version":1,"rows":[...]}` 保存说话人配置，独立于浏览器偏好。每行包含：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | 稳定身份，1–160 个英文字母、数字、`_` 或 `-`，表内唯一；改名、改色不改变它 |
+| `name` | 显示名称，1–64 字符，可重名，不含控制字符 |
+| `color` | `#RRGGBB` 指定颜色 |
+| `mode` | `none` / `text` / `stroke` / `background` / `speaker` |
+| `separator` | 名称与正文间的分隔符，0–16 字符，不含控制字符 |
+
+默认五行 SP1–SP5、旧五色色值、不着色、分隔符 `：`。可添加至 1024 行。第 0 行是界面的批量操作，不写入 `rows`。当前 `color.name` / `color_ref.name` 存储说话人行的稳定 ID；沿用前五个 ID `yellow/green/red/purple/blue`，新增一般为 `speaker-N`。同色、同名的两行仍是不同身份。原始 ASR `speaker` 元数据不改变；旧工程已有颜色标记按 ID 迁入，不从 RGB 反推或改写人工标记。
+
+`mode` 只决定画面着色，`none` 保留字幕块标记。单条 `subtitle_style` 的对应颜色覆盖优先；背景色使用现有 ASS 背景形状，没有形状时采用圆角框。`speaker` 模式预览显示名称前缀并仅着色名称，其余模式只显示正文。SRT、ASS 和视频导出独立选择是否添加名称；ASS/视频请求使用 `preview.speaker_label_export` 布尔值覆盖预览规则，这个临时字段不属于普通工程保存。名称和前缀从不写回正文、TTS 文本或原始识别身份。每人的分隔符独立保存；按说话人分别导出时文件后缀可用名称，重名自动消歧、非法文件名字符自动替换。
+
+以下 beta.3/beta.6 字段仅用于读取旧工程；一旦存在 `speaker_palette`，以新表格为准。
+
+### beta.6 说话人导出兼容（历史）
 
 新建空工程显式设置 `preview.subtitle.speaker_labels.enabled: true`，映射仍默认关闭。缺字段的旧工程保持预览关闭；显式 true/false 原样读取。名称导出偏好保留用户明确关闭的值，`exportSpeakerLabelsExplicit` 只保存于本机编辑器偏好。
 

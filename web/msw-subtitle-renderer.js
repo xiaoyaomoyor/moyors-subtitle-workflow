@@ -128,6 +128,7 @@
     const current=()=>ticket===serial&&generation===host.generation&&target===host.player&&targetSource===mediaSource(target);
     try {
       let project=host.subtitlePreviewProject?host.subtitlePreviewProject():host.exportProject();
+      if(preview.scope==='export')project.preview.speaker_label_export=document.getElementById('video-export-speaker-labels').checked;
       if(preview.scope==='export'&&project.schema==='msw.project.v4')project=global.MSWProductionProject.exportScope(project,preview.trackIds);
       if(preview.scope==='proof'||preview.other)global.MSWProjectStyle.applyPreset(project,preview.style,{proof:preview.scope==='proof'});else global.MSWProjectStyle.apply(project,preview.style);
       for(const field of ['waveform','spectral','waveform_reapeaks','workspace'])delete project[field];

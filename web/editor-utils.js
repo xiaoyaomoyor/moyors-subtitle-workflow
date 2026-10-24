@@ -148,7 +148,7 @@
 
   function normalizeSpeakerLabels(value) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    return Object.fromEntries(SPEAKER_LABEL_COLORS.map((color) => [
+    return Object.fromEntries([...new Set([...SPEAKER_LABEL_COLORS,...Object.keys(source)])].map((color) => [
       color,
       Object.prototype.hasOwnProperty.call(source, color)
         ? normalizeSpeakerLabel(source[color], DEFAULT_SPEAKER_LABELS[color])
@@ -4175,7 +4175,7 @@
       parts.push(`${formatTime(start)} --> ${formatTime(end)}`);
       parts.push(disabled ? '' : speakerLabels
         ? formatSpeakerLabelledText(
-          segment.text, segment, colorContext, speakerLabels, speakerLabelSeparator,
+          segment.text, segment, colorContext, speakerLabels, options.speakerSeparators?.[effectiveColorName(segment,colorContext)] ?? speakerLabelSeparator,
         )
         : String(segment.text || ''));
       parts.push('');

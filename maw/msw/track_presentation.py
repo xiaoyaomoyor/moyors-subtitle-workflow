@@ -138,6 +138,8 @@ def layout(project, width=1920):
     used, groups = set(), []
     default = (project.get('preview') or {}).get('project_style') or builtin_presets()[0]
     labels = (project.get('preview') or {}).get('burn_speaker_labels') or {}
+    from maw.msw import speaker_palette
+    speakers = speaker_palette.profiles(project)
     styles = {}
     def resolve_style(track):
         if track['id'] in styles:
@@ -182,8 +184,15 @@ def layout(project, width=1920):
                 storage = project['segments'] if row['role']=='main' else next(t['segments'] for t in multi['tracks'] if t['id']==row['track_id'])
                 head = (cue.get('color_ref') or {}).get('headIdx')
                 row['color'] = cue.get('color') or (storage[head].get('color') if type(head) is int and 0<=head<len(storage) else {}) or {}
-            label = (labels.get('names') or {}).get(row['color'].get('name'), '') if labels.get('enabled') else ''
-            prefix = label+labels.get('separator', '：') if label and row['role']=='main' else ''
+            if speakers is not None:
+                row['speaker'] = speakers.get(row['color'].get('name'))
+                row['style'] = speaker_palette.appearance(row['style'], cue, row['speaker'])
+                if background.enabled(row['style']):
+                    row['style']['borderStyle'] = 1
+                prefix = speaker_palette.prefix(project, row['speaker'])
+            else:
+                label = (labels.get('names') or {}).get(row['color'].get('name'), '') if labels.get('enabled') else ''
+                prefix = label+labels.get('separator', '：') if label and row['role']=='main' else ''
             row['prefix']=prefix
             row['size'] = measured_text(cue.get('text', ''), row['style'], width, prefix=prefix)
         members[0]['localY'] = 0
@@ -285,12 +294,18 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
     lines=['[Script Info]','ScriptType: v4.00+',f'PlayResX: {width}','PlayResY: 1080','ScaledBorderAndShadow: yes','WrapStyle: 2','',
            '[V4+ Styles]','Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding']
     palette=dict(COLOR_PALETTE)
+    # ASR candidates may be rendered before their first editor save has
+    # created a speaker table. Honor independent identities beyond five.
+    for row in entries:
+        mark=row['color']
+        if mark.get('name') not in palette and re.fullmatch(r'#[0-9a-fA-F]{6}',str(mark.get('value',''))):
+            palette[mark['name']]=mark['value']
     palette.update({c['name']:c['value'] for c in project.get('color_palette',[]) if isinstance(c,dict) and c.get('name') in palette and re.fullmatch(r'#[0-9a-fA-F]{6}',str(c.get('value','')))})
     mode=(project.get('preview') or {}).get('subtitle',{}).get('ass_color_style','text')
     style_lines = {}
     for i,r in enumerate(entries):
         style=dict(r['style']);color=palette.get(r['color'].get('name'))
-        if color and mode in ('text','stroke') and ('primaryColor' if mode=='text' else 'outlineColor') not in r['cue'].get('subtitle_style', {}):
+        if 'speaker' not in r and color and mode in ('text','stroke') and ('primaryColor' if mode=='text' else 'outlineColor') not in r['cue'].get('subtitle_style', {}):
             style['primaryColor' if mode=='text' else 'outlineColor']=color
         style_key = json.dumps(style, sort_keys=True)
         if style_key not in style_lines:
@@ -317,8 +332,9 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
             a=animations[tag]
             if a['enabled']:base+='\\'+tag+'('+','.join(str(a[k]) for k in keys)+')'
         text=styled_text(r['size']['text'], r['style'])
-        color=palette.get(r['color'].get('name'))
-        if color and mode=='speaker' and r['prefix']:
+        color = r['speaker']['color'] if r.get('speaker') else palette.get(r['color'].get('name'))
+        cue_mode = (r.get('speaker') or {}).get('mode', 'none') if 'speaker' in r else mode
+        if color and cue_mode=='speaker' and r['prefix']:
             count=cut=0
             for ch in r['size']['text']:
                 cut+=1
@@ -346,7 +362,7 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
                 if clip_hi<=clip_lo:continue
                 origin=r['cue']['start']
                 streams = [(text_layer, subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
-                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if mode=='speaker' else None))]
+                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if cue_mode=='speaker' else None))]
                 if drawing:
                     streams.insert(0, (layer, subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
                         clip_lo-origin,clip_hi-origin,x,y,7,drawing=drawing)))

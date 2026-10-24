@@ -650,10 +650,11 @@
     const opened=exportPanel.getAttribute('aria-hidden')==='false',target=$('video-export-burn-subtitles').value;
     const enabled=opened&&target!=='none',other=$('video-export-style-source').value!=='project';
     $('video-export-style-choice').hidden=target==='none';
+    $('video-export-speaker-wrap').hidden=target==='none';
     override=enabled?{style:S.normalize(other?(exportPreset()||S.defaults()):projectStyle()),target,other,label:other?(exportPreset()?.name||'默认白字'):'工程样式'}:null;
     refresh();
   }
-  for(const id of ['video-export-burn-subtitles','video-export-style-source'])$(id).addEventListener('change',syncExport);
+  for(const id of ['video-export-burn-subtitles','video-export-style-source','video-export-speaker-labels'])$(id).addEventListener('change',syncExport);
   global.addEventListener('msw:export-tracks',syncExport);
   new MutationObserver(syncExport).observe(exportPanel,{attributes:true,attributeFilter:['aria-hidden']});
   const settingsPanel=$('media-settings-modal');
@@ -664,7 +665,7 @@
   $('style-more').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
   function currentPreview() {
     if(fixedPositionEditing)return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'定位中：Esc取消，Enter完成'};
-    if(override)return {...override,trackIds:global.MSWVideoSubtitleScope?.ids()??null,scope:'export',label:'导出预览：'+override.label};
+    if(override)return {...override,speakerLabels:$('video-export-speaker-labels').checked,trackIds:global.MSWVideoSubtitleScope?.ids()??null,scope:'export',label:'导出预览：'+override.label};
     if(propertiesVisible())return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'属性预览：工程样式'};
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
@@ -679,6 +680,7 @@
     const key=selectionKey();if(key!==lastSelectionKey){lastSelectionKey=key;cancelAction();rebuild();sync();}else syncPosition();
   },syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{
+      project.preview||={};project.preview.speaker_label_export=$('video-export-speaker-labels').checked;
       if($('video-export-burn-subtitles').value==='none')return;
       if(!ready)throw Error('工程字幕样式尚未加载，请稍后导出');
       const other=$('video-export-style-source').value!=='project';

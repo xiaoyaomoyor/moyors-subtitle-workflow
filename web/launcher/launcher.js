@@ -321,7 +321,7 @@
       json_required: "请选择工程文件后再打开 MSWE。",
       server_media_required: "工程没有可用媒体，请手动选择媒体文件。",
       speaker_colors: "说话人异色字幕",
-      speaker_colors_hint: "按识别到的说话人给字幕着色，最多 5 种颜色；超过 5 人时循环复用。生成后仍可在编辑器修改。",
+      speaker_colors_hint: "按识别到的说话人分别标记颜色；可在编辑器的“说话人色系”中修改名称、颜色和着色方式。",
       speaker_colors_title: "转写时按说话人自动着色（生成后仍可在编辑器修改）"
     },
     en: {
@@ -643,7 +643,7 @@
       json_required: "Choose a project file before opening MSWE.",
       server_media_required: "The project has no usable media. Choose media manually.",
       speaker_colors: "Speaker colors",
-      speaker_colors_hint: "Color subtitles by the detected speaker, using up to 5 colors. Colors repeat beyond 5 speakers and can still be changed in the editor.",
+      speaker_colors_hint: "Assign a separate color to each detected speaker. Edit speaker names, colors and coloring modes in the editor.",
       speaker_colors_title: "Color subtitles by speaker during transcription (editable afterwards)"
     }
   };

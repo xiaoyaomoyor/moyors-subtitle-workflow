@@ -37,6 +37,14 @@ def validate_preview(project: JsonDict) -> tuple[ValidationIssue, ...]:
         return (("$.preview", "must be an object or null"),)
 
     issues: list[ValidationIssue] = []
+    if 'speaker_palette' in preview:
+        from maw.msw.speaker_palette import validate
+        try:
+            validate(preview['speaker_palette'])
+        except ValueError as error:
+            issues.append(('$.preview.speaker_palette', str(error)))
+    if 'speaker_label_export' in preview and type(preview['speaker_label_export']) is not bool:
+        issues.append(('$.preview.speaker_label_export', 'must be a boolean'))
     for field in ('project_style', 'project_style_custom'):
         if field in preview:
             from maw.project_subtitle_style import normalize_project_style

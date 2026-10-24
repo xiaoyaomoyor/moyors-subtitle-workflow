@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const context=vm.createContext({crypto:webcrypto});context.window=context;
-for(const name of ['msw-subtitle-layers','msw-subtitle-tracks','msw-project','msw-asset-core','msw-translation-core','msw-asr-core','msw-result-core','msw-result-apply','msw-tts-core'])vm.runInContext(readFileSync(new URL(`../web/${name}.js`,import.meta.url),'utf8'),context);
+for(const name of ['msw-subtitle-layers','msw-subtitle-tracks','msw-project','msw-speaker','msw-asset-core','msw-translation-core','msw-asr-core','msw-result-core','msw-result-apply','msw-tts-core'])vm.runInContext(readFileSync(new URL(`../web/${name}.js`,import.meta.url),'utf8'),context);
 const {MSWSubtitleTracks:C,MSWAsr:A,MSWResults:R,MSWResultApply:P,MSWTranslation:T}=context;
 const plain=x=>JSON.parse(JSON.stringify(x));
 const ref=id=>({role:'main',track_id:null,cue_id:id});

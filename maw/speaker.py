@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import colorsys
 
 from maw.colors import COLOR_PALETTE
 
@@ -47,7 +48,7 @@ def split_items_by_speaker(items: list[dict]) -> list[list[dict]]:
 
 
 def apply_speaker_colors(segments: list[dict]) -> dict:
-    """按 speaker 首次出现顺序写入 5 色 color/color_ref 快照。"""
+    """按首次出现分配稳定身份；超过五人继续创建独立颜色，不循环复用。"""
     speaker_order: list[str] = []
     for seg in segments:
         speaker = seg.get("speaker")
@@ -56,9 +57,13 @@ def apply_speaker_colors(segments: list[dict]) -> dict:
     if not speaker_order:
         return {"speakers": [], "colored_segments": 0, "overflow": False}
 
-    overflow = len(speaker_order) > len(COLOR_PALETTE)
+    def palette_entry(index):
+        if index < len(COLOR_PALETTE):
+            return COLOR_PALETTE[index]
+        rgb = colorsys.hls_to_rgb((index * 137.508 % 360) / 360, .62, .55)
+        return f'speaker-{index+1}', '#' + ''.join(f'{round(v*255):02x}' for v in rgb)
     palette_of = {
-        speaker: COLOR_PALETTE[index % len(COLOR_PALETTE)]
+        speaker: palette_entry(index)
         for index, speaker in enumerate(speaker_order)
     }
 
@@ -93,5 +98,5 @@ def apply_speaker_colors(segments: list[dict]) -> dict:
     return {
         "speakers": speaker_order,
         "colored_segments": colored,
-        "overflow": overflow,
+        "overflow": False,
     }

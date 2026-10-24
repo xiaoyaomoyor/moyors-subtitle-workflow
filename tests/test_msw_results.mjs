@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const window={crypto:webcrypto},context=vm.createContext({window});
-for(const name of ['msw-project','msw-asset-core','msw-translation-core','msw-asr-core','msw-result-core','msw-result-apply'])vm.runInContext(readFileSync(new URL(`../web/${name}.js`,import.meta.url),'utf8'),context);
+for(const name of ['msw-project','msw-speaker','msw-asset-core','msw-translation-core','msw-asr-core','msw-result-core','msw-result-apply'])vm.runInContext(readFileSync(new URL(`../web/${name}.js`,import.meta.url),'utf8'),context);
 const {MSWResults:R,MSWResultApply:A,MSWAsr:ASR,MSWTranslation:T}=window;
 const plain=x=>JSON.parse(JSON.stringify(x));
 const cue=(id,start,end,text=id)=>({id,start,end,text});

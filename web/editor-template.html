@@ -91,18 +91,20 @@ __WAVEFORM_CSS__
       <div class="dropdown-submenu" id="subtitle-export-dropdown">
         <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出主/副字幕（SRT/ASS）或按颜色分别导出">导出字幕</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="subtitle-export-menu" role="menu">
+          <label class="dropdown-setting-toggle"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
+          <label class="dropdown-setting-toggle" title="分别导出时使用人名作为文件名后缀；不会修改字幕正文"><input id="export-speaker-names-suffix" type="checkbox">分文件使用说话人名称</label>
           <div class="dropdown-item" id="download-merged-srt" role="menuitem" tabindex="0" hidden title="按同时显示的主副字幕合并文本，仅改变导出，不修改工程">合并主副字幕（SRT）</div>
           <div class="dropdown-item" id="download-full-srt" role="menuitem" tabindex="0" title="导出主字幕轨（SRT）">主字幕（SRT）</div>
           <div class="dropdown-item" id="download-full-ass" role="menuitem" tabindex="0" title="导出主字幕轨（ASS）">主字幕（ASS）</div>
           <div class="dropdown-item" id="download-ext-srt" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（SRT）">副字幕（SRT）</div>
           <div class="dropdown-item" id="download-ext-ass" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（ASS）">副字幕（ASS）</div>
-          <div class="dropdown-item" id="download-color-srt" role="menuitem" tabindex="0" hidden>按颜色导出字幕</div>
+          <div class="dropdown-item" id="download-color-srt" role="menuitem" tabindex="0" hidden>按说话人分别导出</div>
           <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
             <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用当前空隙移除结果的字幕、时间线或保留区域计划">去空隙版本</div>
             <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">
               <div class="dropdown-item" id="download-gap-removed-srt" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出字幕；原工程时间不变">字幕 SRT</div>
               <div class="dropdown-item" id="download-gap-removed-ass" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出带样式的 ASS 字幕；原工程时间不变">带样式的 ASS 字幕</div>
-              <div class="dropdown-item" id="download-gap-removed-color-srt" role="menuitem" tabindex="0" hidden title="按移除静音空隙后的时间轴，为每种已使用颜色分别导出一份字幕">按颜色导出字幕</div>
+              <div class="dropdown-item" id="download-gap-removed-color-srt" role="menuitem" tabindex="0" hidden title="按移除静音空隙后的时间轴，为每种已使用颜色分别导出一份字幕">按说话人分别导出</div>
               <div class="dropdown-separator" role="separator"></div>
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
@@ -1058,7 +1060,7 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">版本与说话人</h5>
         <p>设置 → 保存：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。</p>
-        <p>设置 → 说话人：五色映射默认关闭；预览与 SRT 名称独立开启，不修改字幕正文或配音。</p>
+        <p>全局设置 → 说话人色系：配置随工程保存，可添加说话人并设置着色方式。右键“标记字幕”或按 1–9 标记，0 清除；导出名称独立选择，不改动正文或配音。</p>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">鼠标操作</h5>
@@ -1124,7 +1126,7 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">快捷功能</h5>
         <div class="help-category">
-          <span class="help-important"><kbd>1~5</kbd> 分配颜色 <kbd>0</kbd> 清除颜色</span>
+          <span class="help-important"><kbd>1~9</kbd> 分配颜色 <kbd>0</kbd> 清除颜色</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>T</kbd> 分配表情包</span>
         </div>
@@ -1662,63 +1664,11 @@ __WAVEFORM_CSS__
         </div>
 
         <div class="editor-settings-group settings-category" data-settings-category="subtitle-speakers">
-          <div class="settings-category-header">字幕颜色与说话人</div>
-          <div class="editor-settings-group subtitle-color-palette-group" id="subtitle-color-palette-settings" role="group" aria-labelledby="subtitle-color-palette-title">
-    <div class="subtitle-preview-settings-fields">
-        <label class="toggle editor-settings-item" title="开启后可自定义五种字幕颜色；关闭时使用内置色值">
-          <input type="checkbox" id="subtitle-color-palette-enabled" aria-label="自定义颜色色值">
-          自定义颜色色值
-        </label>
-        <small class="editor-settings-hint">自定义颜色会同步用于字幕列表、波形、预览和 ASS 导出；恢复默认即可使用内置色值。</small>
-        <div class="subtitle-color-palette-grid" id="subtitle-color-palette-grid" hidden>
-          <label class="subtitle-color-palette-field" data-subtitle-palette-name="yellow">
-            <span class="subtitle-color-palette-label"><span class="subtitle-color-palette-swatch" data-subtitle-palette-swatch="yellow"></span>黄</span>
-            <span class="subtitle-color-palette-value"><input type="color" id="subtitle-color-palette-yellow" data-subtitle-palette-color="yellow" value="#c4a019" aria-label="黄字幕颜色"><input type="text" id="subtitle-color-palette-yellow-hex" data-subtitle-palette-hex="yellow" value="#c4a019" maxlength="7" pattern="^#[0-9a-fA-F]{6}$" spellcheck="false" aria-label="黄字幕颜色十六进制值"></span>
-          </label>
-          <label class="subtitle-color-palette-field" data-subtitle-palette-name="green">
-            <span class="subtitle-color-palette-label"><span class="subtitle-color-palette-swatch" data-subtitle-palette-swatch="green"></span>绿</span>
-            <span class="subtitle-color-palette-value"><input type="color" id="subtitle-color-palette-green" data-subtitle-palette-color="green" value="#66bb6a" aria-label="绿字幕颜色"><input type="text" id="subtitle-color-palette-green-hex" data-subtitle-palette-hex="green" value="#66bb6a" maxlength="7" pattern="^#[0-9a-fA-F]{6}$" spellcheck="false" aria-label="绿字幕颜色十六进制值"></span>
-          </label>
-          <label class="subtitle-color-palette-field" data-subtitle-palette-name="red">
-            <span class="subtitle-color-palette-label"><span class="subtitle-color-palette-swatch" data-subtitle-palette-swatch="red"></span>红</span>
-            <span class="subtitle-color-palette-value"><input type="color" id="subtitle-color-palette-red" data-subtitle-palette-color="red" value="#f07f6f" aria-label="红字幕颜色"><input type="text" id="subtitle-color-palette-red-hex" data-subtitle-palette-hex="red" value="#f07f6f" maxlength="7" pattern="^#[0-9a-fA-F]{6}$" spellcheck="false" aria-label="红字幕颜色十六进制值"></span>
-          </label>
-          <label class="subtitle-color-palette-field" data-subtitle-palette-name="purple">
-            <span class="subtitle-color-palette-label"><span class="subtitle-color-palette-swatch" data-subtitle-palette-swatch="purple"></span>紫</span>
-            <span class="subtitle-color-palette-value"><input type="color" id="subtitle-color-palette-purple" data-subtitle-palette-color="purple" value="#bf89e6" aria-label="紫字幕颜色"><input type="text" id="subtitle-color-palette-purple-hex" data-subtitle-palette-hex="purple" value="#bf89e6" maxlength="7" pattern="^#[0-9a-fA-F]{6}$" spellcheck="false" aria-label="紫字幕颜色十六进制值"></span>
-          </label>
-          <label class="subtitle-color-palette-field" data-subtitle-palette-name="blue">
-            <span class="subtitle-color-palette-label"><span class="subtitle-color-palette-swatch" data-subtitle-palette-swatch="blue"></span>蓝</span>
-            <span class="subtitle-color-palette-value"><input type="color" id="subtitle-color-palette-blue" data-subtitle-palette-color="blue" value="#61a7fa" aria-label="蓝字幕颜色"><input type="text" id="subtitle-color-palette-blue-hex" data-subtitle-palette-hex="blue" value="#61a7fa" maxlength="7" pattern="^#[0-9a-fA-F]{6}$" spellcheck="false" aria-label="蓝字幕颜色十六进制值"></span>
-          </label>
-          <button type="button" class="subtitle-color-palette-reset" id="subtitle-color-palette-reset">恢复默认</button>
-        </div>
-    </div>
-  </div>
-<label class="subtitle-preview-setting-row ass-color-style-row" id="ass-color-style-row" title="选择 ASS 导出和预览中，颜色字幕的应用方式；「无影响」时所有颜色字幕使用统一样式" hidden>
-          <span>颜色字幕样式</span>
-          <select id="ass-color-style" aria-label="ASS 颜色字幕样式">
-            <option value="text" selected>作为字幕颜色</option>
-            <option value="speaker">仅说话人名称着色</option>
-            <option value="stroke">作为描边颜色</option>
-            <option value="none">无影响</option>
-          </select>
-        </label>
-<p class="editor-settings-hint" id="ass-color-speaker-hint" hidden>仅映射生成的名称着色，正文保留基础色。<a href="#speaker-label-settings" id="ass-color-speaker-export-link">配置说话人与名称导出</a></p>
-<div class="editor-settings-sub-group" id="speaker-label-settings">
-            <span class="editor-settings-title">字幕颜色与说话人</span>
-            <label class="toggle editor-settings-item"><input id="speaker-mapping-enabled" type="checkbox">启用五色说话人映射</label>
-            <label class="toggle editor-settings-item"><input id="speaker-preview-enabled" type="checkbox">在预览中显示说话人</label>
-            <label class="editor-settings-item">分隔符<input id="speaker-label-separator" maxlength="16" value="："></label>
-            <label class="editor-settings-item">黄色<input data-speaker-name="yellow" maxlength="64" value="SP1"></label>
-            <label class="editor-settings-item">绿色<input data-speaker-name="green" maxlength="64" value="SP2"></label>
-            <label class="editor-settings-item">红色<input data-speaker-name="red" maxlength="64" value="SP3"></label>
-            <label class="editor-settings-item">紫色<input data-speaker-name="purple" maxlength="64" value="SP4"></label>
-            <label class="editor-settings-item">蓝色<input data-speaker-name="blue" maxlength="64" value="SP5"></label>
-            <label class="editor-settings-item">预览字幕颜色样式<select id="subtitle-color-style"><option value="underline">下划线</option><option value="text">文字</option><option value="shadow">阴影</option><option value="stroke">描边</option></select></label>
-            <small class="editor-settings-hint">名称用于预览、启用名称的字幕导出和工程字幕样式烧录，不修改正文或 TTS 发音。</small>
-            <label class="toggle editor-settings-item"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
-            <label class="toggle editor-settings-item"><input id="export-speaker-names-suffix" type="checkbox">以说话人名称作为分色 SRT 后缀</label>
+          <div class="settings-category-header">说话人色系</div>
+          <div class="editor-settings-sub-group" id="speaker-label-settings">
+            <p class="editor-settings-hint">配置随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。</p>
+            <div class="speaker-palette-scroll"><table class="speaker-palette-table"><thead><tr><th scope="col">序号</th><th scope="col">说话人名称</th><th scope="col">指定颜色</th><th scope="col">着色模式</th><th scope="col">分隔符</th></tr></thead><tbody id="speaker-palette-rows"></tbody></table></div>
+            <button type="button" class="msw-icon-button" id="speaker-palette-add" title="添加说话人" aria-label="添加说话人">＋</button>
           </div>
         </div>
         <div class="editor-settings-group settings-category" data-settings-category="save">
@@ -2236,7 +2186,7 @@ __WAVEFORM_CSS__
         <span class="cue-editor-key-hint"><kbd>H</kbd> 按参考字幕对齐</span>
         <span class="cue-editor-key-hint"><kbd>Alt+点击</kbd> 空隙启用/禁用</span>
         <span class="cue-editor-key-hint"><kbd>Shift+滚轮</kbd> 调整振幅</span>
-        <span class="cue-editor-key-hint"><kbd>1~5</kbd>/<kbd>0</kbd> 分配/清除颜色</span>
+        <span class="cue-editor-key-hint"><kbd>1~9</kbd>/<kbd>0</kbd> 分配/清除颜色</span>
       </div>
       <div class="toolbar waveform-toolbar">
       <span class="waveform-tool-switch" role="group" aria-label="波形工具">
@@ -2660,6 +2610,7 @@ __WAVEFORM_CSS__
     <label>烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
     <label id="video-export-style-choice" hidden>字幕样式<select id="video-export-style-source"><option value="project">跟随工程样式</option></select></label>
   </div>
+  <label class="toggle" id="video-export-speaker-wrap" hidden><input type="checkbox" id="video-export-speaker-labels">导出说话人名称</label>
   <details id="video-export-track-scope" class="msw-export-scope" hidden><summary>字幕轨道 · 全部轨道</summary><div id="video-export-track-choices"></div></details>
   <p class="msw-processing-hint" id="video-export-tail-help" data-help-for="video-export-tail" hidden></p>
   <p class="msw-processing-hint" data-help-for="video-export-encoding">MP4 · H.264 + AAC。自动：兼容且无需处理画面时直接复制，否则优先硬件编码，失败时改用 CPU。硬件编码：使用通过短编码检测的编码器；失败时提示原因。软件编码：始终使用 CPU。烧录字幕仍需 CPU 渲染；速度和文件大小随设备、画面而变。</p>
