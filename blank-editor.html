@@ -16481,8 +16481,7 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       );
     });
 
-    // 副字幕轨（多重字幕）：所有副字幕共用一个样式（不支持颜色分组），
-    // 事件引用独立 Extension 样式，边距/对齐完全由该样式决定。
+    // 副字幕保留独立 Extension 样式，颜色标记按同一调色板覆盖。
     // \fad/\fade/\t 逐句应用；\move 的绝对坐标只属于主字幕。
     const extensionSource = wrap(Array.isArray(options.extensionSegments)
       ? options.extensionSegments : [],'secondary');
@@ -16510,6 +16509,12 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
         const startCentiseconds = Math.max(0, Math.round(rawStart / 10));
         const endCentiseconds = Math.max(startCentiseconds + 1, Math.round(rawEnd / 10));
         let tags=extensionAnimationTags;
+        const colorName = effectiveColorName(segment, extensionSource);
+        const color = colorStyles.find(item => item.name === colorName)?.value;
+        if (color && ['text', 'stroke'].includes(colorStyle)) {
+          const field = colorStyle === 'text' ? 'primaryColor' : 'outlineColor';
+          tags += `\\${colorStyle === 'text' ? 'c' : '3c'}${assOverrideColorFromHex(segment.subtitle_style?.[field] || color)}`;
+        }
         if(options.layerMargins?.secondary?.[segment.id]!==undefined && extensionStyle.alignment>=4 && extensionStyle.alignment<=6) {
           const offset=options.layerMargins.secondary[segment.id]-extensionStyle.marginV;
           const x=extensionStyle.alignment%3===1?extensionStyle.marginL:extensionStyle.alignment%3===2?resolution.width/2:resolution.width-extensionStyle.marginR;
@@ -20652,11 +20657,27 @@ export default MawDynamicCaptions;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWBatchEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
+// Translation metadata is independent of track roles and reference formats.
+(function (global) {
+  'use strict';
+  function inherit(source, target, colorHead = null) {
+    if (source.speaker != null && !target.speaker) target.speaker = source.speaker;
+    const color = source.color || colorHead?.color;
+    if (color && !target.color && !target.color_ref) {
+      target.color = { ...JSON.parse(JSON.stringify(color)), start: target.start, end: target.end };
+    }
+  }
+  const api = { inherit };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  global.MSWSpeaker = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 // Native v4 processing plans. No editable state is reconstructed from DATA.
 (function(global){
   'use strict';
   const core=global.MSWFlatSubtitles||(typeof require==='function'?require('./msw-flat-subtitles.js'):null);
   const edit=global.MSWFlatEditing||(typeof require==='function'?require('./msw-flat-editing.js'):null);
+  const speaker=global.MSWSpeaker||(typeof require==='function'?require('./msw-speaker.js'):null);
   const copy=v=>JSON.parse(JSON.stringify(v));
   const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
   const same=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
@@ -20695,9 +20716,12 @@ export default MawDynamicCaptions;
     for(const row of output){if(seen.has(row.id)||typeof row.text!=='string'||!row.text.trim()||!s.entries.some(e=>e.source.id===row.id))throw Error('翻译结果包含无效或重复的来源');seen.add(row.id);}
     for(const entry of s.entries){const c=unchanged(p,s,entry.source.id),peer=edit.partner(p,c.id);if(peer)unchanged(p,s,peer.id);if(skipped.has(c.id))continue;
       const result=output.find(r=>r.id===c.id);if(!result)throw Error('翻译结果缺少所选字幕，未应用不完整结果');
-      if(peer){const dest=edit.cue(n,peer.id);dest.content.text=result.text;delete dest.content.items;dest.content._dirty=true;ids.push(dest.id);}
-      else {const id=makeId('cue');n.subtitles.cues.push({id,track_id:s.subtitle_track_id,content:{start:c.content.start,end:c.content.end,text:result.text}});
+      let content;
+      if(peer){const dest=edit.cue(n,peer.id);content=dest.content;content.text=result.text;delete content.items;content._dirty=true;ids.push(dest.id);}
+      else {const id=makeId('cue');content={start:c.content.start,end:c.content.end,text:result.text};n.subtitles.cues.push({id,track_id:s.subtitle_track_id,content});
         n.subtitles.bindings.push({id:makeId('binding'),source_id:c.id,target_id:id,start_offset_ms:0,end_offset_ms:0});ids.push(id);}
+      const head=edit.cue(p,c.content.color_ref?.cue_id);
+      speaker.inherit(c.content,content,head?.content);
     }
     mark(n,job);core.validate(n);return {project:n,ids};
   }
@@ -22192,6 +22216,7 @@ export default MawDynamicCaptions;
       }
       if (target.text !== translations.get(source.id)) delete target.items;
       target.text = translations.get(source.id);
+      global.MSWSpeaker.inherit(source, target, project.segments[source.color_ref?.headIdx]);
       target._dirty = true;
       if (!binding) {
         multi.bindings.push({ id: uid('binding'), track_id: track.id,
@@ -50847,11 +50872,10 @@ function applyAssSubtitlePreview({ tMs, segment, extension, overlay, overlaySegm
   const appearance = getSubtitleAppearance();
   const extensionSegments = activeExtensionSegments();
   const mainStyle = assPreviewStyleVariant(baseStyle, segment, DATA.segments, appearance);
-  // 副字幕使用样式库「副字幕样式」槽位的独立样式（副字幕不支持颜色分组，
-  // 不做调色板变体），对齐与边距完全由该样式决定。
-  const extensionStyleBase = window.AsrEditorUtils.assStyleForId(
+  // 副字幕保留独立字体、对齐与边距，颜色标记与原文使用同一映射。
+  const extensionStyleBase = assPreviewStyleVariant(window.AsrEditorUtils.assStyleForId(
     library, library.assignments?.assExtensionStyleId || 'ass-extension',
-  );
+  ), extension, extensionSegments, appearance);
   const extensionAlignment = assPreviewAlignment(extensionStyleBase.alignment);
   const extensionMargins = {
     left: Math.max(0, Number(extensionStyleBase.marginL) || 0) * metrics.scaleX,

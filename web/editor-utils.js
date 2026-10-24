@@ -5028,8 +5028,7 @@
       );
     });
 
-    // 副字幕轨（多重字幕）：所有副字幕共用一个样式（不支持颜色分组），
-    // 事件引用独立 Extension 样式，边距/对齐完全由该样式决定。
+    // 副字幕保留独立 Extension 样式，颜色标记按同一调色板覆盖。
     // \fad/\fade/\t 逐句应用；\move 的绝对坐标只属于主字幕。
     const extensionSource = wrap(Array.isArray(options.extensionSegments)
       ? options.extensionSegments : [],'secondary');
@@ -5057,6 +5056,12 @@
         const startCentiseconds = Math.max(0, Math.round(rawStart / 10));
         const endCentiseconds = Math.max(startCentiseconds + 1, Math.round(rawEnd / 10));
         let tags=extensionAnimationTags;
+        const colorName = effectiveColorName(segment, extensionSource);
+        const color = colorStyles.find(item => item.name === colorName)?.value;
+        if (color && ['text', 'stroke'].includes(colorStyle)) {
+          const field = colorStyle === 'text' ? 'primaryColor' : 'outlineColor';
+          tags += `\\${colorStyle === 'text' ? 'c' : '3c'}${assOverrideColorFromHex(segment.subtitle_style?.[field] || color)}`;
+        }
         if(options.layerMargins?.secondary?.[segment.id]!==undefined && extensionStyle.alignment>=4 && extensionStyle.alignment<=6) {
           const offset=options.layerMargins.secondary[segment.id]-extensionStyle.marginV;
           const x=extensionStyle.alignment%3===1?extensionStyle.marginL:extensionStyle.alignment%3===2?resolution.width/2:resolution.width-extensionStyle.marginR;

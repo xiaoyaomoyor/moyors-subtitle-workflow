@@ -28,6 +28,67 @@ test.beforeEach(async({page})=>{
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();if(mock)await new Promise(r=>mock.close(r));});
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 
+test('speaker colors follow translated cues through preview, undo, save and ASS burning',async({page},info)=>{
+  test.setTimeout(120000);
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(()=>{
+    let p=JSON.parse(buildJson()),first=p.subtitles.cues[0];
+    first.content.speaker='0';first.content.color={name:'red',value:'#f07f6f',start:100,end:1400};
+    p=MSWFlatEditing.addCue(p,first.track_id,'second',1500,2800,'Second speaker');
+    const second=p.subtitles.cues.find(c=>c.id==='second');second.content.speaker='1';second.content.color={name:'green',value:'#66bb6a',start:1500,end:2800};
+    productionCommitProject(p,'测试说话人字幕');updateEditorSettings({autoSaveProject:false,subtitleAvoidControls:false});
+    selectOnly(0);addToSelection(1);document.getElementById('subtitle-translate-btn').click();
+  });
+  const original=await snap(page);
+  await expect(page.locator('#translation-provider option')).not.toHaveCount(0);
+  await page.locator('#translation-provider').selectOption('custom');await page.locator('#translation-destination').selectOption('new');
+  await page.locator('#translation-start').click();
+  await expect(page.locator('#translation-jobs input[type=radio]').first()).toBeEnabled({timeout:25000});
+  await page.locator('#translation-jobs input[type=radio]').first().check();await page.locator('#translation-secondary').click();
+  await expect.poll(async()=>(await snap(page)).subtitles.bindings.length).toBe(2);
+  await page.keyboard.press('Escape');
+  const translated=await snap(page);
+  for(const binding of translated.subtitles.bindings){
+    const source=translated.subtitles.cues.find(c=>c.id===binding.source_id).content,target=translated.subtitles.cues.find(c=>c.id===binding.target_id).content;
+    expect(target.speaker).toBe(source.speaker);expect(target.color).toEqual(source.color);expect(target.color_ref).toBeUndefined();
+  }
+  await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(original.subtitles);
+  await page.evaluate(()=>performRedo());expect((await snap(page)).subtitles).toEqual(translated.subtitles);
+  await expect.poll(()=>page.evaluate(()=>projectSaveInFlight||projectCheckpointInFlight)).toBe(false);
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);await page.reload();
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle.ready),{timeout:30000}).toBe(true);
+  expect((await snap(page)).subtitles).toEqual(translated.subtitles);
+  await page.evaluate(()=>{overlayToggle.checked=true;extensionOverlayToggle.checked=true;player.currentTime=.6;MSWSubtitleRenderer.invalidate();});
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending),{timeout:30000}).toBe(true);
+  const payload=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),target:'both',video:{width:640,height:360}}));
+  const styles=payload.ass.split('\n').filter(l=>l.startsWith('Style: cue-')).map(l=>l.split(',')[3].toUpperCase());
+  expect(styles.filter(c=>c==='&H006F7FF0')).toHaveLength(2);expect(styles.filter(c=>c==='&H006ABB66')).toHaveLength(2);
+  writeFileSync(join(dir,'speakers.ass'),payload.ass);
+  const canvas=page.locator('.JASSUB'),box=await canvas.boundingBox(),images=[];
+  for(const [index,time] of [.6,2].entries()){
+    await page.evaluate(async t=>{player.currentTime=t;await MSWSubtitleRenderer.repaint();},time);
+    const preview=join(dir,`speaker-preview-${index}.png`),burn=join(dir,`speaker-burn-${index}.png`);
+    await canvas.screenshot({path:preview});
+    execFileSync(join(process.env.FFMPEG_PATH,'ffmpeg.exe'),['-v','error','-i','source.mp4','-ss',String(time),'-vf',`ass=speakers.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',burn],{cwd:dir,windowsHide:true});
+    images.push(preview,burn);
+  }
+  const bounds=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON,['-c',`from PIL import Image
+import json,sys
+def bounds(path,axis):
+ im=Image.open(path).convert('RGB')
+ pts=[(x,y) for y in range(im.height) for x in range(im.width) if (lambda c:c[axis]>80 and c[axis]>c[1-axis]*1.5 and c[axis]>c[2]*1.5)(im.getpixel((x,y)))]
+ rows=sorted(set(y for x,y in pts))
+ bands=sum(i==0 or y>rows[i-1]+2 for i,y in enumerate(rows))
+ return [len(pts),min(y for x,y in pts),max(y for x,y in pts),bands]
+print(json.dumps([bounds(path,i//2) for i,path in enumerate(sys.argv[1:])]))`,...images],{encoding:'utf8',windowsHide:true}));
+  for(let i=0;i<4;i+=2){
+    expect(bounds[i][0]).toBeGreaterThan(20);expect(bounds[i][3]).toBe(2);expect(bounds[i+1][3]).toBe(2);
+    for(const k of [1,2])expect(Math.abs(bounds[i][k]-bounds[i+1][k])).toBeLessThan(4);
+  }
+  await page.locator('.player-stage').screenshot({path:info.outputPath('translated-speaker-colors.png')});
+  expect(errors).toEqual([]);
+});
+
 test('live libass polling leaves a held drag untouched and renders the released position',async({page})=>{
   await page.evaluate(()=>{fixedAddTrack('subtitle');waveformEditor.settings.mode='multi';
     waveformEditor.settings.secondsPerRow=10;waveformEditor.settings.rowHeight=170;

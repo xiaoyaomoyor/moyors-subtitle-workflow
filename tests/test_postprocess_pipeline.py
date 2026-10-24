@@ -287,6 +287,8 @@ class PostprocessPipelineTests(unittest.TestCase):
                 {"id": "main-002", "start": 1100, "end": 2000, "text": "Translation two"},
             ],
         }
+        source_payload['segments'][0].update(speaker='0', color={'name': 'green', 'value': '#66bb6a', 'start': 0, 'end': 2000})
+        source_payload['segments'][1].update(speaker='0', color_ref={'name': 'green', 'headIdx': 0})
         self.project.write_text(json.dumps(source_payload, ensure_ascii=False), encoding="utf-8")
         translated_project = self.root / "translated.mosp"
         translated_srt = self.root / "translated.srt"
@@ -313,6 +315,9 @@ class PostprocessPipelineTests(unittest.TestCase):
         track = combined["multi_subtitle"]["tracks"][0]
         self.assertEqual(track["language"], "en")
         self.assertEqual([segment["text"] for segment in track["segments"]], ["Translation one", "Translation two"])
+        self.assertEqual([segment['speaker'] for segment in track['segments']], ['0', '0'])
+        self.assertEqual(track['segments'][1]['color'], {'name': 'green', 'value': '#66bb6a', 'start': 1100, 'end': 2000})
+        self.assertTrue(all('color_ref' not in segment for segment in track['segments']))
         self.assertEqual(len(combined["multi_subtitle"]["bindings"]), 2)
         self.assertIn("原文一", result.srt_path.read_text(encoding="utf-8"))
         self.assertNotIn("Translation one", result.srt_path.read_text(encoding="utf-8"))

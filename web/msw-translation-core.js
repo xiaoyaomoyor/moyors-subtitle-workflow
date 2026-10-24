@@ -210,6 +210,7 @@
       }
       if (target.text !== translations.get(source.id)) delete target.items;
       target.text = translations.get(source.id);
+      global.MSWSpeaker.inherit(source, target, project.segments[source.color_ref?.headIdx]);
       target._dirty = true;
       if (!binding) {
         multi.bindings.push({ id: uid('binding'), track_id: track.id,

@@ -163,7 +163,7 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
         raise ValueError('说话人导出快照无效')
     for name, style in styles.items():
         lines.append(ass_style_line(style, name=name))
-        if name != 'secondary' and mode in {'text', 'stroke'}:
+        if mode in {'text', 'stroke'}:
             for color_name, value in palette.items():
                 variant = dict(style)
                 if mode == 'stroke': variant['outlineColor'] = value
@@ -197,7 +197,7 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
                 if end <= start: continue
             color = cue.get('color') or {}
             color_name = color.get('name')
-            style_name = f'{name}-{color_name}' if name != 'secondary' and mode in {'text', 'stroke'} and color_name in palette else name
+            style_name = f'{name}-{color_name}' if mode in {'text', 'stroke'} and color_name in palette else name
             layer = {'main': 0, 'secondary': 1, 'overlay': 2}[name]
             text = styled_text(cue['text'], styles[name])
             label = (labels.get('names') or {}).get(color_name, '') if labels.get('enabled') is True else ''

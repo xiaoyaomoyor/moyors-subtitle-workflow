@@ -3,6 +3,7 @@
   'use strict';
   const core=global.MSWFlatSubtitles||(typeof require==='function'?require('./msw-flat-subtitles.js'):null);
   const edit=global.MSWFlatEditing||(typeof require==='function'?require('./msw-flat-editing.js'):null);
+  const speaker=global.MSWSpeaker||(typeof require==='function'?require('./msw-speaker.js'):null);
   const copy=v=>JSON.parse(JSON.stringify(v));
   const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
   const same=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
@@ -41,9 +42,12 @@
     for(const row of output){if(seen.has(row.id)||typeof row.text!=='string'||!row.text.trim()||!s.entries.some(e=>e.source.id===row.id))throw Error('翻译结果包含无效或重复的来源');seen.add(row.id);}
     for(const entry of s.entries){const c=unchanged(p,s,entry.source.id),peer=edit.partner(p,c.id);if(peer)unchanged(p,s,peer.id);if(skipped.has(c.id))continue;
       const result=output.find(r=>r.id===c.id);if(!result)throw Error('翻译结果缺少所选字幕，未应用不完整结果');
-      if(peer){const dest=edit.cue(n,peer.id);dest.content.text=result.text;delete dest.content.items;dest.content._dirty=true;ids.push(dest.id);}
-      else {const id=makeId('cue');n.subtitles.cues.push({id,track_id:s.subtitle_track_id,content:{start:c.content.start,end:c.content.end,text:result.text}});
+      let content;
+      if(peer){const dest=edit.cue(n,peer.id);content=dest.content;content.text=result.text;delete content.items;content._dirty=true;ids.push(dest.id);}
+      else {const id=makeId('cue');content={start:c.content.start,end:c.content.end,text:result.text};n.subtitles.cues.push({id,track_id:s.subtitle_track_id,content});
         n.subtitles.bindings.push({id:makeId('binding'),source_id:c.id,target_id:id,start_offset_ms:0,end_offset_ms:0});ids.push(id);}
+      const head=edit.cue(p,c.content.color_ref?.cue_id);
+      speaker.inherit(c.content,content,head?.content);
     }
     mark(n,job);core.validate(n);return {project:n,ids};
   }

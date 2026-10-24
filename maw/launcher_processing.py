@@ -8,6 +8,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 from maw.msw.flat_subtitles import SubtitleIndex, migrate_project, normalize_groups, validate
+from maw.speaker import inherit_speaker_color
 
 
 def native_project(project):
@@ -149,10 +150,12 @@ def apply_translation(project, source_id, target_id, segments, *, language='zh')
             content.pop('items', None)
         else:
             cue_id = 'cue-' + uuid4().hex
-            result['subtitles']['cues'].append(dict(id=cue_id, track_id=target['id'], content={
-                'start': translated['start'], 'end': translated['end'], 'text': translated['text']}))
+            content = {'start': translated['start'], 'end': translated['end'], 'text': translated['text']}
+            result['subtitles']['cues'].append(dict(id=cue_id, track_id=target['id'], content=content))
             result['subtitles']['bindings'].append(dict(id='binding-' + uuid4().hex, source_id=cue['id'], target_id=cue_id,
                                                        start_offset_ms=0, end_offset_ms=0))
+        head = index.cues.get((cue['content'].get('color_ref') or {}).get('cue_id'), {})
+        inherit_speaker_color(cue['content'], content, head.get('content'))
     normalize_groups(result)
     validate(result)
     return result, target['id']

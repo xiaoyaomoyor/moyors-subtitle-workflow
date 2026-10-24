@@ -1,6 +1,21 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
 from maw.colors import COLOR_PALETTE
+
+
+def inherit_speaker_color(source: dict, target: dict, color_head: dict | None = None) -> None:
+    """Fill translated cue metadata without replacing its existing custom marks.
+
+    Materialize the effective color on the target's own span: source indices or
+    cue IDs cannot safely be copied into a different/subset translation track.
+    """
+    if source.get("speaker") is not None and not target.get("speaker"):
+        target["speaker"] = source["speaker"]
+    color = source.get("color") or (color_head or {}).get("color")
+    if color and not target.get("color") and not target.get("color_ref"):
+        target["color"] = {**deepcopy(color), "start": target["start"], "end": target["end"]}
 
 
 # speaker 只是调色板的取色者之一：色值权威定义见 maw/colors.py。

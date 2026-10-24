@@ -268,7 +268,7 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
     mode=(project.get('preview') or {}).get('subtitle',{}).get('ass_color_style','text')
     for i,r in enumerate(entries):
         style=dict(r['style']);color=palette.get(r['color'].get('name'))
-        if color and r['role']=='main' and mode in ('text','stroke') and ('primaryColor' if mode=='text' else 'outlineColor') not in r['cue'].get('subtitle_style', {}):
+        if color and mode in ('text','stroke') and ('primaryColor' if mode=='text' else 'outlineColor') not in r['cue'].get('subtitle_style', {}):
             style['primaryColor' if mode=='text' else 'outlineColor']=color
         lines.append(ass_style_line(style,name=f'cue-{i}'))
     lines+=['','[Events]','Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']

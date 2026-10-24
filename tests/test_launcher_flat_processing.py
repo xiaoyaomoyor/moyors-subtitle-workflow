@@ -34,12 +34,16 @@ class TrackProcessingTests(unittest.TestCase):
             apply_processed(self.project, self.track, rows)
 
     def test_translation_reuses_partner_id_and_offsets(self):
+        self.source['content'].update(speaker='0', color={'name': 'green', 'value': '#66bb6a', 'start': 0, 'end': 1000})
         rows = processing_snapshot(self.project, self.track)['segments']
         rows[0]['text'] = '新译文'
         result, target = apply_translation(self.project, self.track, None, rows)
         self.assertEqual(result['subtitles']['bindings'], self.project['subtitles']['bindings'])
         self.assertIn('新译文', export_srt(result, [target]))
         self.assertEqual(len(result['subtitles']['cues']), len(self.project['subtitles']['cues']))
+        translated = next(c['content'] for c in result['subtitles']['cues'] if c['track_id'] == target)
+        self.assertEqual(translated['speaker'], '0')
+        self.assertEqual(translated['color'], self.source['content']['color'])
 
     def test_new_translation_creates_group_and_stable_binding(self):
         self.project['subtitles']['bindings'] = []
@@ -82,7 +86,8 @@ class NativePipelineTests(unittest.TestCase):
         from maw.launcher_processing import native_project
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            project = native_project({'segments': [{'start': 0, 'end': 1000, 'text': 'Hello world'}], 'custom': {'keep': 1}})
+            project = native_project({'segments': [{'start': 0, 'end': 1000, 'text': 'Hello world', 'speaker': '0',
+                'color': {'name': 'green', 'value': '#66bb6a', 'start': 0, 'end': 1000}}], 'custom': {'keep': 1}})
             source_id = project['subtitles']['tracks'][0]['id']
             source = root / 'source.mosp'
             source.write_text(json.dumps(project), encoding='utf-8')
@@ -117,6 +122,8 @@ class NativePipelineTests(unittest.TestCase):
             self.assertEqual(saved['custom'], project['custom'])
             self.assertEqual([t['name'] for t in saved['subtitles']['tracks']], ['S1主', 'S1副'])
             self.assertEqual(saved['subtitles']['cues'][0]['id'], project['subtitles']['cues'][0]['id'])
+            self.assertEqual(saved['subtitles']['cues'][-1]['content']['speaker'], '0')
+            self.assertEqual(saved['subtitles']['cues'][-1]['content']['color'], project['subtitles']['cues'][0]['content']['color'])
             self.assertIn('Hello world', result.srt_path.read_text(encoding='utf-8-sig'))
             self.assertNotIn('你好', result.srt_path.read_text(encoding='utf-8-sig'))
             self.assertIn('你好世界', result.translated_srt_path.read_text(encoding='utf-8-sig'))

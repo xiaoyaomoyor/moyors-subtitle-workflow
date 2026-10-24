@@ -2594,6 +2594,11 @@ def main():
                 default_audio_track=default_audio_track,
             )
 
+    # 清理可能删除纯标点字幕，必须先稳定字幕顺序，再建立颜色头的序号引用。
+    if not args.keep_punct and args.strip_tail_punct:
+        from maw.subtitle_punctuation import strip_segment_tails
+        strip_segment_tails(segments, args.strip_tail_punct, drop_empty=True)
+
     if enable_speaker:
         speakers = sorted({str(seg["speaker"]) for seg in segments if seg.get("speaker") is not None})
         print(f"[speaker] 识别到 {len(speakers)} 个说话人: {', '.join(speakers)}")
@@ -2602,11 +2607,6 @@ def main():
             print(f"[speaker] 已为 {stats['colored_segments']} 条字幕写入颜色快照")
             if stats["overflow"]:
                 print("[警告] 说话人超过 5 个，颜色已循环复用，请在编辑器中手动调整")
-
-    # 剥句末标点（与本地版一致；--keep-punct 优先，空集合禁用）
-    if not args.keep_punct and args.strip_tail_punct:
-        from maw.subtitle_punctuation import strip_segment_tails
-        strip_segment_tails(segments, args.strip_tail_punct, drop_empty=True)
 
     print(f"[输出] 正在生成 SRT（{len(segments)} 条字幕）...")
     srt_content = generate_srt(segments)

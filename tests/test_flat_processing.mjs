@@ -13,6 +13,22 @@ test('translation applies into explicit flat track with bindings, once, and rest
   const out=processing.applyTranslation(p,j,id);assert.equal(p.subtitles.cues.length,2);assert.deepEqual(p,before);assert.equal(out.project.subtitles.cues.at(-1).track_id,'target');assert.equal(out.project.subtitles.bindings[0].source_id,source.id);
   assert.throws(()=>processing.applyTranslation(out.project,j,id),/已经应用/);const h=new edit.History(p);h.commit(out.project,'translate');h.step('undo');assert.deepEqual(h.project,p);
 });
+test('translation inherits speakers and resolved colors for subsets; save, undo and target overrides stay intact',()=>{
+  const p=base(),[head,ref]=p.subtitles.cues;
+  head.content.color={name:'green',value:'#66bb6a',start:0,end:2000};head.content.speaker='0';
+  ref.content.speaker='0';ref.content.color_ref={cue_id:head.id,name:'green'};
+  const s=processing.translation(p,[ref.id],'target');
+  const out=processing.applyTranslation(p,job(s,'translation',{translations:[{id:ref.id,text:'译文'}]}),id).project;
+  const dest=out.subtitles.cues.at(-1);
+  assert.deepEqual(dest.content,{start:1000,end:2000,text:'译文',speaker:'0',color:{name:'green',value:'#66bb6a',start:1000,end:2000}});
+  flat.validate(JSON.parse(JSON.stringify(out)));
+  const h=new edit.History(p);h.commit(out,'translation');h.step('undo');assert.deepEqual(h.project,p);h.step('redo');assert.deepEqual(h.project,out);
+  dest.content.speaker='custom';dest.content.color={name:'blue',value:'#61a7fa',start:1000,end:2000};dest.content.subtitle_style={primaryColor:'#123456'};
+  const second=processing.applyTranslation(out,job(processing.translation(out,[ref.id],'target'),'translation',{translations:[{id:ref.id,text:'新译文'}]}),id).project;
+  assert.deepEqual(second.subtitles.cues.at(-1).content,{...dest.content,text:'新译文',_dirty:true});
+  assert.deepEqual(second.subtitles.bindings,out.subtitles.bindings);
+  assert.equal(p.subtitles.cues.length,2);
+});
 test('translation respects binding direction and offsets when translating from either side',()=>{
   let p=base();const a=p.subtitles.cues[0];p=edit.addCue(p,'target','translated',100,1100,'旧译文');p=flat.bind(p,'translated',a.id,'reverse');
   const s=processing.translation(p,[a.id],'target'),j=job(s,'translation',{translations:[{id:a.id,text:'新译文'}]});const n=processing.applyTranslation(p,j,id).project;

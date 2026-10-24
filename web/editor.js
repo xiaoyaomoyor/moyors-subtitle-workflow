@@ -15071,11 +15071,10 @@ function applyAssSubtitlePreview({ tMs, segment, extension, overlay, overlaySegm
   const appearance = getSubtitleAppearance();
   const extensionSegments = activeExtensionSegments();
   const mainStyle = assPreviewStyleVariant(baseStyle, segment, DATA.segments, appearance);
-  // 副字幕使用样式库「副字幕样式」槽位的独立样式（副字幕不支持颜色分组，
-  // 不做调色板变体），对齐与边距完全由该样式决定。
-  const extensionStyleBase = window.AsrEditorUtils.assStyleForId(
+  // 副字幕保留独立字体、对齐与边距，颜色标记与原文使用同一映射。
+  const extensionStyleBase = assPreviewStyleVariant(window.AsrEditorUtils.assStyleForId(
     library, library.assignments?.assExtensionStyleId || 'ass-extension',
-  );
+  ), extension, extensionSegments, appearance);
   const extensionAlignment = assPreviewAlignment(extensionStyleBase.alignment);
   const extensionMargins = {
     left: Math.max(0, Number(extensionStyleBase.marginL) || 0) * metrics.scaleX,

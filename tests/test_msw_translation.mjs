@@ -6,7 +6,7 @@ import { webcrypto } from 'node:crypto';
 
 const window = { crypto: webcrypto };
 const context = vm.createContext({ window });
-for (const name of ['msw-project.js', 'msw-translation-core.js']) {
+for (const name of ['msw-speaker.js', 'msw-project.js', 'msw-translation-core.js']) {
   vm.runInContext(readFileSync(new URL(`../web/${name}`, import.meta.url), 'utf8'), context);
 }
 const codec = window.MSWProject;
@@ -23,6 +23,24 @@ function project(secondary = false) {
 }
 const selection = (mainIds = ['a','b'], extensionIds = [], hasSelection = true) => ({ mainIds, extensionIds, trackId: 'secondary', hasSelection });
 const output = (input) => ({ language: 'zh', translations: input.entries.map(({ source }) => ({ id: source.id, text: `译文 ${source.text}` })) });
+
+test('legacy translation resolves source color heads outside selection and preserves target marks', () => {
+  const data = project();
+  data.segments[0].color = { name: 'green', value: '#66bb6a', start: 0, end: 5000 };
+  data.segments[1].speaker = '0';
+  data.segments[1].color_ref = { headIdx: 0, name: 'green' };
+  const input = core.snapshot(data, selection(['b']));
+  const plan = core.reconcile(data, input, output(input));
+  const target = plan.multi.tracks[0].segments[0];
+  assert.equal(target.speaker, '0');
+  assert.equal(target.color_ref, undefined);
+  assert.deepEqual(plain(target.color), { name: 'green', value: '#66bb6a', start: 3000, end: 5000 });
+  target.color = { name: 'red', value: '#f07f6f', start: 3000, end: 5000 };
+  data.multi_subtitle = plan.multi;
+  const again = core.snapshot(data, { ...selection(['b']), trackId: plan.multi.tracks[0].id });
+  const updated = core.reconcile(data, again, output(again));
+  assert.deepEqual(plain(updated.multi.tracks[0].segments[0].color), plain(target.color));
+});
 
 test('main backfill preserves current timing, IDs, secondary tracks and dubbing state', () => {
   const data = project(true);

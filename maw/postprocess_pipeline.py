@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from maw.subtitle_punctuation import tail_strip_symbols
+from maw.speaker import inherit_speaker_color
 
 import copy
 import hashlib
@@ -1183,6 +1184,9 @@ def _attach_translation_track(
         }
         if translated.get("disabled") is True:
             extension_segment["disabled"] = True
+        head_index = (source.get("color_ref") or {}).get("headIdx")
+        head = source_segments[head_index] if type(head_index) is int and 0 <= head_index < len(source_segments) else None
+        inherit_speaker_color(source, extension_segment, head)
         extension_segments.append(extension_segment)
         extension_bindings.append((index, source, extension_segment))
 
