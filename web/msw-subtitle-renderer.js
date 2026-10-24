@@ -99,7 +99,12 @@
   }
   function signature(preview) {
     return JSON.stringify([host.generation,mediaSource(host.player),preview,host.player.videoWidth,host.player.videoHeight,
-      host.data.subtitles,host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()]);
+      host.data.subtitles,host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()],(name,value)=>{
+        if(name==='items'||name.startsWith('_')||name==='start_frame'||name==='end_frame')return undefined;
+        // The adapter's original migration snapshots are not live render data.
+        if(name==='flat_context')return {bindingSources:value?.bindingSources};
+        return value;
+      });
   }
   async function update() {
     syncBadge();
@@ -122,7 +127,7 @@
     pending=true;const ticket=++serial,generation=host.generation,target=host.player,targetSource=mediaSource(host.player);
     const current=()=>ticket===serial&&generation===host.generation&&target===host.player&&targetSource===mediaSource(target);
     try {
-      let project=host.exportProject();
+      let project=host.subtitlePreviewProject?host.subtitlePreviewProject():host.exportProject();
       if(preview.scope==='export'&&project.schema==='msw.project.v4')project=global.MSWProductionProject.exportScope(project,preview.trackIds);
       if(preview.scope==='proof'||preview.other)global.MSWProjectStyle.applyPreset(project,preview.style,{proof:preview.scope==='proof'});else global.MSWProjectStyle.apply(project,preview.style);
       for(const field of ['waveform','spectral','waveform_reapeaks','workspace'])delete project[field];
@@ -130,6 +135,9 @@
         styles.request('subtitle-preview',{project,target:preview.target,video:{width:host.player.videoWidth,height:host.player.videoHeight}}),
         fonts(preview.style),modulePromise||=import('/subtitle-renderer/jassub.js')]);
       if(!current())return;
+      // An old request must not overwrite more recent edits. Keep the current
+      // canvas until the latest document is ready, and coalesce interim edits.
+      if(signature(styles.currentPreview())!==signatureKey){key='';again=true;return;}
       if(payload.layoutVersion!==global.MSWProjectStyle.layoutVersion)throw Error('编辑器服务尚未加载更新，请保存工程并重新启动本机编辑器；仅刷新页面无效。');
       clearPreviewDocument();await previewWrites;
       if(!current())return;
@@ -165,6 +173,7 @@
       // it. A settings-window repaint must not be needed to reveal the video.
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(!current())return;
+      if(signature(styles.currentPreview())!==signatureKey){key='';again=true;return;}
       stage.dataset.subtitleRenderer='libass';
       global.MSWPreviewControls?.refresh();
       if(payload.geometry?.length)global.fixedReceiveGeometry?.(payload.geometry);
@@ -173,7 +182,13 @@
     } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
-  function invalidate(){syncBadge();key='';clearTimeout(timer);timer=setTimeout(()=>{timer=undefined;void update();},100);}
+  function invalidate(){
+    syncBadge();
+    // Explicit retries can recover a failed worker/server; unchanged healthy
+    // documents must retain their geometry and temporary control-bar offsets.
+    if(!pending&&!renderer)key='';
+    clearTimeout(timer);timer=setTimeout(()=>{timer=undefined;void update();},100);
+  }
   global.addEventListener('msw:player-changed',observePlayer);
   global.addEventListener('msw:project-changed',resetMedia);
   for(const name of ['msw:media-changed','msw:subtitles-changed','msw:burn-style'])global.addEventListener(name,invalidate);

@@ -4,6 +4,8 @@ Coordinates use a 1080-high picture canvas. Explicit bindings define groups;
 annotations keep their anchors and only dialogue groups participate in packing.
 """
 from copy import deepcopy
+from functools import lru_cache
+import json
 import math
 import re
 
@@ -18,6 +20,20 @@ from maw.font_scripts import SCRIPT_FONTS
 
 
 def measured_text(text, style, width, *, prefix=''):
+    # Font metrics are already process-cached. Keep bounded, immutable keys for
+    # the resulting glyph layout too: editing one cue need not measure thousands
+    # of unchanged neighbours again. Return a copy so callers cannot poison it.
+    if len(text) > 4096:
+        return _measure_text(text, style, width, prefix=prefix)
+    return dict(_cached_measurement(text, json.dumps(style, sort_keys=True), width, prefix))
+
+
+@lru_cache(maxsize=12000)
+def _cached_measurement(text, style_key, width, prefix):
+    return _measure_text(text, json.loads(style_key), width, prefix=prefix)
+
+
+def _measure_text(text, style, width, *, prefix=''):
     metrics = family_metrics(style['fontName'], style['bold'], style['italic'])
     tables = {style['fontName']: metrics}
     for field in SCRIPT_FONTS:
@@ -122,10 +138,14 @@ def layout(project, width=1920):
     used, groups = set(), []
     default = (project.get('preview') or {}).get('project_style') or builtin_presets()[0]
     labels = (project.get('preview') or {}).get('burn_speaker_labels') or {}
+    styles = {}
     def resolve_style(track):
+        if track['id'] in styles:
+            return styles[track['id']]
         value = normalize_project_style(track['style']['value'] if track['style']['mode']=='snapshot' else default)
         base = track['style']['base'] if flat else style_kind(track)
-        return value['annotation'] if base=='annotation' and 'annotation' in value else value
+        styles[track['id']] = value['annotation'] if base=='annotation' and 'annotation' in value else value
+        return styles[track['id']]
     def add(refs):
         members = [lookup[key(r)] for r in refs if key(r) in lookup and key(r) not in used]
         if not members:
@@ -253,29 +273,36 @@ def layout(project, width=1920):
     return entries
 
 
-def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, frame_at=None):
+def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, frame_at=None, entries=None):
     from maw.msw import subtitle_gradient as gradient
     from maw.ass_styles import ass_style_line
     from maw.msw.subtitle_style import ass_time, ass_text
     from maw.speaker import COLOR_PALETTE
     width=max(1,round(1080*video['width']/max(1,video['height'])))
-    entries=layout(project,width)
+    if entries is None:
+        entries=layout(project,width)
     has_background = any(background.enabled(r['style']) for r in entries)
     lines=['[Script Info]','ScriptType: v4.00+',f'PlayResX: {width}','PlayResY: 1080','ScaledBorderAndShadow: yes','WrapStyle: 2','',
            '[V4+ Styles]','Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding']
     palette=dict(COLOR_PALETTE)
     palette.update({c['name']:c['value'] for c in project.get('color_palette',[]) if isinstance(c,dict) and c.get('name') in palette and re.fullmatch(r'#[0-9a-fA-F]{6}',str(c.get('value','')))})
     mode=(project.get('preview') or {}).get('subtitle',{}).get('ass_color_style','text')
+    style_lines = {}
     for i,r in enumerate(entries):
         style=dict(r['style']);color=palette.get(r['color'].get('name'))
         if color and mode in ('text','stroke') and ('primaryColor' if mode=='text' else 'outlineColor') not in r['cue'].get('subtitle_style', {}):
             style['primaryColor' if mode=='text' else 'outlineColor']=color
-        lines.append(ass_style_line(style,name=f'cue-{i}'))
+        style_key = json.dumps(style, sort_keys=True)
+        if style_key not in style_lines:
+            style_lines[style_key] = ass_style_line(style, name='').partition(',')[2]
+        lines.append(f'Style: cue-{i},'+style_lines[style_key])
     lines+=['','[Events]','Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text']
+    secondary_ids = project.get('subtitle_view', {}).get('secondary_cue_ids') if project.get('schema') == 'msw.project.v4' else None
+    secondary_ids = set(secondary_ids) if secondary_ids is not None else None
     for i,r in enumerate(entries):
         role='main' if r['role']=='main' else 'secondary'
-        if project.get('schema') == 'msw.project.v4' and 'secondary_cue_ids' in project.get('subtitle_view', {}):
-            role = 'secondary' if r['cue_id'] in project['subtitle_view']['secondary_cue_ids'] else 'main'
+        if secondary_ids is not None:
+            role = 'secondary' if r['cue_id'] in secondary_ids else 'main'
         if target not in ('both',role) or not r['size']['text'].strip():continue
         position = position_anchor(r, width)
         x, y, alignment = position['x']*width, position['y']*1080, position['alignment']

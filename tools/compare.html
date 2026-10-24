@@ -1721,7 +1721,9 @@
     return project;
   }
   function assertLocks(before, after) {
-    for (const track of before.subtitle_tracks.tracks.filter(t => t.locked)) {
+    const locked=before.subtitle_tracks.tracks.filter(t => t.locked);
+    if(!locked.length)return;
+    for (const track of locked) {
       const other = after.subtitle_tracks.tracks.find(t => t.id === track.id);
       if (other && (JSON.stringify(track.style) !== JSON.stringify(other.style)
         || placement(track) !== placement(other) || styleKind(track) !== styleKind(other)

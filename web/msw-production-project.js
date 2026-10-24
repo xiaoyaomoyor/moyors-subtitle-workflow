@@ -98,13 +98,14 @@
       id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
       style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})});
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
+    const byId=new Map(sources.flatMap(s=>s.segments).map(c=>[c.id,c]));
     for(const source of sources)for(const value of source.segments) {
       const content=clone(value);delete content.id;
       for(const field of ['color','sticker']) {
         const ref=content[field+'_ref'];
         if(ref){const head=source.segments[ref.headIdx];if(!head)throw Error('字幕标记引用已失效');content[field+'_ref']={...ref,cue_id:head.id};delete content[field+'_ref'].headIdx;}
         else {const original=context.markers[value.id]?.[field];if(original&&same(content[field],original.value)) {
-          const head=sources.flatMap(s=>s.segments).find(c=>c.id===original.ref.cue_id);
+          const head=byId.get(original.ref.cue_id);
           if(head&&same(head[field],original.value)){content[field+'_ref']=clone(original.ref);delete content[field];}
         }}
         if(content[field]==null)delete content[field];if(content[field+'_ref']==null)delete content[field+'_ref'];

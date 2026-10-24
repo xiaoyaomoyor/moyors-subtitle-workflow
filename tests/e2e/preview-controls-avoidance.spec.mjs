@@ -80,7 +80,7 @@ test('playing hides controls, hovering restores avoidance; picture positioning d
   await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);
   await page.locator('#player').hover();
   await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].some(v=>v<0))).toBe(true);
-  await page.evaluate(()=>{player.pause();fixedStyleTrackId=DATA.subtitle_tracks.tracks[0].id;fixedUpdateTrack(fixedStyleTrackId,{layout:'fixed',position:{x:.5,y:.7}});fixedStartPositioning();});
+  await page.evaluate(()=>{player.pause();fixedStyleTrackId=DATA.subtitle_tracks.tracks[0].id;fixedUpdateTrack(fixedStyleTrackId,{layout:'fixed',position:{x:.5,y:.7}});MSWSubtitleStyle.open('track');fixedPositionScope='track';fixedStartPositioning();});
   await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
   await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);await idle(page);
   const boxes=await page.evaluate(()=>({bar:document.getElementById('media-controls').getBoundingClientRect().toJSON(),stage:document.querySelector('.player-stage').getBoundingClientRect().toJSON()}));
@@ -159,14 +159,14 @@ test('slow rendering does not rebuild unchanged captions but still applies edits
     await new Promise(resolve=>setTimeout(resolve,1100));
     await route.continue();
   });
-  await page.evaluate(()=>MSWSubtitleRenderer.invalidate());
+  await page.evaluate(()=>{DATA.segments[0].text='First slow preview';MSWSubtitleRenderer.invalidate();});
   await expect.poll(()=>requests).toBe(1);await idle(page);
   const stable=await page.evaluate(()=>({revision:MSWSubtitleRenderer.revision,offsets:[...MSWPreviewControls.offsets]}));
   await page.waitForTimeout(1600); // Cross two more unchanged-input polls.
   expect(requests).toBe(1);
   expect(await page.evaluate(()=>({revision:MSWSubtitleRenderer.revision,offsets:[...MSWPreviewControls.offsets]}))).toEqual(stable);
 
-  await page.evaluate(()=>MSWSubtitleRenderer.invalidate());
+  await page.evaluate(()=>{DATA.segments[0].text='Second slow preview';MSWSubtitleRenderer.invalidate();});
   await expect.poll(()=>requests).toBe(2);
   await page.evaluate(()=>{
     DATA.segments[0].text='Changed while preview was pending';

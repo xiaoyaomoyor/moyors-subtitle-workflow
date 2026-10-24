@@ -18,10 +18,9 @@ LAYOUT_VERSION = 15
 def preview_ass(payload):
     raw = payload.get('project')
     if isinstance(raw, dict) and raw.get('schema') == 'msw.project.v4':
-        from maw.msw.flat_subtitles import validate
-        from copy import deepcopy
-        validate(raw)
-        project = deepcopy(raw)
+        # layout validates the native model and owns its mutable cue copies.
+        # Do not validate/deep-copy the entire request again before that pass.
+        project = raw
     else:
         project = normalize_project(raw)
     target = payload.get('target', 'both')
@@ -41,12 +40,16 @@ def preview_ass(payload):
             raise ValueError('字幕时间映射必须为有序保留区间')
         previous=span['end_ms'];output+=span['end_ms']-span['start_ms']
     geometry=[]
+    ass = None
     if project.get('schema')=='msw.project.v4' or project.get('schema')=='msw.project.v3' and project['subtitle_tracks'].get('presentation')=='fixed':
-        from maw.msw.track_presentation import layout, position_anchor
-        for i, r in enumerate(layout(project,round(1080*video['width']/video['height']))):
+        from maw.msw.track_presentation import layout, position_anchor, fixed_ass
+        entries = layout(project, round(1080*video['width']/video['height']))
+        secondary_ids = project.get('subtitle_view', {}).get('secondary_cue_ids') if project.get('schema') == 'msw.project.v4' else None
+        secondary_ids = set(secondary_ids) if secondary_ids is not None else None
+        for i, r in enumerate(entries):
             role = 'main' if r['role'] == 'main' else 'secondary'
-            if project.get('schema') == 'msw.project.v4' and 'secondary_cue_ids' in project.get('subtitle_view', {}):
-                role = 'secondary' if r['cue_id'] in project['subtitle_view']['secondary_cue_ids'] else 'main'
+            if secondary_ids is not None:
+                role = 'secondary' if r['cue_id'] in secondary_ids else 'main'
             # Include render identity and lifetimes for temporary player-only
             # control avoidance. The export layout itself remains untouched.
             geometry.append(dict(key=r['key'],x=r['x'],y=r['y'],width=r['width'],height=r['height'],text=r['size']['text'],
@@ -55,7 +58,8 @@ def preview_ass(payload):
                                  position=position_anchor(r,round(1080*video['width']/video['height'])),
                                  move={'enabled':False} if r['motion'] is not None else r['animations']['move'],motion=r['motion'],
                                  backgroundSize={k:r['size'][k] for k in ('padding','textWidth','textHeight')}))
-    return {'ass':styled_ass(project,plan,target,video), 'geometry':geometry, 'layoutVersion':LAYOUT_VERSION}
+        ass = fixed_ass(project, plan, target, video, entries=entries)
+    return {'ass':ass if ass is not None else styled_ass(project,plan,target,video), 'geometry':geometry, 'layoutVersion':LAYOUT_VERSION}
 
 
 

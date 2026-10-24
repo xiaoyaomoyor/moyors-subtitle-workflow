@@ -8,7 +8,7 @@ function fixedReceiveGeometry(geometry) {
     const refs=new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,fixedTrackCore.key({role:s.role,track_id:s.track_id,cue_id:c.id})])));
     geometry=geometry.map(r=>({...r,key:refs.get(JSON.parse(r.key)[2])||r.key}));
   }
-  fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};fixedPreviewCache=null;
+  fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};
   if(fixedPositionSession?.rows&&!fixedPositionDrag&&!fixedPositionSession.dx&&!fixedPositionSession.dy) {
     const rows=fixedPositionSelection();
     if(rows.length&&rows.every(r=>r.position))Object.assign(fixedPositionSession,{rows,start:{...rows[0].position},value:{...rows[0].position}});
@@ -108,25 +108,33 @@ function fixedMeasureText(row, projectStyle, width) {
 }
 function fixedPreviewLayout(rect=fixedVideoRect()) {
   const preview=window.MSWSubtitleStyle?.currentPreview(),proof=preview?.scope==='proof'||preview?.other?preview.style:null;
-  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,preview?.scope,preview?.trackIds,DATA.preview?.project_style,getSpeakerLabelSettings(),fixedExactGeometry?.serial]);
+  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,preview?.scope,preview?.trackIds,DATA.preview?.project_style,getSpeakerLabelSettings()]);
   if(!fixedPreviewCache||fixedPreviewCache.key!==key) {
     const project=preview?.scope==='export'&&productionFlatMode()?MSWProductionProject.fromProject(MSWProductionProject.exportScope(DATA,preview.trackIds)):DATA;
     const layout=window.MSWTrackPresentation.layout(project,{width:rect.referenceWidth,languageId:getActiveExtensionTrack()?.id,
       measure:fixedMeasureText,resolveStyle:track=>window.MSWTrackPresentation.styleFor(project,track,proof)});
-    if(fixedExactGeometry?.key===fixedGeometryKey()) {
+    fixedPreviewCache={key,layout,index:new layerCore.IntervalIndex(layout.entries.map(e=>e.cue)),geometrySerial:0};
+  }
+  if(fixedExactGeometry&&fixedPreviewCache.geometrySerial!==fixedExactGeometry.serial) {
+    fixedPreviewCache.geometrySerial=fixedExactGeometry.serial;
+    if(fixedExactGeometry.key===fixedGeometryKey()) {
+      const layout=fixedPreviewCache.layout;
       const measured=new Map(fixedExactGeometry.rows.map(r=>[r.key,r]));
       for(const entry of layout.entries) {
         const exact=measured.get(entry.key);if(!exact)continue;
         Object.assign(entry,{x:exact.x,y:exact.y,width:exact.width,height:exact.height,position:exact.position});
-        if(exact.backgroundSize)Object.assign(entry.size,exact.backgroundSize);
+        if(exact.backgroundSize)entry.size={...entry.size,...exact.backgroundSize};
       }
-      for(const group of layout.groups) {
-        const rows=layout.entries.filter(e=>e.group===group);if(!rows.length)continue;
+      const grouped=new Map();
+      for(const entry of layout.entries) {
+        if(!grouped.has(entry.group))grouped.set(entry.group,[]);
+        grouped.get(entry.group).push(entry);
+      }
+      for(const [group,rows] of grouped) {
         group.x=Math.min(...rows.map(r=>r.x));group.y=Math.min(...rows.map(r=>r.y));
         group.width=Math.max(...rows.map(r=>r.x+r.width))-group.x;group.height=Math.max(...rows.map(r=>r.y+r.height))-group.y;
       }
     }
-    fixedPreviewCache={key,layout,index:new layerCore.IntervalIndex(layout.entries.map(e=>e.cue))};
   }
   return fixedPreviewCache;
 }

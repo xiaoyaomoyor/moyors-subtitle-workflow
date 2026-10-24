@@ -10,6 +10,7 @@ let fixedActiveTrackId = null;
 let fixedTrackFilter = new Set();
 let fixedDraftOwners = new WeakMap();
 let fixedLastContent = null;
+let fixedLastContentKey = '';
 let fixedHistoryCheckpoint = null;
 let fixedOwnerCache = null;
 let fixedCueOwners = new WeakMap();
@@ -120,23 +121,30 @@ function fixedContent() {
   return structuredClone({ schema: DATA.schema, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle,
     subtitle_layers: DATA.subtitle_layers, subtitle_tracks: DATA.subtitle_tracks });
 }
+function fixedContentKey() {
+  return JSON.stringify({schema:DATA.schema,segments:DATA.segments,multi_subtitle:DATA.multi_subtitle,
+    subtitle_layers:DATA.subtitle_layers,subtitle_tracks:DATA.subtitle_tracks});
+}
 function fixedReset() {
-  fixedLastContent = null; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
+  fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
 }
 function fixedBeginEdit() {
   if(fixedPositionEditing)fixedStopPositioning(false);
   if (!fixedTrackMode()) return;
   fixedLastContent = fixedContent();
+  fixedLastContentKey=fixedContentKey();
   fixedHistoryCheckpoint = editorHistory.checkpoint();
 }
 function fixedAcceptEdit() {
   if (!fixedTrackMode()) return true;
+  if(fixedLastContent&&fixedContentKey()===fixedLastContentKey)return true;
   try {
     for (const cue of DATA.segments) if (fixedDraftOwners.get(cue)?.legacy
       && !DATA.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)) DATA.subtitle_layers.legacy_overlay.cue_ids.push(cue.id);
     fixedTrackCore.reconcile(DATA, row => fixedDraftOwners.get(row.cue)?.owner || fixedActiveTrack()?.id);
     if (fixedLastContent) fixedTrackCore.assertLocks(fixedLastContent, DATA);
     fixedLastContent = fixedContent();
+    fixedLastContentKey=fixedContentKey();
     fixedHistoryCheckpoint = editorHistory.checkpoint();
     fixedInvalidate();
     return true;
@@ -252,7 +260,7 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
   // This transaction has already checked the canonical content/locks. Reset
   // the legacy operation checkpoint so a display-side change on locked tracks
   // is not mistaken for a later edit to their contents.
-  fixedLastContent=fixedContent();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedLastContent=fixedContent();fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
   fixedInvalidate();normalizeMultiSubtitleState();clearSelection({silent:true});
   DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack()?.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});
   projectImportDirty=true;cueListPlaybackKey=null;renderAll({waveform:'full'});scheduleAutoSaveFlush();

@@ -7200,7 +7200,11 @@ function commitCuePanelEdit() {
   }
   scheduleAutoSaveFlush();
   resetCuePanelEditState();
-  renderAll();
+  if(timingChanged||searchEl.value)renderAll();
+  else {
+    renderCurrentCuePanel();
+    refreshCuePanelTextContent(target);
+  }
   updateWithoutCueListAutoScroll();
   return true;
 }
@@ -7452,6 +7456,23 @@ cuePanelText?.addEventListener('keydown', (event) => {
   if (action === 'split') splitCuePanelAtCursor();
   else exitCuePanelEdit();
 });
+function refreshCuePanelTextContent(target) {
+  const seg=target.segment;
+  const splitMode = target.kind === 'extension'
+    ? getExtensionSubtitleSplitMode(target.track, seg)
+    : getMainSubtitleSplitMode(seg);
+  const metrics=window.AsrEditorUtils.cueMetrics(seg.text,seg.start,seg.end,splitMode);
+  cuePanelTotalLength.textContent=String(metrics.totalLength);
+  cuePanelCharsPerSecond.textContent=metrics.charsPerSecond.toFixed(2);
+  const textEl=getCuePanelTextElement(target);
+  if(textEl) {
+    setTextHtml(textEl,seg.text,searchEl.value);
+    applyCharCount(charCountTargetFor(textEl),seg.text,splitMode);
+  }
+  if(target.kind==='extension')waveformEditor?.refreshExtensionCueLabel(target.index,target.trackId);
+  else if(target.kind==='overlay')waveformEditor?.refreshCueOverlay();
+  else waveformEditor?.refreshCueLabel(target.index);
+}
 cuePanelText?.addEventListener('input', () => {
   const target = getCurrentCuePanelTarget();
   if (!target) return;
@@ -7463,22 +7484,7 @@ cuePanelText?.addEventListener('input', () => {
   seg._dirty = true;
   if (target.kind === 'extension') markMultiSubtitleDirty();
   scheduleAutoSaveFlush();
-  const splitMode = target.kind === 'extension'
-    ? getExtensionSubtitleSplitMode(target.track, seg)
-    : getMainSubtitleSplitMode(seg);
-  const metrics = window.AsrEditorUtils.cueMetrics(
-    seg.text, seg.start, seg.end, splitMode,
-  );
-  cuePanelTotalLength.textContent = String(metrics.totalLength);
-  cuePanelCharsPerSecond.textContent = metrics.charsPerSecond.toFixed(2);
-  const textEl = getCuePanelTextElement(target);
-  if (textEl) {
-    setTextHtml(textEl, seg.text, searchEl.value);
-    applyCharCount(charCountTargetFor(textEl), seg.text, splitMode);
-  }
-  if (target.kind === 'extension') waveformEditor?.refreshExtensionCueLabel(target.index, target.trackId);
-  else if (target.kind === 'overlay') waveformEditor?.refreshCueOverlay();
-  else waveformEditor?.refreshCueLabel(target.index);
+  refreshCuePanelTextContent(target);
   refreshSubtitlePreview();
   restoreCueListRenderAnchor(cueListAnchor);
 });
@@ -17478,6 +17484,7 @@ function scheduleAutoSaveFlush() {
   if (window.MSWFlatTrialRequested) return;
   if (waveformEditor?.drag) return;
   if (fixedTrackMode()) fixedAcceptEdit();
+  window.MSWSubtitleRenderer?.invalidate();
   if (autoSaveFlushTimer !== null) {
     window.clearTimeout(autoSaveFlushTimer);
     autoSaveFlushTimer = null;
@@ -26113,6 +26120,22 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     restoreEditorSelection(selection); waveformEditor?.restoreNavigation(navigation);
     scheduleAutoSaveFlush();
     return plan;
+  },
+  subtitlePreviewProject: () => {
+    // Preview is a read, not a save/commit transaction. Exclude media caches,
+    // workspace, task history and word timings before cloning the live view.
+    const fields=['schema','segments','multi_subtitle','subtitle_tracks','subtitle_layers','subtitles','subtitle_view','overlay_track','preview','color_palette'];
+    const source=Object.fromEntries(fields.filter(k=>DATA[k]!==undefined).map(k=>[k,DATA[k]]));
+    const cue=c=>Object.fromEntries(Object.entries(c).filter(([k])=>k!=='items'&&!k.startsWith('_')&&!['start_frame','end_frame','sticker','sticker_ref'].includes(k)));
+    if(source.segments)source.segments=source.segments.map(cue);
+    if(source.multi_subtitle)source.multi_subtitle={...source.multi_subtitle,tracks:source.multi_subtitle.tracks.map(t=>({...t,segments:t.segments.map(cue)}))};
+    let project=productionFlatMode()?window.MSWProductionProject.toProject(source):structuredClone(source);
+    project.preview ||= {};
+    project.preview.burn_ass_library=structuredClone(ASS_STYLE_LIBRARY);
+    const options=speakerExportOptions();
+    project.preview.burn_speaker_labels={enabled:options.speakerLabelsEnabled,names:{...options.speakerLabels},separator:options.speakerLabelSeparator};
+    project.color_palette=structuredClone(COLOR_PALETTE);
+    return project;
   },
   exportProject: () => {
     let project;

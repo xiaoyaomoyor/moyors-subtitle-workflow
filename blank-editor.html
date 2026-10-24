@@ -15262,11 +15262,12 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
     if (!multiSubtitle) return multiSubtitle;
     const mainById = new Map((Array.isArray(mainSegments) ? mainSegments : [])
       .map((segment) => [stableId(segment?.id), segment]));
-    const trackById = new Map((multiSubtitle.tracks || []).map((track) => [track.id, track]));
+    const trackById = new Map((multiSubtitle.tracks || []).map((track) =>
+      [track.id,new Map((track.segments||[]).map(segment=>[segment.id,segment]))]));
     (multiSubtitle.bindings || []).forEach((binding) => {
       const main = mainById.get(binding.main_segment_ids?.[0]);
       const track = trackById.get(binding.track_id);
-      const extension = track?.segments?.find((segment) => segment.id === binding.extension_segment_ids?.[0]);
+      const extension = track?.get(binding.extension_segment_ids?.[0]);
       if (!main || !extension) return;
       binding.start_offset_ms = Math.round(Number(extension.start) - Number(main.start));
       binding.end_offset_ms = Math.round(Number(extension.end) - Number(main.end));
@@ -19880,7 +19881,9 @@ export default MawDynamicCaptions;
     return project;
   }
   function assertLocks(before, after) {
-    for (const track of before.subtitle_tracks.tracks.filter(t => t.locked)) {
+    const locked=before.subtitle_tracks.tracks.filter(t => t.locked);
+    if(!locked.length)return;
+    for (const track of locked) {
       const other = after.subtitle_tracks.tracks.find(t => t.id === track.id);
       if (other && (JSON.stringify(track.style) !== JSON.stringify(other.style)
         || placement(track) !== placement(other) || styleKind(track) !== styleKind(other)
@@ -20851,13 +20854,14 @@ export default MawDynamicCaptions;
       id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
       style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})});
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
+    const byId=new Map(sources.flatMap(s=>s.segments).map(c=>[c.id,c]));
     for(const source of sources)for(const value of source.segments) {
       const content=clone(value);delete content.id;
       for(const field of ['color','sticker']) {
         const ref=content[field+'_ref'];
         if(ref){const head=source.segments[ref.headIdx];if(!head)throw Error('字幕标记引用已失效');content[field+'_ref']={...ref,cue_id:head.id};delete content[field+'_ref'].headIdx;}
         else {const original=context.markers[value.id]?.[field];if(original&&same(content[field],original.value)) {
-          const head=sources.flatMap(s=>s.segments).find(c=>c.id===original.ref.cue_id);
+          const head=byId.get(original.ref.cue_id);
           if(head&&same(head[field],original.value)){content[field+'_ref']=clone(original.ref);delete content[field];}
         }}
         if(content[field]==null)delete content[field];if(content[field+'_ref']==null)delete content[field+'_ref'];
@@ -21102,6 +21106,11 @@ export default MawDynamicCaptions;
     const index = core.createIndex(project), tracks = project.subtitle_tracks.tracks;
     const available = index.records({includeDisabled:false}).filter(r => r.role === 'main' || project.multi_subtitle?.enabled && r.track_id === languageId);
     const lookup = new Map(available.map(r => [core.key(r),r])), used = new Set(), groups = [];
+    const styles = new Map(), pairs = new Map(), readStyle = resolveStyle;
+    resolveStyle = track => {
+      if(!styles.has(track.id))styles.set(track.id,readStyle(track));
+      return styles.get(track.id);
+    };
     const add = refs => {
       const rows = refs.map(r => lookup.get(core.key(r))).filter(Boolean);
       if (!rows.length) return;
@@ -21114,7 +21123,8 @@ export default MawDynamicCaptions;
       const track = primary || owners[0], style = resolveStyle(track);
       const group = {id:core.key(rows[0]), trackId:track.id, kind:core.placement(track)==='fixed'?'annotation':'dialogue', rank:tracks.indexOf(track), rows, style};
       group.start = Math.min(...rows.map(r=>r.cue.start)); group.end = Math.max(...rows.map(r=>r.cue.end));
-      const pair = global.MSWProjectStyle.pairSettings(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
+      if(!pairs.has(style))pairs.set(style,global.MSWProjectStyle.pairSettings(style));
+      const pair = pairs.get(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
       const pairRole = r => primary ? (r.subtitle_track_id === primary.id ? 'main' : 'extension') : r.role;
       rows.sort((a,b)=>(pairRole(a)===upper?0:1)-(pairRole(b)===upper?0:1));
       for (const row of rows) {
@@ -34094,6 +34104,7 @@ let fixedActiveTrackId = null;
 let fixedTrackFilter = new Set();
 let fixedDraftOwners = new WeakMap();
 let fixedLastContent = null;
+let fixedLastContentKey = '';
 let fixedHistoryCheckpoint = null;
 let fixedOwnerCache = null;
 let fixedCueOwners = new WeakMap();
@@ -34204,23 +34215,30 @@ function fixedContent() {
   return structuredClone({ schema: DATA.schema, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle,
     subtitle_layers: DATA.subtitle_layers, subtitle_tracks: DATA.subtitle_tracks });
 }
+function fixedContentKey() {
+  return JSON.stringify({schema:DATA.schema,segments:DATA.segments,multi_subtitle:DATA.multi_subtitle,
+    subtitle_layers:DATA.subtitle_layers,subtitle_tracks:DATA.subtitle_tracks});
+}
 function fixedReset() {
-  fixedLastContent = null; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
+  fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
 }
 function fixedBeginEdit() {
   if(fixedPositionEditing)fixedStopPositioning(false);
   if (!fixedTrackMode()) return;
   fixedLastContent = fixedContent();
+  fixedLastContentKey=fixedContentKey();
   fixedHistoryCheckpoint = editorHistory.checkpoint();
 }
 function fixedAcceptEdit() {
   if (!fixedTrackMode()) return true;
+  if(fixedLastContent&&fixedContentKey()===fixedLastContentKey)return true;
   try {
     for (const cue of DATA.segments) if (fixedDraftOwners.get(cue)?.legacy
       && !DATA.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)) DATA.subtitle_layers.legacy_overlay.cue_ids.push(cue.id);
     fixedTrackCore.reconcile(DATA, row => fixedDraftOwners.get(row.cue)?.owner || fixedActiveTrack()?.id);
     if (fixedLastContent) fixedTrackCore.assertLocks(fixedLastContent, DATA);
     fixedLastContent = fixedContent();
+    fixedLastContentKey=fixedContentKey();
     fixedHistoryCheckpoint = editorHistory.checkpoint();
     fixedInvalidate();
     return true;
@@ -34336,7 +34354,7 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
   // This transaction has already checked the canonical content/locks. Reset
   // the legacy operation checkpoint so a display-side change on locked tracks
   // is not mistaken for a later edit to their contents.
-  fixedLastContent=fixedContent();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedLastContent=fixedContent();fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
   fixedInvalidate();normalizeMultiSubtitleState();clearSelection({silent:true});
   DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack()?.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});
   projectImportDirty=true;cueListPlaybackKey=null;renderAll({waveform:'full'});scheduleAutoSaveFlush();
@@ -35379,7 +35397,7 @@ function fixedReceiveGeometry(geometry) {
     const refs=new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,fixedTrackCore.key({role:s.role,track_id:s.track_id,cue_id:c.id})])));
     geometry=geometry.map(r=>({...r,key:refs.get(JSON.parse(r.key)[2])||r.key}));
   }
-  fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};fixedPreviewCache=null;
+  fixedExactGeometry={key:fixedGeometryKey(),serial:++fixedGeometrySerial,rows:geometry};
   if(fixedPositionSession?.rows&&!fixedPositionDrag&&!fixedPositionSession.dx&&!fixedPositionSession.dy) {
     const rows=fixedPositionSelection();
     if(rows.length&&rows.every(r=>r.position))Object.assign(fixedPositionSession,{rows,start:{...rows[0].position},value:{...rows[0].position}});
@@ -35479,25 +35497,33 @@ function fixedMeasureText(row, projectStyle, width) {
 }
 function fixedPreviewLayout(rect=fixedVideoRect()) {
   const preview=window.MSWSubtitleStyle?.currentPreview(),proof=preview?.scope==='proof'||preview?.other?preview.style:null;
-  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,preview?.scope,preview?.trackIds,DATA.preview?.project_style,getSpeakerLabelSettings(),fixedExactGeometry?.serial]);
+  const key=JSON.stringify([rect.referenceWidth,getActiveExtensionTrack()?.id,proof,preview?.scope,preview?.trackIds,DATA.preview?.project_style,getSpeakerLabelSettings()]);
   if(!fixedPreviewCache||fixedPreviewCache.key!==key) {
     const project=preview?.scope==='export'&&productionFlatMode()?MSWProductionProject.fromProject(MSWProductionProject.exportScope(DATA,preview.trackIds)):DATA;
     const layout=window.MSWTrackPresentation.layout(project,{width:rect.referenceWidth,languageId:getActiveExtensionTrack()?.id,
       measure:fixedMeasureText,resolveStyle:track=>window.MSWTrackPresentation.styleFor(project,track,proof)});
-    if(fixedExactGeometry?.key===fixedGeometryKey()) {
+    fixedPreviewCache={key,layout,index:new layerCore.IntervalIndex(layout.entries.map(e=>e.cue)),geometrySerial:0};
+  }
+  if(fixedExactGeometry&&fixedPreviewCache.geometrySerial!==fixedExactGeometry.serial) {
+    fixedPreviewCache.geometrySerial=fixedExactGeometry.serial;
+    if(fixedExactGeometry.key===fixedGeometryKey()) {
+      const layout=fixedPreviewCache.layout;
       const measured=new Map(fixedExactGeometry.rows.map(r=>[r.key,r]));
       for(const entry of layout.entries) {
         const exact=measured.get(entry.key);if(!exact)continue;
         Object.assign(entry,{x:exact.x,y:exact.y,width:exact.width,height:exact.height,position:exact.position});
-        if(exact.backgroundSize)Object.assign(entry.size,exact.backgroundSize);
+        if(exact.backgroundSize)entry.size={...entry.size,...exact.backgroundSize};
       }
-      for(const group of layout.groups) {
-        const rows=layout.entries.filter(e=>e.group===group);if(!rows.length)continue;
+      const grouped=new Map();
+      for(const entry of layout.entries) {
+        if(!grouped.has(entry.group))grouped.set(entry.group,[]);
+        grouped.get(entry.group).push(entry);
+      }
+      for(const [group,rows] of grouped) {
         group.x=Math.min(...rows.map(r=>r.x));group.y=Math.min(...rows.map(r=>r.y));
         group.width=Math.max(...rows.map(r=>r.x+r.width))-group.x;group.height=Math.max(...rows.map(r=>r.y+r.height))-group.y;
       }
     }
-    fixedPreviewCache={key,layout,index:new layerCore.IntervalIndex(layout.entries.map(e=>e.cue))};
   }
   return fixedPreviewCache;
 }
@@ -43021,7 +43047,11 @@ function commitCuePanelEdit() {
   }
   scheduleAutoSaveFlush();
   resetCuePanelEditState();
-  renderAll();
+  if(timingChanged||searchEl.value)renderAll();
+  else {
+    renderCurrentCuePanel();
+    refreshCuePanelTextContent(target);
+  }
   updateWithoutCueListAutoScroll();
   return true;
 }
@@ -43273,6 +43303,23 @@ cuePanelText?.addEventListener('keydown', (event) => {
   if (action === 'split') splitCuePanelAtCursor();
   else exitCuePanelEdit();
 });
+function refreshCuePanelTextContent(target) {
+  const seg=target.segment;
+  const splitMode = target.kind === 'extension'
+    ? getExtensionSubtitleSplitMode(target.track, seg)
+    : getMainSubtitleSplitMode(seg);
+  const metrics=window.AsrEditorUtils.cueMetrics(seg.text,seg.start,seg.end,splitMode);
+  cuePanelTotalLength.textContent=String(metrics.totalLength);
+  cuePanelCharsPerSecond.textContent=metrics.charsPerSecond.toFixed(2);
+  const textEl=getCuePanelTextElement(target);
+  if(textEl) {
+    setTextHtml(textEl,seg.text,searchEl.value);
+    applyCharCount(charCountTargetFor(textEl),seg.text,splitMode);
+  }
+  if(target.kind==='extension')waveformEditor?.refreshExtensionCueLabel(target.index,target.trackId);
+  else if(target.kind==='overlay')waveformEditor?.refreshCueOverlay();
+  else waveformEditor?.refreshCueLabel(target.index);
+}
 cuePanelText?.addEventListener('input', () => {
   const target = getCurrentCuePanelTarget();
   if (!target) return;
@@ -43284,22 +43331,7 @@ cuePanelText?.addEventListener('input', () => {
   seg._dirty = true;
   if (target.kind === 'extension') markMultiSubtitleDirty();
   scheduleAutoSaveFlush();
-  const splitMode = target.kind === 'extension'
-    ? getExtensionSubtitleSplitMode(target.track, seg)
-    : getMainSubtitleSplitMode(seg);
-  const metrics = window.AsrEditorUtils.cueMetrics(
-    seg.text, seg.start, seg.end, splitMode,
-  );
-  cuePanelTotalLength.textContent = String(metrics.totalLength);
-  cuePanelCharsPerSecond.textContent = metrics.charsPerSecond.toFixed(2);
-  const textEl = getCuePanelTextElement(target);
-  if (textEl) {
-    setTextHtml(textEl, seg.text, searchEl.value);
-    applyCharCount(charCountTargetFor(textEl), seg.text, splitMode);
-  }
-  if (target.kind === 'extension') waveformEditor?.refreshExtensionCueLabel(target.index, target.trackId);
-  else if (target.kind === 'overlay') waveformEditor?.refreshCueOverlay();
-  else waveformEditor?.refreshCueLabel(target.index);
+  refreshCuePanelTextContent(target);
   refreshSubtitlePreview();
   restoreCueListRenderAnchor(cueListAnchor);
 });
@@ -53299,6 +53331,7 @@ function scheduleAutoSaveFlush() {
   if (window.MSWFlatTrialRequested) return;
   if (waveformEditor?.drag) return;
   if (fixedTrackMode()) fixedAcceptEdit();
+  window.MSWSubtitleRenderer?.invalidate();
   if (autoSaveFlushTimer !== null) {
     window.clearTimeout(autoSaveFlushTimer);
     autoSaveFlushTimer = null;
@@ -61935,6 +61968,22 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     scheduleAutoSaveFlush();
     return plan;
   },
+  subtitlePreviewProject: () => {
+    // Preview is a read, not a save/commit transaction. Exclude media caches,
+    // workspace, task history and word timings before cloning the live view.
+    const fields=['schema','segments','multi_subtitle','subtitle_tracks','subtitle_layers','subtitles','subtitle_view','overlay_track','preview','color_palette'];
+    const source=Object.fromEntries(fields.filter(k=>DATA[k]!==undefined).map(k=>[k,DATA[k]]));
+    const cue=c=>Object.fromEntries(Object.entries(c).filter(([k])=>k!=='items'&&!k.startsWith('_')&&!['start_frame','end_frame','sticker','sticker_ref'].includes(k)));
+    if(source.segments)source.segments=source.segments.map(cue);
+    if(source.multi_subtitle)source.multi_subtitle={...source.multi_subtitle,tracks:source.multi_subtitle.tracks.map(t=>({...t,segments:t.segments.map(cue)}))};
+    let project=productionFlatMode()?window.MSWProductionProject.toProject(source):structuredClone(source);
+    project.preview ||= {};
+    project.preview.burn_ass_library=structuredClone(ASS_STYLE_LIBRARY);
+    const options=speakerExportOptions();
+    project.preview.burn_speaker_labels={enabled:options.speakerLabelsEnabled,names:{...options.speakerLabels},separator:options.speakerLabelSeparator};
+    project.color_palette=structuredClone(COLOR_PALETTE);
+    return project;
+  },
   exportProject: () => {
     let project;
     if (waveformEditor?.drag && productionFlatMode()) {
@@ -69064,7 +69113,12 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   }
   function signature(preview) {
     return JSON.stringify([host.generation,mediaSource(host.player),preview,host.player.videoWidth,host.player.videoHeight,
-      host.data.subtitles,host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()]);
+      host.data.subtitles,host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()],(name,value)=>{
+        if(name==='items'||name.startsWith('_')||name==='start_frame'||name==='end_frame')return undefined;
+        // The adapter's original migration snapshots are not live render data.
+        if(name==='flat_context')return {bindingSources:value?.bindingSources};
+        return value;
+      });
   }
   async function update() {
     syncBadge();
@@ -69087,7 +69141,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     pending=true;const ticket=++serial,generation=host.generation,target=host.player,targetSource=mediaSource(host.player);
     const current=()=>ticket===serial&&generation===host.generation&&target===host.player&&targetSource===mediaSource(target);
     try {
-      let project=host.exportProject();
+      let project=host.subtitlePreviewProject?host.subtitlePreviewProject():host.exportProject();
       if(preview.scope==='export'&&project.schema==='msw.project.v4')project=global.MSWProductionProject.exportScope(project,preview.trackIds);
       if(preview.scope==='proof'||preview.other)global.MSWProjectStyle.applyPreset(project,preview.style,{proof:preview.scope==='proof'});else global.MSWProjectStyle.apply(project,preview.style);
       for(const field of ['waveform','spectral','waveform_reapeaks','workspace'])delete project[field];
@@ -69095,6 +69149,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
         styles.request('subtitle-preview',{project,target:preview.target,video:{width:host.player.videoWidth,height:host.player.videoHeight}}),
         fonts(preview.style),modulePromise||=import('/subtitle-renderer/jassub.js')]);
       if(!current())return;
+      // An old request must not overwrite more recent edits. Keep the current
+      // canvas until the latest document is ready, and coalesce interim edits.
+      if(signature(styles.currentPreview())!==signatureKey){key='';again=true;return;}
       if(payload.layoutVersion!==global.MSWProjectStyle.layoutVersion)throw Error('编辑器服务尚未加载更新，请保存工程并重新启动本机编辑器；仅刷新页面无效。');
       clearPreviewDocument();await previewWrites;
       if(!current())return;
@@ -69130,6 +69187,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       // it. A settings-window repaint must not be needed to reveal the video.
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(!current())return;
+      if(signature(styles.currentPreview())!==signatureKey){key='';again=true;return;}
       stage.dataset.subtitleRenderer='libass';
       global.MSWPreviewControls?.refresh();
       if(payload.geometry?.length)global.fixedReceiveGeometry?.(payload.geometry);
@@ -69138,7 +69196,13 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
-  function invalidate(){syncBadge();key='';clearTimeout(timer);timer=setTimeout(()=>{timer=undefined;void update();},100);}
+  function invalidate(){
+    syncBadge();
+    // Explicit retries can recover a failed worker/server; unchanged healthy
+    // documents must retain their geometry and temporary control-bar offsets.
+    if(!pending&&!renderer)key='';
+    clearTimeout(timer);timer=setTimeout(()=>{timer=undefined;void update();},100);
+  }
   global.addEventListener('msw:player-changed',observePlayer);
   global.addEventListener('msw:project-changed',resetMedia);
   for(const name of ['msw:media-changed','msw:subtitles-changed','msw:burn-style'])global.addEventListener(name,invalidate);
@@ -69163,6 +69227,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   let frame=0,signature='',current=new Map(),target=new Map(),animation=0,busy=false,revision=-1,overflow=false;
   let player=null;
   let hideTimer=0,controlsVisible=false;
+  let rowSource=null,rowWidth=0,rowVisibility='',rowSerial=0,cachedRows=[];
   // Keep both the bar and its safe area through short pointer exits. Without
   // this hold, crossing the video edge repeatedly reverses the subtitle motion.
   function visibility(requested) {
@@ -69187,15 +69252,22 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   }
   function sourceRows() {
     const exact=global.MSWSubtitleRenderer;
-    if(exact?.status==='libass'&&exact.geometry.length)return exact.geometry.map(r=>{
-      if(r.motion)return global.MSWSubtitleAnimation.envelope(r,fixedVideoRect().referenceWidth);
+    const width=fixedVideoRect().referenceWidth;
+    if(exact?.status==='libass'&&exact.geometry.length) {
+      if(rowSource===exact.geometry&&rowWidth===width)return cachedRows;
+      rowSource=exact.geometry;rowWidth=width;rowSerial++;
+      return cachedRows=exact.geometry.map(r=>{
+      if(r.motion)return global.MSWSubtitleAnimation.envelope(r,width);
       const dx=r.move?.enabled?r.move.x2-r.move.x1:0,dy=r.move?.enabled?r.move.y2-r.move.y1:0;
       return {...r,x:r.x+Math.min(0,dx),y:r.y+Math.min(0,dy),width:r.width+Math.abs(dx),height:r.height+Math.abs(dy)};
-    });
+      });
+    }
     if(typeof fixedPresentationMode==='function'&&fixedPresentationMode()) {
       const allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),extension:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
-      const width=fixedVideoRect().referenceWidth;
-      return fixedPreviewLayout().layout.entries.filter(r=>allowed[r.role]).map(r=>({...global.MSWSubtitleAnimation.envelope({...r,position:global.MSWTrackPresentation.positionOf(r,width)},width),groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
+      const entries=fixedPreviewLayout().layout.entries,visibility=JSON.stringify(allowed);
+      if(rowSource===entries&&rowWidth===width&&rowVisibility===visibility)return cachedRows;
+      rowSource=entries;rowWidth=width;rowVisibility=visibility;rowSerial++;
+      return cachedRows=entries.filter(r=>allowed[r.role]).map(r=>({...global.MSWSubtitleAnimation.envelope({...r,position:global.MSWTrackPresentation.positionOf(r,width)},width),groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
     }
     return [];
   }
@@ -69257,7 +69329,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     const obstacle=intersects?{x:(bar.left-rect.x)*1080/rect.height,y:(bar.top-rect.y)*1080/rect.height,width:bar.width*1080/rect.height,height:bar.height*1080/rect.height}:null;
     const rows=sourceRows();
     if(rows.length) {
-      const key=JSON.stringify([revision,obstacle,positioning,toggle.checked,rows.map(r=>[r.key,r.groupId,r.x,r.y,r.width,r.height,r.start,r.end])]);
+      const key=JSON.stringify([revision,obstacle,positioning,toggle.checked,rowSerial]);
       if(key!==signature){signature=key;const result=core.plan(rows,obstacle,8*1080/rect.height);
         target=result.offsets;
         if(result.overflow){overflow=true;setDocked(true);target=new Map();}

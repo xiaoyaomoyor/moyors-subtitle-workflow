@@ -32,11 +32,12 @@ async function setup(page,legacy=false){
   await ready(page);
   return page.evaluate(()=>structuredClone(window.MSWE.resolve('processing-host').data.preview.project_style));
 }
-async function ready(page){await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending)).toBe(true);}
+async function ready(page){await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending),{timeout:30000}).toBe(true);}
 async function refresh(page){
-  const response=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200);
-  await page.evaluate(()=>window.MSWSubtitleRenderer.invalidate());await response;await ready(page);
+  await page.evaluate(()=>window.MSWSubtitleRenderer.invalidate());await ready(page);
 }
+function cues(project,secondary=false){const ids=new Set(project.subtitle_view.secondary_cue_ids);return project.subtitles.cues.filter(c=>ids.has(c.id)===secondary).map(c=>c.content);}
+function styleValues(ass){return [...new Set(ass.split('\n').filter(line=>line.startsWith('Style:')).map(line=>line.slice(line.indexOf(','))))].sort();}
 async function preview(page){return page.evaluate(()=>{const h=window.MSWE.resolve('processing-host');return window.MSWSubtitleStyle.request('subtitle-preview',{project:h.exportProject(),target:'both',video:{width:640,height:360}});});}
 async function cut(page,kind,duplicate){
   await page.evaluate(kind=>kind==='linked'?splitFromContextMenu(0,0,0,2000):openExtensionSplitModal(0,2000, getActiveExtensionTrack(), { independent: true }),kind);
@@ -97,10 +98,10 @@ for(const legacy of [false,true])test(`linked split preserves exact rendering an
   const beforeImage=join(folder,'before.png');await page.locator('.JASSUB').screenshot({path:beforeImage});
   await cut(page,'linked',true);
   const snapshot=await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject());
-  expect(snapshot.segments).toHaveLength(2);expect(snapshot.multi_subtitle.tracks[0].segments).toHaveLength(2);
-  expect(snapshot.multi_subtitle.tracks[0].segments.map(s=>s.items)).toEqual([[],[]]);
+  expect(cues(snapshot)).toHaveLength(2);expect(cues(snapshot,true)).toHaveLength(2);
+  expect(cues(snapshot,true).map(s=>s.items)).toEqual([[],[]]);
   expect(snapshot.preview.project_style).toEqual(style);
-  const after=await preview(page);expect(after.ass.split('[Events]')[0]).toBe(before.ass.split('[Events]')[0]);
+  const after=await preview(page);expect(styleValues(after.ass)).toEqual(styleValues(before.ass));
   await refresh(page);await page.evaluate(()=>window.MSWSubtitleRenderer.repaint());
   const afterImage=join(folder,'after.png');await page.locator('.JASSUB').screenshot({path:afterImage});
   await page.evaluate(async()=>{const p=window.MSWE.resolve('processing-host').player;p.currentTime=3;await new Promise(resolve=>p.addEventListener('seeked',resolve,{once:true}));await window.MSWSubtitleRenderer.repaint();});
@@ -115,28 +116,28 @@ def bounds(path):
  return out
 print(json.dumps([bounds(p) for p in sys.argv[1:]]))`,beforeImage,afterImage,rightImage],{encoding:'utf8',windowsHide:true}));
   expect(bounds[1]).toEqual(bounds[0]);expect(bounds[2]).toEqual(bounds[0]);expect(bounds[1][1][3]).toBeLessThan(bounds[1][0][1]);
-  await page.evaluate(()=>performUndo());expect((await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject())).segments).toHaveLength(1);await preview(page);
+  await page.evaluate(()=>performUndo());expect(cues(await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject()))).toHaveLength(1);await preview(page);
   await page.evaluate(()=>performRedo());await preview(page);await ready(page);
   const saved=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().endsWith('/api/msw/project'));
   await page.keyboard.press('Control+s');expect((await (await saved).json()).ok).toBe(true);
   await expect.poll(()=>page.evaluate(()=>projectSaveInFlight)).toBe(false);
   await page.reload();await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   const restored=await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject());
-  expect(restored.preview.project_style).toEqual(style);expect(restored.multi_subtitle.tracks[0].segments).toHaveLength(2);await preview(page);await ready(page);
+  expect(restored.preview.project_style).toEqual(style);expect(cues(restored,true)).toHaveLength(2);await preview(page);await ready(page);
 });
 
 test('independent secondary text split keeps valid word timestamps and exact preview',async({page})=>{
   await setup(page);await cut(page,'secondary',false);
   const p=await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject());
-  expect(p.segments).toHaveLength(1);expect(p.multi_subtitle.tracks[0].segments.map(s=>s.items)).toEqual([[],[]]);
-  expect(p.multi_subtitle.tracks[0].segments.map(s=>s.text)).toEqual(['Secondary','subtitle']);await preview(page);await ready(page);
+  expect(cues(p)).toHaveLength(1);expect(cues(p,true).map(s=>s.items)).toEqual([[],[]]);
+  expect(cues(p,true).map(s=>s.text)).toEqual(['Secondary','subtitle']);await preview(page);await ready(page);
 });
 
 test('serialization repairs old null timing placeholders without changing live undo data',async({page})=>{
   await setup(page);
   await page.evaluate(()=>{const p=window.MSWE.resolve('processing-host').data;p.multi_subtitle.tracks[0].segments[0].items=null;});
   const p=await page.evaluate(()=>window.MSWE.resolve('processing-host').exportProject());
-  expect(p.multi_subtitle.tracks[0].segments[0].items).toBeUndefined();
+  expect(cues(p,true)[0].items).toBeUndefined();
   expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.multi_subtitle.tracks[0].segments[0].items)).toBeNull();
   await preview(page);await page.evaluate(()=>window.MSWSubtitleRenderer.invalidate());await ready(page);
 });

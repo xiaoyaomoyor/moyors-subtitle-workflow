@@ -3809,11 +3809,12 @@
     if (!multiSubtitle) return multiSubtitle;
     const mainById = new Map((Array.isArray(mainSegments) ? mainSegments : [])
       .map((segment) => [stableId(segment?.id), segment]));
-    const trackById = new Map((multiSubtitle.tracks || []).map((track) => [track.id, track]));
+    const trackById = new Map((multiSubtitle.tracks || []).map((track) =>
+      [track.id,new Map((track.segments||[]).map(segment=>[segment.id,segment]))]));
     (multiSubtitle.bindings || []).forEach((binding) => {
       const main = mainById.get(binding.main_segment_ids?.[0]);
       const track = trackById.get(binding.track_id);
-      const extension = track?.segments?.find((segment) => segment.id === binding.extension_segment_ids?.[0]);
+      const extension = track?.get(binding.extension_segment_ids?.[0]);
       if (!main || !extension) return;
       binding.start_offset_ms = Math.round(Number(extension.start) - Number(main.start));
       binding.end_offset_ms = Math.round(Number(extension.end) - Number(main.end));

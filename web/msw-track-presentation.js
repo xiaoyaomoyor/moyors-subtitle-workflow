@@ -29,6 +29,11 @@
     const index = core.createIndex(project), tracks = project.subtitle_tracks.tracks;
     const available = index.records({includeDisabled:false}).filter(r => r.role === 'main' || project.multi_subtitle?.enabled && r.track_id === languageId);
     const lookup = new Map(available.map(r => [core.key(r),r])), used = new Set(), groups = [];
+    const styles = new Map(), pairs = new Map(), readStyle = resolveStyle;
+    resolveStyle = track => {
+      if(!styles.has(track.id))styles.set(track.id,readStyle(track));
+      return styles.get(track.id);
+    };
     const add = refs => {
       const rows = refs.map(r => lookup.get(core.key(r))).filter(Boolean);
       if (!rows.length) return;
@@ -41,7 +46,8 @@
       const track = primary || owners[0], style = resolveStyle(track);
       const group = {id:core.key(rows[0]), trackId:track.id, kind:core.placement(track)==='fixed'?'annotation':'dialogue', rank:tracks.indexOf(track), rows, style};
       group.start = Math.min(...rows.map(r=>r.cue.start)); group.end = Math.max(...rows.map(r=>r.cue.end));
-      const pair = global.MSWProjectStyle.pairSettings(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
+      if(!pairs.has(style))pairs.set(style,global.MSWProjectStyle.pairSettings(style));
+      const pair = pairs.get(style), upper = pair.order === 'secondary-above' ? 'extension' : 'main';
       const pairRole = r => primary ? (r.subtitle_track_id === primary.id ? 'main' : 'extension') : r.role;
       rows.sort((a,b)=>(pairRole(a)===upper?0:1)-(pairRole(b)===upper?0:1));
       for (const row of rows) {

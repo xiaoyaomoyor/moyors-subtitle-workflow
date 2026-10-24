@@ -113,3 +113,69 @@ test('selection highlights clear old partners and retain multi-selection while s
   expect(await page.evaluate(()=>[...fixedPositionSelectedIds()].sort())).toEqual(await page.evaluate(()=>[DATA.segments[1].id,getActiveExtensionTrack().segments[1].id].sort()));
   await expect(page.locator('.multi-cue-column.selected')).toHaveCount(2);
 });
+
+test('preview snapshots do not commit edits, save history, or include waveform and word caches',async({page})=>{
+  await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:30000});
+  const result=await page.evaluate(()=>{
+    const host=MSWE.resolve('processing-host'),before=JSON.stringify(DATA),layout=fixedPreviewLayout();
+    const build=buildJson,commit=commitProcessingEdits;let saves=0,commits=0;
+    buildJson=()=>{saves++;throw Error('Preview must not save');};
+    commitProcessingEdits=()=>{commits++;throw Error('Preview must not commit');};
+    try {
+      const project=host.subtitlePreviewProject();MSWFlatSubtitles.validate(project);
+      return {saves,commits,unchanged:before===JSON.stringify(DATA),sameLayout:layout===fixedPreviewLayout(),
+        schema:project.schema,count:project.subtitles.cues.length,largeFields:['waveform','waveform_reapeaks','spectral','workspace','msw'].filter(k=>k in project),
+        words:project.subtitles.cues.some(c=>'items' in c.content)};
+    }finally{buildJson=build;commitProcessingEdits=commit;}
+  });
+  expect(result).toEqual({saves:0,commits:0,unchanged:true,sameLayout:true,schema:'msw.project.v4',count:800,largeFields:[],words:false});
+});
+
+test('rapid text edits coalesce, discard obsolete preview geometry and preserve unchanged cards',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(()=>{selectOnly(0);seekFromWaveform(.5);});
+  await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:30000});
+  let arrived,release;const waiting=new Promise(r=>arrived=r),held=new Promise(r=>release=r),requests=[];
+  await page.route('**/subtitle-preview',async route=>{
+    requests.push(route.request().postDataJSON());
+    const response=await route.fetch();
+    if(requests.length===1){arrived();await held;}
+    await route.fulfill({response});
+  });
+  await page.evaluate(()=>{
+    window.receivedPreviewTexts=[];const receive=fixedReceiveGeometry;
+    fixedReceiveGeometry=rows=>{window.receivedPreviewTexts.push(rows.map(r=>r.text));return receive(rows);};
+    window.unchangedCard=container.querySelector('.multi-cue[data-main-idx="1"]');
+    cuePanelText.value='Obsolete version';cuePanelText.dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  await waiting;
+  await page.evaluate(()=>{
+    for(const text of ['Intermediate version','Latest text']) {
+      cuePanelText.value=text;cuePanelText.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+  });
+  release();
+  await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text==='Latest text'));
+  expect(requests).toHaveLength(2);
+  expect(await page.evaluate(()=>window.receivedPreviewTexts.some(rows=>rows.includes('Obsolete version')))).toBe(false);
+  expect(await page.evaluate(()=>window.unchangedCard===container.querySelector('.multi-cue[data-main-idx="1"]'))).toBe(true);
+  const revision=await page.evaluate(()=>MSWSubtitleRenderer.revision);
+  await page.evaluate(()=>{MSWSubtitleRenderer.invalidate();MSWSubtitleRenderer.invalidate();});
+  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending);
+  expect(await page.evaluate(()=>MSWSubtitleRenderer.revision)).toBe(revision);
+  expect(requests).toHaveLength(2);expect(errors).toEqual([]);
+  await page.evaluate(()=>performUndo());
+  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text==='Subtitle 0'));
+});
+
+test('text-only commit updates labels without rebuilding the list; unchanged saving retains geometry',async({page})=>{
+  await page.evaluate(()=>{selectOnly(0);});
+  const result=await page.evaluate(()=>{
+    const card=container.querySelector('.multi-cue[data-main-idx="1"]');
+    cuePanelText.value='Committed text';commitCuePanelEdit();
+    const layout=fixedPreviewLayout();fixedAcceptEdit();
+    return {sameCard:card===container.querySelector('.multi-cue[data-main-idx="1"]'),
+      sameLayout:layout===fixedPreviewLayout(),label:getCuePanelTextElement(getCurrentCuePanelTarget()).textContent,text:DATA.segments[0].text};
+  });
+  expect(result).toEqual({sameCard:true,sameLayout:true,label:'Committed text',text:'Committed text'});
+});

@@ -8,6 +8,7 @@
   let frame=0,signature='',current=new Map(),target=new Map(),animation=0,busy=false,revision=-1,overflow=false;
   let player=null;
   let hideTimer=0,controlsVisible=false;
+  let rowSource=null,rowWidth=0,rowVisibility='',rowSerial=0,cachedRows=[];
   // Keep both the bar and its safe area through short pointer exits. Without
   // this hold, crossing the video edge repeatedly reverses the subtitle motion.
   function visibility(requested) {
@@ -32,15 +33,22 @@
   }
   function sourceRows() {
     const exact=global.MSWSubtitleRenderer;
-    if(exact?.status==='libass'&&exact.geometry.length)return exact.geometry.map(r=>{
-      if(r.motion)return global.MSWSubtitleAnimation.envelope(r,fixedVideoRect().referenceWidth);
+    const width=fixedVideoRect().referenceWidth;
+    if(exact?.status==='libass'&&exact.geometry.length) {
+      if(rowSource===exact.geometry&&rowWidth===width)return cachedRows;
+      rowSource=exact.geometry;rowWidth=width;rowSerial++;
+      return cachedRows=exact.geometry.map(r=>{
+      if(r.motion)return global.MSWSubtitleAnimation.envelope(r,width);
       const dx=r.move?.enabled?r.move.x2-r.move.x1:0,dy=r.move?.enabled?r.move.y2-r.move.y1:0;
       return {...r,x:r.x+Math.min(0,dx),y:r.y+Math.min(0,dy),width:r.width+Math.abs(dx),height:r.height+Math.abs(dy)};
-    });
+      });
+    }
     if(typeof fixedPresentationMode==='function'&&fixedPresentationMode()) {
       const allowed={main:overlayToggle.checked&&!subtitleTrackMuted('main'),extension:extensionOverlayToggle?.checked&&!subtitleTrackMuted('extension')};
-      const width=fixedVideoRect().referenceWidth;
-      return fixedPreviewLayout().layout.entries.filter(r=>allowed[r.role]).map(r=>({...global.MSWSubtitleAnimation.envelope({...r,position:global.MSWTrackPresentation.positionOf(r,width)},width),groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
+      const entries=fixedPreviewLayout().layout.entries,visibility=JSON.stringify(allowed);
+      if(rowSource===entries&&rowWidth===width&&rowVisibility===visibility)return cachedRows;
+      rowSource=entries;rowWidth=width;rowVisibility=visibility;rowSerial++;
+      return cachedRows=entries.filter(r=>allowed[r.role]).map(r=>({...global.MSWSubtitleAnimation.envelope({...r,position:global.MSWTrackPresentation.positionOf(r,width)},width),groupId:r.group.id,start:r.cue.start,end:r.cue.end}));
     }
     return [];
   }
@@ -102,7 +110,7 @@
     const obstacle=intersects?{x:(bar.left-rect.x)*1080/rect.height,y:(bar.top-rect.y)*1080/rect.height,width:bar.width*1080/rect.height,height:bar.height*1080/rect.height}:null;
     const rows=sourceRows();
     if(rows.length) {
-      const key=JSON.stringify([revision,obstacle,positioning,toggle.checked,rows.map(r=>[r.key,r.groupId,r.x,r.y,r.width,r.height,r.start,r.end])]);
+      const key=JSON.stringify([revision,obstacle,positioning,toggle.checked,rowSerial]);
       if(key!==signature){signature=key;const result=core.plan(rows,obstacle,8*1080/rect.height);
         target=result.offsets;
         if(result.overflow){overflow=true;setDocked(true);target=new Map();}

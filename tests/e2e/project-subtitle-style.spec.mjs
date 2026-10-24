@@ -133,6 +133,7 @@ for(const legacy of [false,true])for(const bound of [true,false])test(`${bound?'
   await page.evaluate(()=>{for(const id of ['overlay-toggle','extension-overlay-toggle']){const el=document.getElementById(id);el.checked=true;el.dispatchEvent(new Event('change'));}});
   await page.evaluate(()=>{const p=window.MSWE.resolve('processing-host').player;p.currentTime=1;p.pause();});
   const distances=new Map();
+  await page.evaluate(()=>{MSWSubtitleStyle.open('track');document.getElementById('style-more').open=true;});
   for(const [order,gap] of [['main-above',12],['secondary-above',36],['secondary-above',-12],['main-above',-12]]){
     await page.locator('#style-pair-order').selectOption(order);
     const rendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200);
@@ -306,7 +307,7 @@ print(json.dumps([bands(p) for p in sys.argv[1:]]))`,png,ref],{encoding:'utf8',w
   expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.segments[0].text)).toBe('MMMMMMMMM');
   // The portable/renderer-failure path must use exactly the same text breaks.
   await page.route('**/subtitle-preview',r=>r.fulfill({status:500,contentType:'application/json',body:JSON.stringify({ok:false,error:'synthetic fallback'})}));
-  await page.evaluate(()=>window.MSWSubtitleRenderer.invalidate());await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status)).toBe('approximate');
+  await page.evaluate(()=>{DATA.segments[0].subtitle_style={outline:3};window.MSWSubtitleRenderer.invalidate();});await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status)).toBe('approximate');
   await expect(page.locator('#fixed-subtitle-preview [data-role="main"] .fixed-subtitle-text')).toHaveText('MMM\nMMM\nMMM');
   await expect(page.locator('#fixed-subtitle-preview [data-role="extension"] .fixed-subtitle-text')).toHaveText('WWWW\nWWWW');
 });
