@@ -54,7 +54,7 @@ function fixedCommitStyle(style, selection) {
     const custom=selection==='current'?mapped:member.style.custom||window.MSWTrackPresentation.styleFor(DATA,member);
     dest.style=selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value:mapped,selection,custom};
   }
-  const ok=fixedCommitProject(next,'修改轨道字幕样式');
+  const ok=fixedCommitProject(next,'修改轨道字幕样式',{appearanceOnly:true});
   if(ok)window.dispatchEvent(new Event('msw:burn-style'));
   return ok;
 }

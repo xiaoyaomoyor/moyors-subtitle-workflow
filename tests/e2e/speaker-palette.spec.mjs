@@ -33,6 +33,7 @@ test('project speaker table extends beyond five, marks from menu and saves renam
   await page.evaluate(()=>{setEditorSettingsPanelOpen(false);selectOnly(0);});await page.locator('.player-stage').click({position:{x:10,y:10}});
   await page.keyboard.press('9');
   expect(await page.evaluate(()=>DATA.segments[0].color.name)).toBe('speaker-9');
+  await expect(page.locator('.waveform-cue-block[data-idx="0"]').first()).toHaveAttribute('title',/^九号：Hello 世界/);
   await page.evaluate(()=>showContextMenu(500,300,0));
   await expect(page.locator('#ctxmenu > .item').filter({hasText:/^标记颜色|^清除颜色/})).toHaveCount(0);
   await page.getByRole('menuitem',{name:'标记字幕',exact:true}).hover();
@@ -120,6 +121,33 @@ test('speaker properties inherit across tracks, preserve cue overrides, undo and
   await page.locator('#style-speaker-target').selectOption('yellow');
   await page.screenshot({path:join(dir,'speaker-properties.png'),animations:'disabled'});
   expect(errors).toEqual([]);
+});
+
+test('speaker properties show palette defaults and report overrides without losing the base mode',async({page})=>{
+  await settings(page);
+  await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('stroke');
+  await page.evaluate(()=>{setEditorSettingsPanelOpen(false);selectOnly(0);MSWSubtitleStyle.open('cue');});
+  await page.locator('#style-edit-scope').selectOption('speaker');
+  await page.locator('#style-speaker-target').selectOption('green');
+  await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
+  await page.locator('#style-field-outline').fill('5');await page.locator('#style-field-outline').press('Tab');
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].mode)).toBe('stroke');
+  await settings(page);
+  await expect(page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select')).toHaveValue('properties');
+  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await page.locator('#style-inherit-appearance').click();
+  await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
+  await expect(page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select')).toHaveValue('stroke');
+  await page.locator('#style-field-outline').fill('6');await page.locator('#style-field-outline').press('Tab');
+  await page.locator('#style-animation > summary').click();
+  await page.locator('#motion-preset-fade').click();
+  const motion=await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation);
+  await settings(page);
+  await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('text');
+  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await expect(page.locator('#style-field-primaryColor')).toHaveValue('#66bb6a');
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].style)).toBeUndefined();
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation)).toEqual(motion);
 });
 
 test('master row, per-speaker separators, native preview, export name choice and undo agree',async({page})=>{

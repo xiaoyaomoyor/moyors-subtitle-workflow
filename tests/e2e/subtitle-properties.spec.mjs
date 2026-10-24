@@ -161,7 +161,7 @@ test('three property categories reflow to wide columns and use one target select
     document.getElementById('style-more').open=true;
   });
   await expect(page.locator('#project-subtitle-style > details > summary')).toHaveText(['基础','进阶',/动画/]);
-  await expect(page.locator('#style-edit-scope option')).toHaveText(['所选字幕','S1']);
+  await expect(page.locator('#style-edit-scope option')).toHaveText(['所选字幕','说话人','S1']);
   await expect(page.locator('#style-track-target')).toBeHidden();
   const row=await page.locator('#style-field-fontSize,#style-field-wrapMode,#style-field-primaryColor').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));
   expect(Math.max(...row)-Math.min(...row)).toBeLessThan(2);
@@ -254,6 +254,7 @@ test('automatic bilingual font picker filters Chinese, previews families, saves 
 });
 
 test('language category shares one visible font input, filters glyph coverage and preserves mappings',async({page},info)=>{
+  test.setTimeout(120000); // Multiple font switches each wait for native ASS rendering.
   const language=page.locator('#style-font-script');
   const catalog=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-fonts'));
   const state=await snap(page);

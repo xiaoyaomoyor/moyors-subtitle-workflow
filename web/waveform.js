@@ -3971,7 +3971,7 @@
       block.style.bottom = `calc(7px + var(--audio-lane-space, 0px) + ${(extra + lane) * pitch}px)`;
       if (this.settings.hoverDetails) {
         const index = Number(role === 'extension' ? block.dataset.extIdx : block.dataset.idx);
-        block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '));
+        block.title = this.cueHoverTitle(segment, index, String(segment.text || '').replace(/\s+/g, ' '), role);
       }
     }
 
@@ -5004,7 +5004,7 @@
           const label = document.createElement('span');
           label.className = 'waveform-cue-label';
           label.textContent = String(segment.text || '').replace(/\s+/g, ' ');
-          block.title = label.textContent;
+          block.title = this.cueHoverTitle(segment, index, label.textContent, 'overlay');
           block.appendChild(label);
           if (segment.start >= startMs) {
             const leftHandle = document.createElement('span');
@@ -5058,7 +5058,7 @@
         const label = document.createElement('span');
         label.className = 'waveform-cue-label';
         label.textContent = String(segment.text || '').replace(/\s+/g, ' ');
-        block.title = this.cueHoverTitle(segment, index, label.textContent);
+        block.title = this.cueHoverTitle(segment, index, label.textContent, 'extension');
         block.appendChild(label);
         this.setBindingMarker(block, extensionBindingMarkers?.has?.(index) === true);
         const sourceStatus = this.options.getCueSourceStatus?.(segment);
@@ -5244,14 +5244,14 @@
       const segment = this.options.getSegments('main')[index];
       if (!segment) return;
       this.content.querySelectorAll(`.waveform-cue-block[data-track="main"][data-idx="${index}"] .waveform-cue-label`)
-        .forEach((label) => { label.textContent = segment.text.replace(/\s+/g, ' '); });
+        .forEach((label) => { label.textContent = segment.text.replace(/\s+/g, ' ');label.parentElement.title=this.cueHoverTitle(segment,index,label.textContent); });
     }
 
     refreshExtensionCueLabel(index, trackId = null) {
       const segment = this.options.getExtensionSegments?.(trackId)?.[index];
       if (!segment) return;
       this.content.querySelectorAll(`.waveform-cue-block[data-track="extension"][data-ext-idx="${index}"] .waveform-cue-label`)
-        .forEach((label) => { label.textContent = String(segment.text || '').replace(/\s+/g, ' '); });
+        .forEach((label) => { label.textContent = String(segment.text || '').replace(/\s+/g, ' ');label.parentElement.title=this.cueHoverTitle(segment,index,label.textContent,'extension'); });
     }
 
     updateSelection() {
@@ -6469,7 +6469,9 @@
       return resolveTiming(this.options.getCueTiming?.());
     }
 
-    cueHoverTitle(segment, index, text) {
+    cueHoverTitle(segment, index, text, role = 'main') {
+      const speaker = this.options.getCueSpeaker?.(segment, role);
+      if (speaker) text = speaker.name + speaker.separator + text;
       if (this.settings.hoverDetails !== true) return text;
       const clock = this.cueTiming(), format = ms => clock.format(clock.fromMs(ms));
       return `${text}\n#${index + 1} · ${format(segment.start)} ~ ${format(segment.end)} (${format(segment.end - segment.start)})`;

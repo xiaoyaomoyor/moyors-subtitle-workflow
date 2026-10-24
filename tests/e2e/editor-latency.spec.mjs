@@ -26,6 +26,32 @@ test.beforeEach(async({page})=>{
 });
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
+test('typing batches structural validation and changing styles preserves cards and cue focus',async({page})=>{
+  await page.evaluate(()=>{selectOnly(0);window.originalText=DATA.segments[0].text;window.textValidations=0;window.savedReconcile=MSWSubtitleTracks.reconcile;
+    MSWSubtitleTracks.reconcile=(...args)=>{textValidations++;return savedReconcile(...args);};
+    for(const text of ['Typing first','Typing second','Typing final']){cuePanelText.value=text;cuePanelText.dispatchEvent(new Event('input',{bubbles:true}));}
+  });
+  expect(await page.evaluate(()=>textValidations)).toBe(0);
+  await expect.poll(()=>page.evaluate(()=>textValidations)).toBe(1);
+  await page.evaluate(()=>{MSWSubtitleTracks.reconcile=savedReconcile;performUndo();});
+  expect(await page.evaluate(()=>DATA.segments[0].text)).toBe(await page.evaluate(()=>originalText));
+  await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('track');window.keptStyleCard=container.querySelector('.cue');});
+  await page.locator('#style-project-preset').selectOption('large');
+  expect(await page.evaluate(()=>keptStyleCard.isConnected)).toBe(true);
+  await page.locator('#style-edit-scope').selectOption('cue');
+  await page.locator('#style-project-preset').selectOption('default');
+  expect(await page.evaluate(()=>({same:keptStyleCard.isConnected,text:getCurrentCuePanelTarget()?.segment.text}))).toEqual({same:true,text:await page.evaluate(()=>originalText)});
+  await page.evaluate(()=>performUndo());
+  expect(await page.evaluate(()=>DATA.segments[0].subtitle_style)).toBeUndefined();
+  await page.evaluate(()=>performRedo());
+  expect(await page.evaluate(()=>DATA.segments[0].subtitle_style)).toBeTruthy();
+  const saved=await page.evaluate(()=>{
+    cuePanelText.value='Save immediately after typing';cuePanelText.dispatchEvent(new Event('input',{bubbles:true}));
+    return JSON.parse(buildJson()).subtitles.cues.find(c=>c.id===DATA.segments[0].id).content.text;
+  });
+  expect(saved).toBe('Save immediately after typing');
+});
+
 test('right-click and selection read live cues without converting or validating the entire project',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.evaluate(()=>{waveformEditor.closeDockModule('properties');selectOnly(0);});

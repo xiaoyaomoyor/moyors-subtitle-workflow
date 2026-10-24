@@ -14,6 +14,7 @@ test.beforeEach(async({page})=>{
     updateEditorSettings({autoSaveProject:false});
   },generateWaveformPayload(5000));
   await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle?.ready)).toBe(true);await toggleMediaSettings(page);
+  await page.locator('#subtitle-properties-open').click();
 });
 const library=page=>page.evaluate(()=>JSON.parse(localStorage.getItem('msw.subtitle-presets.v1')||'[]'));
 const snapshot=page=>page.evaluate(()=>JSON.parse(buildJson()));
@@ -47,8 +48,10 @@ test('preset identity survives group adaptation, parameter edits and overwrite w
   await page.evaluate(id=>{fixedAddTrack('subtitle');MSWSubtitleStyle.editTrack(DATA.subtitle_tracks.tracks.at(-1).id,false);},id);
   await page.locator('#style-project-preset').selectOption(id);
   const other=(await snapshot(page)).subtitles.tracks.at(-1).style.value;
-  await page.locator('#style-track-target').selectOption({label:'S1'});
+  await page.locator('#style-edit-scope').selectOption({label:'S1'});
+  await toggleMediaSettings(page);
   await page.locator('#style-preview-mode').selectOption('contrast');
+  await page.locator('#subtitle-properties-open').click();
   await editSize(page,88);
   await expect(page.locator('#style-project-preset option:checked')).toHaveText('我的大字 · 已修改');
   expect((await library(page))[0].main.fontSize).toBe(72);
@@ -61,13 +64,14 @@ test('preset identity survives group adaptation, parameter edits and overwrite w
   expect((await snapshot(page)).subtitles.tracks.at(-1).style.value).toEqual(other);
   await expect(page.locator('#style-preview-mode')).toHaveValue('contrast');
   const saved=await snapshot(page);await page.evaluate(p=>applyCanonicalProject(p,'reopen.mosp'),saved);
+  await page.evaluate(()=>MSWSubtitleStyle.open('track'));
   await expect(page.locator('#style-project-preset')).toHaveValue(id);
   await expect(page.locator('#style-field-fontSize')).toHaveValue('88');
-  const toolbar=await page.locator('.msw-style-toolbar').boundingBox(),selectors=await page.locator('.msw-style-selectors').boundingBox();
-  expect(toolbar.y+toolbar.height).toBeLessThan(selectors.y);
+  const target=await page.locator('#style-edit-scope').boundingBox(),selectors=await page.locator('.msw-style-selectors').boundingBox();
+  expect(target.y+target.height).toBeLessThan(selectors.y);
   for(const theme of ['alice','default']){
     await page.evaluate(theme=>{updateEditorSettings({themePreset:theme,colors:null});applyThemeAndColors();},theme);
-    await page.locator('#media-settings-modal').screenshot({path:info.outputPath(`style-${theme}.png`)});
+    await page.locator('#subtitle-properties').screenshot({path:info.outputPath(`style-${theme}.png`)});
   }
   expect(errors).toEqual([]);
 });
@@ -79,6 +83,7 @@ test('builtins stay readonly and old unsaved styles remain intact without a cust
   const saved=await snapshot(page);
   for(const track of saved.subtitles.tracks)track.style.selection='current';
   await page.evaluate(p=>applyCanonicalProject(p,'legacy-custom.mosp'),saved);
+  await page.evaluate(()=>MSWSubtitleStyle.open('track'));
   await expect(page.locator('#style-field-fontSize')).toHaveValue('99');
   await expect(page.locator('#style-project-preset option:checked')).toHaveText('未保存为预设');
   await expect(page.locator('#style-project-preset option:checked')).toHaveAttribute('disabled','');

@@ -269,7 +269,7 @@
     if(!ready||styleGeneration!==host.generation||!cueScope())return;
     try {
       const rows=selectedRows(),ids=rows.map(r=>r.cue_id);if(!ids.length)return;
-      commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
+      commitProcessingEdits();const before=global.MSWProductionProject.toProject(global.AsrEditorUtils.stripInlineCaches(host.data));
       let next=global.MSWFlatEditing.updateAppearance(before,ids,patch,options);
       if(patch.backgroundRadius>0) {
         const rectIds=rows.filter(r=>rowAppearance(r).backgroundShape==='rect').map(r=>r.cue_id);
@@ -290,7 +290,7 @@
         for(const batch of batches.values())next=global.MSWFlatEditing.updateAppearance(next,batch.ids,batch.appearance,{replace:true,presetId:options.presetId});
       }
       if(JSON.stringify(next)===JSON.stringify(before))return;
-      productionCommitProject(next,options.reset||options.replace&&!Object.keys(patch).length?'字幕恢复轨道外观':'修改所选字幕外观',ids);
+      productionCommitProject(next,options.reset||options.replace&&!Object.keys(patch).length?'字幕恢复轨道外观':'修改所选字幕外观',ids,{appearanceOnly:true});
       fixedPreviewInvalidate();global.dispatchEvent(new Event('msw:burn-style'));
       rebuild();sync();refresh();
     }catch(error){message(error.message,true);sync();}
@@ -317,7 +317,7 @@
   }
   function commitMotion(name,key,value){
     const context=motionContext();if(context.blocked)return;
-    commitProcessingEdits();const before=speakerScope()?null:global.MSWProductionProject.toProject(host.data);
+    commitProcessingEdits();const before=speakerScope()?null:global.MSWProductionProject.toProject(global.AsrEditorUtils.stripInlineCaches(host.data));
     const updates=context.items.map(item=>{
       if(key==='author'){
         if(value.type==='playhead'&&!item.preview)throw Error('当前轨道没有可参考的字幕');
@@ -365,7 +365,7 @@
       next=global.MSWFlatEditing.updateTrack(before,item.track.id,{style:{...before.subtitles.tracks.find(t=>t.id===item.track.id).style,mode:'snapshot',value:style}});
     }
     if(JSON.stringify(next)===JSON.stringify(before))return;
-    productionCommitProject(next,key==='reset'?'恢复轨道动画':'修改字幕动画',context.cue?updates.map(u=>u.id):[...fixedPositionSelectedIds()]);
+    productionCommitProject(next,key==='reset'?'恢复轨道动画':'修改字幕动画',context.cue?updates.map(u=>u.id):[...fixedPositionSelectedIds()],{appearanceOnly:true});
     fixedPreviewInvalidate();global.dispatchEvent(new Event('msw:burn-style'));rebuild();sync();refresh();
   }
   const motionUI=global.MSWSubtitleAnimationUI.create(motionRoot,{context:motionContext,commit:commitMotion,message:(text,error)=>message(text,error)});
@@ -467,7 +467,7 @@
     $('style-selection-label').textContent=cueScope()?(rows.length===1?fixedCueLabel(rows[0].cue,rows[0].role,rows[0].track_id):rows.length?`已选 ${rows.length} 条 · ${new Set(rows.map(r=>r.subtitle_track_id)).size} 轨`:'请选择字幕'):'';
     $('style-track-target').hidden=cueScope();
     restoreAppearance.hidden=!appearanceScope();restoreAppearance.disabled=blocked||!(speakerScope()?speaker()?.style:rows.some(r=>r.cue.subtitle_style));
-    restoreAppearance.title=speakerScope()?'恢复各轨道外观':'恢复继承外观';restoreAppearance.setAttribute('aria-label',restoreAppearance.title);
+    restoreAppearance.title=speakerScope()?'恢复说话人色系外观':'恢复继承外观';restoreAppearance.setAttribute('aria-label',restoreAppearance.title);
     $('style-animation').hidden=false;
     legacyAnimation.hidden=appearanceScope()||!motionContext().items.some(i=>i.legacy);
     $('style-track-position').hidden=speakerScope()||!fixedPresentationMode();
@@ -552,6 +552,7 @@
   function syncPosition() {
     if(speakerScope())return;
     if(!propertiesVisible()&&!fixedPositionEditing)return;
+    if(!fixedPositionEditing&&!$('style-more').open)return;
     $('style-position-drag').hidden=fixedPositionEditing;
     $('style-position-cancel').hidden=$('style-position-finish').hidden=!fixedPositionEditing;
     for(const id of ['style-position-scope','style-edit-scope','style-track-target','style-main','style-secondary'])$(id).disabled=fixedPositionEditing;
@@ -732,7 +733,7 @@
     if(settingsPanel.getAttribute('aria-hidden')==='true')cancelAction();
     if(ready){sync();fixedPreviewInvalidate();refresh();}
   }).observe(settingsPanel,{attributes:true,attributeFilter:['aria-hidden']});
-  $('style-more').addEventListener('toggle',()=>{if(ready){fixedPreviewInvalidate();refresh();}});
+  $('style-more').addEventListener('toggle',()=>{if(ready){syncPosition();refresh();}});
   function currentPreview() {
     if(fixedPositionEditing)return {style:projectStyle(),target:host.subtitlePreviewTarget(),scope:'project',label:'定位中：Esc取消，Enter完成'};
     if(override)return {...override,speakerLabels:$('video-export-speaker-labels').checked,trackIds:global.MSWVideoSubtitleScope?.ids()??null,scope:'export',label:'导出预览：'+override.label};

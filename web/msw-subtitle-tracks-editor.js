@@ -237,7 +237,7 @@ function fixedHitTrack(fromBottom) {
   if(productionFlatMode())return band.track.flat_style_slot==='secondary'?'extension':'main';
   return band.roles.find(role => view.positions.get(JSON.stringify([band.track.id, role])) === lane) || 'main';
 }
-function fixedCommitProject(next, label) {
+function fixedCommitProject(next, label, {appearanceOnly=false}={}) {
   if (pendingLinkedSplit) { fixedStatus('请先确认或取消当前切分'); return false; }
   try { window.MSWProductionProject.normalizeView(next);fixedTrackCore.validate(next); fixedTrackCore.assertLocks(DATA, next); }
   catch (error) { fixedStatus(error.message); return false; }
@@ -245,10 +245,15 @@ function fixedCommitProject(next, label) {
   DATA.subtitle_tracks = next.subtitle_tracks;
   DATA.subtitle_layers = next.subtitle_layers;
   fixedInvalidate(); projectImportDirty = true; fixedStatus();
-  renderAll({ waveform: 'full' }); scheduleAutoSaveFlush();
+  if(appearanceOnly) {
+    // Track style changes do not alter card text, geometry or selection.
+    fixedLastContent=fixedContent();fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+    refreshSubtitlePreview();
+  } else renderAll({ waveform: 'full' });
+  scheduleAutoSaveFlush();
   return true;
 }
-function productionCommitProject(project,label,ids=[],{displayOnly=false,recordHistory=true}={}) {
+function productionCommitProject(project,label,ids=[],{displayOnly=false,recordHistory=true,appearanceOnly=false}={}) {
   if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
   const panelId=getCurrentCuePanelTarget()?.segment.id;
   const next=window.MSWProductionProject.fromProject(project);
@@ -257,6 +262,20 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
     if(JSON.stringify(ordered(MSWProductionProject.toProject(DATA)))!==JSON.stringify(ordered(MSWProductionProject.toProject(next))))throw Error('显示操作不能修改字幕内容');
   } else fixedTrackCore.assertLocks(DATA,next);
   commitProcessingEdits();if(recordHistory)pushUndo(label,{captureView:true});
+  if(appearanceOnly) {
+    // The style editor changes only appearance/animation. Retain live cue and
+    // card identities instead of resetting selection and rebuilding the list.
+    const cues=new Map(layerCore.tracks(next).flatMap(s=>s.segments.map(c=>[c.id,c])));
+    for(const s of layerCore.tracks(DATA))for(const cue of s.segments) {
+      const source=cues.get(cue.id);
+      for(const key of ['subtitle_style','subtitle_style_preset','subtitle_animation']) {
+        if(source[key]!==undefined)cue[key]=source[key];else delete cue[key];
+      }
+    }
+    for(const track of DATA.subtitle_tracks.tracks)track.style=next.subtitle_tracks.tracks.find(t=>t.id===track.id).style;
+    fixedLastContent=fixedContent();fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+    fixedPreviewInvalidate();projectImportDirty=true;refreshSubtitlePreview();scheduleAutoSaveFlush();return;
+  }
   for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks','msw'])if(next[field])DATA[field]=next[field];
   // This transaction has already checked the canonical content/locks. Reset
   // the legacy operation checkpoint so a display-side change on locked tracks
