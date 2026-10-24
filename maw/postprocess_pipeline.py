@@ -955,6 +955,7 @@ def _run_step(
     llm_settings: Mapping[str, Mapping[str, str]] | None,
     track_scope: Mapping[str, object] | None = None,
     strip_tail_punct: str | None = None,
+    translation_progress_directory: Path | None = None,
 ) -> SubtitleArtifact:
     if track_scope is not None:
         from maw.launcher_processing import run_track_step
@@ -962,7 +963,8 @@ def _run_step(
                               media_path=media_path, env_path=env_path, ffmpeg_path=ffmpeg_path,
                               ocr_runtime_root=ocr_runtime_root, output_directory=output_directory,
                               cancel_event=cancel_event, on_event=on_event, llm_settings=llm_settings,
-                              strip_tail_punct=strip_tail_punct)
+                              strip_tail_punct=strip_tail_punct,
+                              translation_progress_directory=translation_progress_directory or output_directory)
     step_id = str(step["id"])
     output_mode = OutputMode.BOTH
     if step_id == "match":
@@ -1049,6 +1051,7 @@ def _run_step(
         _check_cancel(cancel_event)
         _emit(on_event, {"stage": "detail", "step": step_id, "key": key, **dict(details)})
 
+    from maw.translation_progress import fingerprint
     return run_llm_postprocess(LlmPostprocessRequest(
         project_path=project_path,
         srt_path=srt_path,
@@ -1059,6 +1062,9 @@ def _run_step(
         media_path=media_path,
         bilingual_line_order=str(step.get("bilingualLineOrder") or ""),
         strip_tail_punct=tail_strip_symbols(load_postprocess_plan(env_path)) if strip_tail_punct is None else strip_tail_punct,
+        translation_progress_path=(translation_progress_directory or output_directory) / 'translation-progress.json' if step_id == 'translate' else None,
+        translation_provider_fingerprint=fingerprint([settings.provider_id, settings.base_url,
+                                                      settings.model, settings.reasoning_mode]),
     ), complete=complete, on_status=on_status)
 
 
@@ -1440,6 +1446,10 @@ def _record_interrupted_run(
     directory: Path, manifest: dict[str, object], status: str, error: BaseException,
 ) -> None:
     manifest["status"] = status
+    for index, step in enumerate(manifest.get('steps', [])):
+        if isinstance(step, dict) and step.get('status') == 'running':
+            step['status'] = status
+            manifest['failedIndex'] = index
     try:
         _write_manifest(directory, manifest)
     except (OSError, UnicodeError) as save_error:

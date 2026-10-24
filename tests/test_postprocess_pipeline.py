@@ -78,7 +78,8 @@ class PostprocessPipelineTests(unittest.TestCase):
         self.assertEqual(error.failed_step, "translate")
         self.assertEqual(error.category, "file_write")
         self.assertIn("磁盘可用空间不足", str(error))
-        self.assertIn("translate-en.mosp", str(error))
+        # Progress is the first write after a verified translation batch.
+        self.assertIn("translation-progress.json", str(error))
         self.assertIn("恢复清单未能更新", "\n".join(error.__notes__))
         self.assertTrue(error.current_project.is_file())
         self.assertTrue(error.current_srt.is_file())

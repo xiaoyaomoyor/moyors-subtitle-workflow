@@ -140,7 +140,8 @@ def complete_subtitle_groups(
             last_error = f"JSON syntax error: {error.msg} at character {error.pos}"
             if attempt + 1 < MAX_RESPONSE_ATTEMPTS:
                 continue
-            raise LlmClientError(f"LLM returned invalid JSON after retry: {error}") from error
+            raise LlmClientError(f"LLM returned invalid JSON after retry: {error}",
+                                 category="response_format", operation="completion") from error
         protocol_error = _response_protocol_error(parsed)
         if protocol_error is not None:
             last_error = protocol_error
@@ -150,7 +151,8 @@ def complete_subtitle_groups(
             # discard only malformed groups and still write compliant cues.
             if isinstance(parsed, dict):
                 return parsed
-            raise LlmClientError(f"LLM response violates the JSON protocol after retry: {protocol_error}")
+            raise LlmClientError(f"LLM response violates the JSON protocol after retry: {protocol_error}",
+                                 category="response_format", operation="completion")
         return parsed
     raise AssertionError("LLM response retry loop did not return or raise")
 

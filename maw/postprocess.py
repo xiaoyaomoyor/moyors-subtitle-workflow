@@ -61,6 +61,8 @@ class LlmPostprocessRequest:
     embed_translations: bool = False
     bilingual_line_order: str = ""
     strip_tail_punct: str = ""
+    translation_progress_path: Path | None = None
+    translation_provider_fingerprint: str = ""
 
 
 class PostprocessStepError(RuntimeError):
@@ -281,7 +283,7 @@ def process_llm_snapshot(
     on_status: LlmStatus | None = None,
     allow_translation_noop: bool = False,
 ) -> LlmSnapshotResult:
-    """Process an immutable in-memory project without reading/writing artifacts.
+    """Process an immutable project, optionally retaining verified translation batches.
 
     The file workflow and editor jobs share the same batching, strict translation
     repair budget and timestamp validation. Callers wrap ``complete`` to cancel
@@ -334,6 +336,9 @@ def process_llm_snapshot(
                 )
             raise ValueError("工程没有可翻译的非空字幕，未写出输出产物。")
     batches = _llm_batches(cues)
+    from maw.translation_progress import TranslationProgress
+    progress = TranslationProgress(request.translation_progress_path if strict_translation else None,
+        [system_prompt, request.translation_provider_fingerprint, source_id_map, cues])
     _notify_status(on_status, "toolbox_status_preparing_llm")
     responses: list[Mapping[str, JsonValue]] = []
     skipped_source_ids: set[str] = set()
@@ -342,6 +347,20 @@ def process_llm_snapshot(
     for index, batch in enumerate(batches, 1):
         _notify_status(on_status, "toolbox_status_llm_batch", current=index, total=len(batches))
         if strict_translation:
+            cached = progress.get(batch)
+            if cached is not None:
+                try:
+                    cached, skipped, _, mode = _sanitize_llm_response(cached, batch, batch_number=index,
+                        strict_translation=True, item_aware_resegment=False)
+                    if skipped or mode != 'cues':
+                        cached = None
+                except (ValueError, TypeError):
+                    cached = None
+            if cached is not None:
+                responses.append(cached)
+                response_modes.append('cues')
+                _notify_status(on_status, "toolbox_status_llm_batch_done", current=index, total=len(batches))
+                continue
             repair_budget = _TranslationRepairBudget(
                 tuple(str(cue["id"]) for cue in batch)
             )
@@ -354,6 +373,8 @@ def process_llm_snapshot(
                 repair_budget=repair_budget,
             )
             response_mode = "cues"
+            if not batch_skipped:
+                progress.save(batch, clean_response)
         else:
             try:
                 response = complete(system_prompt, batch)
@@ -649,13 +670,18 @@ def _complete_strict_translation_batch(
     try:
         response = complete(prompt, batch)
     except RuntimeError as error:
-        first_id = batch[0]["id"] if batch else "?"
-        last_id = batch[-1]["id"] if batch else "?"
-        label = "对应关系重试" if is_repair else "处理"
-        raise _postprocess_step_error(
-            f"第 {batch_number}/{total_batches} 批{label}（{first_id}–{last_id}）失败：{error}",
-            error,
-        ) from error
+        if getattr(error, "category", "") == "response_format":
+            # No text from an unparseable response is trusted. Use the same
+            # bounded split/retry path as missing or misaligned cue IDs.
+            response = {"groups": []}
+        else:
+            first_id = batch[0]["id"] if batch else "?"
+            last_id = batch[-1]["id"] if batch else "?"
+            label = "对应关系重试" if is_repair else "处理"
+            raise _postprocess_step_error(
+                f"第 {batch_number}/{total_batches} 批{label}（{first_id}–{last_id}）失败：{error}",
+                error,
+            ) from error
     clean_response, skipped, warnings, response_mode = _sanitize_llm_response(
         response,
         batch,
@@ -705,6 +731,8 @@ def _complete_strict_translation_batch(
         try:
             repair_response = complete(_missing_translation_retry_prompt(system_prompt), missing_batch)
         except RuntimeError as error:
+            if getattr(error, "category", "") == "response_format":
+                continue
             cue_id = missing_batch[0]["id"]
             raise _postprocess_step_error(
                 f"第 {batch_number}/{total_batches} 批对应关系重试（{cue_id}）失败：{error}",
