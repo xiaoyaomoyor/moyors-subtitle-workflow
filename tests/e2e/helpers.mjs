@@ -343,7 +343,7 @@ async function launchServerProcess(pythonArgs, port, env, { waitForStartup = fal
         callback();
       };
       const timeout = setTimeout(() => {
-        finish(() => reject(new Error('Server did not respond within 30s')));
+        finish(() => reject(new Error(`Server did not respond within 30s. Output: ${allOutput.join('').slice(-4000)}`)));
       }, 30000);
       proc.stdout.on('data', (chunk) => allOutput.push(chunk.toString()));
       proc.stderr.on('data', (chunk) => allOutput.push(chunk.toString()));
@@ -402,14 +402,14 @@ async function launchServerProcess(pythonArgs, port, env, { waitForStartup = fal
   };
 }
 
-export async function startServer(projectJsonPath, mediaPath, port) {
+export async function startServer(projectJsonPath, mediaPath, port, { loadWaveform = false } = {}) {
   const settingsRoot = join(dirname(projectJsonPath), '.settings');
   mkdirSync(settingsRoot, { recursive: true });
   const pythonArgs = [
     'server-editor/serve.py',
     projectJsonPath,
     '-m', mediaPath,
-    '--no-waveform',
+    ...(loadWaveform ? [] : ['--no-waveform']),
     '--port', String(port),
     '--no-open',
   ];

@@ -288,6 +288,10 @@ class GenerateReapeaksTests(unittest.TestCase):
     """生成 → 解析 往返：验证 MAW 能自建 .ReaPeaks 并被只读路径读取。"""
 
     def setUp(self) -> None:
+        # These cases assert the per-video layout, independent of user settings.
+        layout = mock.patch('maw.output_naming.subfolder_prefs', return_value=(True, True))
+        layout.start()
+        self.addCleanup(layout.stop)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_dir.name).resolve()
         self.tone_path = self.root / "tone.wav"

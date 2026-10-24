@@ -137,6 +137,8 @@ class MipMap:
     loudness: list[list[tuple[float, float]]] = field(default_factory=list)
     # 仅 kind == 'self_wave' 时有值
     self_layer: SelfWaveLayer | None = None
+    data_offset: int = 0
+    data_size: int = 0
 
 
 def _kind_for(div: int) -> str:
@@ -165,9 +167,12 @@ class ReapeaksFile:
 
     All multi-byte integers are little-endian; v1.1+ store per-peak min/max
     pairs, v1.2 stores float-range pairs, v1.0 stores mirrored min == -max.
+
+    ``decode=False`` validates the whole layout and indexes each layer without
+    expanding peaks. Payload readers then consume only the layer they need.
     """
 
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, *, decode: bool = True) -> None:
         self.path = path
         with open(path, "rb") as f:
             self.data = f.read()
@@ -199,7 +204,7 @@ class ReapeaksFile:
         )
         self.mipmaps: list[MipMap] = []
         self._parse_headers()
-        self._parse_data()
+        self._parse_data(decode=decode)
 
     # ------------- headers -------------
     def _parse_headers(self) -> None:
@@ -214,20 +219,35 @@ class ReapeaksFile:
             off += 8
 
     # ------------- data -------------
-    def _parse_data(self) -> None:
+    def _parse_data(self, *, decode: bool = True) -> None:
         off = 18 + 8 * self.mipmap_count
         for mip in self.mipmaps:
-            if mip.kind == "wave":
-                off = self._read_wave(mip, off)
-            elif mip.kind == "spectral":
-                off = self._read_spectral(mip, off)
-            elif mip.kind == "spectrogram":
-                off = self._read_spectrogram(mip, off)
-            elif mip.kind == "loudness":
-                off = self._read_loudness(mip, off)
-            elif mip.kind == "self_wave":
-                off = self._read_self_wave(mip, off)
+            # Validate every layer even for metadata-only reads. Checking a
+            # fingerprint must not allocate millions of unrelated peak objects.
+            if mip.kind == "self_wave":
+                if not (self.is_quapeaks or self.is_mopeaks):
+                    raise ValueError(f"{self.path}: 自研波形层用于非自有容器，拒绝猜测")
+                size = SELF_WAVE_PREFIX_LEN + mip.peak_count * SELF_WAVE_BYTES_PER_PEAK
+            else:
+                width = {"wave": 2 if self.magic == MAGIC_V10 else 4,
+                         "spectral": 4, "spectrogram": 192, "loudness": 4}[mip.kind]
+                size = mip.peak_count * self.channels * width
+            if off + size > len(self.data):
+                label = "自研波形层" if mip.kind == "self_wave" else mip.kind
+                error = ValueError if mip.kind == "self_wave" else struct.error
+                raise error(f"{self.path}: {label} 数据被截断")
+            if mip.kind == "self_wave":
+                sample_rate, division = struct.unpack_from("<II", self.data, off)
+                if sample_rate <= 0 or division <= 0:
+                    raise ValueError(f"{self.path}: 自研波形层刻度无效")
+            mip.data_offset, mip.data_size = off, size
+            if decode:
+                getattr(self, "_read_" + mip.kind)(mip, off)
+            off += size
         self.data_end = off
+
+    def layer_data(self, mip: MipMap) -> memoryview:
+        return memoryview(self.data)[mip.data_offset:mip.data_offset + mip.data_size]
 
     def _read_wave(self, mip: MipMap, off: int) -> int:
         for _ in range(mip.peak_count):
@@ -495,7 +515,7 @@ def find_reapeaks_hit(
                 )
             if _header_matches_media(candidate, media_path):
                 try:
-                    parsed = ReapeaksFile(str(candidate))
+                    parsed = ReapeaksFile(str(candidate), decode=False)
                     if not parsed.mipmaps:
                         continue
                 except (OSError, ValueError, IndexError, struct.error):
@@ -529,7 +549,7 @@ def find_self_wave_container(
         return None
     container = hit.path
     try:
-        ra = ReapeaksFile(str(container))
+        ra = ReapeaksFile(str(container), decode=False)
     except (OSError, ValueError, IndexError, struct.error):
         return None
     if not ra.self_wave_mipmaps():
@@ -561,34 +581,32 @@ def load_self_wave_payload(
         return None
     container = hit.path
     try:
-        parsed = ReapeaksFile(str(container))
+        parsed = ReapeaksFile(str(container), decode=False)
         if not _reapeaks_matches_media(container, media_path):
             return None
         layers = parsed.self_wave_mipmaps()
-        layer = layers[0].self_layer if layers else None
+        layer = layers[0] if layers else None
     except (OSError, ValueError, IndexError, struct.error):
         return None
-    if layer is None or not layer.peaks:
+    if layer is None or not layer.peak_count:
         return None
-    peaks_per_second_actual = round(layer.sample_rate / layer.division)
+    sample_rate, division = struct.unpack_from("<II", parsed.data, layer.data_offset)
+    peaks_per_second_actual = round(sample_rate / division)
     if peaks_per_second is not None and peaks_per_second != peaks_per_second_actual:
         return None
-    raw = bytearray(len(layer.peaks) * SELF_WAVE_BYTES_PER_PEAK)
-    for index, (low, high) in enumerate(layer.peaks):
-        raw[index * 2] = low & 0xFF
-        raw[index * 2 + 1] = high & 0xFF
+    raw = parsed.layer_data(layer)[SELF_WAVE_PREFIX_LEN:]
     return {
         "schema": waveform_module.WAVEFORM_SCHEMA,
         "encoding": waveform_module.WAVEFORM_ENCODING,
         "peaks_per_second": peaks_per_second_actual,
-        "sample_rate": layer.sample_rate,
-        "division": layer.division,
+        "sample_rate": sample_rate,
+        "division": division,
         "audio_track": hit.audio_track,
-        "peak_count": len(layer.peaks),
+        "peak_count": layer.peak_count,
         "duration_ms": round(
-            len(layer.peaks) * layer.division / layer.sample_rate * 1000
+            layer.peak_count * division / sample_rate * 1000
         ),
-        "data": base64.b64encode(bytes(raw)).decode("ascii"),
+        "data": base64.b64encode(raw).decode("ascii"),
         "source": waveform_module.media_signature(media_path),
     }
 
@@ -627,7 +645,7 @@ def extract_spectral_payload(
     payload size stays comparable to the waveform cache. Channel 0 is used for
     display; the source signature is that of the media itself.
     """
-    ra = ReapeaksFile(str(reapeaks_path))
+    ra = ReapeaksFile(str(reapeaks_path), decode=False)
     pairs = _paired_spectral_rates(ra)
     if not pairs:
         return None
@@ -637,10 +655,9 @@ def extract_spectral_payload(
     else:
         eff_div, spectral = min(pairs, key=lambda pair: pair[0])
     buffer = bytearray()
-    for peak in spectral.spectral:
-        freq, density = peak[0]  # channel 0 for display
-        freq = max(0, min(0x7FFF, freq))
-        density = max(0, min(0x3FFF, density))
+    for peak in struct.iter_unpack('<' + 'i' * ra.channels, ra.layer_data(spectral)):
+        value = peak[0]  # channel 0 for display
+        freq, density = value & 0x7FFF, (value >> 15) & 0x3FFF
         buffer += struct.pack("<HH", freq, density)
     return {
         "schema": SPECTRAL_SCHEMA,
@@ -694,11 +711,12 @@ def extract_loudness_stats(
     正弦约 ×0.71、语音约 ×0.2~0.3），所以按它定标尺会让最响的瞬态画出画框 ——
     这正是本功能的取舍：要大部分时间不削波，而不是全程不削波。
     """
-    ra = ReapeaksFile(str(reapeaks_path))
+    ra = ReapeaksFile(str(reapeaks_path), decode=False)
     layers = ra.loudness_mipmaps()
     if not layers:
         return None
     finest = max(layers, key=lambda mip: mip.peak_count)
+    ra._read_loudness(finest, finest.data_offset)
     values = _loudness_bin_values(finest)
     if not values:
         return None
@@ -760,24 +778,29 @@ def extract_waveform_payload(
     division is exact) so that consumers which have not migrated still draw
     correctly.
     """
-    ra = ReapeaksFile(str(reapeaks_path))
+    ra = ReapeaksFile(str(reapeaks_path), decode=False)
     wave_mips = ra.wave_mipmaps()
     if not wave_mips:
         return None
     finest = wave_mips[0]
     div = abs(finest.division_factor)
-    if div <= 0 or not finest.wave:
+    if div <= 0 or not finest.peak_count:
         return None
-    buffer = bytearray()
-    for peak_row in finest.wave:
-        low = 127
-        high = -127
-        for peak in peak_row:
-            low = min(low, _wave_to_int8(peak.min))
-            high = max(high, _wave_to_int8(peak.max))
-        if not peak_row:  # 声道数为 0 的损坏文件：留一条中线而不是画反的包络
-            low = high = 0
-        buffer += bytes((low & 0xFF, high & 0xFF))
+    # The integer/float-range quantization is monotone. Merge channels before
+    # quantizing, without constructing Peak/list objects for the whole media.
+    quantize = [_wave_to_int8(_rpk_munge(n) if ra.is_v12 else n) for n in range(-32768, 32768)]
+    buffer = bytearray(finest.peak_count * 2)
+    width = ra.channels * (1 if ra.magic == MAGIC_V10 else 2)
+    for index, row in enumerate(struct.iter_unpack('<' + 'h' * width, ra.layer_data(finest))):
+        if ra.magic == MAGIC_V10:
+            high_value = max(row)
+            low_value = -high_value
+        else:
+            high_value, low_value = max(row[0::2]), min(row[1::2])
+        low = quantize[low_value + 32768] if low_value <= 32767 else _wave_to_int8(low_value)
+        high = quantize[high_value + 32768]
+        buffer[index * 2] = low & 0xFF
+        buffer[index * 2 + 1] = high & 0xFF
     exact_rate = ra.sample_rate / div
     return {
         "schema": waveform_module.WAVEFORM_SCHEMA,
@@ -787,8 +810,8 @@ def extract_waveform_payload(
         ),
         "sample_rate": ra.sample_rate,
         "division": div,
-        "peak_count": len(finest.wave),
-        "duration_ms": round(len(finest.wave) * div / ra.sample_rate * 1000),
+        "peak_count": finest.peak_count,
+        "duration_ms": round(finest.peak_count * div / ra.sample_rate * 1000),
         "audio_track": audio_track,
         "source": waveform_module.media_signature(media_path),
         "data": base64.b64encode(bytes(buffer)).decode("ascii"),
@@ -814,7 +837,7 @@ def _reapeaks_matches_media(reapeaks_path: Path | str, media_path: Path | str) -
     跨盘拷贝导致的秒级 / 恰好一小时的 mtime 漂移不应误杀缓存。
     """
     try:
-        ra = ReapeaksFile(str(reapeaks_path))
+        ra = ReapeaksFile(str(reapeaks_path), decode=False)
     except (OSError, struct.error, ValueError, IndexError):
         return False
     if ra.src_timestamp == 0 and ra.src_filesize == 0:
@@ -850,7 +873,7 @@ UINT32_MASK = _UINT32_MASK
 def _reapeaks_contains_spectral(reapeaks_path: Path | str) -> bool:
     """Return whether a readable cache contains at least one spectral mipmap."""
     try:
-        return bool(ReapeaksFile(str(reapeaks_path)).spectral_mipmaps())
+        return bool(ReapeaksFile(str(reapeaks_path), decode=False).spectral_mipmaps())
     except (OSError, struct.error, ValueError, IndexError):
         return False
 
@@ -1149,7 +1172,7 @@ def _self_check(container: Path, *, want_self_wave: bool) -> bool:
     的 candidates 注释）。读取端各自按自己的口径校验，生成端不替它做决定。
     """
     try:
-        ra = ReapeaksFile(str(container))
+        ra = ReapeaksFile(str(container), decode=False)
     except (OSError, ValueError, IndexError, struct.error) as exc:
         print(f"[reapeaks] 自检失败：{container.name} 无法解析（{exc}）")
         return False
