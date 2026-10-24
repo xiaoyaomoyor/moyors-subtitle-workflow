@@ -119,6 +119,8 @@ def validate(project):
         validate_speakers(project['preview']['speaker_palette'])
         if 'speaker_label_export' in project['preview'] and type(project['preview']['speaker_label_export']) is not bool:
             _fail('说话人名称导出选项无效')
+    if isinstance(project.get('preview'), dict) and 'speaker_labels_visible' in project['preview'] and type(project['preview']['speaker_labels_visible']) is not bool:
+        _fail('说话人名称预览选项无效')
     if any(k in project for k in STRUCTURAL):
         _fail("新工程不能同时保存旧主副正文或归属")
     if "timebase" in project:

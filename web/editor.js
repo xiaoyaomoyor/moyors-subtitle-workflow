@@ -1995,6 +1995,7 @@ function snapshotPreviewState() {
     extensionSubtitle: { ...getStoredExtensionSubtitleAppearance() },
     sticker: { ...getStickerGeometry() },
     speakerPalette: structuredClone(DATA.preview?.speaker_palette),
+    speakerLabelsVisible: DATA.preview?.speaker_labels_visible,
     speakerExport: { exportSpeakerLabels: EDITOR_SETTINGS.exportSpeakerLabels,
       exportSpeakerLabelsExplicit: EDITOR_SETTINGS.exportSpeakerLabelsExplicit },
   };
@@ -2011,6 +2012,8 @@ function applyPreviewState(state) {
   if (state.extensionSubtitle) restoreExtensionSubtitleAppearance(state.extensionSubtitle, { markDirty: true });
   if (state.sticker) setStickerGeometry(state.sticker, { markDirty: true });
   if(state.speakerPalette){DATA.preview.speaker_palette=structuredClone(state.speakerPalette);rebuildEditorColorPalette();if(typeof fixedPreviewInvalidate==='function')fixedPreviewInvalidate();}
+  if(typeof state.speakerLabelsVisible==='boolean')DATA.preview.speaker_labels_visible=state.speakerLabelsVisible;else delete DATA.preview.speaker_labels_visible;
+  window.dispatchEvent(new Event('msw:speakers-changed'));
   if (state.speakerExport) { updateEditorSettings(state.speakerExport); syncSpeakerControls(); }
   refreshPreviewGeometryEditable();
   update();
@@ -15322,7 +15325,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
     ? MULTI_SUBTITLE_UTILS.effectiveColorName(seg, DATA.segments)
     : null;
   const speakerProfile = window.MSWSpeaker.profile(DATA,seg,DATA.segments[seg?.color_ref?.headIdx]);
-  const speakerLabel = mainVisible && speakerProfile?.mode==='speaker'
+  const speakerLabel = mainVisible && !!window.MSWSpeaker.prefix(DATA,speakerProfile)
     ? window.AsrEditorUtils.speakerLabelForSegment(
       seg, DATA.segments, speakerLabels.names,
     )
@@ -15374,7 +15377,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const overlayColorContext = getOverlayTrack()?.segments || [];
   const overlayProfile=window.MSWSpeaker.profile(DATA,overlayCue,overlayColorContext[overlayCue?.color_ref?.headIdx]);
   const overlaySpeakerLabel = overlayCueVisible
-    && overlayProfile?.mode==='speaker'
+    && !!window.MSWSpeaker.prefix(DATA,overlayProfile)
     ? window.AsrEditorUtils.speakerLabelForSegment(
       overlayCue, overlayColorContext, speakerLabels.names,
     )
@@ -15692,7 +15695,7 @@ let EXPORT_KEEP_DISABLED_PLACEHOLDER = false;
 
 function speakerSettings() {
   const palette=window.MSWSpeaker.ensure(DATA);
-  return {mapping_enabled:true,enabled:true,separator:'：',names:Object.fromEntries(palette.rows.map(r=>[r.id,r.name])),palette};
+  return {mapping_enabled:true,enabled:true,separator:'：',names:Object.fromEntries(palette.rows.map(r=>[r.id,r.name])),palette,visible:DATA.preview?.speaker_labels_visible};
 }
 function speakerExportOptions() {
   const rows=speakerSettings().palette.rows;
@@ -15729,10 +15732,12 @@ function syncSpeakerControls() {
   create(null,0);palette.rows.forEach((entry,i)=>create(entry,i+1));
   document.getElementById('speaker-palette-add').disabled=palette.rows.length>=1024;
 }
-function speakerPaletteChanged() {
-  previewGeometryDirty=true;rebuildEditorColorPalette();syncSpeakerControls();
+function speakerPaletteChanged({appearanceOnly=false}={}) {
+  previewGeometryDirty=true;
+  if(!appearanceOnly){rebuildEditorColorPalette();syncSpeakerControls();renderAll({waveform:'full'});}
   if(typeof fixedPreviewInvalidate==='function')fixedPreviewInvalidate();
-  renderAll({waveform:'full'});refreshSubtitlePreview();window.MSWSubtitleRenderer?.invalidate();scheduleAutoSaveFlush();
+  refreshSubtitlePreview();window.MSWSubtitleRenderer?.invalidate();scheduleAutoSaveFlush();
+  window.dispatchEvent(new Event('msw:speakers-changed'));
 }
 document.getElementById('speaker-palette-add').onclick=()=>{
   const palette=window.MSWSpeaker.ensure(DATA);if(palette.rows.length>=1024)return;
@@ -23126,6 +23131,9 @@ function appendSpeakerMarkMenu(assign) {
   const swatches=document.createElement('div');swatches.className='speaker-mark-swatches';
   COLOR_PALETTE.forEach((c,i)=>{const button=document.createElement('button');button.type='button';button.style.backgroundColor=c.value;
     button.title=c.label+(i<9?'（'+(i+1)+'）':'');button.setAttribute('aria-label',button.title);button.dataset.speaker=c.name;
+    const name=c.label.trim(),rgb=c.value.slice(1).match(/../g).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);
+    button.textContent=typeof Intl.Segmenter==='function'?[...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(name)][0]?.segment||'':Array.from(name)[0]||'';
+    button.style.color=(.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2])>.179?'#111111':'#ffffff';
     button.onclick=e=>{e.stopPropagation();ctxmenu.classList.remove('show');assign(c.name);};swatches.append(button);});row.append(swatches);
   ctxAppendExpandableSettings('标记字幕',[{node:row},{label:'清除颜色',action:()=>assign(null)}]);
 }
@@ -26134,7 +26142,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   },
   persistStyleMigration: () => { previewGeometryDirty = true; projectImportDirty = true; scheduleAutoSaveFlush(); },
   refreshStylePreview: () => refreshSubtitlePreview(),
-  subtitleRenderSettings: () => ({speakerPalette:DATA.preview?.speaker_palette,...speakerExportOptions(),colorStyles:COLOR_PALETTE,assColorStyle:getSubtitleAppearance().ass_color_style}),
+  subtitleRenderSettings: () => ({speakerPalette:DATA.preview?.speaker_palette,speakerLabelsVisible:DATA.preview?.speaker_labels_visible,...speakerExportOptions(),colorStyles:COLOR_PALETTE,assColorStyle:getSubtitleAppearance().ass_color_style}),
   subtitlePreviewTarget: () => {
     const main=overlayToggle.checked&&!subtitleTrackMuted('main');
     const secondary=extensionOverlayToggle?.checked&&DATA.multi_subtitle?.enabled&&!subtitleTrackMuted('extension');

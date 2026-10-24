@@ -3,6 +3,7 @@
 Names and RGB values are editable attributes, never the identity of a speaker.
 """
 import re
+from maw.msw import cue_style, subtitle_animation
 
 MODES = {'none', 'text', 'stroke', 'background', 'speaker'}
 
@@ -24,6 +25,10 @@ def validate(value):
                 raise ValueError('说话人名称或分隔符无效')
         if not isinstance(row.get('mode'), str) or row['mode'] not in MODES or not isinstance(row.get('color'), str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', row['color']):
             raise ValueError('说话人颜色或着色模式无效')
+        if 'style' in row and not cue_style.valid(row['style']) or 'animation' in row and not subtitle_animation.valid(row['animation']):
+            raise ValueError('说话人样式或动画参数无效')
+        if 'style_preset' in row and (not isinstance(row['style_preset'], str) or len(row['style_preset']) > 160):
+            raise ValueError('说话人样式预设无效')
     return value
 
 
@@ -35,7 +40,8 @@ def profiles(project):
 def prefix(project, row):
     if not row:
         return ''
-    show = (project.get('preview') or {}).get('speaker_label_export')
+    preview = project.get('preview') or {}
+    show = preview.get('speaker_label_export', preview.get('speaker_labels_visible'))
     return row['name'] + row['separator'] if (show if type(show) is bool else row['mode'] == 'speaker') else ''
 
 
@@ -52,4 +58,8 @@ def appearance(style, cue, row):
             result['backgroundShape'] = 'rounded'
         if 'backgroundOpacity' not in overrides and not result.get('backgroundOpacity'):
             result['backgroundOpacity'] = 80
+    result.update(row.get('style') or {})
+    result.update(overrides)
+    if row.get('animation'):
+        result['animation'] = subtitle_animation.resolve(style.get('animation'), row['animation'])
     return result

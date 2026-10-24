@@ -1090,10 +1090,15 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 | `color` | `#RRGGBB` 指定颜色 |
 | `mode` | `none` / `text` / `stroke` / `background` / `speaker` |
 | `separator` | 名称与正文间的分隔符，0–16 字符，不含控制字符 |
+| `style` | 可选的部分外观覆盖，字段与单条 `subtitle_style` 相同；不包含轨道位置、边距或锚点 |
+| `style_preset` | 可选的预设 ID，仅记录编辑来源；实际外观由 `style` 保存 |
+| `animation` | 可选动画覆盖，与 `subtitle_animation` 使用同一校验和按效果继承规则 |
 
 默认五行 SP1–SP5、旧五色色值、不着色、分隔符 `：`。可添加至 1024 行。第 0 行是界面的批量操作，不写入 `rows`。当前 `color.name` / `color_ref.name` 存储说话人行的稳定 ID；沿用前五个 ID `yellow/green/red/purple/blue`，新增一般为 `speaker-N`。同色、同名的两行仍是不同身份。原始 ASR `speaker` 元数据不改变；旧工程已有颜色标记按 ID 迁入，不从 RGB 反推或改写人工标记。
 
-`mode` 只决定画面着色，`none` 保留字幕块标记。单条 `subtitle_style` 的对应颜色覆盖优先；背景色使用现有 ASS 背景形状，没有形状时采用圆角框。`speaker` 模式预览显示名称前缀并仅着色名称，其余模式只显示正文。SRT、ASS 和视频导出独立选择是否添加名称；ASS/视频请求使用 `preview.speaker_label_export` 布尔值覆盖预览规则，这个临时字段不属于普通工程保存。名称和前缀从不写回正文、TTS 文本或原始识别身份。每人的分隔符独立保存；按说话人分别导出时文件后缀可用名称，重名自动消歧、非法文件名字符自动替换。
+外观优先级为轨道默认 → `mode` 着色 → 说话人 `style` → 单条 `subtitle_style`。`none` 保留字幕块标记；背景着色没有形状时采用圆角框。动画按轨道 → 说话人 → 单条逐效果继承。改动说话人不逐条复制样式，后来标记的字幕同样生效；位置仍由轨道和单条管理。
+
+媒体播放器设置的“在预览中显示说话人”保存为 `preview.speaker_labels_visible` 布尔值，与着色模式独立。缺省时保持旧规则：只有 `speaker` 模式显示前缀。该模式只给名称着色；其他模式显示名称时使用正文外观。SRT、ASS 和视频导出独立选择是否添加名称；ASS/视频请求使用 `preview.speaker_label_export` 布尔值覆盖预览规则，这个临时字段不属于普通工程保存。名称和前缀从不写回正文、TTS 文本或原始识别身份。每人的分隔符独立保存；按说话人分别导出时文件后缀可用名称，重名自动消歧、非法文件名字符自动替换。
 
 以下 beta.3/beta.6 字段仅用于读取旧工程；一旦存在 `speaker_palette`，以新表格为准。
 

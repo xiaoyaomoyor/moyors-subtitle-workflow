@@ -123,6 +123,7 @@
       timing.value=A.timingMode(first);timing.disabled=c.blocked;
       $('motion-slide-direction').value=first.effects.slide.direction;
       inherit.hidden=!c.cue;inherit.disabled=c.blocked||!c.items.some(i=>i.override);
+      inherit.title=inherit.ariaLabel=c.inheritLabel||'恢复轨道动画';
       for(const name of Object.keys(labels)){
         const button=$('motion-preset-'+name),enabled=first.effects[name].enabled;
         button.setAttribute('aria-pressed',String(enabled));button.disabled=c.blocked||custom;

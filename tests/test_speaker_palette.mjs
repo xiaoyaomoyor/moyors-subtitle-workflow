@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import speakers from '../web/msw-speaker.js';
 import flat from '../web/msw-flat-subtitles.js';
+import motion from '../web/msw-subtitle-animation.js';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const context={window:{},TextDecoder,TextEncoder,Uint8Array};
@@ -34,4 +35,21 @@ test('palette persists in native projects; validation and cue style precedence a
   assert.equal(speakers.appearance({backgroundShape:'none'}, {}, row).backgroundShape,'rounded');
   assert.equal(speakers.appearance({backgroundColor:'#abcdef'},{subtitle_style:{backgroundColor:'#abcdef'}},row).backgroundColor,'#abcdef');
   p.preview.speaker_palette.rows[0].mode='invalid';assert.throws(()=>flat.validate(p),/说话人/);
+});
+
+test('speaker appearance and animation inherit from track and yield to cue overrides',()=>{
+  const p={preview:{}},profile=speakers.ensure(p).rows[0];
+  profile.mode='text';profile.style={fontSize:72,primaryColor:'#abcdef',latinFontName:'Arial'};
+  profile.animation={schema:motion.schema,effects:{fade:{...motion.defaults().effects.fade,enabled:true}}};
+  assert.equal(speakers.valid(p.preview.speaker_palette),true);
+  const base={fontSize:40,primaryColor:'#ffffff',outline:3};
+  const result=speakers.appearance(base,{subtitle_style:{fontSize:55}},profile);
+  assert.equal(result.fontSize,55);assert.equal(result.primaryColor,'#abcdef');assert.equal(result.outline,3);
+  assert.equal(result.animation.effects.fade.enabled,true);assert.equal(base.fontSize,40);
+  for(const patch of [{style:{fontSize:-5}},{style:{marginV:10}},{animation:{schema:motion.schema,effects:{bogus:{}}}}]){
+    assert.equal(speakers.valid({version:1,rows:[{...profile,...patch}]}),false);
+  }
+  assert.equal(speakers.prefix(p,profile),'');p.preview.speaker_labels_visible=true;
+  assert.equal(speakers.prefix(p,profile),'SP1：');p.preview.speaker_label_export=false;
+  assert.equal(speakers.prefix(p,profile),'');
 });

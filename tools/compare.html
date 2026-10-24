@@ -1852,6 +1852,7 @@
     const speakers=global.MSWSpeaker||(typeof require==='function'?require('./msw-speaker.js'):null);
     if(project.preview&&Object.hasOwn(project.preview,'speaker_palette')&&speakers&&!speakers.valid(project.preview.speaker_palette))fail('说话人色系配置无效');
     if(project.preview?.speaker_label_export!==undefined&&typeof project.preview.speaker_label_export!=='boolean')fail('说话人名称导出选项无效');
+    if(project.preview?.speaker_labels_visible!==undefined&&typeof project.preview.speaker_labels_visible!=='boolean')fail('说话人名称预览选项无效');
     if(structural.some(k=>Object.hasOwn(project,k)))fail('新工程不能同时保存旧主副正文或归属');
     if(Object.hasOwn(project,'timebase')&&(!object(project.timebase)||!['milliseconds','frames'].includes(project.timebase.unit)
       ||typeof project.timebase.fps!=='number'||project.timebase.fps<1||project.timebase.fps>240))fail('时间基准无效');

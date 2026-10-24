@@ -5,6 +5,8 @@ from maw.msw.flat_subtitles import migrate_project, validate
 from maw.msw.speaker_palette import validate as validate_palette
 from maw.msw.subtitle_preview import preview_ass
 from maw.msw.subtitle_style import styled_ass
+from maw.msw.track_presentation import layout
+from maw.msw import subtitle_animation as animation
 from maw.speaker import apply_speaker_colors, inherit_speaker_color
 
 
@@ -55,3 +57,26 @@ class SpeakerPaletteTests(unittest.TestCase):
         p=self.project();del p['preview']['speaker_palette']
         p['subtitles']['cues'][0]['content']['color']['value']='#123456'
         self.assertIn('563412',preview_ass(dict(project=p,video=dict(width=640,height=360)))['ass'])
+
+    def test_speaker_style_and_animation_apply_across_tracks_and_survive_roundtrip(self):
+        import json
+        p=self.project();row=p['preview']['speaker_palette']['rows'][0]
+        row['style']={'fontSize':72,'primaryColor':'#abcdef','latinFontName':'Arial'}
+        row['animation']={'schema':animation.SCHEMA,'effects':{'fade':{**animation.DEFINITIONS['fade'],'enabled':True}}}
+        track=copy.deepcopy(p['subtitles']['tracks'][0]);track['id']='extra';track['display_number']=2
+        p['subtitles']['tracks'].append(track)
+        cue=copy.deepcopy(p['subtitles']['cues'][0]);cue.update(id='b',track_id='extra')
+        cue['content']['subtitle_style']={'fontSize':55};p['subtitles']['cues'].append(cue)
+        p=json.loads(json.dumps(p));validate(p)
+        entries=layout(p)
+        self.assertEqual(sorted(r['style']['fontSize'] for r in entries),[55,72])
+        self.assertTrue(all(r['style']['primaryColor']=='#abcdef' and r['motion']['effects']['fade']['enabled'] for r in entries))
+        video=dict(width=640,height=360);plan=dict(intervals=[dict(start_ms=0,end_ms=2000,output_start_ms=0)])
+        self.assertEqual(preview_ass(dict(project=p,video=video,plan=plan))['ass'],styled_ass(p,plan,'both',video))
+        self.assertIn('Arial',preview_ass(dict(project=p,video=video))['ass'])
+        p['preview']['speaker_labels_visible']=True
+        self.assertIn('Alice / ',preview_ass(dict(project=p,video=video))['ass'])
+        p['preview']['speaker_label_export']=False
+        self.assertNotIn('Alice / ',preview_ass(dict(project=p,video=video))['ass'])
+        p['preview']['speaker_palette']['rows'][0]['style']['fontSize']=-1
+        with self.assertRaises(ValueError):validate(p)

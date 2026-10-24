@@ -29,6 +29,18 @@ def wav_data():
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_save_waits_for_brief_status_read_lock(self):
+        import threading
+        context=self.api.context()
+        self.server.save_lock.acquire()
+        release=threading.Timer(.05,self.server.save_lock.release)
+        release.start()
+        try:
+            target, _ = self.server.save_project(self.server.project.data, expected_binding=context['binding'], expected_revision=context['saveRevision'])
+            self.assertEqual(target,self.path)
+        finally:
+            release.join()
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

@@ -175,7 +175,6 @@ def layout(project, width=1920):
             if background.enabled(row['style']):
                 row['style']['borderStyle'] = 1
             row['animations'] = own_style['animations']
-            row['motion'] = subtitle_animation.resolve(row['style'].get('animation'), row['cue'].get('subtitle_animation'))
             cue = row['cue']
             if flat:
                 head = cues.get((cue.get('color_ref') or {}).get('cue_id'), {})
@@ -193,6 +192,7 @@ def layout(project, width=1920):
             else:
                 label = (labels.get('names') or {}).get(row['color'].get('name'), '') if labels.get('enabled') else ''
                 prefix = label+labels.get('separator', '：') if label and row['role']=='main' else ''
+            row['motion'] = subtitle_animation.resolve(row['style'].get('animation'), cue.get('subtitle_animation'))
             row['prefix']=prefix
             row['size'] = measured_text(cue.get('text', ''), row['style'], width, prefix=prefix)
         members[0]['localY'] = 0

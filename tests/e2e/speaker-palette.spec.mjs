@@ -12,6 +12,7 @@ test.beforeEach(async({page})=>{
   execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-f','lavfi','-i','color=c=darkblue:s=640x360:r=25:d=6','-c:v','libx264','-pix_fmt','yuv420p',media],{windowsHide:true});
   writeFileSync(project,JSON.stringify({media,segments:[{id:'a',start:0,end:3000,text:'Hello 世界'},{id:'b',start:3500,end:5500,text:'Second'}],waveform:generateWaveformPayload(6000)}));
   server=await startServer(project,media,await findFreePort());
+  page.on('response',async response=>{if(response.status()>=400&&response.url().includes('/api/'))appendFileSync(join(dir,'responses.log'),response.url()+' '+response.status()+' '+await response.text().catch(()=>'' )+'\n');});
   for(const stream of [server.proc.stdout,server.proc.stderr])stream.on('data',chunk=>appendFileSync(join(dir,'server.log'),chunk));
   await disableOnboarding(page);
   await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false})));
@@ -37,6 +38,9 @@ test('project speaker table extends beyond five, marks from menu and saves renam
   await page.getByRole('menuitem',{name:'标记字幕',exact:true}).hover();
   await expect(page.locator('.speaker-mark-swatches button')).toHaveCount(9);
   await expect(page.locator('[data-speaker="speaker-9"]')).toHaveAttribute('title','九号（9）');
+  await expect(page.locator('[data-speaker="speaker-9"]')).toHaveText('九');
+  const swatchPositions=await page.locator('.speaker-mark-swatches button').evaluateAll(nodes=>nodes.map(n=>({x:n.getBoundingClientRect().x,y:n.getBoundingClientRect().y})));
+  expect(swatchPositions[4].y).toBe(swatchPositions[0].y);expect(swatchPositions[5].y).toBeGreaterThan(swatchPositions[0].y);
   await page.keyboard.press('Escape');
   expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
   const disk=JSON.parse(readFileSync(project));expect(disk.preview.speaker_palette.rows[8].name).toBe('九号');
@@ -45,6 +49,75 @@ test('project speaker table extends beyond five, marks from menu and saves renam
   await page.evaluate(()=>{updateEditorSettings({themePreset:'alice',colors:null});applyThemeAndColors();});
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');await page.screenshot({path:join(dir,'speakers-light.png'),animations:'disabled'});
   expect(await page.evaluate(()=>COLOR_PALETTE[8].label)).toBe('九号');expect(errors).toEqual([]);
+});
+
+test('speaker properties inherit across tracks, preserve cue overrides, undo and save; preview names stay independent',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(()=>{
+    let p=MSWE.resolve('processing-host').exportProject();
+    delete p.preview.speaker_label_export;
+    p=MSWFlatSubtitles.addTrack(p,{...p.subtitles.tracks[0],id:'extra',name:'S2'});
+    p.subtitles.cues[1].track_id='extra';
+    for(const c of p.subtitles.cues)c.content.color={name:'yellow',start:c.content.start,end:c.content.end};
+    p.subtitles.cues[1].content.subtitle_style={fontSize:55};
+    productionCommitProject(p,'测试说话人跨轨继承',[]);selectOnly(0);MSWSubtitleStyle.open('cue');
+  });
+  await page.waitForFunction(()=>MSWSubtitleStyle.ready&&player.readyState>=2);
+  await page.locator('#style-edit-scope').selectOption('speaker');
+  await expect(page.locator('#style-speaker-target')).toBeVisible();
+  await expect(page.locator('#style-track-position')).toBeHidden();
+  await page.locator('#style-field-fontSize').fill('80');await page.locator('#style-field-fontSize').press('Tab');
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].style.fontSize)).toBe(80);
+  await expect(page.locator('[data-reset-style="fontSize"]')).toHaveClass(/is-overridden/);
+  const rendered=await page.evaluate(async()=>{
+    const project=MSWE.resolve('processing-host').exportProject();
+    return await MSWSubtitleStyle.request('subtitle-preview',{project,video:{width:640,height:360}});
+  });
+  expect(rendered.ass).toContain('80');expect(rendered.ass).toContain('55');
+  await page.evaluate(()=>performUndo());
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].style)).toBeUndefined();
+  await page.locator('#style-field-fontSize').fill('80');await page.locator('#style-field-fontSize').press('Tab');
+  await page.locator('#style-animation > summary').click();
+  await page.locator('#motion-preset-fade').click();
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].animation.effects.fade.enabled)).toBe(true);
+  await page.locator('#motion-inherit').click();
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].animation)).toBeUndefined();
+  await page.locator('#style-project-preset').selectOption('default');
+  await page.locator('#style-field-fontSize').fill('81');await page.locator('#style-field-fontSize').press('Tab');
+  await page.locator('#style-reset').click();
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].style.fontSize)).toBe(await page.evaluate(()=>MSWProjectStyle.defaults().main.fontSize));
+  await page.locator('#style-inherit-appearance').click();
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].style)).toBeUndefined();
+  await page.locator('#style-field-fontSize').fill('80');await page.locator('#style-field-fontSize').press('Tab');
+  await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('Speaker custom');await page.locator('#style-save-preset').click();
+  await expect(page.locator('#style-project-preset option:checked')).toHaveText('Speaker custom');
+  await page.evaluate(()=>setSubtitlePreviewSettingsPanelOpen(true));
+  await page.locator('#style-preview-speakers').check();
+  await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('SP1：')),null,{timeout:15000}).catch(async e=>{
+    writeFileSync(join(dir,'preview-diagnostic.json'),JSON.stringify(await page.evaluate(()=>({status:MSWSubtitleRenderer.status,pending:MSWSubtitleRenderer.pending,geometry:MSWSubtitleRenderer.geometry,preview:DATA.preview,requestPreview:MSWE.resolve('processing-host').subtitlePreviewProject().preview,media:{state:player.readyState,source:player.currentSrc},label:document.getElementById('style-message').textContent})),null,2));throw e;
+  });
+  const names=await page.evaluate(async()=>{
+    const project=MSWE.resolve('processing-host').subtitlePreviewProject();
+    const preview=await MSWSubtitleStyle.request('subtitle-preview',{project,video:{width:640,height:360}});
+    project.preview.speaker_label_export=false;
+    const exported=await MSWSubtitleStyle.request('subtitle-preview',{project,video:{width:640,height:360}});
+    return {preview:preview.ass,exported:exported.ass};
+  });
+  expect(names.preview).toContain('SP1：');expect(names.exported).not.toContain('SP1：');
+  await page.locator('#style-preview-speakers').uncheck();
+  await page.evaluate(()=>setSubtitlePreviewSettingsPanelOpen(false));
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
+  const disk=JSON.parse(readFileSync(project));expect(disk.preview.speaker_palette.rows[0].style.fontSize).toBe(80);expect(disk.preview.speaker_labels_visible).toBe(false);
+  await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready);
+  await page.evaluate(()=>MSWSubtitleStyle.open('cue'));
+  await page.locator('#style-edit-scope').selectOption('speaker');
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('80');
+  await page.locator('#style-speaker-target').selectOption('green');
+  await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('Speaker inherited');await page.locator('#style-save-preset').click();
+  await expect(page.locator('#style-project-preset option:checked')).toHaveText('Speaker inherited');
+  await page.locator('#style-speaker-target').selectOption('yellow');
+  await page.screenshot({path:join(dir,'speaker-properties.png'),animations:'disabled'});
+  expect(errors).toEqual([]);
 });
 
 test('master row, per-speaker separators, native preview, export name choice and undo agree',async({page})=>{

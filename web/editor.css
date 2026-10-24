@@ -5309,6 +5309,9 @@
 #subtitle-properties input[type=checkbox] { width:14px; height:14px; min-height:0; padding:0; accent-color:var(--accent); }
 .msw-properties-scope { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
 #subtitle-properties #style-edit-scope { flex:0 1 130px; width:130px; min-width:90px; height:30px; }
+#subtitle-properties #style-speaker-target { flex:0 1 160px; width:160px; min-width:90px; height:30px; text-overflow:ellipsis; }
+#style-preview-speakers { accent-color:var(--accent); }
+.msw-proof-controls + .msw-style-check { margin-top:10px; }
 #style-selection-label { color:var(--text-muted); font-size:12px; overflow-wrap:anywhere; }
 #style-selection-label:empty { display:none; }
 #subtitle-properties .msw-properties-scope .msw-style-tabs { align-items:center; }
@@ -5450,7 +5453,7 @@
 .speaker-palette-table tr:first-child td, .speaker-palette-table tr:first-child th { padding-bottom:10px; border-bottom:1px solid var(--border); }
 #speaker-palette-add { width:30px; height:30px; padding:0; font-size:22px; line-height:1; color:var(--btn-text); background:var(--btn-bg); border:1px solid var(--btn-border); border-radius:var(--radius-sm); }
 #speaker-palette-add:hover { background:var(--btn-bg-hover); }
-.speaker-mark-picker { width:236px; max-width:70vw; }
-.speaker-mark-swatches { display:grid; grid-template-columns:repeat(7,24px); gap:8px; padding:8px 10px 12px; max-height:220px; overflow-y:auto; }
-.speaker-mark-swatches button { display:block; width:24px; height:24px; min-width:0; padding:0; border:1px solid var(--border); border-radius:50%; cursor:pointer; }
+.speaker-mark-picker { width:204px; max-width:70vw; }
+.speaker-mark-swatches { display:grid; grid-template-columns:repeat(5,28px); gap:8px; padding:8px 10px 12px; max-height:220px; overflow-y:auto; }
+.speaker-mark-swatches button { display:grid; place-items:center; width:28px; height:28px; min-width:0; padding:0; border:1px solid var(--border); border-radius:50%; cursor:pointer; font-size:13px; font-weight:600; }
 .speaker-mark-swatches button:hover { box-shadow:0 0 0 2px var(--text-secondary); }

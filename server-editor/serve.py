@@ -220,7 +220,7 @@ def _attach_subtitles_match(server_project, browser_project):
     return True
 
 
-class ProjectMutationInProgressError(RuntimeError):
+class ProjectMutationInProgressError(ValueError):
     """Another project create/save operation currently owns the mutation lock."""
 
 
@@ -1328,7 +1328,9 @@ class EditorServer(ThreadingHTTPServer):
         except ProjectValidationFailed as error:
             raise SaveProjectError(str(error)) from error
 
-        if not self.save_lock.acquire(blocking=False):
+        # Status polls and media-context reads also briefly hold this lock.
+        # Let those reads finish; genuine long mutations remain a 409 conflict.
+        if not self.save_lock.acquire(timeout=1):
             raise ProjectMutationInProgressError("另一个工程保存操作正在进行")
         try:
             if expected_binding is not None:

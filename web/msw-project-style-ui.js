@@ -132,8 +132,15 @@
   const proofControls=document.createElement('div');proofControls.className='msw-proof-controls';proofPanel.append(proofControls);
   proofControls.append($('style-preview-mode').closest('label'));
   const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofControls.append(openProperties);old.before(proofPanel);
+  const speakerPreview=document.createElement('label');speakerPreview.className='msw-style-check';
+  speakerPreview.innerHTML='<input id="style-preview-speakers" type="checkbox"><span>在预览中显示说话人</span>';proofPanel.append(speakerPreview);
+  $('style-preview-speakers').onchange=()=>{
+    pushPreviewUndo('切换预览说话人名称',snapshotPreviewState());
+    host.data.preview.speaker_labels_visible=$('style-preview-speakers').checked;
+    fixedPreviewInvalidate();refresh();scheduleAutoSaveFlush();
+  };
   const scopeBar=document.createElement('div');scopeBar.className='msw-properties-scope';
-  scopeBar.innerHTML='<select id="style-edit-scope" aria-label="属性对象"></select><span id="style-selection-label"></span>';
+  scopeBar.innerHTML='<select id="style-edit-scope" aria-label="属性对象"></select><select id="style-speaker-target" aria-label="说话人对象" hidden></select><span id="style-selection-label"></span>';
   const general=$('style-general'),basicFields=$('style-basic-fields'),presetRow=panel.querySelector('.msw-style-selectors');
   general.insertBefore(scopeBar,basicFields);
   scopeBar.insertBefore(tabs,$('style-selection-label'));
@@ -182,22 +189,60 @@
     commitCueAppearance({},options);
   }
   let role='main',library=[],selectedPreset='default',override=null,ready=false,styleGeneration=-1,loadError='',pendingAction=null,saving=false;
-  let editScope='cue';fixedPositionScope='cue';
+  let editScope='cue',speakerId='';fixedPositionScope='cue';
   const M=global.MSWSubtitleAnimation;
   const cueScope=()=>editScope==='cue'&&productionFlatMode();
   const selectedRows=()=>fixedSelectedRows();
+  const speakerScope=()=>editScope==='speaker'&&productionFlatMode();
+  const appearanceScope=()=>cueScope()||speakerScope();
+  const speakers=()=>global.MSWSpeaker.ensure(host.data).rows;
+  const speaker=()=>speakers().find(r=>r.id===speakerId)||speakers()[0];
+  function speakerReference(){
+    const id=speaker()?.id;
+    for(const source of layerCore.tracks(host.data))for(let index=0;index<source.segments.length;index++){
+      const cue=source.segments[index];
+      if(global.MSWSpeaker.profile(host.data,cue,source.segments[cue.color_ref?.headIdx])?.id===id)
+        return {cue,index,...fixedRef(cue,source.role,source.track_id)};
+    }
+    return null;
+  }
+  function speakerBase(){const row=speakerReference();return row?trackAppearance(row):global.MSWCueStyle.apply(projectStyle().main,{});}
+  function speakerAppearance(){return global.MSWSpeaker.appearance(speakerBase(),{},speaker());}
+  function commitSpeaker(update,label){
+    if(!ready||styleGeneration!==host.generation)return;
+    const current=speaker(),next=structuredClone(current);update(next);
+    if(JSON.stringify(current)===JSON.stringify(next))return;
+    if(!global.MSWSpeaker.valid({version:1,rows:[next]}))throw Error('说话人样式参数无效');
+    commitProcessingEdits();pushPreviewUndo(label,snapshotPreviewState());Object.assign(current,next);
+    for(const key of ['style','style_preset','animation'])if(!(key in next))delete current[key];
+    speakerPaletteChanged({appearanceOnly:true});
+  }
+  function commitSpeakerAppearance(patch,options={}){
+    commitSpeaker(row=>{
+      if(options.preset){row.style=global.MSWCueStyle.appearance(options.preset.main);row.style_preset=options.presetId;}
+      else {
+        row.style=options.replace?{...patch}:{...row.style,...patch};
+        for(const key of options.reset||[])delete row.style[key];
+        if(patch.backgroundRadius>0&&speakerAppearance().backgroundShape==='rect')row.style.backgroundShape='rounded';
+        if(options.restoreRadius&&speakerBase().backgroundShape==='rect')delete row.style.backgroundShape;
+        if(options.presetId)row.style_preset=options.presetId;
+        if(!Object.keys(row.style).length){delete row.style;if(!options.presetId)delete row.style_preset;}
+      }
+    },'修改说话人外观');
+  }
+  const speakerPresetMatches=preset=>{const effective=speakerAppearance();return global.MSWCueStyle.fields.every(k=>preset.main[k]===effective[k]);};
   const trackAppearance=row=>{
     const track=fixedTrack(row.cue,row.role,row.track_id),style=global.MSWTrackPresentation.styleFor(host.data,track);
     return global.MSWCueStyle.apply(style[track.flat_style_slot||'main'],{});
   };
-  const rowAppearance=row=>global.MSWCueStyle.apply(trackAppearance(row),row.cue);
+  const rowAppearance=row=>global.MSWSpeaker.appearance(global.MSWCueStyle.apply(trackAppearance(row),row.cue),row.cue,global.MSWSpeaker.profile(host.data,row.cue));
   const displayedAppearance=(style,field)=>field==='backgroundShape'&&style.backgroundShape==='rect'?'rounded':
     field==='backgroundRadius'&&style.backgroundShape==='rect'?0:style[field];
   const presetMatches=(preset,rows=selectedRows())=>rows.length&&rows.every(row=>{
     const track=fixedTrack(row.cue,row.role,row.track_id),candidate=S.forKind(preset,fixedTrackCore.styleKind(track))[track.flat_style_slot||'main'],effective=rowAppearance(row);
     return global.MSWCueStyle.fields.every(k=>candidate[k]===effective[k]);
   });
-  const selectionKey=()=>JSON.stringify([editScope,fixedStyleTrackId,...selectedRows().map(r=>r.cue_id).sort()]);
+  const selectionKey=()=>JSON.stringify([editScope,speakerId,fixedStyleTrackId,...selectedRows().map(r=>r.cue_id).sort()]);
   let lastSelectionKey='',lastCueSelection='';
   const propertiesVisible=()=>!!$('subtitle-properties').getClientRects().length;
   function open(scope=editScope){
@@ -212,11 +257,14 @@
     if(fixedPositionEditing)fixedStopPositioning(false);
     const selection=$('style-edit-scope').value;cancelAction();
     if(selection==='cue'){editScope='cue';fixedPositionScope='cue';rebuild();sync();}
+    else if(selection==='speaker'){editScope='speaker';rebuild();sync();}
     else editTrack(selection,false);
     refresh();
   };
+  $('style-speaker-target').onchange=()=>{speakerId=$('style-speaker-target').value;cancelAction();rebuild();sync();refresh();};
   restoreAppearance.onclick=()=>commitCueAppearance({}, {replace:true});
   function commitCueAppearance(patch,options={}) {
+    if(speakerScope()){try{commitSpeakerAppearance(patch,options);}catch(error){message(error.message,true);sync();}return;}
     if(!ready||styleGeneration!==host.generation||!cueScope())return;
     try {
       const rows=selectedRows(),ids=rows.map(r=>r.cue_id);if(!ids.length)return;
@@ -252,21 +300,23 @@
   $('style-animation-fields').before(legacyAnimation);legacyAnimation.append($('style-animation-fields'));
   const motionRoot=document.createElement('div');motionRoot.id='subtitle-motion-controls';legacyAnimation.before(motionRoot);
   function motionContext(){
-    const cue=cueScope(),rows=cue?selectedRows():[],target=fixedStyleTarget();
-    const sources=cue?rows.map(row=>({row,track:fixedTrack(row.cue,row.role,row.track_id)})):target?[{track:target}]:[];
-    const owned=cue||!target?[]:layerCore.tracks(host.data).flatMap(source=>source.segments.flatMap((c,index)=>
+    const cue=cueScope(),profileScope=speakerScope(),rows=cue?selectedRows():[],target=fixedStyleTarget();
+    const reference=profileScope?speakerReference():null;
+    const sources=profileScope?[{row:reference,track:reference?fixedTrack(reference.cue,reference.role,reference.track_id):target}]:cue?rows.map(row=>({row,track:fixedTrack(row.cue,row.role,row.track_id)})):target?[{track:target}]:[];
+    const owned=cue||profileScope||!target?[]:layerCore.tracks(host.data).flatMap(source=>source.segments.flatMap((c,index)=>
       fixedOwner(c,source.role,source.track_id)===target.id?[{cue:c,index,...fixedRef(c,source.role,source.track_id),subtitle_track_id:target.id}]:[]));
     const items=sources.map(({row,track})=>{
-      const style=global.MSWTrackPresentation.styleFor(host.data,track),base=style[track.flat_style_slot||'main'].animation;
-      const override=row?.cue.subtitle_animation;
+      const style=global.MSWTrackPresentation.styleFor(host.data,track),trackBase=style[track.flat_style_slot||'main'].animation;
+      const base=cue?M.resolve(trackBase,global.MSWSpeaker.profile(host.data,row.cue)?.animation):trackBase;
+      const override=profileScope?speaker()?.animation:row?.cue.subtitle_animation;
       const previewRow=row||owned.find(r=>r.cue.start<=player.currentTime*1000&&r.cue.end>player.currentTime*1000)||owned[0];
       return {row,track,style,override,base,legacy:!base&&!override&&Object.values(style.animations).some(e=>e.enabled),value:M.resolve(base,override)||M.defaults(),duration:previewRow?previewRow.cue.end-previewRow.cue.start:1000,preview:previewRow};
     });
-    return {cue,items,playhead:player.currentTime*1000,preview:items[0]?.preview,blocked:!ready||saving||fixedPositionEditing||!productionFlatMode()||!items.length||items.some(i=>i.track.locked)};
+    return {cue:cue||profileScope,inheritLabel:profileScope?'恢复各轨道动画':'恢复继承动画',items,playhead:player.currentTime*1000,preview:items[0]?.preview,blocked:!ready||saving||fixedPositionEditing||!productionFlatMode()||!items.length||!profileScope&&items.some(i=>i.track.locked)};
   }
   function commitMotion(name,key,value){
     const context=motionContext();if(context.blocked)return;
-    commitProcessingEdits();const before=global.MSWProductionProject.toProject(host.data);
+    commitProcessingEdits();const before=speakerScope()?null:global.MSWProductionProject.toProject(host.data);
     const updates=context.items.map(item=>{
       if(key==='author'){
         if(value.type==='playhead'&&!item.preview)throw Error('当前轨道没有可参考的字幕');
@@ -295,6 +345,17 @@
       const animation={schema:M.schema,effects};if(key!=='reset'&&!M.valid(animation))throw Error('动画参数无效：时间须递增且不能重合，数值须在允许范围内');
       return {id:item.row?.cue_id,animation,item};
     });
+    if(speakerScope()) {
+      commitSpeaker(row=>{
+        if(key==='reset') {
+          if(name==='all')delete row.animation;
+          else if(row.animation){delete row.animation.effects[name];if(!Object.keys(row.animation.effects).length)delete row.animation;}
+        }else {
+          const patch=updates[0].animation,old=row.animation||{schema:M.schema,effects:{}};
+          row.animation={...old,...patch,effects:{...old.effects,...patch.effects}};
+        }
+      },key==='reset'?'恢复说话人动画':'修改说话人动画');return;
+    }
     let next;
     if(context.cue)next=global.MSWFlatEditing.updateAnimation(before,updates,key==='reset'?{reset:name}:{});
     else{
@@ -315,10 +376,12 @@
   const all=()=>[...S.presets(),...library];
   const find=id=>all().find(s=>s.id===id);
   const value=()=>{
+    if(speakerScope()){const style=S.normalize(projectStyle());delete style.annotation;style.main=style.secondary=speakerAppearance();return style;}
     if(cueScope()) {const style=S.normalize(projectStyle()),row=selectedRows()[0];delete style.annotation;if(row)style.main=style.secondary=rowAppearance(row);return style;}
     return fixedTrackMode()&&fixedStyleTarget()?fixedStyleValue():projectStyle();
   };
   function presetSnapshot(project) {
+    if(speakerScope()){const snapshot=S.normalize(project.preview?.project_style||S.defaults());snapshot.main={...snapshot.main,...global.MSWCueStyle.appearance(speakerAppearance())};return snapshot;}
     if(!cueScope())return S.presetSnapshot(project,value(),fixedTrackMode()&&fixedStyleTarget()?fixedTrackCore.styleKind(fixedStyleGroup()?.main||fixedStyleTarget()):'dialogue');
     // A cue updates only its appearance slot, preserving the other role,
     // positioning and animation of an existing preset.
@@ -334,7 +397,7 @@
   // A library preset may carry both dialogue and annotation styles. Compare
   // the part used by this group, just as the renderer does, not the envelope.
   const comparable=s=>fixedTrackMode()&&fixedStyleTarget()?S.forKind(s,fixedTrackCore.styleKind(fixedStyleGroup()?.main||fixedStyleTarget())):S.normalize(s);
-  const same=(a,b)=>JSON.stringify({...comparable(a),name:''})===JSON.stringify({...comparable(b),name:''});
+  const same=(a,b)=>speakerScope()?global.MSWCueStyle.fields.every(k=>a.main[k]===b.main[k]):JSON.stringify({...comparable(a),name:''})===JSON.stringify({...comparable(b),name:''});
   const activePreset=()=>selectedPreset;
   const message=(text,error=false)=>{$('style-message').textContent=t(text);$('style-message').classList.toggle('is-error',error);};
   const persistProof=()=>{try{(globalThis.MSWConfig?.storage || localStorage).setItem('msw.subtitle-proof.v1',JSON.stringify(proof));}catch(_){message('无法保存本机预览偏好',true);}};
@@ -368,7 +431,8 @@
       $('style-track-layout').value=host.data.subtitle_tracks.presentation;
       $('style-track-layout').closest('label').hidden=productionFlatMode();
     }
-    fill($('style-edit-scope'),[['cue','所选字幕'],...Array.from($('style-track-target').options,o=>[o.value,o.textContent])],cueScope()?'cue':fixedStyleGroup()?.main.id||track?.id||'');
+    fill($('style-edit-scope'),[['cue','所选字幕'],['speaker','说话人'],...Array.from($('style-track-target').options,o=>[o.value,o.textContent])],speakerScope()?'speaker':cueScope()?'cue':fixedStyleGroup()?.main.id||track?.id||'');
+    speakerId=speaker()?.id||'';fill($('style-speaker-target'),speakers().map(r=>[r.id,r.name]),speakerId);
     const chosen=track?fixedStyleGroup()?.main.style.selection||track.style.selection:host.data.preview?.project_style_selection;
     const group=fixedStyleGroup(),inherited=group?[group.main,group.secondary].filter(Boolean).every(t=>t.style.mode==='inherit'):track?.style.mode==='inherit';
     selectedPreset=find(chosen)?chosen:all().find(s=>same(s,value()))?.id||(inherited?'default':'');
@@ -377,7 +441,8 @@
       const saved=rows[0]?.cue.subtitle_style_preset;
       selectedPreset=find(saved)&&rows.every(r=>r.cue.subtitle_style_preset===saved)?saved:all().find(s=>presetMatches(s,rows))?.id||'';
     }
-    fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!(cueScope()?presetMatches(s):same(s,value()))?' · '+t('已修改'):'')])],selectedPreset);
+    if(speakerScope()){const saved=speaker().style_preset;selectedPreset=find(saved)?saved:all().find(speakerPresetMatches)?.id||'';}
+    fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!(speakerScope()?speakerPresetMatches(s):cueScope()?presetMatches(s):same(s,value()))?' · '+t('已修改'):'')])],selectedPreset);
     if(!selectedPreset)$('style-project-preset').options[0].disabled=true;
     if(cueScope()&&!selectedPreset)$('style-project-preset').options[0].textContent=selectedRows().some(r=>r.cue.subtitle_style)?'已单独调整':'跟随轨道';
     $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent='样式预设';
@@ -395,16 +460,18 @@
     const group=fixedStyleGroup();
     const rows=cueScope()?selectedRows():[],appearances=rows.map(rowAppearance);
     panel.classList.toggle('editing-cues',cueScope());
-    const blocked=cueScope()?(!rows.length||rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked)):!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
-    $('style-edit-scope').value=cueScope()?'cue':group?.main.id||track?.id||'';$('style-edit-scope').disabled=fixedPositionEditing;
+    const blocked=speakerScope()?!speaker():cueScope()?(!rows.length||rows.some(r=>fixedTrack(r.cue,r.role,r.track_id)?.locked)):!!track&&(track.locked||group?.main.locked||group?.secondary?.locked||!fixedPresentationMode());
+    $('style-speaker-target').hidden=!speakerScope();$('style-speaker-target').disabled=fixedPositionEditing;
+    $('style-edit-scope').value=speakerScope()?'speaker':cueScope()?'cue':group?.main.id||track?.id||'';$('style-edit-scope').disabled=fixedPositionEditing;
     $('style-selection-label').textContent=cueScope()?(rows.length===1?fixedCueLabel(rows[0].cue,rows[0].role,rows[0].track_id):rows.length?`已选 ${rows.length} 条 · ${new Set(rows.map(r=>r.subtitle_track_id)).size} 轨`:'请选择字幕'):'';
     $('style-track-target').hidden=cueScope();
-    restoreAppearance.hidden=!cueScope();restoreAppearance.disabled=blocked||!rows.some(r=>r.cue.subtitle_style);
+    restoreAppearance.hidden=!appearanceScope();restoreAppearance.disabled=blocked||!(speakerScope()?speaker()?.style:rows.some(r=>r.cue.subtitle_style));
+    restoreAppearance.title=speakerScope()?'恢复各轨道外观':'恢复继承外观';restoreAppearance.setAttribute('aria-label',restoreAppearance.title);
     $('style-animation').hidden=false;
-    legacyAnimation.hidden=cueScope()||!motionContext().items.some(i=>i.legacy);
-    $('style-track-position').hidden=!fixedPresentationMode();
+    legacyAnimation.hidden=appearanceScope()||!motionContext().items.some(i=>i.legacy);
+    $('style-track-position').hidden=speakerScope()||!fixedPresentationMode();
     $('style-position-fields').hidden=!productionFlatMode()&&(!track||fixedTrackCore.placement(track)!=='fixed');
-    if(productionFlatMode())syncPosition();
+    if(productionFlatMode()&&!speakerScope())syncPosition();
     else if(track&&fixedTrackCore.placement(track)==='fixed') {
       const p=fixedPositionCurrent(),group=fixedSelectedPositionGroup();
       $('style-position-scope').value=fixedPositionScope;
@@ -414,7 +481,7 @@
     }
     const removable=library.find(s=>s.id===activePreset());
     const mixed=cueScope()&&appearances.some(a=>global.MSWCueStyle.fields.some(k=>a[k]!==appearances[0][k]));
-    $('style-overwrite').disabled=saving||blocked||mixed||!removable||(cueScope()?presetMatches(removable):same(removable,style));
+    $('style-overwrite').disabled=saving||blocked||mixed||!removable||(speakerScope()?speakerPresetMatches(removable):cueScope()?presetMatches(removable):same(removable,style));
     $('style-overwrite').title=t(removable?'将当前样式覆盖到所选预设':'内置样式不能覆盖，请另存为新预设');
     $('style-delete-preset').disabled=saving||!removable;
     $('style-delete-preset').title=removable?t('删除预设')+': '+removable.name:t('只能删除当前选用的用户预设');
@@ -427,12 +494,12 @@
     $('style-reset').title=find(selectedPreset)?t('恢复所选预设保存的参数')+'：'+find(selectedPreset).name:t('请先选择或保存预设');
     if(blocked)message(cueScope()?rows.length?'所选字幕包含锁定轨道。':'':track.locked||group?.main.locked||group?.secondary?.locked?'此轨道已锁定。':'切换为固定轨道排布后，可调整轨道样式与位置。');
     else if(['此轨道已锁定。','所选字幕包含锁定轨道。','切换为固定轨道排布后，可调整轨道样式与位置。'].some(text=>$('style-message').textContent===t(text)))message('');
-    const secondary=!cueScope()&&(productionFlatMode()?!!group?.secondary:host.data.multi_subtitle?.enabled===true);
+    const secondary=!appearanceScope()&&(productionFlatMode()?!!group?.secondary:host.data.multi_subtitle?.enabled===true);
     $('style-secondary').hidden=!secondary;$('style-swap').hidden=!secondary;if(!secondary)role='main';
-    if(group&&!cueScope())role=group.secondary?.id===track.id?'secondary':'main';
+    if(group&&!appearanceScope())role=group.secondary?.id===track.id?'secondary':'main';
     for(const r of ['main','secondary']) {
       $('style-'+r).textContent=t(r==='main'?'主字幕':'副字幕');
-      $('style-'+r).hidden=cueScope()|| (productionFlatMode()?!secondary:r==='secondary'&&!secondary);
+      $('style-'+r).hidden=appearanceScope()|| (productionFlatMode()?!secondary:r==='secondary'&&!secondary);
     }
 
     $('style-pair-controls').hidden=!secondary;const pair=S.pairSettings(style);$('style-pair-order').value=pair.order;$('style-pair-gap').value=pair.gap;
@@ -440,8 +507,8 @@
     for(const input of panel.querySelectorAll('[data-style-field]')) {const v=displayedAppearance(style[role],input.dataset.styleField);if(input.type==='checkbox')input.checked=!!v;else input.value=v??'';}
     for(const input of panel.querySelectorAll('[data-style-field]')) {
       const field=input.dataset.styleField,label=input.closest('label'),reset=label.querySelector('[data-reset-style]');
-      label.hidden=cueScope()&&!global.MSWCueStyle.fields.includes(field);
-      const changed=cueScope()&&rows.some(r=>Object.hasOwn(r.cue.subtitle_style||{},field));
+      label.hidden=appearanceScope()&&!global.MSWCueStyle.fields.includes(field);
+      const changed=speakerScope()?Object.hasOwn(speaker()?.style||{},field):cueScope()&&rows.some(r=>Object.hasOwn(r.cue.subtitle_style||{},field));
       const different=cueScope()&&appearances.some(a=>displayedAppearance(a,field)!==displayedAppearance(appearances[0],field));
       label.classList.toggle('is-overridden',changed);label.classList.toggle('is-mixed',different);
       input.setAttribute('aria-description',different?'多个值':changed?'已单独设置':'跟随轨道');
@@ -452,7 +519,7 @@
     }
     for(const input of fontInputs)fontPicker.sync(input,input.value,input.closest('label').classList.contains('is-mixed'));
     showFontCategory();
-    for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=cueScope()||track&&fixedTrackCore.placement(track)==='fixed';
+    for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=appearanceScope()||track&&fixedTrackCore.placement(track)==='fixed';
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
     const backgroundValues=cueScope()?selectedRows().map(rowAppearance):[style[role]];
@@ -466,6 +533,7 @@
     for(const key of ['gradientStart','gradientEnd'])$('style-field-'+key).closest('label').hidden=!withGradient;
     for(const input of panel.querySelectorAll('[data-style-field][type=color]'))$('style-pick-'+input.dataset.styleField).disabled=input.disabled||fixedPositionEditing;
     $('style-preview-mode').value=proof.mode;
+    $('style-preview-speakers').checked=host.data.preview?.speaker_labels_visible??speakers().some(r=>r.mode==='speaker');
     for(const group of Object.keys(A))$(`style-effect-${group}-fields`).hidden=!$(`style-field-${group}-enabled`).checked;
     $('style-transform-preset').value=transformTags.some(([tags])=>tags===style.animations.t.tags)?style.animations.t.tags:'custom';
     $('style-field-t-tags').closest('label').hidden=$('style-transform-preset').value!=='custom';
@@ -481,6 +549,7 @@
     input.value=enabled&&value!==null?Math.round(value*100000)/1000:'';
   }
   function syncPosition() {
+    if(speakerScope())return;
     if(!propertiesVisible()&&!fixedPositionEditing)return;
     $('style-position-drag').hidden=fixedPositionEditing;
     $('style-position-cancel').hidden=$('style-position-finish').hidden=!fixedPositionEditing;
@@ -512,7 +581,7 @@
   }
   function change(style,selection=find(selectedPreset)?selectedPreset:'current',label='修改工程字幕样式') {
     if(!ready||styleGeneration!==host.generation)return;
-    if(cueScope()){commitCueAppearance({}, {preset:style,...(find(selection)?{presetId:selection}:{})});return;}
+    if(appearanceScope()){commitCueAppearance({}, {preset:style,...(find(selection)?{presetId:selection}:{})});return;}
     if(fixedTrackMode()&&fixedStyleTarget()) {
       if(!fixedCommitStyle(style,selection)){sync();message(fixedLastMessage||'无法修改轨道样式',true);return;}
     }
@@ -550,7 +619,7 @@
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
     const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape','gradientMode'].includes(field)?Number(input.value):input.value;
-    if(cueScope()){if(field)commitCueAppearance({[field]:v});return;}
+    if(appearanceScope()){if(field)commitCueAppearance({[field]:v});return;}
     // Exact legacy burn parameters survive until the user deliberately edits them.
     if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){
       const mapped={fontName:'font_family',fontSize:'font_size',primaryColor:'color',outlineColor:'outline_color',outline:'outline',backColor:'background_color'}[field];
@@ -634,7 +703,7 @@
     const preset={...presetSnapshot(host.data),name,id:global.MSWProject.id('style')};
     const savedStyle=S.normalize(value());
     const target=selectionKey();
-    void runLibraryAction(action,[...library,preset],()=>{if(target===selectionKey()&&same(value(),savedStyle)){if(cueScope())commitCueAppearance({}, {presetId:preset.id});else change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedTrackCore.styleKind(fixedStyleTarget())):preset,preset.id,'另存为字幕预设');}message('预设已保存。');$('style-save-as').focus();});
+    void runLibraryAction(action,[...library,preset],()=>{if(target===selectionKey()&&same(value(),savedStyle)){if(appearanceScope())commitCueAppearance({}, {presetId:preset.id});else change(fixedTrackMode()&&fixedStyleTarget()?S.forKind(preset,fixedTrackCore.styleKind(fixedStyleTarget())):preset,preset.id,'另存为字幕预设');}message('预设已保存。');$('style-save-as').focus();});
   };
   $('style-delete-preset').onclick=()=>{
     const preset=library.find(s=>s.id===activePreset());if(!preset)return;cancelAction();pendingAction={kind:'delete',id:preset.id,generation:host.generation};
@@ -673,7 +742,7 @@
   global.MSWSubtitleStyle={currentPreview,editTrack,open,propertiesVisible,syncSelection:()=>{
     if(!ready)return;
     const ids=[...fixedPositionSelectedIds()].sort();
-    if(!fixedPositionEditing&&ids.length&&JSON.stringify(ids)!==lastCueSelection){editScope='cue';fixedPositionScope='cue';}
+    if(!speakerScope()&&!fixedPositionEditing&&ids.length&&JSON.stringify(ids)!==lastCueSelection){editScope='cue';fixedPositionScope='cue';}
     // A hidden dock follows selection when reopened; do not build its forms,
     // animation graphs or full-project preview geometry for a context menu.
     if(!propertiesVisible()&&!fixedPositionEditing)return;
@@ -710,6 +779,7 @@
   }
   $('style-retry').onclick=()=>void initialize();
   global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';void initialize();});
+  global.addEventListener('msw:speakers-changed',()=>{if(ready){rebuild();sync();refresh();}});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
   global.addEventListener('msw:subtitles-changed',()=>{if(ready){if(fixedTrackMode())rebuild();sync();}});
   global.addEventListener('msw:media-changed',()=>{if(ready){sync();refresh();}});

@@ -289,6 +289,19 @@ class ProcessingApiTests(unittest.TestCase):
         self.assertEqual(self.call('project', body)[0], 409)
         self.assertEqual(self.path.read_text(encoding='utf-8'), '{"segments": []}')
 
+    def test_busy_save_returns_conflict_without_changing_disk(self):
+        _, context = self.call('capabilities')
+        before=self.path.read_bytes()
+        body={'project':self.server.project.data,'binding':context['binding'],'saveRevision':context['saveRevision']}
+        self.server.save_lock.acquire()
+        try:
+            status,result=self.call('project',body)
+        finally:
+            self.server.save_lock.release()
+        self.assertEqual(status,409,result)
+        self.assertIn('保存操作正在进行',result['error'])
+        self.assertEqual(self.path.read_bytes(),before)
+
 
 if __name__ == '__main__':
     unittest.main()

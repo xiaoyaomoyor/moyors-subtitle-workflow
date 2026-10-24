@@ -12,7 +12,7 @@ _lock = threading.RLock()
 _files = {}
 # Bump together with MSWProjectStyle.layoutVersion when the shared layout
 # contract changes. A page refresh cannot reload an already running Python VM.
-LAYOUT_VERSION = 16
+LAYOUT_VERSION = 17
 
 
 def preview_ass(payload):
