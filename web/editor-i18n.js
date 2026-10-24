@@ -1215,7 +1215,7 @@
     '查看百炼 音色列表、Voice design、Voice cloning。': 'View Bailian voice list, Voice design and Voice cloning.',
     "字幕颜色与说话人": "Subtitle colors and speakers",
     "启用五色说话人映射": "Map five colors to speaker names",
-    "在预览中显示说话人": "Show speaker names in preview",
+    "预览说话人": "Preview speaker names",
     "分隔符": "Separator",
     "黄色": "Yellow",
     "绿色": "Green",

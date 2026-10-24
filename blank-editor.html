@@ -5403,23 +5403,23 @@
 .msw-project-style [hidden],.subtitle-preview-settings-section[hidden] { display:none !important; }
 /* Clear adhesive film: keep the join visible beneath a faint theme tint. */
 .merge-tape-flash {
-  position: fixed; z-index: 1200; width: 52px; height: 14px;
+  position: fixed; z-index: 1200; width: 108px; height: 25px;
   pointer-events: none;
   background: linear-gradient(112deg, transparent 8%, rgb(255 255 255 / .32) 23%, transparent 46% 64%, rgb(255 255 255 / .2) 80%, transparent 95%),
     linear-gradient(to bottom, rgb(255 255 255 / .28), rgb(255 255 255 / .07) 35%, rgb(255 255 255 / .18) 75%, rgb(255 255 255 / .36)),
-    color-mix(in srgb, var(--accent) 10%, transparent);
-  border-block: 1px solid color-mix(in srgb, var(--text-primary) 18%, transparent); box-sizing: border-box;
+    color-mix(in srgb, var(--accent) 28%, transparent);
+  border-block: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); box-sizing: border-box;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .55), inset 0 -1px 0 rgb(0 0 0 / .12);
   clip-path: polygon(3% 0, 97% 0, 100% 20%, 97% 40%, 100% 60%, 97% 80%, 100% 100%, 0 100%, 3% 80%, 0 60%, 3% 40%, 0 20%);
-  transform: translate(-50%, -50%) rotate(-5deg);
+  transform: translate(-50%, -50%) rotate(-10deg);
   animation: merge-tape-stick 640ms ease-out both;
 }
 .merge-tape-flash::after {
-  content: ''; position: absolute; inset: 3px 50%; border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  content: ''; position: absolute; inset: 4px 50%; border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
 }
 @keyframes merge-tape-stick {
-  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-5deg) scaleX(.45); }
-  15%, 70% { opacity: 1; transform: translate(-50%, -50%) rotate(-5deg) scaleX(1); }
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-14deg) scaleX(.45); }
+  15%, 70% { opacity: 1; transform: translate(-50%, -50%) rotate(-10deg) scaleX(1); }
   100% { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -24178,7 +24178,7 @@ export default MawDynamicCaptions;
     '查看百炼 音色列表、Voice design、Voice cloning。': 'View Bailian voice list, Voice design and Voice cloning.',
     "字幕颜色与说话人": "Subtitle colors and speakers",
     "启用五色说话人映射": "Map five colors to speaker names",
-    "在预览中显示说话人": "Show speaker names in preview",
+    "预览说话人": "Preview speaker names",
     "分隔符": "Separator",
     "黄色": "Yellow",
     "绿色": "Green",
@@ -28914,13 +28914,11 @@ export default MawDynamicCaptions;
     duplicateModuleTab(addBtn) {
       const moduleId = addBtn.dataset.moduleId;
       if (!MODULE_IDS.includes(moduleId)) return;
-      if (!this.isCustomLayout() && !this.ensureCustomLayoutForDrag()) return;
       const present = new Set(collectLayoutModules(this.settings.layoutTree));
       const candidates = MODULE_IDS.filter((mid) => !present.has(mid));
       if (!candidates.length) return;
-      // Preset -> custom rebuilds tab strips: the clicked button is detached.
-      const liveAnchor = document.querySelector(`[data-dock-module="${moduleId}"] .module-tab-add`);
-      if (liveAnchor) this.openTabAddMenu(moduleId, liveAnchor, candidates);
+      // Opening a menu must not rebuild the workspace beneath its anchor.
+      this.openTabAddMenu(moduleId, addBtn, candidates);
     }
 
     openTabAddMenu(anchorId, anchorEl, candidates) {
@@ -34400,6 +34398,7 @@ function fixedCommitProject(next, label) {
 }
 function productionCommitProject(project,label,ids=[],{displayOnly=false,recordHistory=true}={}) {
   if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+  const panelId=getCurrentCuePanelTarget()?.segment.id;
   const next=window.MSWProductionProject.fromProject(project);
   if(displayOnly) {
     const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
@@ -34413,6 +34412,7 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
   fixedLastContent=fixedContent();fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
   fixedInvalidate();normalizeMultiSubtitleState();clearSelection({silent:true});
   DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack()?.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});
+  syncCuePanelSelection(panelId);
   projectImportDirty=true;cueListPlaybackKey=null;renderAll({waveform:'full'});scheduleAutoSaveFlush();
 }
 function productionBindSelected() {
@@ -35590,6 +35590,15 @@ function fixedHidePreview() {
   playerStage.classList.remove('fixed-presentation');
 }
 function fixedRefreshSubtitlePreview(tMs) {
+  // libass owns the picture. Rebuilding the hidden CSS fallback for every
+  // marker edit measured every cue in long projects for no visible benefit.
+  // Position mode still needs those hit targets; renderer failure falls back
+  // through the normal path on the next update.
+  if(window.MSWSubtitleRenderer?.status==='libass'&&!fixedPositionEditing&&!fixedPositionDrag&&!fixedPositionSession) {
+    playerStage.classList.add('fixed-presentation');
+    for(const id of ['fixed-subtitle-preview','msw-layer-preview']){const root=document.getElementById(id);if(root)root.hidden=true;}
+    fixedApplyPositionOffsets({entries:[]});renderStickerOverlay(tMs);return;
+  }
   const rect=fixedVideoRect();if(!rect.width||!rect.height)return;
   playerStage.classList.add('fixed-presentation');
   const old=document.getElementById('msw-layer-preview');if(old)old.hidden=true;
@@ -37926,6 +37935,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='cue-markers')return snapshotCueMarkers(sourceRecord.changes,label);
   if (kind === 'project-style') return {kind,label,...window.MSWProjectStyle.capture(DATA)};
   if (kind === 'source-gain') return {kind, label, gainDb: window.MSWE.resolve('audio-timeline').sourceGainDb(), mediaKey: sourceGainMediaKey()};
   if (kind === 'asset-removal') return snapshotAssetRemoval(sourceRecord.assetId, label);
@@ -38015,6 +38025,18 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='cue-markers') {
+    const cues=new Map(layerCore.tracks(DATA).flatMap(t=>t.segments.map(c=>[c.id,c])));
+    if(record.changes.some(change=>!cues.has(change.id))){flashHint('字幕已不存在，无法恢复标记','warning');return false;}
+    const markers=DATA.subtitle_tracks.flat_context.markers;
+    for(const change of record.changes) {
+      const cue=cues.get(change.id),field=change.field;
+      for(const key of [field,field+'_ref']) {delete cue[key];if(change[key]!==undefined)cue[key]=structuredClone(change[key]);}
+      if(markers[change.id])delete markers[change.id][field];
+      if(change.marker)(markers[change.id]||={})[field]=structuredClone(change.marker);
+    }
+    finishCueMarkerChange(record.changes);restoreEditorSelection(record.view);return true;
+  }
   if (record.kind === 'project-style') {
     window.MSWProjectStyle.restore(DATA,record);
     previewGeometryDirty = true; projectImportDirty = true;
@@ -42377,7 +42399,7 @@ function toggleExtensionSelection(index, track = getActiveExtensionTrack()) {
   updateSelectionCountText();
   lastClickedExtensionIdx = index;
   waveformEditor?.updateSelection();
-  setCurrentCuePanelExtensionIndex(index, track);
+  syncCuePanelSelection(track.segments[index].id);
 }
 
 function selectExtensionRange(a, b) {
@@ -42419,7 +42441,7 @@ function toggleSel(idx) {
   updateSelectionCountText();
   if (waveformEditor) waveformEditor.updateSelection();
   updateMultiSelectionClasses();
-  setCurrentCuePanelIndex(selectedIdxs.has(idx) ? idx : (selectedIdxs.values().next().value ?? -1));
+  syncCuePanelSelection(DATA.segments[idx]?.id);
 }
 function selectRange(a, b) {
   if(fixedTrackMode()&&!fixedSameTrack(DATA.segments[a],DATA.segments[b])){addToSelection(b);return;}
@@ -42926,6 +42948,15 @@ function remapPanelItems(items, oldStart, oldEnd, newStart, newEnd) {
   return holder.items;
 }
 
+function syncCuePanelSelection(preferredId = getCurrentCuePanelTarget()?.segment.id) {
+  const track=getActiveExtensionTrack(),targets=[
+    ...[...selectedIdxs].map(index=>({kind:'main',index,segment:DATA.segments[index]})),
+    ...[...selectedExtensionIdxs].map(index=>({kind:'extension',index,trackId:track?.id,segment:track?.segments[index]})),
+    ...[...selectedOverlayIdxs].map(index=>({kind:'overlay',index,segment:getOverlayTrack()?.segments[index]})),
+  ].filter(t=>t.segment);
+  const target=targets.find(t=>t.segment.id===preferredId)||targets[0];
+  setCuePanelTarget(target?.kind||'main',target?.index??-1,target?.trackId||null);
+}
 function getCurrentCuePanelTarget() {
   const index = currentCuePanelIdx;
   if (!Number.isInteger(index) || index < 0) return null;
@@ -44167,7 +44198,7 @@ function refreshColorFilterUi() {
   syncColorFilterControls();
 }
 
-function refreshCueColorRows() {
+function refreshCueColorRows(changedIds = null) {
   const extensionTrack = getActiveExtensionTrack();
   container.querySelectorAll(':scope > .cue:not(.multi-dual-cue), .multi-cue-column').forEach((el) => {
     const colorBar = el.querySelector('.color-bar');
@@ -44177,7 +44208,7 @@ function refreshCueColorRows() {
       const segment = Number.isInteger(overlayIndex)
         ? getOverlayTrack()?.segments?.[overlayIndex]
         : null;
-      if (segment) updateCueColorPresentation(el, colorBar, segment);
+      if (segment && (!changedIds || changedIds.has(segment.id))) updateCueColorPresentation(el, colorBar, segment);
       return;
     }
     if (el.dataset.extIdx != null && el.dataset.idx == null) {
@@ -44185,7 +44216,7 @@ function refreshCueColorRows() {
       const segment = Number.isInteger(extensionIndex)
         ? extensionTrack?.segments?.[extensionIndex]
         : null;
-      if (segment) updateCueColorPresentation(el, colorBar, segment);
+      if (segment && (!changedIds || changedIds.has(segment.id))) updateCueColorPresentation(el, colorBar, segment);
       return;
     }
     const mainIndex = el.dataset.idx != null
@@ -44194,7 +44225,7 @@ function refreshCueColorRows() {
     const segment = Number.isInteger(mainIndex) && mainIndex >= 0
       ? DATA.segments[mainIndex]
       : null;
-    if (segment) updateCueColorPresentation(el, colorBar, segment);
+    if (segment && (!changedIds || changedIds.has(segment.id))) updateCueColorPresentation(el, colorBar, segment);
   });
 }
 
@@ -44243,10 +44274,10 @@ function refreshStickerAssignmentUi() {
   restoreCueListRenderAnchor(anchor);
 }
 
-function refreshColorAssignmentUi() {
+function refreshColorAssignmentUi(changedIds = null) {
   // 颜色是字幕属性，不改变行的数量、顺序或高度；直接更新现有节点，
   // 避免 renderAll() 替换列表后触发浏览器布局回填和活动字幕自动跟随。
-  refreshCueColorRows();
+  refreshCueColorRows(changedIds);
   refreshColorFilterUi();
   // 颜色过滤开启时，颜色变化可能改变当前行的显隐；只重新计算 class，
   // 不保存/恢复滚动位置，也不主动滚动。
@@ -47604,9 +47635,15 @@ function captureProjectPlayhead() {
   DATA.editor_state = {...(DATA.editor_state && typeof DATA.editor_state === 'object'
     && !Array.isArray(DATA.editor_state) ? DATA.editor_state : {}), playhead_ms: Math.round(ms)};
 }
+let savedProjectSerialization = null;
 function buildSavedProjectJson() {
   captureProjectPlayhead();
-  return buildJson();
+  window.MSWE?.resolve('asset-library')?.commitEdit();
+  const host=window.MSWE?.resolve('persistence-host'),key=host?.draftFingerprint();
+  if(key!==undefined&&savedProjectSerialization?.generation===mswProjectGeneration&&savedProjectSerialization.key===key)return savedProjectSerialization.json;
+  const json=buildJson();
+  if(key!==undefined)savedProjectSerialization={generation:mswProjectGeneration,key:host.draftFingerprint(),json};
+  return json;
 }
 function restoreProjectPlayhead(mediaElement = player) {
   if (mediaElement !== player || pendingProjectPlayhead === null) return;
@@ -51825,6 +51862,16 @@ function buildGapRemovedAss() {
 }
 
 function usedSubtitleColors() {
+  if(fixedTrackMode()) {
+    // Menu visibility only needs marker identities, not a cloned SRT export.
+    const owners=fixedOwners(),tracks=new Map(DATA.subtitle_tracks.tracks.map(t=>[t.id,t])),names=new Set();
+    for(const source of layerCore.tracks(DATA))for(const cue of source.segments) {
+      const owner=tracks.get(owners.get(fixedTrackCore.key({role:source.role,track_id:source.track_id,cue_id:cue.id})));
+      if(owner?.enabled&&!cue.disabled&&(!fixedExportTracks||fixedExportTracks.includes(owner.id))&&layerCore.visible(DATA,cue,source.role))
+        names.add(window.AsrEditorUtils.effectiveColorName(cue,source.segments)||'default');
+    }
+    return [...COLOR_PALETTE.filter(c=>names.has(c.name)),...(names.has('default')?[{name:'default',label:'默认'}]:[])];
+  }
   const { segments, overlaySet, overlaySegments } = mergedExportSegments();
   const resolveColor = exportColorContextResolver(overlaySet, overlaySegments);
   const names = new Set(segments.filter((segment) => !segment.disabled).map((segment) => (
@@ -54065,12 +54112,13 @@ async function saveProjectToServer({ silent = false } = {}) {
   const savedGeneration = mswProjectGeneration;
   projectSaveInFlight = true;
   const feedback = beginProjectSaveFeedback({silent});
-  let projectJson;
+  let projectJson, savedFingerprint;
   try {
     await feedback.ready;
     if (savedGeneration !== mswProjectGeneration) return false;
     flushInlineEditsForSave();
     projectJson = buildSavedProjectJson();
+    savedFingerprint = window.MSWE?.resolve('persistence-host')?.draftFingerprint();
     const processingContext = SERVER_CONFIG.processingContext;
     const saveUrl = new URL(SERVER_CONFIG.processingUrl ? `${SERVER_CONFIG.processingUrl}/project` : SERVER_CONFIG.saveUrl, window.location.href);
     const response = await fetch(saveUrl, {
@@ -54085,7 +54133,8 @@ async function saveProjectToServer({ silent = false } = {}) {
     }
     if (savedGeneration !== mswProjectGeneration) return false;
     if (SERVER_CONFIG.processingUrl) SERVER_CONFIG.processingContext = { ...processingContext, ...result };
-    const unchanged = !inlineEditHasUncommittedText() && buildJson() === projectJson;
+    const unchanged = !inlineEditHasUncommittedText() && (savedFingerprint !== undefined
+      ? window.MSWE.resolve('persistence-host').draftFingerprint() === savedFingerprint : buildJson() === projectJson);
     window.MSWE?.resolve('project-persistence')?.status(result.assets,
       unchanged ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
     if (unchanged) markProjectSaved(result.filename, result.backup, {silent:true});
@@ -54126,13 +54175,15 @@ async function saveProjectToHandle({ silent = false } = {}) {
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
     flushInlineEditsForSave();
     const projectJson = buildSavedProjectJson();
+    const savedFingerprint = window.MSWE?.resolve('persistence-host')?.draftFingerprint();
     await layerProtectHandle(savedHandle, projectJson, silent);
     if (savedGeneration !== mswProjectGeneration) return false;
     const writable = await savedHandle.createWritable();
     await writable.write(new Blob([projectJson], { type: 'application/json;charset=utf-8' }));
     await writable.close();
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
-    const unchanged = !inlineEditHasUncommittedText() && buildJson() === projectJson;
+    const unchanged = !inlineEditHasUncommittedText() && (savedFingerprint !== undefined
+      ? window.MSWE.resolve('persistence-host').draftFingerprint() === savedFingerprint : buildJson() === projectJson);
     if (unchanged) markProjectSaved(savedHandle.name, null, {silent:true});
     feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
     return true;
@@ -58137,16 +58188,63 @@ function detachColorFromGroup(idx) {
   return true;
 }
 
+function snapshotCueMarkers(changes,label) {
+  const cues=new Map(layerCore.tracks(DATA).flatMap(t=>t.segments.map(c=>[c.id,c])));
+  return {kind:'cue-markers',label,view:snapshotEditorSelection(),changes:changes.map(({id,field})=>{
+    const cue=cues.get(id);return structuredClone({id,field,[field]:cue?.[field],[field+'_ref']:cue?.[field+'_ref'],marker:DATA.subtitle_tracks.flat_context.markers[id]?.[field]});
+  })};
+}
+function finishCueMarkerChange(changes) {
+  // Only marker fields changed. Keep the validation checkpoint current without
+  // copying every word timestamp a second time for this small edit.
+  if(fixedLastContent) {
+    const current=new Map(layerCore.tracks(DATA).flatMap(t=>t.segments.map(c=>[c.id,c]))),changed=new Map();
+    for(const {id,field} of changes){if(!changed.has(id))changed.set(id,[]);changed.get(id).push(field);}
+    for(const source of layerCore.tracks(fixedLastContent))for(const cue of source.segments)for(const field of changed.get(cue.id)||[]) {
+      for(const key of [field,field+'_ref']){delete cue[key];if(current.get(cue.id)[key]!==undefined)cue[key]=structuredClone(current.get(cue.id)[key]);}
+      const markers=fixedLastContent.subtitle_tracks.flat_context.markers,marker=DATA.subtitle_tracks.flat_context.markers[cue.id]?.[field];
+      if(markers[cue.id])delete markers[cue.id][field];if(marker)(markers[cue.id]||={})[field]=structuredClone(marker);
+    }
+  } else fixedLastContent=fixedContent();
+  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedPreviewInvalidate();projectImportDirty=true;updateUndoRedoButtons();
+  refreshColorAssignmentUi(new Set(changes.map(c=>c.id)));scheduleAutoSaveFlush();
+}
 function assignLinkedSpeakerColor(indices, name, track = null) {
   if(name&&!COLOR_BY_NAME[name])return;
   const segments=track?.segments||DATA.segments,role=track?'extension':'main';
   const ids=[...new Set(indices)].filter(i=>segments[i]).map(i=>fixedRef(segments[i],role,track?.id).cue_id);
   if(!ids.length)return;
   try {
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
     commitProcessingEdits();
-    const before=window.MSWProductionProject.toProject(DATA),next=window.MSWFlatEditing.setColor(before,ids,name);
-    if(JSON.stringify(before)===JSON.stringify(next))return;
-    productionCommitProject(next,name?'标记说话人':'清除说话人标记',[...fixedPositionSelectedIds()]);
+    const before=window.MSWProductionProject.toProject(window.AsrEditorUtils.stripInlineCaches(DATA)),next=window.MSWFlatEditing.setColor(before,ids,name);
+    const oldById=new Map(before.subtitles.cues.map(c=>[c.id,c.content]));
+    const nextById=new Map(next.subtitles.cues.map(c=>[c.id,c.content]));
+    const live=new Map();
+    for(const rows of [DATA.segments,...getMultiSubtitleState().tracks.map(t=>t.segments)])rows.forEach((c,index)=>live.set(c.id,{c,rows,index}));
+    const changes=[];
+    for(const {id,content} of next.subtitles.cues)for(const field of ['color','sticker']) {
+      const old=oldById.get(id);
+      if(JSON.stringify([old[field],old[field+'_ref']])!==JSON.stringify([content[field],content[field+'_ref']]))changes.push({id,content,field});
+    }
+    if(!changes.length)return;
+    // The canonical transaction has validated bindings and locks. Apply its
+    // marker changes in place: no cue replacement, selection reset or list rebuild.
+    if(!fixedLastContent||fixedLastContentKey!==fixedContentKey())fixedLastContent=fixedContent();
+    editorHistory.push(snapshotCueMarkers(changes,name?'标记说话人':'清除说话人标记'));
+    const markers=DATA.subtitle_tracks.flat_context.markers;
+    for(const {id,content,field} of changes) {
+      const {c,rows,index}=live.get(id),ref=content[field+'_ref'];
+      delete c[field];delete c[field+'_ref'];if(markers[id])delete markers[id][field];
+      if(content[field])c[field]=structuredClone(content[field]);
+      if(ref) {
+        const head=live.get(ref.cue_id);
+        if(head.rows===rows&&head.index<index){c[field+'_ref']={...ref,headIdx:head.index};delete c[field+'_ref'].cue_id;}
+        else {c[field]=structuredClone(nextById.get(ref.cue_id)[field]);(markers[id]||={})[field]={ref:structuredClone(ref),value:structuredClone(c[field])};}
+      }
+    }
+    finishCueMarkerChange(changes);
   }catch(error){fixedStatus(error.message);}
 }
 function assignColor(idxs, colorName) {
@@ -68469,8 +68567,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   const proofControls=document.createElement('div');proofControls.className='msw-proof-controls';proofPanel.append(proofControls);
   proofControls.append($('style-preview-mode').closest('label'));
   const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofControls.append(openProperties);old.before(proofPanel);
-  const speakerPreview=document.createElement('label');speakerPreview.className='msw-style-check';
-  speakerPreview.innerHTML='<input id="style-preview-speakers" type="checkbox"><span>在预览中显示说话人</span>';proofPanel.append(speakerPreview);
+  const speakerPreview=document.createElement('label');speakerPreview.className='toggle settings-panel-item';
+  speakerPreview.innerHTML='<input id="style-preview-speakers" type="checkbox"><span>预览说话人</span>';
+  document.querySelector('.media-preview-checks').append(speakerPreview);
   $('style-preview-speakers').onchange=()=>{
     pushPreviewUndo('切换预览说话人名称',snapshotPreviewState());
     host.data.preview.speaker_labels_visible=$('style-preview-speakers').checked;

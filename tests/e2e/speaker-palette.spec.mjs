@@ -92,6 +92,8 @@ test('speaker properties inherit across tracks, preserve cue overrides, undo and
   await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('Speaker custom');await page.locator('#style-save-preset').click();
   await expect(page.locator('#style-project-preset option:checked')).toHaveText('Speaker custom');
   await page.evaluate(()=>setSubtitlePreviewSettingsPanelOpen(true));
+  await expect(page.locator('.media-preview-checks #style-preview-speakers')).toHaveCount(1);
+  await expect(page.locator('#style-preview-speakers').locator('..')).toHaveText('预览说话人');
   await page.locator('#style-preview-speakers').check();
   await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('SP1：')),null,{timeout:15000}).catch(async e=>{
     writeFileSync(join(dir,'preview-diagnostic.json'),JSON.stringify(await page.evaluate(()=>({status:MSWSubtitleRenderer.status,pending:MSWSubtitleRenderer.pending,geometry:MSWSubtitleRenderer.geometry,preview:DATA.preview,requestPreview:MSWE.resolve('processing-host').subtitlePreviewProject().preview,media:{state:player.readyState,source:player.currentSrc},label:document.getElementById('style-message').textContent})),null,2));throw e;
@@ -173,9 +175,29 @@ test('bound speaker colors propagate through both editor entry points and undo o
     const main=DATA.segments.findIndex(c=>c.id===a.id),track=DATA.multi_subtitle.tracks.find(t=>t.segments.some(c=>c.id===b.id));
     const secondary=track.segments.findIndex(c=>c.id===b.id);
     assignColor([main],'blue');const fromMain=colors();performUndo();const undone=colors();
+    performRedo();const redone=colors();performUndo();
     assignExtensionColor([secondary],'green',getExtensionTrack(track.id));const fromSecondary=colors();
     clearColorOnTargets([main]);const cleared=colors();performUndo();const restored=colors();
-    return {fromMain,undone,fromSecondary,cleared,restored};
+    return {fromMain,undone,redone,fromSecondary,cleared,restored};
   });
-  expect(result).toEqual({fromMain:['blue','blue'],undone:[null,null],fromSecondary:['green','green'],cleared:[null,null],restored:['green','green']});
+  expect(result).toEqual({fromMain:['blue','blue'],undone:[null,null],redone:['blue','blue'],fromSecondary:['green','green'],cleared:[null,null],restored:['green','green']});
+});
+
+test('coloring keeps existing cards and active secondary editor; deselection clears it',async({page})=>{
+  await page.evaluate(()=>{
+    let p=MSWE.resolve('processing-host').exportProject();const [a,b]=p.subtitles.cues;
+    p=MSWFlatSubtitles.addTrack(p,{...p.subtitles.tracks[0],id:'translation',name:'S1副',style:{mode:'inherit',slot:'secondary',base:'dialogue'}});
+    p.subtitles.cues[1].track_id='translation';p.subtitle_view={...p.subtitle_view,secondary_cue_ids:[b.id]};
+    p=MSWFlatSubtitles.bind(p,a.id,b.id,'pair');productionCommitProject(p,'绑定',[]);
+    updateEditorSettings({selectBoundSubtitlePair:false});selectOnlyExtension(0);
+    window.keptCard=container.querySelector('.cue');window.keptCue=getActiveExtensionTrack().segments[0];
+    assignExtensionColor([0],'blue');
+  });
+  expect(await page.evaluate(()=>({same:keptCard.isConnected&&keptCue===getActiveExtensionTrack().segments[0],text:getCurrentCuePanelTarget()?.segment.text}))).toEqual({same:true,text:'Second'});
+  await page.evaluate(()=>productionCommitProject(MSWProductionProject.toProject(DATA),'刷新', [...fixedPositionSelectedIds()]));
+  expect(await page.evaluate(()=>getCurrentCuePanelTarget()?.segment.text)).toBe('Second');
+  await page.locator('.waveform-cue-block').filter({hasText:'Second'}).first().click({modifiers:['Shift']});
+  expect(await page.evaluate(()=>({selected:selectedExtensionIdxs.size,target:getCurrentCuePanelTarget()}))).toEqual({selected:0,target:null});
+  await page.evaluate(()=>{selectOnly(0);addExtensionToSelection(0);toggleExtensionSelection(0);});
+  expect(await page.evaluate(()=>getCurrentCuePanelTarget()?.segment.text)).toBe('Hello 世界');
 });

@@ -1,6 +1,5 @@
 """Bounded local recovery snapshots, independent of project auto-save."""
 
-import copy
 from contextlib import contextmanager
 import hashlib
 import json
@@ -41,10 +40,14 @@ class RecoveryStore:
     def put(self, project, *, kind, name, origin=None, media=None, session="", now=None):
         if kind not in {"draft", "history", "saved"}:
             raise ValueError("恢复记录类型无效")
-        snapshot = copy.deepcopy(project)
-        for key in ("waveform", "spectral", "waveform_reapeaks"):
-            snapshot.pop(key, None)
-        snapshot = normalize_project(snapshot)
+        snapshot = normalize_project({key: value for key, value in project.items()
+                                      if key not in {"waveform", "spectral", "waveform_reapeaks", "loudness"}})
+        return self._put_normalized(snapshot, kind=kind, name=name, origin=origin, media=media, session=session, now=now)
+
+    def _put_normalized(self, snapshot, *, kind, name, origin=None, media=None, session="", now=None):
+        """Internal save path: snapshot already passed the project boundary."""
+        if kind not in {"draft", "history", "saved"}:
+            raise ValueError("恢复记录类型无效")
         project_id = (snapshot.get("msw") or {}).get("project_id")
         # Older projects without an MSW namespace still get stable history.
         project_id = project_id or hashlib.sha256(str(origin or name).encode()).hexdigest()
@@ -52,7 +55,6 @@ class RecoveryStore:
         if len(raw) > 64 * 1024 * 1024:
             raise ValueError("恢复快照超过 64 MB")
         digest = hashlib.sha256(raw).hexdigest()
-        body = zlib.compress(raw)
         now = time.time() if now is None else now
         slot = "draft:" + session if kind == "draft" else "saved" if kind == "saved" else str(uuid.uuid4())
         with self.connect() as db:
@@ -60,6 +62,9 @@ class RecoveryStore:
                                 (project_id, kind)).fetchone()
             if kind == "history" and latest and (latest["digest"] == digest or now - latest["created"] < 60):
                 return latest["id"]
+            if latest and latest["slot"] == slot and latest["digest"] == digest and latest["origin"] == (str(origin) if origin else None) and latest["media"] == (str(media) if media else None):
+                return latest["id"]
+            body = zlib.compress(raw)
             existing = db.execute("SELECT id FROM snapshots WHERE project_id=? AND slot=?", (project_id, slot)).fetchone()
             record_id = existing["id"] if existing else uuid.uuid4().hex
             db.execute("""INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?)

@@ -2690,13 +2690,11 @@
     duplicateModuleTab(addBtn) {
       const moduleId = addBtn.dataset.moduleId;
       if (!MODULE_IDS.includes(moduleId)) return;
-      if (!this.isCustomLayout() && !this.ensureCustomLayoutForDrag()) return;
       const present = new Set(collectLayoutModules(this.settings.layoutTree));
       const candidates = MODULE_IDS.filter((mid) => !present.has(mid));
       if (!candidates.length) return;
-      // Preset -> custom rebuilds tab strips: the clicked button is detached.
-      const liveAnchor = document.querySelector(`[data-dock-module="${moduleId}"] .module-tab-add`);
-      if (liveAnchor) this.openTabAddMenu(moduleId, liveAnchor, candidates);
+      // Opening a menu must not rebuild the workspace beneath its anchor.
+      this.openTabAddMenu(moduleId, addBtn, candidates);
     }
 
     openTabAddMenu(anchorId, anchorEl, candidates) {

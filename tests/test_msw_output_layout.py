@@ -34,6 +34,17 @@ def wav_bytes():
 
 
 class MswOutputLayoutTests(unittest.TestCase):
+    def test_default_name_keeps_input_and_bounds_long_unicode_names(self):
+        from maw.output_naming import project_output_stem
+        self.assertEqual(project_output_stem(Path('Game review.mp4'), self.root), 'Game review')
+        for stem in ['A very long video title ' * 12, '视频名称😀' * 45]:
+            name = project_output_stem(Path(stem + '.mp4'), self.root)
+            self.assertTrue(name.startswith(stem[:8]))
+            self.assertLessEqual(len(name), 80)
+            self.assertLessEqual(len(name.encode('utf-8')), 180)
+            self.assertNotEqual(name, project_output_stem(Path(stem + '2.mp4'), self.root))
+        self.assertEqual(project_output_stem(Path('CON.mp4'), self.root), 'CON_')
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

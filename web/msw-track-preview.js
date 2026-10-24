@@ -145,6 +145,15 @@ function fixedHidePreview() {
   playerStage.classList.remove('fixed-presentation');
 }
 function fixedRefreshSubtitlePreview(tMs) {
+  // libass owns the picture. Rebuilding the hidden CSS fallback for every
+  // marker edit measured every cue in long projects for no visible benefit.
+  // Position mode still needs those hit targets; renderer failure falls back
+  // through the normal path on the next update.
+  if(window.MSWSubtitleRenderer?.status==='libass'&&!fixedPositionEditing&&!fixedPositionDrag&&!fixedPositionSession) {
+    playerStage.classList.add('fixed-presentation');
+    for(const id of ['fixed-subtitle-preview','msw-layer-preview']){const root=document.getElementById(id);if(root)root.hidden=true;}
+    fixedApplyPositionOffsets({entries:[]});renderStickerOverlay(tMs);return;
+  }
   const rect=fixedVideoRect();if(!rect.width||!rect.height)return;
   playerStage.classList.add('fixed-presentation');
   const old=document.getElementById('msw-layer-preview');if(old)old.hidden=true;

@@ -280,10 +280,9 @@ def default_srt_path(
     if subfolder is None:
         subfolder = bool(config.output_subfolder)
     tag = _srt_model_tag(provider, model) if attach_model_name else ""
-    if subfolder:
-        output = maw_root(media, env_path=env_path) / f"{media.stem}{tag}.srt"
-    else:
-        output = media.with_name(f"{media.stem}{tag}.srt")
+    from maw.output_naming import project_output_stem
+    directory = maw_root(media, env_path=env_path) if subfolder else media.parent
+    output = directory / f"{project_output_stem(media, directory)}{tag}.srt"
     return with_test_suffix(output) if test_run else output
 
 

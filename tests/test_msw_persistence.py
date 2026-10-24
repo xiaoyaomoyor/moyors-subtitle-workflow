@@ -29,6 +29,18 @@ def wav_data():
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_identical_save_reuses_validation_but_still_checks_disk_revision(self):
+        data = copy.deepcopy(self.server.project.data)
+        self.server.save_project(data)
+        context = self.api.context()
+        before = self.path.stat().st_mtime_ns
+        with patch.object(server_module, 'normalize_project', side_effect=AssertionError('duplicate validation')):
+            self.server.save_project(data, expected_binding=context['binding'], expected_revision=context['saveRevision'])
+        self.assertEqual(self.path.stat().st_mtime_ns, before)
+        self.path.write_bytes(self.path.read_bytes() + b' ')
+        with self.assertRaises(ValueError):
+            self.server.save_project(data, expected_binding=context['binding'], expected_revision=context['saveRevision'])
+
     def test_save_waits_for_brief_status_read_lock(self):
         import threading
         context=self.api.context()

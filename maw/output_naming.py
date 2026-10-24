@@ -147,6 +147,20 @@ def sanitize_component(value: object, fallback: str = "视频") -> str:
     return sanitized[:160]
 
 
+def project_output_stem(source: Path, directory: Path) -> str:
+    """Keep the input's recognizable name, with room for export/backup suffixes."""
+    original = source.stem
+    name = sanitize_component(original, "工程")
+    budget = max(16, min(80, 240 - len(str(directory.resolve())) - 32))
+    if len(original) <= budget and len(name.encode('utf-8')) <= 180:
+        return name
+    suffix = '-' + hashlib.sha256(original.encode('utf-8')).hexdigest()[:8]
+    name = name[:budget - len(suffix)].rstrip(' .')
+    while len((name + suffix).encode('utf-8')) > 180:
+        name = name[:-1]
+    return name + suffix
+
+
 def maw_root(media_path: Path | str, *, per_video: bool | None = None, env_path: Path | None = None) -> Path:
     """返回媒体对应的 MSW 子目录（保留上游函数名）：共享 ``_msw`` 或每视频 ``<名称>_msw``。"""
     media = Path(media_path).expanduser().resolve(strict=False)

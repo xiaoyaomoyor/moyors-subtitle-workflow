@@ -16,10 +16,13 @@ test.beforeEach(async({page})=>{
 });
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();expect(errors).toEqual([]);});
 
-test('first plus menu anchors to the rebuilt button, permits entry, closes on leave and adds a tab',async({page})=>{
+test('first plus menu preserves the workspace, anchors to the button and adds a tab',async({page})=>{
   const add=page.locator('[data-dock-module="player"] .module-tab-add'),menu=page.getByRole('menu',{name:'添加窗口到此标签组'});
   expect(await page.evaluate(()=>waveformEditor.isCustomLayout())).toBe(false);
+  const before=await add.boundingBox();
   await add.click();await expect(menu).toBeVisible();
+  expect(await page.evaluate(()=>waveformEditor.isCustomLayout())).toBe(false);
+  expect(await add.boundingBox()).toEqual(before);
   const anchor=await add.boundingBox(),box=await menu.boundingBox();
   expect(Math.abs(box.x-anchor.x)).toBeLessThan(2);expect(Math.abs(box.y-anchor.y-anchor.height-4)).toBeLessThan(2);
   await menu.hover();await page.waitForTimeout(300);await expect(menu).toBeVisible();

@@ -250,6 +250,7 @@ function fixedCommitProject(next, label) {
 }
 function productionCommitProject(project,label,ids=[],{displayOnly=false,recordHistory=true}={}) {
   if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+  const panelId=getCurrentCuePanelTarget()?.segment.id;
   const next=window.MSWProductionProject.fromProject(project);
   if(displayOnly) {
     const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
@@ -263,6 +264,7 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
   fixedLastContent=fixedContent();fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
   fixedInvalidate();normalizeMultiSubtitleState();clearSelection({silent:true});
   DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack()?.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});
+  syncCuePanelSelection(panelId);
   projectImportDirty=true;cueListPlaybackKey=null;renderAll({waveform:'full'});scheduleAutoSaveFlush();
 }
 function productionBindSelected() {

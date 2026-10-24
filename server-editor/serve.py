@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import html
 import io
 import json
+import hashlib
 import math
 import mimetypes
 import os
@@ -1288,7 +1289,7 @@ class EditorServer(ThreadingHTTPServer):
         self.start_deferred_reapeaks_load()
         return project
 
-    def write_project(self, target, project_data, *, media_source=...):
+    def write_project(self, target, project_data, *, media_source=..., _normalized=False):
         # Recovery failure must never turn a successful primary write into a
         # reported save failure. The adjacent .bak remains independently useful.
         persistence = self.processing_api.persistence
@@ -1306,7 +1307,8 @@ class EditorServer(ThreadingHTTPServer):
             persistence.recovery_warning = "历史备份暂不可用；请检查本机存储空间"
         backup = write_project_json(target, project_data)
         try:
-            persistence.recovery.put(project_data, kind="saved", name=target.name, origin=target, media=media)
+            put = persistence.recovery._put_normalized if _normalized else persistence.recovery.put
+            put(strip_inline_caches(project_data), kind="saved", name=target.name, origin=target, media=media)
         except Exception:
             persistence.recovery_warning = "工程已保存，但本机恢复记录未更新"
         now = time.time()
@@ -1319,6 +1321,23 @@ class EditorServer(ThreadingHTTPServer):
                      include_context: bool = False) -> tuple:
         if not self.project.json_path or self.project.json_path.suffix.lower() == ".mosp-bak":
             raise SaveProjectError("当前服务器没有绑定工程文件；请先导出 .mosp 工程，再重新打开该文件")
+        # Repeated Ctrl+S still checks the live binding and exact disk bytes.
+        # Reuse only a previously validated request, never an unverified upload.
+        request_key = hashlib.sha256(json.dumps(project_data, ensure_ascii=False, sort_keys=True,
+                                                separators=(',', ':'), allow_nan=False).encode()).digest()
+        cached = getattr(self, '_saved_request', None)
+        if cached and cached[0] == request_key and cached[1] == self.project.json_path and filename is None:
+            if not self.save_lock.acquire(timeout=1):
+                raise ProjectMutationInProgressError("另一个工程保存操作正在进行")
+            try:
+                if expected_binding is not None:
+                    self.processing_api.check_save(expected_binding, expected_revision)
+                if self.project.json_path == cached[1] and cached[1].read_bytes() == cached[2] and not (project_data.get('msw') or {}).get('assets'):
+                    context = {**self.processing_api.context(), 'assets': cached[3],
+                               'recoveryWarning': cached[4]} if include_context else None
+                    return (cached[1], None, context) if include_context else (cached[1], None)
+            finally:
+                self.save_lock.release()
         try:
             repaired_project = copy.deepcopy(project_data)
             # 保存时只自动修复字/词级取整冲突；真正的字幕段重叠仍交给严格校验，
@@ -1343,7 +1362,7 @@ class EditorServer(ThreadingHTTPServer):
             asset_report = {"total": 0, "available": 0, "copied": 0, "missing": []}
             if (normalized_project.get("msw") or {}).get("assets"):
                 asset_report = self.processing_api.assets.persist_project(normalized_project, target, self.project.json_path)
-            backup = self.write_project(target, normalized_project)
+            backup = self.write_project(target, normalized_project, _normalized=True)
             runtime = restore_runtime_caches(persist_audio_track(normalized_project), self.project.data,
                                              self.project.source_media_path or self.project.media_path)
             self.project = replace(self.project, data=runtime, json_path=target,
@@ -1351,6 +1370,8 @@ class EditorServer(ThreadingHTTPServer):
             self.remember_project(target)
             context = {**self.processing_api.context(), "assets": asset_report,
                        "recoveryWarning": self.processing_api.persistence.recovery_warning} if include_context else None
+            self._saved_request = (request_key, target, target.read_bytes(), asset_report,
+                                   self.processing_api.persistence.recovery_warning)
         finally:
             self.save_lock.release()
         return (target, backup, context) if include_context else (target, backup)
@@ -1796,7 +1817,9 @@ def write_project_json(target: Path, project_data: dict) -> Path | None:
         from maw.file_io import atomic_output_path
         value = strip_inline_caches(persist_audio_track(project_data))
         if target.is_file():
-            document = flat_subtitles_io.read_project(target)
+            # save_project validates the original under the writer lock. Do
+            # not migrate and validate that same original once more here.
+            document = flat_subtitles_io.FlatDocument(target.resolve(), target.read_bytes(), value)
             return flat_subtitles_io.save_project(document, value, previous_backup=True).backup
         with atomic_output_path(target) as pending:
             pending.write_text(flat_subtitles_io.serialize_project(value), encoding='utf-8', newline='\n')

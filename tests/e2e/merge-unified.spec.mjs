@@ -5,6 +5,7 @@ import {disableOnboarding,findFreePort,generateWav,generateWaveformPayload,makeT
 let server;
 test.beforeAll(async()=>{
  const folder=makeTempDir('merge-unified'),media=join(folder,'synthetic.wav'),project=join(folder,'project.mosp');
+ process.env.MSW_APP_DATA_ROOT=join(folder,'settings');process.env.MAW_ENV_FILE=join(folder,'isolated.env');
  generateWav(media,8);writeFileSync(project,JSON.stringify({media,segments:[],waveform:generateWaveformPayload(8000)}));
  server=await startServer(project,media,await findFreePort());
 });
@@ -60,7 +61,7 @@ test('multi-cue waveform tape marks every visible join on the result including t
  });
  expect(result.ok).toBe(true);expect(result.production).toBe(true);expect(result.tapes).toHaveLength(6);
  expect(result.tapes.map(t=>t.time).sort((a,b)=>a-b)).toEqual([2000,2000,4000,4000,6000,6000]);
- for(const tape of result.tapes){expect(tape.width).toBe(52);expect(Math.abs(tape.y-tape.expectedY)).toBeLessThan(1);if(tape.time===4000)expect(tape.rowStart).toBe(4000);}
+ for(const tape of result.tapes){expect(tape.width).toBe(108);expect(Math.abs(tape.y-tape.expectedY)).toBeLessThan(1);if(tape.time===4000)expect(tape.rowStart).toBe(4000);}
  await page.screenshot({path:info.outputPath('many-tapes-waveform.png')});
  await expect(page.locator('.merge-tape-flash')).toHaveCount(0);
 });
@@ -205,6 +206,8 @@ async function setup(page,legacy=false,production=false){
  if(legacy)url.searchParams.set('subtitle-tracks','0');
  await page.goto(url.href);
  await page.evaluate(waveform=>{
+  updateEditorSettings({autoSaveProject:false,mergeTapeEffect:false,ninjaMode:false});
+  applyNinjaSettings();
   applyCanonicalProject({segments:[
    {id:'m1',start:0,end:2000,text:'one',items:[{start:0,end:2000,text:'one'}],color:{name:'red',value:'#ff0000'}},
    {id:'m2',start:2000,end:4000,text:'two',items:[],disabled:true},
@@ -237,7 +240,7 @@ test('merge preserves audio, provenance and project style even with hidden partn
 });
 test('partner collision rejects atomically and disabled result remains visible until another selection',async({page})=>{
  await setup(page);
- await page.evaluate(()=>{waveformEditor.settings.disabledDisplay='hidden';waveformEditor.render();});
+ await page.evaluate(()=>{updateEditorSettings({cueListHideDisabled:true});waveformEditor.settings.disabledDisplay='hidden';waveformEditor.render();});
  await page.evaluate(()=>{DATA.subtitle_layers.allow_overlap=false;getActiveExtensionTrack().segments.push({id:'gap',start:1950,end:2050,text:'unrelated',items:[]});renderAll();});
  const before=await snapshot(page);const history=await page.evaluate(()=>editorHistory.undoLength());
  expect(await page.evaluate(()=>mergeSegments([0,1]))).toBe(false);expect(await snapshot(page)).toEqual(before);

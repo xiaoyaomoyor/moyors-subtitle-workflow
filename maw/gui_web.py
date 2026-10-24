@@ -2944,7 +2944,8 @@ class LauncherApi:
         """Create a media project; the waveform module decides whether cache generation (R0/F04) is included."""
         waveform_enabled = payload.get("waveform") is not False
         suffix = ".waveform.srt" if waveform_enabled else ".media.srt"
-        output_seed = unique_output_path(media_path.with_suffix(suffix))
+        from maw.output_naming import project_output_stem
+        output_seed = unique_output_path(media_path.with_name(project_output_stem(media_path, media_path.parent) + suffix))
         project_path = output_seed.with_suffix(".mosp")
         project: dict[str, object] = {"media": str(media_path), "segments": []}
         try:

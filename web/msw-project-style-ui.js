@@ -132,8 +132,9 @@
   const proofControls=document.createElement('div');proofControls.className='msw-proof-controls';proofPanel.append(proofControls);
   proofControls.append($('style-preview-mode').closest('label'));
   const openProperties=document.createElement('button');openProperties.type='button';openProperties.id='subtitle-properties-open';openProperties.textContent='字幕样式与画面位置';proofControls.append(openProperties);old.before(proofPanel);
-  const speakerPreview=document.createElement('label');speakerPreview.className='msw-style-check';
-  speakerPreview.innerHTML='<input id="style-preview-speakers" type="checkbox"><span>在预览中显示说话人</span>';proofPanel.append(speakerPreview);
+  const speakerPreview=document.createElement('label');speakerPreview.className='toggle settings-panel-item';
+  speakerPreview.innerHTML='<input id="style-preview-speakers" type="checkbox"><span>预览说话人</span>';
+  document.querySelector('.media-preview-checks').append(speakerPreview);
   $('style-preview-speakers').onchange=()=>{
     pushPreviewUndo('切换预览说话人名称',snapshotPreviewState());
     host.data.preview.speaker_labels_visible=$('style-preview-speakers').checked;
