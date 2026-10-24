@@ -160,3 +160,22 @@ test('multi-track marking changes only selected identities, respects locking and
   expect(state.colors).toEqual({[state.a]:'blue',[state.b]:'red','extra-cue':'blue'});
   expect(state.undone).toEqual(state.locked);expect(state.undone.filter(Boolean)).toEqual(['red','red']);
 });
+
+test('bound speaker colors propagate through both editor entry points and undo once',async({page})=>{
+  const result=await page.evaluate(()=>{
+    const F=MSWFlatSubtitles;let p=MSWE.resolve('processing-host').exportProject();
+    const [a,b]=p.subtitles.cues;
+    p=F.addTrack(p,{...p.subtitles.tracks[0],id:'translation',name:'S1副',style:{mode:'inherit',slot:'secondary',base:'dialogue'}});
+    p.subtitles.cues[1].track_id='translation';
+    p.subtitle_view={...p.subtitle_view,secondary_cue_ids:[b.id]};
+    p=F.bind(p,a.id,b.id,'pair');productionCommitProject(p,'测试绑定',[]);
+    const colors=()=>JSON.parse(buildJson()).subtitles.cues.map(c=>c.content.color?.name||null);
+    const main=DATA.segments.findIndex(c=>c.id===a.id),track=DATA.multi_subtitle.tracks.find(t=>t.segments.some(c=>c.id===b.id));
+    const secondary=track.segments.findIndex(c=>c.id===b.id);
+    assignColor([main],'blue');const fromMain=colors();performUndo();const undone=colors();
+    assignExtensionColor([secondary],'green',getExtensionTrack(track.id));const fromSecondary=colors();
+    clearColorOnTargets([main]);const cleared=colors();performUndo();const restored=colors();
+    return {fromMain,undone,fromSecondary,cleared,restored};
+  });
+  expect(result).toEqual({fromMain:['blue','blue'],undone:[null,null],fromSecondary:['green','green'],cleared:[null,null],restored:['green','green']});
+});

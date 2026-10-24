@@ -32,6 +32,11 @@ test('editor import previews, isolates categories, preserves project and rolls b
     await expect(page.locator('#config-export')).toBeVisible();
     await page.locator('#editor-settings-search').fill('');
     await expect(page.locator('.msw-config-manager')).toBeVisible();
+    await page.getByText('详情说明',{exact:true}).click();
+    await expect(page.locator('.config-scope-details')).toContainText('工程文件（.mosp）');
+    await expect(page.locator('.config-scope-details')).toContainText('配置文件（.mswconfig）');
+    await expect(page.locator('.config-scope-details')).toContainText('不导出：');
+    await expect(page.locator('.config-scope-details')).toContainText('媒体仅保存引用');
     await expect(page.locator('[data-config-category]')).toHaveCount(8);
     await expect(page.locator('#config-categories')).not.toContainText('ASS');
     await expect(page.locator('#config-categories')).not.toContainText('首次使用');

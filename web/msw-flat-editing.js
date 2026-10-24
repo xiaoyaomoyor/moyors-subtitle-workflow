@@ -88,8 +88,12 @@
   function updateRanges(p,changes,options) {return updateRangesInternal(p,changes,options);}
   function setDisabled(p,ids,disabled) {return transaction(p,n=>{editable(n,ids);for(const id of ids)cue(n,id).content.disabled=disabled;});}
   function setColor(p,ids,name) {return transaction(p,n=>{
-    editable(n,ids);detachReferences(n,new Set(ids));
-    for(const id of ids){const c=cue(n,id).content;delete c.color;delete c.color_ref;if(name)c.color={name,start:c.start,end:c.end};}
+    const targets=new Set(ids);
+    for(const link of body(n).bindings)if(targets.has(link.source_id)||targets.has(link.target_id)){
+      targets.add(link.source_id);targets.add(link.target_id);
+    }
+    editable(n,[...targets]);detachReferences(n,targets);
+    for(const id of targets){const c=cue(n,id).content;delete c.color;delete c.color_ref;if(name)c.color={name,start:c.start,end:c.end};}
   });}
   function remove(p,ids) {return transaction(p,n=>{
     const removed=new Set(ids),links=body(n).bindings.filter(b=>removed.has(b.source_id)||removed.has(b.target_id));

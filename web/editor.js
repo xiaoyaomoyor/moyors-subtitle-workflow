@@ -4,7 +4,7 @@ const CANONICAL_PROJECT_FIELDS = new Set([
   'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
   'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'overlay_track', 'waveform',
   'media_metadata', 'media_time_reference', 'spectral', 'waveform_reapeaks', 'loudness', 'gap_remove',
-  'script_alignment', 'workspace', 'preview', 'msw', 'subtitle_tracks',
+  'script_alignment', 'workspace', 'preview', 'msw', 'subtitle_tracks', 'editor_state',
 ]);
 function getProjectExtensionFields(project) {
   return Object.fromEntries(Object.entries(project).filter(([key]) => !CANONICAL_PROJECT_FIELDS.has(key)));
@@ -11682,6 +11682,44 @@ setCueListFollowing(EDITOR_SETTINGS.cueListFollowPlayback);
 // === seek ===
 let seekWarned = false;
 let pendingMediaSeek = null;
+let pendingProjectPlayhead = savedProjectPlayhead(DATA);
+function savedProjectPlayhead(project) {
+  const ms = project?.editor_state?.playhead_ms;
+  return Number.isSafeInteger(ms) && ms >= 0 ? ms : null;
+}
+function captureProjectPlayhead() {
+  // Only capture at save/snapshot boundaries. Reading preview data or comparing
+  // an in-flight save must never make playback alone a new edit.
+  if (pendingProjectPlayhead !== null) return;
+  const virtual = window.MSWE?.resolve('audio-timeline')?.currentTimeMs();
+  const ms = pendingMediaSeek ? pendingMediaSeek.timeSec * 1000
+    : virtual ?? (player.readyState >= 1 ? player.currentTime * 1000 : null);
+  if (ms === null || !Number.isFinite(ms) || ms < 0) return;
+  DATA.editor_state = {...(DATA.editor_state && typeof DATA.editor_state === 'object'
+    && !Array.isArray(DATA.editor_state) ? DATA.editor_state : {}), playhead_ms: Math.round(ms)};
+}
+function buildSavedProjectJson() {
+  captureProjectPlayhead();
+  return buildJson();
+}
+function restoreProjectPlayhead(mediaElement = player) {
+  if (mediaElement !== player || pendingProjectPlayhead === null) return;
+  // Audio clips may extend beyond the video. Let all timeline modules attach
+  // before clamping an initially loaded project's saved position.
+  if (document.readyState === 'loading') return;
+  // Wait for the source duration, even if audio clips are already available.
+  if ((player.currentSrc || player.src || player.querySelector('source')?.src) && player.readyState < 1) return;
+  const audio = window.MSWE?.resolve('audio-timeline');
+  const end = Math.max(Number.isFinite(player.duration) ? player.duration * 1000 : 0, audio?.durationMs() || 0);
+  if (!(end > 0)) return;
+  const ms = Math.min(pendingProjectPlayhead, end);
+  pendingProjectPlayhead = null;
+  seekFromWaveform(ms / 1000, {pauseAfterSeek: true});
+  waveformEditor?.revealTime(ms, true);
+  syncMediaControls();
+}
+window.addEventListener('DOMContentLoaded', () => restoreProjectPlayhead());
+window.addEventListener('msw:project-changed', () => queueMicrotask(() => restoreProjectPlayhead()));
 let autoLoadedMediaReadyNotified = false;
 let cueListPointer = null;
 // 最后一次指针按下所在的编辑区域：cue-list / waveform。
@@ -12485,10 +12523,12 @@ function bindPlayerEvents(mediaElement) {
     captureProjectVideoDimensions(mediaElement);
     notifyAutoLoadedMediaReady(mediaElement);
     flushPendingMediaSeek(mediaElement);
+    restoreProjectPlayhead(mediaElement);
   });
   mediaElement.addEventListener('canplay', () => flushPendingMediaSeek(mediaElement));
   mediaElement.addEventListener('progress', () => flushPendingMediaSeek(mediaElement));
   mediaElement.addEventListener('play', () => {
+    if (player === mediaElement) pendingProjectPlayhead = null;
     // 开始播放可驱动已启用的跟随，但不会恢复被用户关闭的跟随状态。
     if (player === mediaElement && cueListScroll.following) cueListScroll.playbackKey = null;
     startPlaybackRefresh(mediaElement);
@@ -12521,6 +12561,7 @@ function bindPlayerEvents(mediaElement) {
       captureProjectVideoDimensions(mediaElement);
       notifyAutoLoadedMediaReady(mediaElement);
       flushPendingMediaSeek(mediaElement);
+      restoreProjectPlayhead(mediaElement);
     });
   }
   syncMediaControls();
@@ -16100,6 +16141,7 @@ function buildJson() {
   const out = {
     schema: DATA.schema,
     ...projectExtensionFields,
+    ...(DATA.editor_state ? {editor_state: structuredClone(DATA.editor_state)} : {}),
     ...(layerMode() ? { subtitle_layers: structuredClone(DATA.subtitle_layers) } : {}),
     ...(fixedTrackMode() ? { subtitle_tracks: structuredClone(DATA.subtitle_tracks) } : {}),
     media: DATA.media || '',
@@ -18122,7 +18164,7 @@ async function saveProjectToServer({ silent = false } = {}) {
     await feedback.ready;
     if (savedGeneration !== mswProjectGeneration) return false;
     flushInlineEditsForSave();
-    projectJson = buildJson();
+    projectJson = buildSavedProjectJson();
     const processingContext = SERVER_CONFIG.processingContext;
     const saveUrl = new URL(SERVER_CONFIG.processingUrl ? `${SERVER_CONFIG.processingUrl}/project` : SERVER_CONFIG.saveUrl, window.location.href);
     const response = await fetch(saveUrl, {
@@ -18177,7 +18219,7 @@ async function saveProjectToHandle({ silent = false } = {}) {
     await feedback.ready;
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
     flushInlineEditsForSave();
-    const projectJson = buildJson();
+    const projectJson = buildSavedProjectJson();
     await layerProtectHandle(savedHandle, projectJson, silent);
     if (savedGeneration !== mswProjectGeneration) return false;
     const writable = await savedHandle.createWritable();
@@ -18217,7 +18259,7 @@ async function saveProjectAsToFile() {
   if (extensionEditingState) finishExtensionEdit(true);
   commitCuePanelEdit();
   const suggested = `${FILENAME_BASE}.mosp`;
-  const snapshot = buildJson();
+  const snapshot = buildSavedProjectJson();
   const generation = mswProjectGeneration;
   const warnReferences = () => {
     if (DATA.msw?.assets?.length) flashHint('仅保存工程内容；音频素材仍需保留原 .assets 文件夹', 'warning');
@@ -19310,6 +19352,8 @@ function applyCanonicalProject(data, filename) {
   currentCuePanelTrackId = null;
   resetCuePanelEditState();
   resetLoadedMedia();
+  DATA.editor_state = data.editor_state ? structuredClone(data.editor_state) : undefined;
+  pendingProjectPlayhead = savedProjectPlayhead(data);
   DATA.media = typeof data.media === 'string' ? data.media : '';
   DATA.language = data.language || '';
   for (const key of ['language_source', 'split_mode', 'timestamp_granularity']) {
@@ -20243,7 +20287,9 @@ async function loadMediaFile(file, { localOnly = false, previewOnly = false, pre
     window.dispatchEvent(new Event('msw:player-changed'));
     bindPlayerEvents(player);
     seekWarned = false;  // 新媒体重新探测 seek 能力
-    pendingMediaSeek = null;
+    // Attaching a project's missing media keeps navigation requested while it
+    // was loading; importing a replacement source starts a fresh timeline.
+    if (!previewOnly) pendingMediaSeek = null;
     autoLoadedMediaReadyNotified = false;
   }
 
@@ -22185,19 +22231,25 @@ function detachColorFromGroup(idx) {
   return true;
 }
 
+function assignLinkedSpeakerColor(indices, name, track = null) {
+  if(name&&!COLOR_BY_NAME[name])return;
+  const segments=track?.segments||DATA.segments,role=track?'extension':'main';
+  const ids=[...new Set(indices)].filter(i=>segments[i]).map(i=>fixedRef(segments[i],role,track?.id).cue_id);
+  if(!ids.length)return;
+  try {
+    commitProcessingEdits();
+    const before=window.MSWProductionProject.toProject(DATA),next=window.MSWFlatEditing.setColor(before,ids,name);
+    if(JSON.stringify(before)===JSON.stringify(next))return;
+    productionCommitProject(next,name?'标记说话人':'清除说话人标记',[...fixedPositionSelectedIds()]);
+  }catch(error){fixedStatus(error.message);}
+}
 function assignColor(idxs, colorName) {
+  if(productionFlatMode())return assignLinkedSpeakerColor(idxs,colorName);
   if (!idxs.length || !fixedCanEdit(idxs.map(i=>DATA.segments[i]),'main')) return;
   const def = COLOR_BY_NAME[colorName];
   if (!def) return;
   pushUndo('标记颜色');
   const sorted = [...idxs].sort((a, b) => a - b);
-  if(productionFlatMode()) {
-    // Each selected cue owns its identity. Never reference a different physical
-    // track or recolor unselected members of a former color group.
-    splitGroupsAtCutPoints(new Set(sorted),'color','color_ref');
-    for(const idx of sorted){const cue=DATA.segments[idx];cue.color={name:colorName,value:def.value,start:cue.start,end:cue.end};cue.color_ref=null;}
-    refreshColorAssignmentUi();return;
-  }
   if (sorted.length === 1) {
     const idx = sorted[0];
     // 如果当前条已经是 head，同步更新所有引用 idx 的 ref.name
@@ -22288,6 +22340,7 @@ function removeColorCascade(idx) {
 }
 
 function clearColorOnTargets(idxs) {
+  if(productionFlatMode())return assignLinkedSpeakerColor(idxs,null);
   if(!fixedCanEdit(idxs.map(i=>DATA.segments[i]),'main'))return;
   pushUndo('清除颜色');
   // 一次性切除所有目标 idx，触发组拆分
@@ -23146,6 +23199,7 @@ function appendSubtitleExtendedActions() {
   ]);
 }
 function assignExtensionColor(indices, name, track) {
+  if(productionFlatMode())return assignLinkedSpeakerColor(indices,name,track);
   if (!fixedCanEdit(indices.map(i => track.segments[i]), 'extension', track.id)) return;
   pushUndo(name ? '标记颜色' : '清除颜色');
   splitGroupsAtCutPoints(new Set(indices), 'color', 'color_ref', track.segments);
@@ -23552,10 +23606,15 @@ function syncTimelineGroupRanges() {
 }
 
 function seekFromWaveform(timeSec, { dragPreview = false, mouseClick = false, pauseAfterSeek = false } = {}) {
+  // A deliberate navigation wins over a saved location still waiting on media.
+  pendingProjectPlayhead = null;
   const shouldPause = pauseAfterSeek || (mouseClick && !dragPreview && EDITOR_SETTINGS.pauseOnMouseClick && isPlaybackActive());
   // Stop the shared clock before seeking: virtual-to-media seek may otherwise
   // queue a play() microtask and undo the user's pause intent.
   if (shouldPause) pauseTimelinePlayback();
+  if (player.readyState < 1 && DATA.media) {
+    pendingMediaSeek = {timeSec, pauseAfterSeek: shouldPause, suppressCueListScroll: suppressCueListAutoScroll};
+  }
   if (window.MSWE?.resolve('audio-timeline')?.seek(Math.max(0, timeSec * 1000))) return;
   const seekableEnd = player.seekable.length ? player.seekable.end(player.seekable.length - 1) : 0;
   if (seekableEnd <= 0 && !seekWarned) {
@@ -25800,14 +25859,14 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
       project = prepareLayerProject(project);
     }
     commitProcessingEdits();
-    const content = project ? JSON.stringify(window.AsrEditorUtils.stripInlineCaches(window.MSWProductionProject.isView(project)?window.MSWProductionProject.toProject(project):project), null, 2) : buildJson();
+    const content = project ? JSON.stringify(window.AsrEditorUtils.stripInlineCaches(window.MSWProductionProject.isView(project)?window.MSWProductionProject.toProject(project):project), null, 2) : buildSavedProjectJson();
     await downloadFile(content, name || `${FILENAME_BASE}.mosp`, 'application/json', {
       desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json', '.mosp-bak'] },
     }, { usePicker: false });
     flashHint('仅保存工程内容；音频素材仍需保留原 .assets 文件夹', 'warning');
   },
   commitEdits: flushInlineEditsForSave,
-  snapshot: () => JSON.parse(buildJson()),
+  snapshot: () => JSON.parse(buildSavedProjectJson()),
   // Polling recovery must not validate/normalize the project or invalidate
   // preview geometry when only the playhead/selection changed. Include every
   // save input, including uncommitted text, but not rebuildable media caches.
@@ -25818,7 +25877,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     extensionEditingState && [extensionEditingState.trackId, extensionEditingState.index, extensionEditingState.textEl.innerText],
   ]),
   draftSnapshot: () => {
-    const snapshot = JSON.parse(buildJson());
+    const snapshot = JSON.parse(buildSavedProjectJson());
     for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete snapshot[key];
     if (editingState) {
       const cue=snapshot.subtitles?.cues.find(c=>c.id===DATA.segments[editingState.idx]?.id)?.content||snapshot.segments?.[editingState.idx];

@@ -84,9 +84,11 @@ class PersistenceTests(unittest.TestCase):
 
     def test_save_as_collects_audio_and_media_and_reopens_without_local_cache(self):
         asset = self.asset()
+        self.server.project.data["editor_state"] = {"playhead_ms": 123, "other": "keep"}
         previous = self.path.read_bytes()
         result = self.save_as(collectMedia=True)
         saved = json.loads(self.destination.read_text(encoding="utf-8"))
+        self.assertEqual(saved["editor_state"], {"playhead_ms": 123, "other": "keep"})
         self.assertNotEqual(saved["msw"]["project_id"], "original")
         self.assertEqual(saved["msw"]["source_project_id"], "original")
         self.assertFalse(Path(saved["media"]).is_absolute())

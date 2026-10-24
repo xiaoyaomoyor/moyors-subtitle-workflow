@@ -158,7 +158,11 @@
       <fieldset><legend><label><input type="checkbox" id="config-all">配置分类</label></legend><div id="config-categories"></div></fieldset>
       <p id="config-policy-note" class="config-policy-note" hidden>覆盖时，所选分类中未包含的设置回到默认；未选择的分类保持不变。</p>
       <div id="config-preview-result" aria-live="polite"></div><p id="config-message" role="status"></p>
-      <details class="config-scope-details"><summary>包含哪些内容？</summary><p>翻译与文本处理：翻译偏好、提示词、替换规则和后处理参数。配音设置：引擎、语速等合成偏好。工程备份设置：自动备份开关、间隔和保留数量。</p><p>字幕与素材随工程保存；密钥、私人音色、文件路径和备份文件不导出。界面设置在重开窗口后生效。</p></details></div>
+      <details class="config-scope-details"><summary>详情说明</summary>
+      <p><strong>工程文件（.mosp）：</strong>保存字幕、时间、轨道与绑定、工程样式和说话人、音频贴片与空隙、工程布局及上次保存的播放位置。媒体仅保存引用，原视频、音频及素材文件需一并保留。</p>
+      <p><strong>配置文件（.mswconfig）：</strong>仅导出勾选分类的个人设置，如主题、布局、编辑与播放偏好、样式预设、识别／翻译／配音参数和工程备份规则；不包含工程字幕和媒体。</p>
+      <p><strong>不导出：</strong>密钥、账号与私人音色、文件路径、最近工程、任务记录、备份文件和波形缓存。</p>
+      <p><strong>导入后：</strong>只更新所选分类，不改动当前工程或运行中的任务；界面设置重开窗口后生效，处理参数用于下一次任务。</p></details></div>
       <footer><button id="config-export" type="button">导出 .mswconfig</button><button id="config-preview" type="button" hidden>预览变更</button><button id="config-apply" type="button" hidden disabled>确认应用</button></footer>`;
     (embeddedHost||document.body).append(dialog);
     if(!embeddedHost){$('close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});}

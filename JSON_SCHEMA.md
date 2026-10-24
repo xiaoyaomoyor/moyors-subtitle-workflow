@@ -112,6 +112,7 @@ v4 普通编辑器的轨道可含 `display_number`（轨道组的正整数编号
   "gap_remove": { ... },
   "script_alignment": { ... },
   "workspace": { ... },
+  "editor_state": { "playhead_ms": 12345 },
   "preview": { ... },
   "segments": [ ... ]
 }
@@ -136,7 +137,10 @@ v4 普通编辑器的轨道可含 `display_number`（轨道组的正整数编号
 | `overlay_track` | `object` | 否 | 与上游兼容的独立叠加字幕轨 `{enabled, segments}`；关闭时保留数据，与副字幕及配音贴片不同 |
 | `transcription_warnings` | `array<string>` | 否 | 识别结果的可读警告，如部分句子缺少可靠时间范围；不包含密钥，不改变字幕或时间码语义 |
 | `workspace` | `object` | 否 | 编辑器工作区：四个功能区的窗口布局与显示状态；不影响字幕和波形缓存。服务器版也可使用独立的本机命名工作区库跨工程复用 |
+| `editor_state` | `object` | 否 | 工程导航状态。`playhead_ms` 为上次保存的播放头位置，使用源时间轴的非负整数毫秒；与个人配置及字幕时间码分开保存 |
 | `preview` | `object` | 否 | 预览呈现设置。含 `preview.subtitle`（主字幕预览框与样式）、可选的 `preview.extension_subtitle`（拓展字幕样式）和 `preview.sticker`（表情包预览层）。不影响字幕时间与文本 |
+
+`editor_state.playhead_ms` 同样适用于 v4。实际保存、另存为与恢复快照时读取共享播放时钟，包括视频结尾以后的音频贴片；普通预览读取与保存后的内容比较不会更新它。打开工程等待媒体就绪后恢复并保持暂停，超出当前媒体／贴片范围时限制到结尾；等待期间的主动跳转优先。旧工程缺省从 0 开始，无效导航值忽略，不阻止加载字幕；仅移动播放头不触发内容未保存提示，需保存工程才能更新磁盘记录。`editor_state` 的其他字段保留，不进入独立配置导出。
 
 `media_metadata.video_fps` 是生成工程时从源视频读取的媒体 FPS，仅作为编辑器切入帧模式时的默认值；它不替代编辑器自己的 `timebase.fps`，用户仍可在全局设置中修改。旧工程没有 `media_metadata` 时继续使用编辑器原有默认值。`video_fps_ratio` 用于保留 `30000/1001` 这类非整数帧率的原始比例。
 

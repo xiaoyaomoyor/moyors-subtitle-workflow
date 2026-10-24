@@ -119,9 +119,33 @@ test('frame projections stay consistent after move and linked split',()=>{
   assert.equal(core.validate(halves),true);
 });
 test('color edits detach external references and do not recolor unselected captions',()=>{
-  let p=base(),id=p.subtitles.cues[0].id;p=edit.transaction(p,n=>{edit.cue(n,id).content.color={name:'red'};edit.cue(n,'b').content.color_ref={cue_id:id,name:'red'};});
+  let p=core.unbind(base(),'binding'),id=p.subtitles.cues[0].id;p=edit.transaction(p,n=>{edit.cue(n,id).content.color={name:'red'};edit.cue(n,'b').content.color_ref={cue_id:id,name:'red'};});
   const changed=edit.setColor(p,[id],'blue');assert.equal(edit.cue(changed,'b').content.color.name,'red');assert.equal(edit.cue(changed,id).content.color.name,'blue');
   assert.equal(edit.cue(edit.setColor(changed,[id],null),id).content.color,undefined);
+});
+
+test('speaker marking and clearing propagate from either bound side, atomically and with one undo',()=>{
+  const p=base(),id=p.subtitles.cues[0].id;
+  for(const source of [id,'b']){
+    const changed=edit.setColor(p,[source],'speaker-9');
+    assert.ok(changed.subtitles.cues.every(c=>c.content.color.name==='speaker-9'));
+    const history=new edit.History(p);history.commit(changed,'标记说话人',[source]);
+    history.step('undo');assert.deepEqual(history.project,p);
+    const cleared=edit.setColor(changed,[source],null);
+    assert.ok(cleared.subtitles.cues.every(c=>!c.content.color&&!c.content.color_ref));
+    const locked=edit.updateTrack(p,edit.cue(p,source===id?'b':id).track_id,{locked:true});
+    assert.throws(()=>edit.setColor(locked,[source],'blue'),/锁定/);
+    assert.ok(locked.subtitles.cues.every(c=>!c.content.color));
+  }
+  let withReference=edit.addCue(p,edit.cue(p,id).track_id,'outside',3000,4000,'unrelated');
+  withReference=edit.transaction(withReference,n=>{
+    edit.cue(n,id).content.color={name:'red'};
+    edit.cue(n,'outside').content.color_ref={cue_id:id,name:'red'};
+  });
+  const colored=edit.setColor(withReference,['b'],'blue');
+  assert.equal(edit.cue(colored,id).content.color.name,'blue');
+  assert.equal(edit.cue(colored,'outside').content.color.name,'red');
+  assert.equal(edit.cue(colored,'outside').content.color_ref,undefined);
 });
 test('merge honors per-track separators and refuses inconsistent relation direction',()=>{
   let p=base(),first=p.subtitles.cues[0];p=edit.addCue(p,first.track_id,'next',2000,3000,'again');p=edit.addCue(p,'translation','next-zh',2000,3000,'再见');
