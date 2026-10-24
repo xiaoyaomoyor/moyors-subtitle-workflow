@@ -79,6 +79,17 @@ function fixedOwners() {
 }
 function fixedOwner(cue, role = 'main', trackId = null) { return fixedOwners().get(fixedTrackCore.key(fixedRef(cue, role, trackId))); }
 function fixedTrack(cue, role = 'main', trackId = null) { return DATA.subtitle_tracks?.tracks.find(t => t.id === fixedOwner(cue, role, trackId)); }
+// Selection is a read of the live editor, not a project import/validation.
+// Keep record order identical to the track index without indexing every cue.
+function fixedSelectedRows() {
+  if(!productionFlatMode())return [];
+  const extension=getActiveExtensionTrack();
+  return [[DATA.segments,selectedIdxs,'main',null],
+    [extension?.segments||[],selectedExtensionIdxs,'extension',extension?.id]].flatMap(([cues,selection,role,track_id])=>
+    [...selection].sort((a,b)=>a-b).flatMap(index=>{
+      const cue=cues[index];return cue?[{cue,index,role,track_id,cue_id:cue.id,subtitle_track_id:fixedOwner(cue,role,track_id)}]:[];
+    }));
+}
 function fixedActiveTrack() {
   return DATA.subtitle_tracks?.tracks.find(t => t.id === fixedActiveTrackId) || DATA.subtitle_tracks?.tracks[0];
 }
@@ -271,19 +282,24 @@ function productionBindingAction(action) {
   }catch(error){fixedStatus(error.message);return false;}
 }
 function productionAppendBindingMenu() {
-  productionRememberSelection();const ids=productionSelectionOrder,p=MSWProductionProject.toProject(DATA),E=MSWFlatEditing;
-  const bound=p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id));
+  productionRememberSelection();const ids=productionSelectionOrder,rows=fixedSelectedRows();
+  const selected=new Set(ids),owners=fixedOwners(),sources=DATA.subtitle_tracks.flat_context.bindingSources||{};
+  const bound=(DATA.multi_subtitle?.bindings||[]).filter(b=>selected.has(b.main_segment_ids[0])||selected.has(b.extension_segment_ids[0]));
   const node=(label,key,action,disabled)=>{
     const item=ctxAppendItem(label,action,{disabled});
     if(key){const kbd=document.createElement('kbd');kbd.textContent=key;item.append(kbd);}
     return {node:item};
   };
-  const children=[node('绑定所选字幕','G',productionBindSelected,ids.length!==2||E.cue(p,ids[0])?.track_id===E.cue(p,ids[1])?.track_id)];
+  const children=[node('绑定所选字幕','G',productionBindSelected,rows.length!==2||rows[0].subtitle_track_id===rows[1].subtitle_track_id)];
   if(bound.length) {
     children.push(node('解绑所选字幕','Shift+G',unbindSelectedSubtitlePair,false),
       node('按参考字幕对齐','H',()=>productionBindingAction('align'),false),
       node('反转绑定方向','',()=>productionBindingAction('reverse'),false));
-    const references=[...new Set(bound.map(b=>E.track(p,E.cue(p,b.source_id).track_id).name))];
+    const references=[...new Set(bound.map(b=>{
+      const a=b.main_segment_ids[0],z=b.extension_segment_ids[0],reversed=sources[a]===false||sources[z]===true;
+      const ref=reversed?{role:'extension',track_id:b.track_id,cue_id:z}:{role:'main',track_id:null,cue_id:a};
+      return DATA.subtitle_tracks.tracks.find(t=>t.id===owners.get(fixedTrackCore.key(ref)))?.name;
+    }).filter(Boolean))];
     for(const child of children.slice(2))child.node.title=`当前参考轨道：${references.join('、')}。对齐会调整另一侧；反转只改变参考方向，不交换位置。`;
   }
   ctxAppendExpandableSettings('绑定操作',children);

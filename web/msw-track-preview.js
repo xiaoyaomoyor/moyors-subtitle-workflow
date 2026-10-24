@@ -101,7 +101,10 @@ function fixedMeasureText(row, projectStyle, width) {
     result.width=b.width;result.height=b.height;
   }
   fixedMeasureRoot.replaceChildren();
-  if(fixedTextMeasures.size>=3000)fixedTextMeasures.clear();fixedTextMeasures.set(key,result);return result;
+  // Evict one old measurement instead of clearing the entire cache halfway
+  // through a long bilingual project (which made every pass miss again).
+  if(fixedTextMeasures.size>=12000)fixedTextMeasures.delete(fixedTextMeasures.keys().next().value);
+  fixedTextMeasures.set(key,result);return result;
 }
 function fixedPreviewLayout(rect=fixedVideoRect()) {
   const preview=window.MSWSubtitleStyle?.currentPreview(),proof=preview?.scope==='proof'||preview?.other?preview.style:null;
@@ -291,9 +294,10 @@ function fixedSchedulePositionSelectionSync() {
 }
 function fixedPositionSelection() {
   if(!productionFlatMode())return [];
-  const ids=fixedPositionSelectedIds(),{layout}=fixedPreviewLayout();
+  const rows=fixedSelectedRows();if(!rows.length)return [];
+  const {layout}=fixedPreviewLayout();
   const entries=new Map(layout.entries.map(e=>[e.cue_id,e]));
-  return fixedTrackCore.createIndex(DATA).records({includeHidden:true}).filter(r=>ids.has(r.cue_id)).map(row=>{
+  return rows.map(row=>{
     const entry=entries.get(row.cue_id),position=entry?window.MSWTrackPresentation.positionOf(entry,layout.width):row.cue.subtitle_position?.alignment?{...row.cue.subtitle_position}:null;
     return {...row,entry,position};
   });

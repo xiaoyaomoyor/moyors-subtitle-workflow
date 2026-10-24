@@ -185,11 +185,7 @@
   let editScope='cue';fixedPositionScope='cue';
   const M=global.MSWSubtitleAnimation;
   const cueScope=()=>editScope==='cue'&&productionFlatMode();
-  const selectedRows=()=>{
-    if(!productionFlatMode())return [];
-    const ids=fixedPositionSelectedIds();
-    return fixedTrackCore.createIndex(host.data).records({includeHidden:true}).filter(r=>ids.has(r.cue_id));
-  };
+  const selectedRows=()=>fixedSelectedRows();
   const trackAppearance=row=>{
     const track=fixedTrack(row.cue,row.role,row.track_id),style=global.MSWTrackPresentation.styleFor(host.data,track);
     return global.MSWCueStyle.apply(style[track.flat_style_slot||'main'],{});
@@ -258,7 +254,8 @@
   function motionContext(){
     const cue=cueScope(),rows=cue?selectedRows():[],target=fixedStyleTarget();
     const sources=cue?rows.map(row=>({row,track:fixedTrack(row.cue,row.role,row.track_id)})):target?[{track:target}]:[];
-    const owned=cue?[]:fixedTrackCore.createIndex(host.data).records({includeHidden:true}).filter(r=>r.subtitle_track_id===target?.id);
+    const owned=cue||!target?[]:layerCore.tracks(host.data).flatMap(source=>source.segments.flatMap((c,index)=>
+      fixedOwner(c,source.role,source.track_id)===target.id?[{cue:c,index,...fixedRef(c,source.role,source.track_id),subtitle_track_id:target.id}]:[]));
     const items=sources.map(({row,track})=>{
       const style=global.MSWTrackPresentation.styleFor(host.data,track),base=style[track.flat_style_slot||'main'].animation;
       const override=row?.cue.subtitle_animation;
@@ -484,6 +481,7 @@
     input.value=enabled&&value!==null?Math.round(value*100000)/1000:'';
   }
   function syncPosition() {
+    if(!propertiesVisible()&&!fixedPositionEditing)return;
     $('style-position-drag').hidden=fixedPositionEditing;
     $('style-position-cancel').hidden=$('style-position-finish').hidden=!fixedPositionEditing;
     for(const id of ['style-position-scope','style-edit-scope','style-track-target','style-main','style-secondary'])$(id).disabled=fixedPositionEditing;
@@ -675,6 +673,9 @@
     if(!ready)return;
     const ids=[...fixedPositionSelectedIds()].sort();
     if(!fixedPositionEditing&&ids.length&&JSON.stringify(ids)!==lastCueSelection){editScope='cue';fixedPositionScope='cue';}
+    // A hidden dock follows selection when reopened; do not build its forms,
+    // animation graphs or full-project preview geometry for a context menu.
+    if(!propertiesVisible()&&!fixedPositionEditing)return;
     const key=selectionKey();if(key!==lastSelectionKey){lastSelectionKey=key;cancelAction();rebuild();sync();}else syncPosition();
   },syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{

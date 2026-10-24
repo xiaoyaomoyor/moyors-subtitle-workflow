@@ -8,6 +8,7 @@
   const t = text => global.MSWE_I18N?.translateText?.(text) || text;
   let active = null, target = null, working = false;
   let recovering = false, draftBusy = false, draftTimer = null, lastDraft = null, lastGeneration = host.generation;
+  let lastDraftFingerprint = null;
   let session = global.MSWProject.id('session');
   let versionSettings={enabled:true,interval:300,limit:20},versionBusy=false,lastVersion=Date.now();
   const recoveryModal = el('project-recovery-modal');
@@ -135,15 +136,23 @@
   });
   async function captureDraft({ force = false } = {}) {
     if (!available() || (host.saving() && !(active && !working)) || draftBusy) return false;
+    // An in-progress drag is not committed content. Snapshotting it would run
+    // save normalization against the panel's old time fields.
+    if(global.MSWE.resolve('processing-host')?.editingGestureActive)return false;
     draftBusy = true;
     const generation = host.generation;
     try {
+      const fingerprint=host.draftFingerprint?.();
+      if(!force&&fingerprint!==undefined&&generation===lastGeneration&&fingerprint===lastDraftFingerprint)return true;
       const project = host.draftSnapshot();
       const source = JSON.stringify(project);
-      if (!force && generation === lastGeneration && source === lastDraft) return true;
+      // Snapshot normalization may itself update the live project. Capture its
+      // new fingerprint before awaiting I/O so edits made in flight stay dirty.
+      const normalizedFingerprint=host.draftFingerprint?.();
+      if (!force && generation === lastGeneration && source === lastDraft) {lastDraftFingerprint=normalizedFingerprint;return true;}
       await request('recovery-draft', { project, session, filename: host.name(), recovery: recovering,
         binding: host.config.processingContext?.binding });
-      if (generation === host.generation) { lastDraft = source; lastGeneration = generation; }
+      if (generation === host.generation) { lastDraft = source; lastGeneration = generation; lastDraftFingerprint=normalizedFingerprint; }
       return true;
     } catch (error) {
       // A failed draft is never acknowledged as a saved project.
@@ -221,6 +230,7 @@
   if (available()) {
     // No browser storage quota dependency; the server owns bounded snapshots.
     lastDraft = JSON.stringify(host.draftSnapshot());
+    lastDraftFingerprint=host.draftFingerprint?.();
     document.addEventListener('input', event => {
       if (!event.target.closest('.cues-container, #cue-panel')) return;
       clearTimeout(draftTimer); draftTimer = setTimeout(() => { void captureDraft(); }, 1500);

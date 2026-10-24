@@ -42,7 +42,7 @@
     if(targets.some(t=>t.id===previous))el('fill-track').value=previous;
     else el('fill-track').value=(targets.find(t=>t.active&&!t.locked)||targets.find(t=>!t.locked))?.id||'';
     let fillCount=0;
-    try {fillCount=host.previewAudioSubtitles(clips,el('fill-track').value).count;
+    try {fillCount=clips.length?host.previewAudioSubtitles(clips,el('fill-track').value).count:0;
       el('fill-count').textContent=`${t('可补齐字幕')}：${fillCount} / ${clips.length}`;
     }catch(error){el('fill-count').textContent=t(error.message);}
     const hasSource = Boolean(host.player.currentSrc || host.player.getAttribute('src'));

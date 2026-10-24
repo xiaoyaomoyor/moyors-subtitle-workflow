@@ -6368,7 +6368,16 @@ function clearSelection({ silent = false, commitCuePanel = true } = {}) {
 }
 
 function updateMultiSelectionClasses() {
-  container.querySelectorAll('.multi-cue').forEach((element) => {
+  // Most selections touch one pair. Updating thousands of unchanged cards
+  // forces expensive selector/style work before a context menu can paint.
+  const elements=selectedIdxs.size+selectedExtensionIdxs.size>32
+    ? container.querySelectorAll('.multi-cue')
+    : new Set([
+      ...[...container.querySelectorAll('.multi-cue.selected, .multi-cue-column.selected, .multi-cue-column.related-selected')].map(el=>el.closest('.multi-cue')),
+      ...[...selectedIdxs].map(i=>container.querySelector(`.multi-cue[data-main-idx="${i}"]`)),
+      ...[...selectedExtensionIdxs].map(i=>container.querySelector(`.multi-cue[data-ext-idx="${i}"]`)),
+    ].filter(Boolean));
+  elements.forEach((element) => {
     const mainIndex = element.dataset.mainIdx == null ? -1 : Number(element.dataset.mainIdx);
     const extensionIndex = element.dataset.extIdx == null ? -1 : Number(element.dataset.extIdx);
     const selected = (Number.isInteger(mainIndex) && selectedIdxs.has(mainIndex))
@@ -7110,7 +7119,6 @@ function commitCuePanelEdit() {
   const target = getCurrentCuePanelTarget();
   const seg = target?.segment;
   if (!target || !seg) { resetCuePanelEditState(); return false; }
-  if (!fixedCanEdit([seg], target.kind, target.trackId)) return false;
   const segments = target.kind === 'main' ? DATA.segments : target.track.segments;
   const idx = target.index;
   const nextText = cuePanelText.value.replace(/\r\n?/g, '\n');
@@ -7138,13 +7146,14 @@ function commitCuePanelEdit() {
     resetCuePanelEditState();
     return false;
   }
-  if (layerMode() && !layerCanApplyRanges(target.kind, [{ index: idx, start: newStart, end: newEnd }], target.kind === 'main')) {
-    flashHint('此操作会新增重叠，请先启用“允许字幕重叠”', 'warning'); renderCurrentCuePanel(); return false;
-  }
   const changed = nextText !== seg.text || newStart !== oldStart || newEnd !== oldEnd;
   if (!changed) {
     resetCuePanelEditState();
     return false;
+  }
+  if (!fixedCanEdit([seg], target.kind, target.trackId)) return false;
+  if (layerMode() && !layerCanApplyRanges(target.kind, [{ index: idx, start: newStart, end: newEnd }], target.kind === 'main')) {
+    flashHint('此操作会新增重叠，请先启用“允许字幕重叠”', 'warning'); renderCurrentCuePanel(); return false;
   }
   ensureCuePanelUndo();
   seg.text = nextText;
@@ -25822,6 +25831,15 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   },
   commitEdits: flushInlineEditsForSave,
   snapshot: () => JSON.parse(buildJson()),
+  // Polling recovery must not validate/normalize the project or invalidate
+  // preview geometry when only the playhead/selection changed. Include every
+  // save input, including uncommitted text, but not rebuildable media caches.
+  draftFingerprint: () => JSON.stringify([
+    window.AsrEditorUtils.stripInlineCaches(DATA), projectExtensionFields, STICKER_ROOT,
+    buildCurrentWorkspaceData(), getPreviewGeometry(), getSubtitleAppearance(), getStoredExtensionSubtitleAppearance(),
+    editingState && [editingState.idx, editingState.textEl.innerText],
+    extensionEditingState && [extensionEditingState.trackId, extensionEditingState.index, extensionEditingState.textEl.innerText],
+  ]),
   draftSnapshot: () => {
     const snapshot = JSON.parse(buildJson());
     for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete snapshot[key];

@@ -1,0 +1,115 @@
+import {test,expect} from '@playwright/test';
+import {execFileSync} from 'node:child_process';
+import {writeFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {disableOnboarding,findFreePort,generateWaveformPayload,makeTempDir,startServer} from './helpers.mjs';
+
+let server;
+test.setTimeout(120000);
+test.beforeAll(async()=>{
+  const dir=makeTempDir('editor-latency'),media=join(dir,'video.mp4'),project=join(dir,'project.mosp');
+  process.env.MSW_APP_DATA_ROOT=join(dir,'settings');process.env.MAW_ENV_FILE=join(dir,'isolated.env');
+  execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-f','lavfi','-i','color=c=darkblue:s=640x360:r=25:d=6','-c:v','libx264','-pix_fmt','yuv420p',media],{windowsHide:true});
+  const segments=Array.from({length:400},(_,i)=>({id:'main-'+i,start:i*3000,end:i*3000+2000,text:'Subtitle '+i}));
+  const secondary=segments.map((c,i)=>({...c,id:'secondary-'+i,text:'Translation '+i}));
+  writeFileSync(project,JSON.stringify({media,segments,multi_subtitle:{enabled:true,tracks:[{id:'translation',segments:secondary}],
+    bindings:segments.map((c,i)=>({id:'binding-'+i,track_id:'translation',main_segment_ids:[c.id],extension_segment_ids:[secondary[i].id]}))},waveform:generateWaveformPayload(1200000,10)}));
+  server=await startServer(project,media,await findFreePort());
+});
+test.afterAll(async()=>{await server?.stop();});
+test.beforeEach(async({page})=>{
+  await disableOnboarding(page);
+  await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false,selectBoundSubtitlePair:false})));
+  await page.goto(server.url);
+  await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready&&player.readyState>=2);
+  await page.evaluate(()=>{player.pause();updateEditorSettings({autoSaveProject:false,selectBoundSubtitlePair:false});});
+});
+const paint=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+test('right-click and selection read live cues without converting or validating the entire project',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(()=>{waveformEditor.closeDockModule('properties');selectOnly(0);});
+  await page.evaluate(paint);
+  const result=await page.evaluate(async()=>{
+    const convert=MSWProductionProject.toProject,index=MSWSubtitleTracks.createIndex;
+    const counts={convert:0,index:0};
+    MSWProductionProject.toProject=(...args)=>{counts.convert++;return convert(...args);};
+    MSWSubtitleTracks.createIndex=(...args)=>{counts.index++;return index(...args);};
+    try{
+      showContextMenu(350,250,1,3500);
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      const menu=ctxmenu.textContent;
+      showExtensionContextMenu(350,250,1,3500,getActiveExtensionTrack());
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      return {counts,menu,selected:[...fixedPositionSelectedIds()],hidden:!MSWSubtitleStyle.propertiesVisible()};
+    }finally{MSWProductionProject.toProject=convert;MSWSubtitleTracks.createIndex=index;}
+  });
+  expect(result.counts).toEqual({convert:0,index:0});
+  expect(result.menu).toContain('绑定操作');expect(result.menu).toContain('反转绑定方向');
+  expect(result.selected).toEqual(await page.evaluate(()=>[getActiveExtensionTrack().segments[1].id]));expect(result.hidden).toBe(true);
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>MSWSubtitleStyle.open('cue'));
+  await expect(page.locator('#style-selection-label')).toContainText('S1副_2');
+  await page.locator('#style-field-fontSize').fill('72');await page.locator('#style-field-fontSize').blur();
+  expect(await page.evaluate(()=>getActiveExtensionTrack().segments[1].subtitle_style.fontSize)).toBe(72);
+  await page.evaluate(()=>performUndo());
+  expect(await page.evaluate(()=>getActiveExtensionTrack().segments[1].subtitle_style)).toBeUndefined();
+  expect(await page.evaluate(()=>DATA.multi_subtitle.bindings.length)).toBe(400);
+  expect(errors).toEqual([]);
+});
+
+test('unchanged recovery polling preserves layout; text changes, including edits during upload, are captured',async({page})=>{
+  await page.evaluate(()=>{selectOnly(0);fixedPreviewLayout();});
+  await page.evaluate(()=>MSWE.resolve('project-persistence').captureDraft());
+  const unchanged=await page.evaluate(async()=>{
+    const layout=fixedPreviewLayout(),build=buildJson;let snapshots=0;
+    buildJson=(...args)=>{snapshots++;return build(...args);};
+    try{
+      selectOnly(1);seekFromWaveform(4);
+      await MSWE.resolve('project-persistence').captureDraft();
+      await MSWE.resolve('project-persistence').captureDraft();
+      return {snapshots,sameLayout:layout===fixedPreviewLayout(),selected:[...fixedPositionSelectedIds()]};
+    }finally{buildJson=build;}
+  });
+  expect(unchanged).toEqual({snapshots:0,sameLayout:true,selected:await page.evaluate(()=>[DATA.segments[1].id])});
+  const editedId=await page.evaluate(()=>DATA.segments[0].id);
+  const uploads=[];let release,arrived;
+  const waiting=new Promise(r=>arrived=r),held=new Promise(r=>release=r);
+  await page.route('**/recovery-draft',async route=>{
+    uploads.push(route.request().postDataJSON());
+    if(uploads.length===1){arrived();await held;}
+    await route.fulfill({json:{ok:true}});
+  });
+  await page.evaluate(()=>{DATA.segments[0].text='First edit';window.draftTest=MSWE.resolve('project-persistence').captureDraft();});
+  await waiting;
+  await page.evaluate(()=>{DATA.segments[0].text='Second edit';});release();
+  await page.evaluate(()=>window.draftTest);
+  await page.evaluate(()=>MSWE.resolve('project-persistence').captureDraft());
+  expect(uploads.map(p=>p.project.subtitles.cues.find(c=>c.id===editedId).content.text)).toEqual(['First edit','Second edit']);
+  await page.evaluate(()=>MSWE.resolve('project-persistence').captureDraft());expect(uploads).toHaveLength(2);
+  await page.evaluate(()=>{
+    const card=container.querySelector('.multi-cue[data-main-idx="0"] .multi-cue-column.main');
+    startEdit(card,0);editingState.textEl.innerText='Uncommitted draft';
+  });
+  await page.evaluate(()=>MSWE.resolve('project-persistence').captureDraft());
+  expect(uploads.at(-1).project.subtitles.cues.find(c=>c.id===editedId).content.text).toBe('Uncommitted draft');
+  expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Second edit');
+  await page.evaluate(()=>finishEdit(false));
+  const gesture=await page.evaluate(async()=>{
+    waveformEditor.drag={type:'move'};
+    try{return await MSWE.resolve('project-persistence').captureDraft();}
+    finally{waveformEditor.drag=null;}
+  });
+  expect(gesture).toBe(false);expect(uploads).toHaveLength(3);
+});
+
+test('selection highlights clear old partners and retain multi-selection while seeking',async({page})=>{
+  await page.evaluate(()=>{selectOnly(0);addExtensionToSelection(0);});
+  await expect(page.locator('.multi-cue-column.selected')).toHaveCount(2);
+  await page.evaluate(()=>selectOnly(1));
+  await expect(page.locator('.multi-cue-column.selected')).toHaveCount(1);
+  await expect(page.locator('.multi-cue[data-main-idx="0"] .related-selected')).toHaveCount(0);
+  await page.evaluate(()=>{addExtensionToSelection(1);seekFromWaveform(4);});
+  expect(await page.evaluate(()=>[...fixedPositionSelectedIds()].sort())).toEqual(await page.evaluate(()=>[DATA.segments[1].id,getActiveExtensionTrack().segments[1].id].sort()));
+  await expect(page.locator('.multi-cue-column.selected')).toHaveCount(2);
+});

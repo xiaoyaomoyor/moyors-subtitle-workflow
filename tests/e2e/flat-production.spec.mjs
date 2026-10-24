@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {join} from 'node:path';
-import {disableOnboarding,findFreePort,generateBlankEditor,generateWaveformPayload,makeTempDir,startStaticServer} from './helpers.mjs';
+import {disableOnboarding,findFreePort,generateBlankEditor,generateWaveformPayload,makeTempDir,startStaticServer,toggleMediaSettings} from './helpers.mjs';
 let server;
 test.beforeAll(async()=>{const dir=makeTempDir('flat-production');server=await startStaticServer(generateBlankEditor(join(dir,'editor.html')),await findFreePort());});
 test.afterAll(async()=>server?.stop());
@@ -206,18 +206,18 @@ test('style toolbar selects track groups, edits both appearances and swaps witho
   await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle.ready)).toBe(true);
   const before=await snap(page),[a,b,c]=before.subtitles.tracks;
   await page.evaluate(id=>MSWSubtitleStyle.editTrack(id),a.id);
-  await expect(page.locator('#style-track-target option')).toHaveText(['S1','S2']);
+  await expect(page.locator('#style-edit-scope option')).toHaveText(['所选字幕','S1','S2']);
   await expect(page.locator('#style-track-controls')).toBeHidden();await expect(page.locator('#style-main')).toBeVisible();
-  expect(await page.locator('.msw-style-toolbar #style-track-target').count()).toBe(1);
-  const toolbarSizes=await page.locator('#style-track-target,#style-main,#style-secondary,#style-swap').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
+  await expect(page.locator('#style-track-target')).toBeHidden();
+  const toolbarSizes=await page.locator('#style-edit-scope,#style-main,#style-secondary,#style-swap').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
   expect(new Set(toolbarSizes).size).toBe(1);
   for(const language of ['en','zh']) {
-    await page.locator('#media-settings-modal').evaluate(el=>el.style.width='360px');
+    await page.locator('#subtitle-properties').evaluate(el=>el.style.width='360px');
     await page.evaluate(language=>MSWE_I18N.applyLanguage(language),language);
-    expect(await page.locator('.msw-style-toolbar').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+    expect(await page.locator('.msw-properties-scope').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
     expect(await page.locator('#style-main,#style-secondary,#style-swap').evaluateAll(nodes=>nodes.every(el=>el.scrollHeight<=el.clientHeight))).toBe(true);
   }
-  await page.locator('#media-settings-modal').evaluate(el=>el.style.width='560px');
+  await page.locator('#subtitle-properties').evaluate(el=>el.style.width='560px');
   await page.locator('#style-field-fontSize').fill('61');await page.locator('#style-field-fontSize').blur();
   await page.locator('#style-secondary').click();await page.locator('#style-field-fontSize').fill('39');await page.locator('#style-field-fontSize').blur();
   const edited=await snap(page);expect(edited.subtitles.tracks[0].style.value.main.fontSize).toBe(61);expect(edited.subtitles.tracks[1].style.value.secondary.fontSize).toBe(39);
@@ -225,15 +225,18 @@ test('style toolbar selects track groups, edits both appearances and swaps witho
   expect(swapped.subtitles.tracks[0].style.value.main.fontSize).toBe(39);expect(swapped.subtitles.tracks[1].style.value.secondary.fontSize).toBe(61);
   expect(swapped.subtitles.tracks.map(t=>t.position)).toEqual(before.subtitles.tracks.map(t=>t.position));
   expect(swapped.subtitles.cues).toEqual(before.subtitles.cues);expect(swapped.subtitles.bindings).toEqual(before.subtitles.bindings);
-  await page.locator('#style-preview-mode').selectOption('default');await page.locator('#style-project-preset').selectOption('default');
-  await expect(page.locator('#style-preview-mode')).toHaveValue('default');
-  await page.locator('#style-project-preset').selectOption('current');await expect(page.locator('#style-field-fontSize')).toHaveValue('61');
   await page.screenshot({path:info.outputPath('group-style-toolbar.png')});
-  await page.locator('#style-track-target').selectOption(c.id);await expect(page.locator('#style-main')).toBeHidden();await expect(page.locator('#style-secondary')).toBeHidden();await expect(page.locator('#style-swap')).toBeHidden();
+  await page.locator('#style-edit-scope').selectOption(c.id);await expect(page.locator('#style-main')).toBeHidden();await expect(page.locator('#style-secondary')).toBeHidden();await expect(page.locator('#style-swap')).toBeHidden();
   await page.locator('#style-field-fontSize').fill('77');await page.locator('#style-field-fontSize').blur();
   const solo=await snap(page);expect(solo.subtitles.tracks[2].style.value.main.fontSize).toBe(77);expect(solo.subtitles.tracks[0].style.value.main.fontSize).toBe(39);
-  await page.locator('#style-track-placement').selectOption('fixed');await expect(page.locator('#style-position-fields')).toBeVisible();
+  await page.locator('#style-more').evaluate(el=>el.open=true);
+  await page.locator('#style-position-y').fill('20');await page.locator('#style-position-y').blur();
+  await expect(page.locator('#style-position-fields')).toBeVisible();
   expect((await snap(page)).subtitles.tracks[2].layout).toBe('fixed');expect(errors).toEqual([]);
+  await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('default');await toggleMediaSettings(page);
+  await page.locator('#style-project-preset').selectOption('default');
+  await expect(page.locator('#style-preview-mode')).toHaveValue('default');
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('48');
 });
 
 test('track number setting hides native headers and releases their space in both waveform layouts',async({page})=>{
@@ -269,7 +272,7 @@ test('track context menus collapse lanes, restore from blank space and open styl
   await page.locator('.waveform-track-heads-column').click({button:'right',position:{x:10,y:12}});
   await expect(page.getByRole('menuitem',{name:'字幕样式与画面位置',exact:true}).locator('.menu-window-icon')).toBeVisible();
   await page.getByRole('menuitem',{name:'字幕样式与画面位置',exact:true}).click();
-  await expect(page.locator('#style-track-target')).toBeVisible();
+  await expect(page.locator('#style-edit-scope')).toBeVisible();
 });
 
 for(const role of ['main','secondary'])test(`drag ${role} across physical tracks and time rows keeps bindings and one-step undo`,async({page},info)=>{
@@ -442,6 +445,7 @@ test('normal subtitle import, column swap and track replacement preserve other p
   await page.evaluate(p=>applyCanonicalProject(p,'import.mosp'),{segments:fixture().segments,waveform:fixture().waveform});
   const before=await snap(page);
   await page.evaluate(()=>showMultiSubtitleImportChoice({name:'translation.srt'},[{start:1000,end:3000,text:'新译文'}]));
+  await page.locator('#subtitle-import-bind').check();
   await page.locator('#multi-subtitle-import-result-confirm').click();
   await expect(page.locator('.multi-cue-column.extension')).toContainText('新译文');
   const imported=await snap(page);expect(imported.subtitles.tracks).toHaveLength(2);expect(imported.subtitles.bindings).toHaveLength(1);
