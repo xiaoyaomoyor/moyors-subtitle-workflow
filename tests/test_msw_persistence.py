@@ -29,6 +29,35 @@ def wav_data():
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_recovery_draft_validates_once_and_releases_project_lock_before_storage(self):
+        import threading
+        import maw.msw.persistence as persistence
+        original = copy.deepcopy(self.server.project.data)
+        payload_project = {**original, 'waveform': {'peaks': [0.2, 0.4]}}
+        store = self.service.recovery
+        put = store._put_normalized
+        acquired = []
+        def write(snapshot, **kwargs):
+            def check_lock():
+                ok = self.server.save_lock.acquire(blocking=False)
+                acquired.append(ok)
+                if ok:
+                    self.server.save_lock.release()
+            thread = threading.Thread(target=check_lock)
+            thread.start()
+            thread.join(timeout=2)
+            self.assertEqual(acquired, [True])
+            return put(snapshot, **kwargs)
+        with patch.object(persistence, 'normalize_project', wraps=persistence.normalize_project) as normalize, \
+             patch.object(store, '_put_normalized', side_effect=write):
+            result = self.service.draft({'project': payload_project, 'session': 'draft-test',
+                                         'binding': self.api.context()['binding'], 'filename': 'draft.mosp'})
+            self.assertEqual(normalize.call_count, 1)
+        self.assertEqual(self.server.project.data, original)
+        self.assertEqual(store.get(result['id'])['project']['segments'], original['segments'])
+        self.assertNotIn('waveform', store.get(result['id'])['project'])
+        self.assertEqual(payload_project['waveform']['peaks'], [0.2, 0.4])
+
     def test_identical_save_reuses_validation_but_still_checks_disk_revision(self):
         data = copy.deepcopy(self.server.project.data)
         self.server.save_project(data)

@@ -20,6 +20,35 @@ test.beforeEach(async({page})=>{
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();expect(errors).toEqual([]);});
 async function idle(page){await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled),{timeout:30000}).toBe(true);}
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
+
+test('fixed-time preset and curve gestures snap to decimal seconds while values retain integer grids',async({page})=>{
+  await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await page.locator('#motion-timing').selectOption('ms');
+  await page.locator('#motion-preset-fade').click();await idle(page);
+  const end=page.locator('#motion-fade-graph [data-edge="1"]');
+  const before=Number(await end.getAttribute('aria-valuenow'));
+  await end.focus();await page.keyboard.press('Control+ArrowRight');await idle(page);
+  expect(Number(await end.getAttribute('aria-valuenow'))).toBe(Math.round((before+10)/10)*10);
+  await end.focus();await page.keyboard.press('Control+Shift+ArrowRight');await idle(page);
+  expect(Number(await end.getAttribute('aria-valuenow'))).toBe(Math.round((before+60)/50)*50);
+  await rangeValue(page,'#motion-fade-graph [data-edge="1"]',360);
+  expect(Number(await end.getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(350);
+  expect(Number(await end.getAttribute('aria-valuenow'))).toBeLessThanOrEqual(370);
+  await page.locator('#motion-preset-blink').click();await idle(page);
+  const period=page.locator('#motion-blink-period'),prior=Number(await period.getAttribute('aria-valuenow'));
+  await period.focus();await page.keyboard.press('Control+ArrowRight');await idle(page);
+  expect(Number(await period.getAttribute('aria-valuenow'))).toBe(Math.round((prior+10)/10)*10);
+  await page.locator('#motion-custom').click();await page.locator('#curve-reset').click();
+  await frame(page,.1,20);await frame(page,2,90);
+  const graph=page.locator('#curve-graph');await graph.scrollIntoViewIfNeeded();
+  const box=await graph.boundingBox(),node=await graph.locator('[data-point="0"]').boundingBox();
+  await page.keyboard.down('Control');await page.keyboard.down('Shift');
+  await page.mouse.move(node.x+node.width/2,node.y+node.height/2);await page.mouse.down();
+  await page.mouse.move(box.x+44+(box.width-60)*.36/2.5,box.y+164-1.4*42.6,{steps:8});
+  await page.mouse.up();await page.keyboard.up('Shift');await page.keyboard.up('Control');await idle(page);
+  const point=(await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.curves.channels.opacity[0];
+  expect(point.time).toBe(350);expect(point.value).toBe(45);
+});
 async function field(page,name,value){await page.locator('#style-field-'+name).fill(String(value));await page.locator('#style-field-'+name).blur();await idle(page);}
 
 test('fixed keyframes anchor from cue end, preserve multi-selection, undo and saved timing',async({page},info)=>{

@@ -89,8 +89,9 @@
   function toProject(view) {
     if(!isView(view))return core.migrate(view);
     legacy.validate(view);
-    const p=clone(view),context=view.subtitle_tracks.flat_context;
-    for(const field of structural)delete p[field];
+    // Each cue is copied below. Do not first duplicate the same cue/word data
+    // (and its operation-view metadata) only to discard those fields here.
+    const p=clone(extras(view,structural)),context=view.subtitle_tracks.flat_context;
     p.schema=core.SCHEMA;
     const m={...clone(context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
     const owners=legacy.ownerMap(view),allIds=new Set();

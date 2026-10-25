@@ -21,9 +21,12 @@ FlatSaveResult = legacy_io.TrackSaveResult
 MigrationCancelled = legacy_io.MigrationCancelled
 
 
-def serialize_project(project):
-    core.validate(project)
-    return json.dumps(project, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+def serialize_project(project, *, _validated=False):
+    if not _validated:
+        core.validate(project)
+    # Compact JSON uses the C encoder and avoids megabytes of indentation in
+    # long projects. The data contract and UTF-8/LF format remain unchanged.
+    return json.dumps(project, ensure_ascii=False, separators=(',', ':'), allow_nan=False) + "\n"
 
 
 def read_project(path):
@@ -38,7 +41,7 @@ def read_project(path):
     return FlatDocument(path, original, project)
 
 
-def save_project(document, project=None, *, cancelled=None, previous_backup=False):
+def save_project(document, project=None, *, cancelled=None, previous_backup=False, _validated=False, _validated_original=False):
     """Explicit write to original location; first upgrade has a byte backup.
 
     A revision can be used once. Cancellation/external changes reject before
@@ -46,11 +49,18 @@ def save_project(document, project=None, *, cancelled=None, previous_backup=Fals
     coordinate a third-party writer that ignores our shared lock.
     """
     value = document.project if project is None else project
-    encoded = serialize_project(value).encode("utf-8")
+    encoded = serialize_project(value, _validated=_validated).encode("utf-8")
     with legacy_io._writer_lock(document.path):
         legacy_io._check_current(document, cancelled)
         source = legacy_io._decode(document.original)
-        core.migrate_project(source)  # Reject unknown versions, even forged documents.
+        # Native originals need validation, not another full migration copy.
+        # Unknown versions and forged documents still fail before any write.
+        if _validated_original:
+            pass  # Internal caller compared the bytes to its last successful save.
+        elif isinstance(source, dict) and source.get("schema") == core.SCHEMA:
+            core.validate(source)
+        else:
+            core.migrate_project(source)
         backup = legacy_io._backup(document) if source.get("schema") != core.SCHEMA else None
         if previous_backup:
             previous = document.path.with_suffix(document.path.suffix + '.bak')

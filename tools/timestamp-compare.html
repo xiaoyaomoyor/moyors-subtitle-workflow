@@ -1105,8 +1105,8 @@
   const authoringMode=raw=>raw.mode||(raw.effects.curves?.enabled&&Object.keys(raw.effects.curves.channels).length?'custom':'presets');
   // Snap within legal bounds, never across a neighbouring keyframe. If a very
   // narrow interval contains no grid point, keep its valid boundary instead.
-  function snapValue(value,modifiers={},min=0,max=100,precision=.1){
-    const step=modifiers.ctrlKey?(modifiers.shiftKey?5:1):precision;
+  function snapValue(value,modifiers={},min=0,max=100,precision=.1,ctrlStep=1){
+    const step=modifiers.ctrlKey?(modifiers.shiftKey?5:1)*ctrlStep:precision;
     const low=Math.ceil((min-1e-9)/step)*step,high=Math.floor((max+1e-9)/step)*step;
     const bounded=low<=high?Math.max(low,Math.min(high,Math.round(value/step)*step)):Math.max(min,Math.min(max,value));
     return Math.max(min,Math.min(max,Math.round(bounded*1e9)/1e9));
@@ -1114,7 +1114,7 @@
   function presetTimes(name,e){return ['fade','slide'].includes(name)?[e.start,e.start+e.in,e.end-e.out,e.end]:[e.start,e.end];}
   function dragPreset(name,original,{edge,band},value,delta,modifiers={}){
     const p=presetTimes(name,original),round=v=>Math.round(v*1e9)/1e9,limit=original._extent||100,scale=original.unit==='ms'?1000:1;
-    const snap=(v,lo,hi)=>snapValue(v/scale,modifiers,lo/scale,hi/scale,scale===1000?.001:.1)*scale;
+    const snap=(v,lo,hi)=>snapValue(v/scale,modifiers,lo/scale,hi/scale,scale===1000?.001:.1,scale===1000?.01:1)*scale;
     if(band!==undefined){
       const [a,b]=['fade','slide'].includes(name)?(band==='in'?[0,1]:[2,3]):[0,1];
       delta=snap(p[a]+delta,a?p[a-1]:0,(b<p.length-1?p[b+1]:limit)-(p[b]-p[a]))-p[a];

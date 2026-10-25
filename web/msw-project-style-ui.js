@@ -429,9 +429,9 @@
       const saved=rows[0]?.cue.subtitle_style_preset;
       selectedPreset=find(saved)&&rows.every(r=>r.cue.subtitle_style_preset===saved)?saved:all().find(s=>presetMatches(s,rows))?.id||'';
     }
-    if(speakerScope()){const saved=speaker().style_preset;selectedPreset=find(saved)?saved:all().find(speakerPresetMatches)?.id||'';}
-    fill($('style-project-preset'),[...(!selectedPreset?[['','未保存为预设']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!(speakerScope()?speakerPresetMatches(s):cueScope()?presetMatches(s):same(s,value()))?' · '+t('已修改'):'')])],selectedPreset);
-    if(!selectedPreset)$('style-project-preset').options[0].disabled=true;
+    if(speakerScope()){const row=speaker(),saved=row.style_preset;selectedPreset=find(saved)?saved:Object.keys(row.style||{}).length?all().find(speakerPresetMatches)?.id||'':'speaker-palette';}
+    fill($('style-project-preset'),[...(speakerScope()?[['speaker-palette','跟随说话人色系']]:[]),...(!selectedPreset?[['','未保存为预设']]:[]),...all().map(s=>[s.id,t(s.name)+(s.id===selectedPreset&&!(speakerScope()?speakerPresetMatches(s):cueScope()?presetMatches(s):same(s,value()))?' · '+t('已修改'):'')])],selectedPreset);
+    if(!selectedPreset)Array.from($('style-project-preset').options).find(o=>o.value==='').disabled=true;
     if(cueScope()&&!selectedPreset)$('style-project-preset').options[0].textContent=selectedRows().some(r=>r.cue.subtitle_style)?'已单独调整':'跟随轨道';
     $('style-project-preset').closest('label').querySelector('.msw-option-label').firstChild.textContent='样式预设';
     const selected=$('video-export-style-source').value;
@@ -645,6 +645,7 @@
   });
   $('style-project-preset').onchange=()=>{
     const selection=$('style-project-preset').value;
+    if(speakerScope()&&selection==='speaker-palette'){cancelAction();commitCueAppearance({}, {replace:true});return;}
     const track=fixedTrackMode()?fixedStyleTarget():null;
     const preset=find(selection);
     if(!preset){rebuild();return;}cancelAction();change(track&&!productionFlatMode()?S.forKind(preset,fixedTrackCore.styleKind(track)):preset,selection);

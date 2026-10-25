@@ -15,6 +15,7 @@ from maw.msw.dialogs import pick_project_target
 from maw.msw.project_codec import valid_id
 from maw.msw.recovery import RecoveryStore
 from maw.project import normalize_project
+from maw.project_io import strip_inline_caches
 
 
 def fingerprint(path):
@@ -78,13 +79,14 @@ class ProjectPersistence:
     def draft(self, payload):
         if not valid_id(payload.get("session")):
             raise ValueError("恢复会话标识无效")
-        project = normalize_project(copy.deepcopy(payload.get("project")))
+        project = normalize_project(payload.get("project"))
         with self.api.server.save_lock:
-            if payload.get("binding") != self.api.context()["binding"]:
+            context = self.api.context()
+            if payload.get("binding") != context["binding"]:
                 raise ValueError("工程已切换，未更新恢复草稿")
             bound = self.api.server.project
             project_id = (project.get("msw") or {}).get("project_id")
-            same = project_id == self.api.context()["projectId"] and payload.get("recovery") is not True
+            same = project_id == context["projectId"] and payload.get("recovery") is not True
             recovered = self.recovered.get(project_id, {}) if not same else {}
             origin = bound.json_path if same else recovered.get("origin")
             media = ((bound.source_media_path or bound.media_path) if same and project.get("media") == bound.data.get("media")
@@ -92,8 +94,11 @@ class ProjectPersistence:
             registered = self.api._media.active(project_id, project.get('media')) if getattr(self.api, '_media', None) else None
             if registered:
                 media = registered['path']
-            return {"id": self.recovery.put(project, kind="draft", name=str(payload.get("filename") or "untitled.mosp"),
-                        origin=origin, media=media, session=payload["session"])}
+        # The captured snapshot and its source identity are now independent of
+        # the live project. Compression/SQLite must not hold the project save
+        # lock or make a concurrent explicit save fail after its 1 s timeout.
+        return {"id": self.recovery._put_normalized(strip_inline_caches(project), kind="draft", name=str(payload.get("filename") or "untitled.mosp"),
+                    origin=origin, media=media, session=payload["session"])}
 
     def restore(self, record_id):
         record = self.recovery.get(record_id)

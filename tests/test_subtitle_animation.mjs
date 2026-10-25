@@ -5,6 +5,20 @@ import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import production from '../web/msw-production-project.js';
 
+test('fixed-time snapping uses 10 and 50 ms grids without changing scalar or percentage snapping',()=>{
+  const ctrl={ctrlKey:true},coarse={ctrlKey:true,shiftKey:true};
+  assert.equal(A.snapValue(.326,ctrl,0,10,.001,.01),.33);
+  assert.equal(A.snapValue(.326,coarse,0,10,.001,.01),.35);
+  assert.equal(A.snapValue(32.6,ctrl),33);
+  assert.equal(A.snapValue(32.6,coarse),35);
+  const state={unit:'ms',start:0,in:300,end:2500,out:300,_extent:2500};
+  assert.equal(A.dragPreset('fade',state,{edge:1},326,0,ctrl).in,330);
+  assert.equal(A.dragPreset('slide',state,{edge:1},326,0,coarse).in,350);
+  const band=A.dragPreset('fade',state,{band:'out'},0,-126,coarse);
+  assert.equal(band.end,2350);assert.equal(band.out,300);
+  assert.equal(A.snapValue(.326,coarse,.321,.329,.001,.01),.326);
+});
+
 test('unified fixed timing survives conversion, short cues, edits and project transactions',()=>{
   let a=A.defaults();
   for(const name of ['fade','slide','transform','blink','typewriter'])a=A.resolve(a,A.authorPatch(a,name,{type:'toggle',value:true},2000));

@@ -26,6 +26,19 @@ test.beforeEach(async({page})=>{
 });
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
+test('clearing dirty indicators after save does not rebuild or change the next save snapshot',async({page})=>{
+  const result=await page.evaluate(async()=>{
+    selectOnly(0);cuePanelText.value='Save cache text';cuePanelText.dispatchEvent(new Event('input',{bubbles:true}));commitCuePanelEdit();
+    const first=await saveCurrentProject({silent:true}),original=buildJson;
+    let builds=0;buildJson=(...args)=>{builds++;return original(...args);};
+    try {
+      const before=buildSavedProjectJson(),repeat=await saveCurrentProject({silent:true});
+      return {first,repeat,builds,same:before===buildSavedProjectJson(),text:JSON.parse(before).subtitles.cues.find(c=>c.id===DATA.segments[0].id).content.text,dirty:hasUnsavedProjectChanges()};
+    }finally{buildJson=original;}
+  });
+  expect(result).toEqual({first:true,repeat:true,builds:0,same:true,text:'Save cache text',dirty:false});
+});
+
 test('style-only edits use small history records without copying or converting the whole project',async({page})=>{
   const result=await page.evaluate(()=>{
     selectOnly(0);MSWSubtitleStyle.open('track');fixedAcceptEdit();

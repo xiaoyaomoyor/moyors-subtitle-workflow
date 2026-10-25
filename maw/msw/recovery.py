@@ -51,11 +51,19 @@ class RecoveryStore:
         project_id = (snapshot.get("msw") or {}).get("project_id")
         # Older projects without an MSW namespace still get stable history.
         project_id = project_id or hashlib.sha256(str(origin or name).encode()).hexdigest()
+        now = time.time() if now is None else now
+        if kind == "history":
+            # History already has a one-minute sampling policy. Check it before
+            # encoding an entire validated project just to discard the result.
+            with self.connect() as db:
+                recent = db.execute("SELECT id,created FROM snapshots WHERE project_id=? AND kind='history' ORDER BY created DESC LIMIT 1",
+                                    (project_id,)).fetchone()
+            if recent and now - recent['created'] < 60:
+                return recent['id']
         raw = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
         if len(raw) > 64 * 1024 * 1024:
             raise ValueError("恢复快照超过 64 MB")
         digest = hashlib.sha256(raw).hexdigest()
-        now = time.time() if now is None else now
         slot = "draft:" + session if kind == "draft" else "saved" if kind == "saved" else str(uuid.uuid4())
         with self.connect() as db:
             latest = db.execute("SELECT * FROM snapshots WHERE project_id=? AND kind=? ORDER BY created DESC LIMIT 1",

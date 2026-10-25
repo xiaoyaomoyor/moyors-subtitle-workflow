@@ -175,6 +175,36 @@ test('speaker properties show palette defaults and report overrides without losi
   expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation)).toEqual(motion);
 });
 
+test('speaker palette is the default preset and can restore inherited appearance without removing animation',async({page})=>{
+  await settings(page);
+  await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('stroke');
+  await page.evaluate(()=>{setEditorSettingsPanelOpen(false);selectOnly(0);MSWSubtitleStyle.open('cue');});
+  await page.locator('#style-edit-scope').selectOption('speaker');
+  await page.locator('#style-speaker-target').selectOption('green');
+  const preset=page.locator('#style-project-preset');
+  await expect(preset).toHaveValue('speaker-palette');
+  await expect(preset.locator('option:checked')).toHaveText('跟随说话人色系');
+  await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
+  await page.locator('#style-animation > summary').click();
+  await page.locator('#motion-preset-fade').click();
+  const animation=await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation);
+  await preset.selectOption('large');
+  await expect(preset).toHaveValue('large');
+  await preset.selectOption('speaker-palette');
+  const inherited=()=>page.evaluate(()=>{const r=DATA.preview.speaker_palette.rows[1];return {style:r.style,preset:r.style_preset,mode:r.mode,animation:r.animation};});
+  expect(await inherited()).toEqual({style:undefined,preset:undefined,mode:'stroke',animation});
+  await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
+  await page.evaluate(()=>performUndo());await expect(preset).toHaveValue('large');
+  await page.evaluate(()=>performRedo());await expect(preset).toHaveValue('speaker-palette');
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
+  await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready);
+  await page.evaluate(()=>MSWSubtitleStyle.open('cue'));
+  await page.locator('#style-edit-scope').selectOption('speaker');
+  await page.locator('#style-speaker-target').selectOption('green');
+  await expect(preset).toHaveValue('speaker-palette');
+  expect(await inherited()).toEqual({style:undefined,preset:undefined,mode:'stroke',animation});
+});
+
 test('master row, per-speaker separators, native preview, export name choice and undo agree',async({page})=>{
   await settings(page);const master=page.locator('#speaker-palette-rows tr').first();
   await master.locator('select').selectOption('speaker');

@@ -1539,6 +1539,25 @@ class LocalEditorServerTests(unittest.TestCase):
         later = server_editor.remember_project(settings, project_path)
         self.assertGreaterEqual(later.recent_projects[0].opened_at, first.opened_at)
 
+    def test_save_recent_records_preserves_other_windows_preferences_without_config_migration(self) -> None:
+        path = self.root / "server-editor-settings.json"
+        preferences = {"version": 1, "auto_open_last_project": False,
+                       "appearance": {"theme": "light"}, "future_setting": {"keep": True}}
+        path.write_text(json.dumps(preferences), encoding="utf-8")
+        first = server_editor.remember_project(server_editor.ServerSettings(), self.project_path)
+        second = server_editor.remember_project(server_editor.ServerSettings(), self.other_project_path)
+        with mock.patch("maw.user_config.UserConfig", side_effect=AssertionError("saving recent files must not reload user config")):
+            server_editor.write_recent_projects(path, first)
+            result = server_editor.write_recent_projects(path, second)
+        self.assertEqual({item.path for item in result.recent_projects}, {self.project_path, self.other_project_path})
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual({key: payload[key] for key in preferences}, preferences)
+        self.assertNotIn(b"\r\n", path.read_bytes())
+        path.write_bytes(b"broken settings")
+        with self.assertRaises(ValueError):
+            server_editor.write_recent_projects(path, first)
+        self.assertEqual(path.read_bytes(), b"broken settings")
+
     def test_recent_project_endpoint_reloads_media_and_updates_setting(self) -> None:
         project = server_editor.load_project(
             self.project_path, None, str(self.stickers), no_waveform=True, peaks_per_second=100,

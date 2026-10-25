@@ -10,7 +10,7 @@
     [{key:'period',title:'循环间隔',min:e.periodUnit==='ms'?80:1,max:e.periodUnit==='ms'?Math.max(2000,e.period):100,lane:0,scale:e.periodUnit==='ms'?1000:1},{key:'opacity',title:'最低不透明度',min:0,max:100,lane:1}]:
     name==='transform'?[{key:'toScale',title:'缩放强度',min:1,max:Math.max(200,e.toScale),lane:0}]:name==='slide'?[{key:'distance',title:'滑动距离',min:0,max:Math.max(480,e.distance),lane:0}]:[];
   function create(root,{context,commit,message}){
-    root.innerHTML=`<div class="msw-motion-presets" data-option-help="拖动手柄调整时间，拖动色块移动区间。固定时长的退场从结尾计算；短字幕自动缩短入场和退场。Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。关闭效果保留参数。"></div>
+    root.innerHTML=`<div class="msw-motion-presets" data-option-help="拖动手柄调整时间，拖动色块移动区间。Ctrl／Ctrl+Shift：比例吸附 1%／5%，固定时长吸附 0.010／0.050 秒。退场从结尾计算，短字幕自动缩短入退场。关闭效果保留参数。"></div>
       <div id="motion-preset-controls"></div><div id="motion-curve-editor" hidden></div>`;
     const $=id=>root.querySelector('#'+id),bar=root.firstElementChild;
     let signature='',drag=null,states={},custom=false;
@@ -52,7 +52,7 @@
         e.preventDefault();
         const param=drag.parameter,scale=param?.scale||1;
         drag.patch=param?
-          {[param.key]:A.snapValue(valueAt(e)/states[name]._extent*param.max/scale,e,param.min/scale,param.max/scale,scale===1000?.001:.1)*scale}:
+          {[param.key]:A.snapValue(valueAt(e)/states[name]._extent*param.max/scale,e,param.min/scale,param.max/scale,scale===1000?.001:.1,scale===1000?.01:1)*scale}:
           A.dragPreset(name,drag.original,drag,valueAt(e),valueAt(e)-drag.start,e);
         states[name]={...drag.original,...drag.patch};draw(name);
       };
@@ -70,8 +70,8 @@
         e.preventDefault();e.stopPropagation();
         const parameter=parameters(name,states[name]).find(p=>p.key===node.dataset.parameter),edge=node.dataset.edge;
         const current=parameter?states[name][parameter.key]:A.presetTimes(name,states[name])[Number(edge)],min=parameter?.min??0,max=parameter?.max??states[name]._extent,scale=parameter?.scale||(parameter?1:states[name].unit==='ms'?1000:1);
-        const value=e.key==='Home'?min:e.key==='End'?max:current+(e.key==='ArrowLeft'?-1:1)*(e.ctrlKey?(e.shiftKey?5:1)*scale:scale===1000?10:1);
-        let patch=parameter?{[parameter.key]:A.snapValue(value/scale,e,min/scale,max/scale,.001)*scale}:A.dragPreset(name,states[name],{edge},value,0,e);
+        const value=e.key==='Home'?min:e.key==='End'?max:current+(e.key==='ArrowLeft'?-1:1)*(e.ctrlKey?(e.shiftKey?5:1)*(scale===1000?10:1):scale===1000?10:1);
+        let patch=parameter?{[parameter.key]:A.snapValue(value/scale,e,min/scale,max/scale,.001,scale===1000?.01:1)*scale}:A.dragPreset(name,states[name],{edge},value,0,e);
         if(Object.hasOwn(patch,'end')&&states[name].endAnchor==='end')patch.end=states[name]._extent-patch.end;
         apply(name,{type:'values',value:patch});
         graph.querySelector(parameter?`[data-parameter="${parameter.key}"]`:`[data-edge="${edge}"]`)?.focus({preventScroll:true});

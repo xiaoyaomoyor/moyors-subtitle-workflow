@@ -6,7 +6,7 @@
   const icons={linear:'M-5 0L0-5L5 0L0 5Z',smooth:'M-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0',hold:'M-5-5H5V5H-5Z'};
   function create(root,{context,commit,message}){
     root.className='msw-curves';
-    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击空白处新建，选中帧后输入或拖动修改。固定时长可右键选起点后或终点前；短字幕自动缩短。Ctrl 吸附整数，Ctrl+Shift 吸附 5 的倍数。">
+    root.innerHTML=`<div class="msw-curve-values" data-option-help="点击空白处新建，选中帧后输入或拖动修改。固定时长可右键选起点后或终点前。Ctrl／Ctrl+Shift：时间吸附 0.010／0.050 秒，比例和数值吸附 1／5。">
       <label><span id="curve-time-label">时间 (%)</span><input id="curve-time" type="number" min="0" max="100" step="any" value="0" required></label>
       <label><span id="curve-value-label">不透明度 (%)</span><input id="curve-value" type="number" step="any" value="100" required></label>
       <button id="curve-add" type="button" class="msw-style-icon" title="在此时间新建关键帧" aria-label="在此时间新建关键帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
@@ -207,7 +207,7 @@
       e.preventDefault();const v=at(e),p=points[selected];
       const scale=timeScale(),lo=selected?pointTime(points[selected-1])+.001:0,hi=selected<points.length-1?pointTime(points[selected+1])-.001:geometry.end;
       if(lo<=hi){const tail=A.anchor(p)==='end',max=state.unit==='ms'?60000:100;
-        p.time=number(A.snapValue((tail?geometry.end-v.time:v.time)/scale,e,Math.max(0,tail?geometry.end-hi:lo)/scale,Math.min(max,tail?geometry.end-lo:hi)/scale,.001)*scale);}
+        p.time=number(A.snapValue((tail?geometry.end-v.time:v.time)/scale,e,Math.max(0,tail?geometry.end-hi:lo)/scale,Math.min(max,tail?geometry.end-lo:hi)/scale,.001,scale===1000?.01:1)*scale);}
       const bounds=A.channels[channel];
       p.value=A.snapValue(v.value,e,bounds.min,bounds.max,.001);cursor={...p};controls();draw();crosshair({...p,time:pointTime(p)});
     };

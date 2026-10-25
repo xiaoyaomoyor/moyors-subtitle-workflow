@@ -18251,7 +18251,12 @@ async function saveProjectToServer({ silent = false } = {}) {
       ? window.MSWE.resolve('persistence-host').draftFingerprint() === savedFingerprint : buildJson() === projectJson);
     window.MSWE?.resolve('project-persistence')?.status(result.assets,
       unchanged ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
-    if (unchanged) markProjectSaved(result.filename, result.backup, {silent:true});
+    if (unchanged) {
+      markProjectSaved(result.filename, result.backup, {silent:true});
+      // Clearing display-only dirty flags is not a new document edit. Keep the
+      // validated save snapshot reusable by a consecutive Ctrl+S.
+      savedProjectSerialization={generation:savedGeneration,key:window.MSWE.resolve('persistence-host').draftFingerprint(),json:projectJson};
+    }
     feedback.finish(unchanged ? '保存成功' : '保存完成；保存期间的新修改仍未保存', unchanged?'success':'warning');
     void refreshRecentProjects();
     return true;

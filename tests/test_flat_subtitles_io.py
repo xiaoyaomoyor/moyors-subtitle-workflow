@@ -110,6 +110,20 @@ class FlatSubtitlesIOTests(unittest.TestCase):
                 write_mosp(self.path, source)
             self.assertEqual(self.path.read_bytes(), saved.document.original)
 
+    def test_prevalidated_new_snapshot_still_checks_original_and_disk_conflicts(self):
+        value = codec.read_project(self.path).project
+        for raw in (b'{"schema":"msw.project.v5"}', b'{"schema":"msw.project.v4","subtitles":{}}', b'[]'):
+            self.path.write_bytes(raw)
+            document = codec.FlatDocument(self.path, raw, value)
+            with self.assertRaises(ValueError):
+                codec.save_project(document, value, _validated=True)
+            self.assertEqual(self.path.read_bytes(), raw)
+        self.path.write_bytes(self.raw)
+        document = codec.read_project(self.path)
+        self.path.write_bytes(self.raw + b' ')
+        with self.assertRaisesRegex(ValueError, '其他程序修改'):
+            codec.save_project(document, value, _validated=True)
+
     def test_cli_is_readonly_by_default_and_write_is_explicit(self):
         output = io.StringIO()
         with redirect_stdout(output):

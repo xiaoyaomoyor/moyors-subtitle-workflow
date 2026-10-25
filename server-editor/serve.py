@@ -278,29 +278,7 @@ def read_server_settings(path: Path) -> ServerSettings:
             appearance[field_name] = browser[key]
     payload['appearance'] = appearance
 
-    projects: list[RecentProject] = []
-    seen: set[Path] = set()
-    values = payload.get("recent_projects", [])
-    if isinstance(values, list):
-        for value in values:
-            if not isinstance(value, dict) or not isinstance(value.get("path"), str):
-                continue
-            try:
-                project_path = Path(value["path"]).expanduser().resolve()
-            except OSError:
-                continue
-            if project_path in seen:
-                continue
-            seen.add(project_path)
-            name = value.get("name")
-            opened_at = value.get("openedAt")
-            projects.append(RecentProject(
-                path=project_path,
-                name=name if isinstance(name, str) and name else project_path.name,
-                opened_at=opened_at if isinstance(opened_at, str) else "",
-            ))
-            if len(projects) == MAX_RECENT_PROJECTS:
-                break
+    projects = _recent_project_records(payload.get("recent_projects", []))
     saved_workspaces: dict[str, dict[str, object]] = {}
     raw_workspaces = payload.get("saved_workspaces", {})
     if isinstance(raw_workspaces, dict):
@@ -324,6 +302,53 @@ def read_server_settings(path: Path) -> ServerSettings:
         appearance=appearance if isinstance(appearance, dict) else {},
         config_baseline=copy.deepcopy(shared),
     )
+
+
+def _recent_project_records(values) -> list[RecentProject]:
+    projects: list[RecentProject] = []
+    seen: set[Path] = set()
+    if isinstance(values, list):
+        for value in values:
+            if not isinstance(value, dict) or not isinstance(value.get("path"), str):
+                continue
+            try:
+                project_path = Path(value["path"]).expanduser().resolve()
+            except OSError:
+                continue
+            if project_path in seen:
+                continue
+            seen.add(project_path)
+            name = value.get("name")
+            opened_at = value.get("openedAt")
+            projects.append(RecentProject(
+                path=project_path,
+                name=name if isinstance(name, str) and name else project_path.name,
+                opened_at=opened_at if isinstance(opened_at, str) else "",
+            ))
+            if len(projects) == MAX_RECENT_PROJECTS:
+                break
+    return projects
+
+
+def write_recent_projects(path: Path, settings: ServerSettings) -> ServerSettings:
+    """Updating recent files must not migrate or rewrite all user preferences."""
+    from maw.file_io import atomic_write_text
+    with _registry_file_lock(path):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            payload = {"version": 1}
+        if not isinstance(payload, dict):
+            raise ValueError("最近工程配置格式无效，未覆盖原文件")
+        by_path = {}
+        for item in (*_recent_project_records(payload.get("recent_projects", [])), *settings.recent_projects):
+            previous = by_path.get(item.path)
+            if previous is None or item.opened_at > previous.opened_at:
+                by_path[item.path] = item
+        recent = tuple(sorted(by_path.values(), key=lambda item: item.opened_at, reverse=True)[:MAX_RECENT_PROJECTS])
+        payload["recent_projects"] = [item.to_json() for item in recent]
+        atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+        return replace(settings, recent_projects=recent)
 
 
 def write_server_settings(path: Path, settings: ServerSettings) -> ServerSettings:
@@ -1056,7 +1081,8 @@ class EditorServer(ThreadingHTTPServer):
     def remember_project(self, project_path: Path) -> None:
         with self.settings_lock:
             self.settings = remember_project(self.settings, project_path)
-            self.persist_settings()
+            if self.settings_path:
+                self.settings = write_recent_projects(self.settings_path, self.settings)
         self._register_launcher_project(project_path)
 
     def _register_launcher_project(self, project_path: Path) -> None:
@@ -1297,15 +1323,20 @@ class EditorServer(ThreadingHTTPServer):
         media = media_source
         if media_source is ...:
             media = (self.project.source_media_path or self.project.media_path) if project_data.get("media") == self.project.data.get("media") else None
+        original = target.read_bytes() if target.is_file() else None
+        cached = getattr(self, '_saved_request', None)
+        validated_original = original is not None and cached is not None and cached[1] == target and cached[2] == original
         try:
-            if target.is_file():
-                previous = json.loads(target.read_text(encoding="utf-8"))
-                persistence.recovery.put(previous, kind="history", name=target.name, origin=target,
+            if original is not None:
+                previous = json.loads(original.decode('utf-8-sig'))
+                put_history = persistence.recovery._put_normalized if validated_original else persistence.recovery.put
+                put_history(previous, kind="history", name=target.name, origin=target,
                                          media=(self.project.source_media_path or self.project.media_path)
                                          if target == self.project.json_path and previous.get("media") == self.project.data.get("media") else None)
         except Exception:
             persistence.recovery_warning = "历史备份暂不可用；请检查本机存储空间"
-        backup = write_project_json(target, project_data)
+        backup = write_project_json(target, project_data, _normalized=_normalized,
+                                    _original=original, _validated_original=validated_original)
         try:
             put = persistence.recovery._put_normalized if _normalized else persistence.recovery.put
             put(strip_inline_caches(project_data), kind="saved", name=target.name, origin=target, media=media)
@@ -1339,10 +1370,12 @@ class EditorServer(ThreadingHTTPServer):
             finally:
                 self.save_lock.release()
         try:
-            repaired_project = copy.deepcopy(project_data)
+            native = isinstance(project_data, dict) and project_data.get('schema') == 'msw.project.v4'
+            repaired_project = project_data if native else copy.deepcopy(project_data)
             # 保存时只自动修复字/词级取整冲突；真正的字幕段重叠仍交给严格校验，
             # 避免把用户有意或误操作造成的段落重叠静默改写。
-            repair_project_timing_ranges(repaired_project, repair_segment_ranges=False)
+            if not native:
+                repair_project_timing_ranges(repaired_project, repair_segment_ranges=False)
             normalized_project = normalize_project(repaired_project)
         except ProjectValidationFailed as error:
             raise SaveProjectError(str(error)) from error
@@ -1809,7 +1842,7 @@ def export_ograf(project: ServerProject, graphic: dict) -> tuple[bytes, str]:
     return buffer.getvalue(), f"{project.json_path.stem}_dynamic-caption.ograf.zip"
 
 
-def write_project_json(target: Path, project_data: dict) -> Path | None:
+def write_project_json(target: Path, project_data: dict, *, _normalized=False, _original=None, _validated_original=False) -> Path | None:
     """Atomically write LF JSON and retain the immediately previous file as .bak."""
     target.parent.mkdir(parents=True, exist_ok=True)
     if project_data.get('schema') == 'msw.project.v4':
@@ -1819,10 +1852,11 @@ def write_project_json(target: Path, project_data: dict) -> Path | None:
         if target.is_file():
             # save_project validates the original under the writer lock. Do
             # not migrate and validate that same original once more here.
-            document = flat_subtitles_io.FlatDocument(target.resolve(), target.read_bytes(), value)
-            return flat_subtitles_io.save_project(document, value, previous_backup=True).backup
+            document = flat_subtitles_io.FlatDocument(target.resolve(), _original if _original is not None else target.read_bytes(), value)
+            return flat_subtitles_io.save_project(document, value, previous_backup=True, _validated=_normalized,
+                                                  _validated_original=_validated_original).backup
         with atomic_output_path(target) as pending:
-            pending.write_text(flat_subtitles_io.serialize_project(value), encoding='utf-8', newline='\n')
+            pending.write_text(flat_subtitles_io.serialize_project(value, _validated=_normalized), encoding='utf-8', newline='\n')
         return None
     from maw.msw.subtitle_layers import preserve_upgrade_source
     upgrade_backup = preserve_upgrade_source(target, project_data)
