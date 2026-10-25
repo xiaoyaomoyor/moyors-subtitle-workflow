@@ -26,6 +26,33 @@ test.beforeEach(async({page})=>{
 });
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
+test('style-only edits use small history records without copying or converting the whole project',async({page})=>{
+  const result=await page.evaluate(()=>{
+    selectOnly(0);MSWSubtitleStyle.open('track');fixedAcceptEdit();
+    const oldContent=fixedContent,oldExport=MSWProductionProject.toProject;let snapshots=0,exports=0;
+    fixedContent=(...args)=>{snapshots++;return oldContent(...args);};
+    MSWProductionProject.toProject=(...args)=>{exports++;return oldExport(...args);};
+    const records=[];
+    try {
+      const choose=id=>{const select=document.getElementById('style-project-preset');select.value=id;select.dispatchEvent(new Event('change',{bubbles:true}));records.push(editorHistory.peekUndo());};
+      choose('large');MSWSubtitleStyle.open('cue');choose('default');
+      const size=JSON.stringify(records).length;
+      performUndo();const cueRestored=!DATA.segments[0].subtitle_style;
+      performUndo();const trackRestored=fixedStyleValue().main.fontSize===48;
+      performRedo();performRedo();
+      return {snapshots,exports,size,cueRestored,trackRestored,kinds:records.map(r=>r.kind),cueCount:records[1].cues.length,otherUntouched:!DATA.segments[1].subtitle_style};
+    }finally{fixedContent=oldContent;MSWProductionProject.toProject=oldExport;}
+  });
+  expect(result).toMatchObject({snapshots:0,exports:0,cueRestored:true,trackRestored:true,kinds:['subtitle-appearance','subtitle-appearance'],cueCount:1,otherUntouched:true});
+  expect(result.size).toBeLessThan(30000);
+  const atomic=await page.evaluate(()=>{
+    const a=DATA.segments[0],b=DATA.segments[1],before=JSON.stringify(a.subtitle_style),history=editorHistory.peekUndo();let error='';
+    try{fixedCommitAppearance({cues:[{id:a.id,fields:{subtitle_style:{fontSize:72}}},{id:b.id,fields:{subtitle_style:{fontSize:-1}}}]},'Invalid batch');}catch(e){error=e.message;}
+    return {error,unchanged:JSON.stringify(a.subtitle_style)===before&&editorHistory.peekUndo()===history};
+  });
+  expect(atomic.error).toContain('无效');expect(atomic.unchanged).toBe(true);
+});
+
 test('typing batches structural validation and changing styles preserves cards and cue focus',async({page})=>{
   await page.evaluate(()=>{selectOnly(0);window.originalText=DATA.segments[0].text;window.textValidations=0;window.savedReconcile=MSWSubtitleTracks.reconcile;
     MSWSubtitleTracks.reconcile=(...args)=>{textValidations++;return savedReconcile(...args);};

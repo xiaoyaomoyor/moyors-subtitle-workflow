@@ -268,31 +268,20 @@
     if(speakerScope()){try{commitSpeakerAppearance(patch,options);}catch(error){message(error.message,true);sync();}return;}
     if(!ready||styleGeneration!==host.generation||!cueScope())return;
     try {
-      const rows=selectedRows(),ids=rows.map(r=>r.cue_id);if(!ids.length)return;
-      commitProcessingEdits();const before=global.MSWProductionProject.toProject(global.AsrEditorUtils.stripInlineCaches(host.data));
-      let next=global.MSWFlatEditing.updateAppearance(before,ids,patch,options);
-      if(patch.backgroundRadius>0) {
-        const rectIds=rows.filter(r=>rowAppearance(r).backgroundShape==='rect').map(r=>r.cue_id);
-        if(rectIds.length)next=global.MSWFlatEditing.updateAppearance(next,rectIds,{backgroundShape:'rounded'});
-      }
-      if(options.restoreRadius) {
-        const rectIds=rows.filter(r=>trackAppearance(r).backgroundShape==='rect'&&r.cue.subtitle_style?.backgroundShape==='rounded').map(r=>r.cue_id);
-        if(rectIds.length)next=global.MSWFlatEditing.updateAppearance(next,rectIds,{}, {reset:['backgroundShape']});
-      }
-      if(options.preset) {
-        const batches=new Map();
-        for(const row of rows) {
+      const rows=selectedRows();if(!rows.length)return;
+      const edit=global.MSWFlatEditing.appearanceFields;
+      const cues=rows.map(row=>{
+        let fields=edit(row.cue,patch,options);
+        if(patch.backgroundRadius>0&&rowAppearance(row).backgroundShape==='rect')fields=edit({...row.cue,...fields},{backgroundShape:'rounded'});
+        if(options.restoreRadius&&trackAppearance(row).backgroundShape==='rect'&&row.cue.subtitle_style?.backgroundShape==='rounded')fields=edit({...row.cue,...fields},{},{reset:['backgroundShape']});
+        if(options.preset) {
           const track=fixedTrack(row.cue,row.role,row.track_id),slot=track.flat_style_slot||'main';
-          const appearance=global.MSWCueStyle.appearance(S.forKind(options.preset,fixedTrackCore.styleKind(track))[slot]),key=JSON.stringify(appearance);
-          if(!batches.has(key))batches.set(key,{appearance,ids:[]});
-          batches.get(key).ids.push(row.cue_id);
+          const appearance=global.MSWCueStyle.appearance(S.forKind(options.preset,fixedTrackCore.styleKind(track))[slot]);
+          fields=edit(row.cue,appearance,{replace:true,presetId:options.presetId});
         }
-        for(const batch of batches.values())next=global.MSWFlatEditing.updateAppearance(next,batch.ids,batch.appearance,{replace:true,presetId:options.presetId});
-      }
-      if(JSON.stringify(next)===JSON.stringify(before))return;
-      productionCommitProject(next,options.reset||options.replace&&!Object.keys(patch).length?'字幕恢复轨道外观':'修改所选字幕外观',ids,{appearanceOnly:true});
-      fixedPreviewInvalidate();global.dispatchEvent(new Event('msw:burn-style'));
-      rebuild();sync();refresh();
+        return {id:row.cue_id,fields};
+      });
+      if(!fixedCommitAppearance({cues},options.reset||options.replace&&!Object.keys(patch).length?'字幕恢复轨道外观':'修改所选字幕外观'))return;
     }catch(error){message(error.message,true);sync();}
   }
   const legacyAnimation=document.createElement('details');legacyAnimation.id='motion-legacy';legacyAnimation.className='msw-style-section';
@@ -317,7 +306,7 @@
   }
   function commitMotion(name,key,value){
     const context=motionContext();if(context.blocked)return;
-    commitProcessingEdits();const before=speakerScope()?null:global.MSWProductionProject.toProject(global.AsrEditorUtils.stripInlineCaches(host.data));
+    commitProcessingEdits();
     const updates=context.items.map(item=>{
       if(key==='author'){
         if(value.type==='playhead'&&!item.preview)throw Error('当前轨道没有可参考的字幕');
@@ -357,16 +346,14 @@
         }
       },key==='reset'?'恢复说话人动画':'修改说话人动画');return;
     }
-    let next;
-    if(context.cue)next=global.MSWFlatEditing.updateAnimation(before,updates,key==='reset'?{reset:name}:{});
+    let changes;
+    if(context.cue)changes={cues:updates.map(u=>({id:u.id,fields:global.MSWFlatEditing.animationFields(u.item.row.cue,u.animation,key==='reset'?{reset:name}:{})}))};
     else{
       const {item,animation}=updates[0],style=S.normalize(item.style),slot=item.track.flat_style_slot||'main';
       style[slot].animation=key==='reset'?M.defaults():M.resolve(item.base,animation);
-      next=global.MSWFlatEditing.updateTrack(before,item.track.id,{style:{...before.subtitles.tracks.find(t=>t.id===item.track.id).style,mode:'snapshot',value:style}});
+      changes={tracks:[{id:item.track.id,style:{...item.track.style,mode:'snapshot',value:style}}]};
     }
-    if(JSON.stringify(next)===JSON.stringify(before))return;
-    productionCommitProject(next,key==='reset'?'恢复轨道动画':'修改字幕动画',context.cue?updates.map(u=>u.id):[...fixedPositionSelectedIds()],{appearanceOnly:true});
-    fixedPreviewInvalidate();global.dispatchEvent(new Event('msw:burn-style'));rebuild();sync();refresh();
+    if(!fixedCommitAppearance(changes,key==='reset'?'恢复轨道动画':'修改字幕动画'))return;
   }
   const motionUI=global.MSWSubtitleAnimationUI.create(motionRoot,{context:motionContext,commit:commitMotion,message:(text,error)=>message(text,error)});
   let proof={mode:'project'};
@@ -586,6 +573,8 @@
     if(appearanceScope()){commitCueAppearance({}, {preset:style,...(find(selection)?{presetId:selection}:{})});return;}
     if(fixedTrackMode()&&fixedStyleTarget()) {
       if(!fixedCommitStyle(style,selection)){sync();message(fixedLastMessage||'无法修改轨道样式',true);return;}
+      // The commit broadcasts msw:burn-style, which updates this panel once.
+      return;
     }
     else host.commitProjectStyle(style,label,selection);
     rebuild();sync();refresh();

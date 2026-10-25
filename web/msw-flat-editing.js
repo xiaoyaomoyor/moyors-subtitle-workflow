@@ -36,33 +36,40 @@
     if(reset!==null&&reset!=='all'&&!motion.names.includes(reset))fail('字幕动画恢复对象无效');
     return transaction(p,next=>{
       editable(next,changes.map(c=>c.id));
-      for(const change of changes){
-        const c=cue(next,change.id).content;
-        if(reset==='all'){delete c.subtitle_animation;continue;}
-        const effects={...c.subtitle_animation?.effects};
-        if(reset)delete effects[reset];
-        else{
-          if(!motion.valid(change.animation))fail('字幕动画覆盖包含无效参数');
-          Object.assign(effects,change.animation.effects);
-        }
-        const mode=change.animation?.mode??c.subtitle_animation?.mode,timing=change.animation?.timing??c.subtitle_animation?.timing;
-        if(Object.keys(effects).length||mode||timing)c.subtitle_animation={schema:motion.schema,...(mode?{mode}:{}),...(timing?{timing}:{}),effects};else delete c.subtitle_animation;
-      }
+      for(const change of changes)applyFields(cue(next,change.id).content,animationFields(cue(next,change.id).content,change.animation,{reset}));
     });
   }
-  function updateAppearance(p,ids,patch,{reset=[] ,replace=false,presetId}={}) {
+  function applyFields(content,fields) {
+    for(const [key,value] of Object.entries(fields))if(value===undefined)delete content[key];else content[key]=value;
+  }
+  // Pure field patches shared by canonical transactions and the live editor.
+  // No text, timing, bindings or other cue data is copied or changed here.
+  function animationFields(content,animation,{reset=null}={}) {
+    if(reset!==null&&reset!=='all'&&!motion.names.includes(reset))fail('字幕动画恢复对象无效');
+    if(reset==='all')return {subtitle_animation:undefined};
+    const effects={...content.subtitle_animation?.effects};
+    if(reset)delete effects[reset];
+    else{
+      if(!motion.valid(animation))fail('字幕动画覆盖包含无效参数');
+      Object.assign(effects,animation.effects);
+    }
+    const mode=animation?.mode??content.subtitle_animation?.mode,timing=animation?.timing??content.subtitle_animation?.timing;
+    return {subtitle_animation:Object.keys(effects).length||mode||timing?copy({schema:motion.schema,...(mode?{mode}:{}),...(timing?{timing}:{}),effects}):undefined};
+  }
+  function appearanceFields(content,patch,{reset=[],replace=false,presetId}={}) {
     if(!cueStyle.valid(patch)||!Array.isArray(reset)||reset.some(k=>!cueStyle.fields.includes(k)))fail('字幕外观覆盖包含无效参数');
     if(presetId!==undefined&&(typeof presetId!=='string'||!presetId.trim()||presetId.length>160))fail('字幕外观预设标识无效');
+    const style=replace?{}:{...content.subtitle_style};
+    for(const k of reset)delete style[k];
+    Object.assign(style,patch);
+    return {subtitle_style:Object.keys(style).length?style:undefined,
+      subtitle_style_preset:presetId!==undefined?presetId:replace&&!Object.keys(patch).length?undefined:content.subtitle_style_preset};
+  }
+  function updateAppearance(p,ids,patch,options={}) {
+    appearanceFields({},patch,options);
     return transaction(p,next=>{
       editable(next,ids);
-      for(const id of new Set(ids)) {
-        const content=cue(next,id).content,style=replace?{}:{...content.subtitle_style};
-        for(const k of reset)delete style[k];
-        Object.assign(style,patch);
-        if(Object.keys(style).length)content.subtitle_style=style;else delete content.subtitle_style;
-        if(presetId!==undefined)content.subtitle_style_preset=presetId;
-        else if(replace&&!Object.keys(patch).length)delete content.subtitle_style_preset;
-      }
+      for(const id of new Set(ids))applyFields(cue(next,id).content,appearanceFields(cue(next,id).content,patch,options));
     });
   }
   function updateRangesInternal(p,changes,{linked=true}={},inPlace=false) {
@@ -275,6 +282,6 @@
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,appearanceFields,animationFields,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

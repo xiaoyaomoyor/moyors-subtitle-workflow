@@ -22,6 +22,31 @@ test.beforeEach(async({page})=>{
 test.afterEach(async()=>{await server?.stop();});
 async function settings(page){await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.getByRole('button',{name:'说话人色系',exact:true}).click();}
 
+test('track presets yield to speaker colors and manual cue overrides in properties and ASS',async({page})=>{
+  await settings(page);
+  await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('stroke');
+  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await page.evaluate(()=>{
+    const p=MSWE.resolve('processing-host').exportProject();
+    for(const c of p.subtitles.cues)c.content.color={name:'green',start:c.content.start,end:c.content.end};
+    p.subtitles.cues[1].content.subtitle_style={outlineColor:'#abcdef'};
+    productionCommitProject(p,'Speaker priority fixture');selectOnly(0);MSWSubtitleStyle.open('track');
+  });
+  for(const preset of ['large','default']) {
+    await page.locator('#style-project-preset').selectOption(preset);
+    await page.locator('#style-edit-scope').selectOption('cue');
+    await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
+    await page.evaluate(()=>selectOnly(1));
+    await expect(page.locator('#style-field-outlineColor')).toHaveValue('#abcdef');
+    const ass=await page.evaluate(async()=>{
+      const result=await MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),video:{width:640,height:360}});
+      return result.ass;
+    });
+    expect(ass).toContain('6ABB66');expect(ass).toContain('EFCDAB');
+    await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('track');});
+  }
+});
+
 test('project speaker table extends beyond five, marks from menu and saves renamed identities',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));await settings(page);
   const rows=page.locator('#speaker-palette-rows tr');await expect(rows).toHaveCount(6);

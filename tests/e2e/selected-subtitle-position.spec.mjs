@@ -53,6 +53,24 @@ test('manually added reverse-bound subtitles retain group order in preview, save
   await check();expect((await snap(page)).subtitles.bindings).toEqual(saved.subtitles.bindings);
 });
 
+test('backslash toggles preview fullscreen without intercepting typing or changing cue selection',async({page})=>{
+  await page.evaluate(()=>{selectOnly(0);player.pause();});
+  const selected=await page.evaluate(()=>[...selectedIdxs]);
+  await page.locator('#cue-panel-text').focus();
+  await page.keyboard.press('Backslash');
+  expect(await page.evaluate(()=>document.fullscreenElement)).toBeNull();
+  await expect(page.locator('#cue-panel-text')).toHaveValue(/\\/);
+  await page.locator('#media-seek').focus();
+  await page.keyboard.press('Control+Backslash');
+  expect(await page.evaluate(()=>document.fullscreenElement)).toBeNull();
+  await page.keyboard.press('Backslash');
+  await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===playerWrap)).toBe(true);
+  await page.keyboard.press('Backslash');
+  await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);
+  expect(await page.evaluate(()=>[...selectedIdxs])).toEqual(selected);
+  await expect(page.locator('#help-tab-panel-playback')).toContainText('进入／退出视频全屏预览');
+});
+
 test('fullscreen arrow seek ignores hidden cue selection and stays consistent across player controls',async({page})=>{
   await page.evaluate(()=>{selectOnly(0);player.pause();player.currentTime=3;});
   const before=await snap(page);

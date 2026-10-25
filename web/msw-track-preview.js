@@ -45,18 +45,17 @@ function fixedStyleValue(custom=false) {
 }
 function fixedCommitStyle(style, selection) {
   const track=fixedStyleTarget(); if(!track)return false;
-  const next=fixedContent(), target=next.subtitle_tracks.tracks.find(t=>t.id===track.id),group=fixedStyleGroup();
+  const group=fixedStyleGroup();
   const value=window.MSWProjectStyle.normalize(style);
-  const members=group?[[group.main,'main'],...(group.secondary?[[group.secondary,'secondary']]:[])]:[[target,null]];
-  for(const [member,role] of members) {
-    const dest=next.subtitle_tracks.tracks.find(t=>t.id===member.id),mapped=window.MSWProjectStyle.forKind(value,fixedTrackCore.styleKind(member));
+  const members=group?[[group.main,'main'],...(group.secondary?[[group.secondary,'secondary']]:[])]:[[track,null]];
+  const tracks=members.map(([member,role])=>{
+    const mapped=window.MSWProjectStyle.forKind(value,fixedTrackCore.styleKind(member));
     if(role)mapped[member.flat_style_slot||'main']=structuredClone(mapped[role]);
     const custom=selection==='current'?mapped:member.style.custom||window.MSWTrackPresentation.styleFor(DATA,member);
-    dest.style=selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value:mapped,selection,custom};
-  }
-  const ok=fixedCommitProject(next,'修改轨道字幕样式',{appearanceOnly:true});
-  if(ok)window.dispatchEvent(new Event('msw:burn-style'));
-  return ok;
+    return {id:member.id,style:selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value:mapped,selection,custom}};
+  });
+  try{fixedCommitAppearance({tracks},'修改轨道字幕样式');return true;}
+  catch(error){fixedStatus(error.message);return false;}
 }
 function fixedSetPresentation(mode) {
   const next=fixedContent();next.subtitle_tracks.presentation=mode;

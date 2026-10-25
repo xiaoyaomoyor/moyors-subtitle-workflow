@@ -11,6 +11,27 @@ from maw.speaker import apply_speaker_colors, inherit_speaker_color
 
 
 class SpeakerPaletteTests(unittest.TestCase):
+    def test_track_changes_yield_to_speaker_defaults_and_manual_cue_style(self):
+        from maw.project_subtitle_style import builtin_presets
+        project = self.project()
+        speaker = project['preview']['speaker_palette']['rows'][0]
+        speaker.update(mode='stroke', color='#66bb6a', style={'fontSize': 72})
+        cue = project['subtitles']['cues'][0]['content']
+        for size, color in [(40, '#ff0000'), (90, '#0000ff')]:
+            style = builtin_presets()[0]
+            style['main'].update(fontSize=size, outlineColor=color)
+            track = project['subtitles']['tracks'][0]
+            track['style'].update(mode='snapshot', value=style)
+            inherited = layout(project)[0]['style']
+            self.assertEqual((inherited['fontSize'], inherited['outlineColor']), (72, '#66bb6a'))
+            cue['subtitle_style'] = {'fontSize': 55, 'outlineColor': '#abcdef'}
+            manual = layout(project)[0]['style']
+            self.assertEqual((manual['fontSize'], manual['outlineColor']), (55, '#abcdef'))
+            video = dict(width=640, height=360)
+            plan = dict(intervals=[dict(start_ms=0, end_ms=2000, output_start_ms=0)])
+            self.assertEqual(preview_ass(dict(project=project, video=video))['ass'], styled_ass(project, plan, 'both', video))
+            del cue['subtitle_style']
+
     def project(self):
         project = migrate_project({'segments': [dict(id='a', start=0, end=2000, text='Text', color={'name': 'speaker-9', 'start': 0, 'end': 2000})]})
         project['preview'] = {'speaker_palette': {'version': 1, 'rows': [dict(id='speaker-9', name='Alice', color='#123456', mode='none', separator=' / ')]}}

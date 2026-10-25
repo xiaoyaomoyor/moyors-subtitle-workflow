@@ -2020,6 +2020,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-appearance')return snapshotFixedAppearance(sourceRecord,label);
   if(kind==='cue-markers')return snapshotCueMarkers(sourceRecord.changes,label);
   if (kind === 'project-style') return {kind,label,...window.MSWProjectStyle.capture(DATA)};
   if (kind === 'source-gain') return {kind, label, gainDb: window.MSWE.resolve('audio-timeline').sourceGainDb(), mediaKey: sourceGainMediaKey()};
@@ -2110,6 +2111,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-appearance')return fixedCommitAppearance(record,record.label,{restore:true});
   if(record.kind==='cue-markers') {
     const cues=new Map(layerCore.tracks(DATA).flatMap(t=>t.segments.map(c=>[c.id,c])));
     if(record.changes.some(change=>!cues.has(change.id))){flashHint('字幕已不存在，无法恢复标记','warning');return false;}
@@ -12508,7 +12510,7 @@ function syncMediaControls() {
   }
   const fullscreenLabel = document.fullscreenElement ? '退出全屏' : '全屏';
   mediaFullscreen.setAttribute('aria-label', fullscreenLabel);
-  mediaFullscreen.title = fullscreenLabel;
+  mediaFullscreen.title = `${fullscreenLabel}（\\）`;
 }
 
 function stopPlaybackRefresh(mediaElement = null) {
@@ -12644,7 +12646,7 @@ mediaPlaybackRate?.addEventListener('change', () => {
   }
   syncMediaControls();
 });
-mediaFullscreen?.addEventListener('click', async () => {
+async function toggleMediaFullscreen() {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await playerWrap?.requestFullscreen?.();
@@ -12652,6 +12654,15 @@ mediaFullscreen?.addEventListener('click', async () => {
     flashHint(`无法切换全屏：${error.message || error}`, 'warning');
   }
   syncMediaControls();
+}
+mediaFullscreen?.addEventListener('click', toggleMediaFullscreen);
+
+document.addEventListener('keydown', e => {
+  if (e.key !== '\\' || e.defaultPrevented || e.repeat || e.isComposing
+      || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || isTextEditingTarget(e)
+      || e.target?.closest?.('select, [role="menu"]') || !hasLoadedMedia()) return;
+  e.preventDefault();
+  void toggleMediaFullscreen();
 });
 document.addEventListener('fullscreenchange', syncMediaControls);
 
@@ -17588,11 +17599,11 @@ function hasUnsavedProjectChanges() {
 
 // 文字编辑先写入页面内存，避免每个按键都请求服务器；失焦后短暂防抖保存，
 // 这样点击其它字幕或刷新页面时不会因为 30 秒定时保存尚未到点而丢失刚完成的修改。
-function scheduleAutoSaveFlush({deferValidation=false}={}) {
+function scheduleAutoSaveFlush({deferValidation=false,validated=false}={}) {
   if (window.MSWFlatTrialRequested) return;
   if (waveformEditor?.drag) return;
   clearTimeout(scheduleAutoSaveFlush.validationTimer);
-  if (fixedTrackMode()) {
+  if (fixedTrackMode()&&!validated) {
     // Text keystrokes do not change track ownership, timing or bindings.
     // Validate once after the burst; explicit edits and save still validate now.
     if(deferValidation) {
