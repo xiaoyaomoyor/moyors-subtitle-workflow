@@ -57,9 +57,9 @@ function layerPreferredActive(segments, time, includeDisabled = false) {
   const own = target && (target.kind === 'main' ? DATA.segments : target.track?.segments);
   return own === segments && active.includes(target.index) ? target.index : active[0] ?? -1;
 }
-function layerPrepareRender() {
+function layerPrepareRender({validated=false}={}) {
   if (!layerMode()) return;
-  if (fixedTrackMode()) fixedAcceptEdit();
+  if (fixedTrackMode()&&!validated) fixedAcceptEdit();
   const liveIds = new Set(DATA.segments.map(cue => cue.id));
   DATA.subtitle_layers.legacy_overlay.cue_ids = DATA.subtitle_layers.legacy_overlay.cue_ids.filter(id => liveIds.has(id));
   const snapshot = snapshotEditorSelection();

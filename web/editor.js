@@ -2020,6 +2020,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-insertion')return productionInsertionRecord(sourceRecord.patch,!sourceRecord.present,label);
   if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
   if(kind==='subtitle-appearance')return snapshotFixedAppearance(sourceRecord,label);
   if(kind==='cue-markers')return snapshotCueMarkers(sourceRecord.changes,label);
@@ -2112,6 +2113,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-insertion')return productionApplyInsertion(record);
   if(record.kind==='subtitle-timing')return fixedApplyTimingHistory(record);
   if(record.kind==='subtitle-appearance')return fixedCommitAppearance(record,record.label,{restore:true});
   if(record.kind==='cue-markers') {
@@ -6893,10 +6895,10 @@ function alignSelectedExtensionSubtitleRanges() {
 }
 
 // === 渲染 ===
-function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null } = {}) {
+function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null, validated = false } = {}) {
   queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
-  layerPrepareRender();
+  layerPrepareRender({validated});
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
   (getMultiSubtitleState().tracks || []).forEach(track => MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(track.segments, track.id + '-segment'));
   // 其它编辑入口仍以毫秒修改工程对象；在重绘前把它们投影回当前时间基准，
@@ -6911,25 +6913,26 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const dockHandle = container.querySelector(':scope > .dock-handle');
   const cueListToolbar = container.querySelector(':scope > .cue-list-toolbar');
   const emptyState = cuesEmpty;
-  // A timing transaction does not alter text or binding structure. Reuse rows
-  // whose identities AND indices are unchanged: their event handlers capture
-  // those indices. Reordered/affected rows still use the normal builders.
+  // Reuse unchanged identities even when insertion shifts their list indices.
+  // Update event targets and marker links before the row returns to the DOM.
   const rowKey=(main,extension,track)=>JSON.stringify([main||'',extension||'',track||'']);
   const reusable=changedCueIds?new Map([...container.querySelectorAll(':scope > .cue')]
     .map(el=>[rowKey(el.dataset.mainId,el.dataset.extId,el.dataset.trackId),el])):null;
   const cueRow=(main,extension,track,mainIndex,extIndex,build)=>{
     const old=reusable?.get(rowKey(main?.id,extension?.id,extension?track?.id:null));
-    if(old&&!changedCueIds.has(main?.id)&&!changedCueIds.has(extension?.id)
-      &&(mainIndex==null||Number(old.dataset.mainIdx??old.dataset.idx)===mainIndex)
-      &&(extIndex==null||Number(old.dataset.extIdx)===extIndex))return old;
+    if(old&&!changedCueIds.has(main?.id)&&!changedCueIds.has(extension?.id)) {
+      reindexCueRow(old,main,extension,track,mainIndex,extIndex);return old;
+    }
     return build();
   };
-  container.replaceChildren();
-  if (dockHandle) container.appendChild(dockHandle);
-  if (cueListToolbar) container.appendChild(cueListToolbar);
+  if(!reusable) {
+    container.replaceChildren();
+    if (dockHandle) container.appendChild(dockHandle);
+    if (cueListToolbar) container.appendChild(cueListToolbar);
+  }
   if (emptyState) {
     emptyState.classList.toggle('hidden', DATA.segments.length > 0);
-    container.appendChild(emptyState);
+    if(!reusable)container.appendChild(emptyState);
   }
   const cueFragment = document.createDocumentFragment();
   const multiVisible = multiSubtitleVisible();
@@ -6964,8 +6967,18 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   }
   overlaySegments.forEach((seg, i) => rows.push({ start: seg.start, order: 1, el: buildOverlayCueEl(seg, i) }));
   rows.sort((a, b) => a.start - b.start || a.order - b.order);
-  rows.forEach((row) => cueFragment.appendChild(row.el));
-  container.appendChild(cueFragment);
+  if(reusable) {
+    const retained=new Set(rows.map(row=>row.el));
+    container.querySelectorAll(':scope > .cue').forEach(el=>{if(!retained.has(el))el.remove();});
+    let cursor=container.querySelector(':scope > .cue');
+    for(const {el} of rows) {
+      if(el===cursor)cursor=cursor.nextElementSibling;
+      else container.insertBefore(el,cursor);
+    }
+  } else {
+    rows.forEach((row) => cueFragment.appendChild(row.el));
+    container.appendChild(cueFragment);
+  }
   fixedSyncUI();
   applyCueListDisplaySettings({ preserveCueListScroll: false });
   refreshColorFilterUi();
@@ -6974,7 +6987,8 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   // 计算隐藏状态和数量，避免长工程 renderAll() 再逐行重建一遍文本节点。
   applySearch(searchEl.value, { refreshText: false, preserveCueListScroll: false });
   // 重新应用选中样式（idx 不变时还有效；如果有 splice 改了顺序就先 clearSelection）
-  selectedIdxs.forEach(i => {
+  if(selectedIdxs.size>32)container.querySelectorAll(':scope > .cue[data-idx]').forEach(el=>el.classList.toggle('selected',selectedIdxs.has(Number(el.dataset.idx))));
+  else selectedIdxs.forEach(i => {
     const el = container.querySelector(`.cue[data-idx="${i}"]`);
     if (el) el.classList.add('selected');
   });
@@ -7006,6 +7020,30 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   // Paused fixed-track previews must reflect edits and enabled states too.
   // Playback events alone leave deleted/disabled annotations on the frame.
   if (fixedPresentationMode()) refreshSubtitlePreview();
+}
+
+function reindexCueRow(row,main,extension,track,mainIndex,extIndex) {
+  const dual=row.classList.contains('multi-dual-cue');
+  for(const [cue,index,kind] of [[main,mainIndex,'main'],[extension,extIndex,'extension']]) {
+    if(!cue)continue;
+    const node=dual?row.querySelector('.multi-cue-column.'+kind):row;
+    if(kind==='main') {
+      row.reindexMainCue?.(index);row.dataset.idx=String(index);
+      if(dual||row.dataset.mainIdx!==undefined)row.dataset.mainIdx=String(index);
+      if(dual)node.dataset.mainIdx=String(index);
+    } else {node.reindexExtensionCue?.(index,track);row.dataset.extIdx=String(index);node.dataset.extIdx=String(index);}
+    const label=node.querySelector('.index-label')||node.querySelector('.index');
+    if(label&&productionFlatMode()) {
+      const text=fixedCueLabel(cue,kind,kind==='extension'?track.id:null);
+      if(label.firstChild?.nodeType===Node.TEXT_NODE){if(label.firstChild.nodeValue!==text)label.firstChild.nodeValue=text;}
+      else if(label.textContent!==text)label.textContent=text;
+      const indexLabel=node.querySelector('.index');if(indexLabel.title!==text)indexLabel.title=text;
+    }
+    // Unchanged colors need no repaint; index-based references do.
+    if(cue.color_ref)updateCueColorPresentation(node,node.querySelector('.color-bar'),cue);
+    if(cue.sticker||cue.sticker_ref)updateCueStickerPresentation(node,node.querySelector('.sticker-slot'),cue,index,{extensionTrack:kind==='extension'?track:null});
+  }
+  row.classList.remove('selected');
 }
 
 function parsePanelTime(value, fallback) {
@@ -7746,8 +7784,11 @@ function appendProcessingReview(node, cue) {
   badge.textContent = window.MSWE_I18N?.translateText?.('待校对') || '待校对';
   badge.title = window.MSWE_I18N?.translateText?.('区外片段保留原文；检查文字后点击标记为已校对') || '区外片段保留原文；检查文字后点击标记为已校对';
   badge.addEventListener('click', event => {
-    event.stopPropagation(); commitProcessingEdits(); pushUndo('标记字幕已校对');
-    delete cue.review_required; projectImportDirty = true; renderAll({waveform:'overlay'}); scheduleAutoSaveFlush();
+    event.stopPropagation(); commitProcessingEdits();
+    const current=layerCore.tracks(DATA).flatMap(source=>source.segments).find(row=>row.id===cue.id);
+    if(!current)return;
+    pushUndo('标记字幕已校对');
+    delete current.review_required; projectImportDirty = true; renderAll({waveform:'overlay'}); scheduleAutoSaveFlush();
   });
   node.append(badge);
 }
@@ -8570,6 +8611,7 @@ function finishExtensionEdit(save) {
 function bindExtensionCueEvents(el, index, track = getActiveExtensionTrack(), dualRow = null) {
   if (!el || !track?.segments?.[index]) return;
   let pointerDown = null;
+  el.reindexExtensionCue=(next,nextTrack)=>{index=next;track=nextTrack;pointerDown=null;};
   el.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || (extensionEditingState?.el === el)) return;
     event.stopPropagation();
@@ -12075,6 +12117,7 @@ function splitAtShortcutTarget(event, { independent = false } = {}) {
 function bindCueEvents(el, idx) {
   let pointerDownState = null;
   let lastPrimaryPointerDownAt = 0;
+  el.reindexMainCue=next=>{idx=next;pointerDownState=null;lastPrimaryPointerDownAt=0;};
 
   function selectFromCuePointer(event) {
     // Alt+点击 = 快速切换禁用状态
@@ -24066,7 +24109,7 @@ function initWaveformEditor() {
         restoreEditorSelection(selection);
       } else if (linkedChanged || multiSubtitleVisible() || track === 'extension') markMultiSubtitleDirty();
       const validated=fixedFinishDragTransaction();
-      renderAll({changedCueIds:timingIds});
+      renderAll({changedCueIds:timingIds,validated});
       updateWithoutCueListAutoScroll();
       // 移动/裁切的松手总结气泡已按需求移除：拖动期间的实时数据仍挂在
       // 右上常显数据行（quiet 状态），结束后由 refreshMediaReadout 还原。

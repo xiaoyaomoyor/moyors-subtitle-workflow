@@ -20957,6 +20957,11 @@ export default MawDynamicCaptions;
     const wanted=new Set(rows.filter(c=>c.start<range.end&&c.end>range.start).map(c=>root(c.id)));
     return new Set(rows.filter(c=>wanted.has(root(c.id))).map(c=>c.id));
   }
+  function canonicalTrack(t,context) {
+    return {...clone(context.tracks[t.id]||{}),id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),
+      ...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+      style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})};
+  }
   function toProject(view, {previewWindow=null}={}) {
     if(!isView(view))return core.migrate(view);
     if(!previewWindow)legacy.validate(view);
@@ -20968,9 +20973,7 @@ export default MawDynamicCaptions;
     const m={...clone(previewWindow?extras(context.model,['migration']):context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
     if(previewWindow)m.migration={schema:core.MIGRATION_SCHEMA,identities:[],structure:{segments:[],subtitle_layers:{presentation:clone(view.subtitle_layers?.presentation||{})}}};
     const owners=legacy.ownerMap(view),allIds=new Set();
-    for(const t of view.subtitle_tracks.tracks)m.tracks.push({...clone(context.tracks[t.id]||{}),
-      id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
-      style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})});
+    for(const t of view.subtitle_tracks.tracks)m.tracks.push(canonicalTrack(t,context));
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
     const byId=new Map(sources.flatMap(s=>s.segments).map(c=>[c.id,c]));
     for(const source of sources)for(const value of source.segments) {
@@ -21089,14 +21092,17 @@ export default MawDynamicCaptions;
     }
     return {rows,bindings,secondaryIds,tracks:view.subtitle_tracks.tracks.map(t=>({id:t.id,name:t.name,...(t.secondary_for?{secondary_for:t.secondary_for}:{})}))};
   }
-  function place(view,rows,bindings,anchor,ownerId,{tracks=view.subtitle_tracks.tracks,secondaryIds=[],canonical=false}={}) {
+  function preparePaste(view,rows,bindings,anchor,ownerId,{tracks=view.subtitle_tracks.tracks,secondaryIds=[]}={}) {
     const E=global.MSWFlatEditing,id=global.MSWProject.id;
-    if(!rows.length)return {project:canonical?toProject(view):clone(view),ids:[]};
+    if(!rows.length)return null;
     if(!Number.isSafeInteger(anchor)||anchor<0)throw Error('粘贴位置无效');
     const used=new Set(rows.map(c=>c.track_id)),anchorOwner=tracks.find(t=>used.has(t.id))?.id;
     if(!anchorOwner||[...used].some(owner=>!tracks.some(t=>t.id===owner)))throw Error('复制内容缺少源轨道信息，请重新复制');
     const mapping=moveOwners({tracks,anchorOwner,entries:rows.map(cue=>({cue,owner:cue.track_id}))},ownerId,view.subtitle_tracks.tracks);
-    const p=toProject(view),shift=anchor-Math.min(...rows.map(c=>c.content.start)),ids=new Map(rows.map(c=>[c.id,id('cue')]));
+    const p={schema:core.SCHEMA,...(view.timebase?{timebase:clone(view.timebase)}:{}),
+      subtitles:{schema:core.MODEL_SCHEMA,tracks:view.subtitle_tracks.tracks.map(t=>canonicalTrack(t,view.subtitle_tracks.flat_context)),cues:[],bindings:[]},
+      subtitle_view:{secondary_cue_ids:[]}};
+    const shift=anchor-Math.min(...rows.map(c=>c.content.start)),ids=new Map(rows.map(c=>[c.id,id('cue')]));
     const groups=new Map();
     for(const row of rows)for(const field of ['color','sticker']) {
       const head=row.content[field+'_ref']?.cue_id||(row.content[field]?row.id:null);if(!head)continue;
@@ -21118,7 +21124,9 @@ export default MawDynamicCaptions;
     // Validate the complete destination before touching live data or history.
     // Include new/new collisions as well as new/existing collisions.
     const added=new Set(ids.values()),lanes=new Map([...new Set(mapping.values())].map(id=>[id,[]]));
-    for(const cue of [...p.subtitles.cues,...additions])lanes.get(cue.track_id)?.push(cue);
+    const owners=new Map(view.subtitle_tracks.assignments.map(a=>[a.cue_id,a.subtitle_track_id]));
+    for(const source of layers.tracks(view))for(const cue of source.segments)lanes.get(owners.get(cue.id))?.push({id:cue.id,content:cue});
+    for(const cue of additions)lanes.get(cue.track_id).push(cue);
     for(const track of p.subtitles.tracks)if(lanes.has(track.id)) {
       const lane=lanes.get(track.id).sort((a,b)=>a.content.start-b.content.start);
       for(let i=1;i<lane.length;i++)if(lane[i].content.start<lane[i-1].content.end&&(added.has(lane[i].id)||added.has(lane[i-1].id)))
@@ -21127,7 +21135,66 @@ export default MawDynamicCaptions;
     p.subtitles.cues.push(...additions);
     for(const b of bindings)if(ids.has(b.source_id)&&ids.has(b.target_id))p.subtitles.bindings.push({...clone(b),id:id('binding'),source_id:ids.get(b.source_id),target_id:ids.get(b.target_id)});
     p.subtitle_view.secondary_cue_ids.push(...secondaryIds.filter(old=>ids.has(old)).map(old=>ids.get(old)));
-    core.validate(p);return {project:canonical?p:fromProject(p),ids:[...ids.values()]};
+    core.validate(p);return {project:p,ids:[...ids.values()]};
+  }
+  function place(view,rows,bindings,anchor,ownerId,options={}) {
+    const plan=preparePaste(view,rows,bindings,anchor,ownerId,options);
+    if(!plan)return {project:options.canonical?toProject(view):clone(view),ids:[]};
+    const p=toProject(view);
+    p.subtitles.cues.push(...plan.project.subtitles.cues);p.subtitles.bindings.push(...plan.project.subtitles.bindings);
+    p.subtitle_view.secondary_cue_ids.push(...plan.project.subtitle_view.secondary_cue_ids);
+    core.validate(p);return {project:options.canonical?p:fromProject(p),ids:plan.ids};
+  }
+  // A paste history entry owns only its additions. References inside this patch
+  // use stable IDs; display-column indices are resolved against each live list.
+  function insertionPatch(project) {
+    const v=fromProject(project),sources=layers.tracks(v);
+    return {sources:sources.map(s=>({role:s.role,track_id:s.track_id,segments:s.segments.map(c=>{
+      const row=clone(c);
+      for(const field of ['color_ref','sticker_ref'])if(row[field]) {
+        row[field].cue_id=s.segments[row[field].headIdx].id;delete row[field].headIdx;
+      }
+      return row;
+    })})),bindings:v.multi_subtitle.bindings,assignments:v.subtitle_tracks.assignments,
+      context:extras(v.subtitle_tracks.flat_context,['schema','model','tracks']),hidden:v.subtitle_layers.legacy_overlay.cue_ids};
+  }
+  function applyInsertion(view,patch,present,{validate=true}={}) {
+    const ids=new Set(patch.sources.flatMap(s=>s.segments.map(c=>c.id))),existing=new Set(layers.tracks(view).flatMap(s=>s.segments.map(c=>c.id)));
+    if([...ids].some(id=>existing.has(id)===present))throw Error('粘贴记录与当前字幕不一致');
+    const sources=new Map(patch.sources.map(s=>[JSON.stringify([s.role,s.track_id]),s]));
+    function rows(source) {
+      const additions=present?clone(sources.get(JSON.stringify([source.role,source.track_id]))?.segments||[]):[];
+      const added=new Set(additions.map(c=>c.id));
+      const next=source.segments.filter(c=>present||!ids.has(c.id)).concat(additions).sort((a,b)=>a.start-b.start||a.end-b.end);
+      const indices=new Map(next.map((c,i)=>[c.id,i]));
+      return next.map(c=>{
+        let row=c;
+        for(const field of ['color_ref','sticker_ref'])if(c[field]) {
+          const head=added.has(c.id)?c[field].cue_id:source.segments[c[field].headIdx]?.id,index=indices.get(head);
+          if(index===undefined)throw Error('字幕标记引用已失效');
+          if(added.has(c.id)||index!==c[field].headIdx) {
+            if(row===c)row={...c};row[field]={...c[field],headIdx:index};delete row[field].cue_id;
+          }
+        }
+        return row;
+      });
+    }
+    const context={...view.subtitle_tracks.flat_context};
+    for(const key of ['cues','bindings','bindingSources','markers']) {
+      context[key]={...context[key]};
+      for(const [id,value] of Object.entries(patch.context[key]||{})) {
+        if(present)context[key][id]=clone(value);else delete context[key][id];
+      }
+    }
+    const bindingIds=new Set(patch.bindings.map(b=>b.id));
+    const next={...view,segments:rows({role:'main',track_id:null,segments:view.segments}),
+      multi_subtitle:{...view.multi_subtitle,tracks:view.multi_subtitle.tracks.map(t=>({...t,segments:rows({role:'extension',track_id:t.id,segments:t.segments})})),
+        bindings:present?view.multi_subtitle.bindings.concat(clone(patch.bindings)):view.multi_subtitle.bindings.filter(b=>!bindingIds.has(b.id))},
+      subtitle_tracks:{...view.subtitle_tracks,flat_context:context,
+        assignments:present?view.subtitle_tracks.assignments.concat(clone(patch.assignments)):view.subtitle_tracks.assignments.filter(a=>!ids.has(a.cue_id))},
+      subtitle_layers:{...view.subtitle_layers,legacy_overlay:{...view.subtitle_layers.legacy_overlay,
+        cue_ids:present?view.subtitle_layers.legacy_overlay.cue_ids.concat(patch.hidden):view.subtitle_layers.legacy_overlay.cue_ids.filter(id=>!ids.has(id))}}};
+    if(validate)legacy.validate(next);return next;
   }
   function insertAssets(view,ids,anchor,ownerId,normalize) {
     const assets=view.msw.subtitle_assets.filter(a=>ids.includes(a.id));
@@ -21294,7 +21361,7 @@ export default MawDynamicCaptions;
       throw Error('目标轨道缺少对应的主副分组，无法放置整组字幕');
     return new Map(entries.map(e=>[e.cue.id,mapping.get(e.owner)]));
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,captureClipboard,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,prepareMove,moveOwners,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,preparePaste,insertionPatch,applyInsertion,captureClipboard,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,prepareMove,moveOwners,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -34437,7 +34504,7 @@ function fixedRestoreTiming(record) {
 }
 function fixedApplyTimingHistory(record) {
   fixedRestoreTiming(record);fixedTrackCore.validate(DATA);fixedTimingCheckpoint(record);
-  projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id))});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+  projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id)),validated:true});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
 }
 function fixedFinishDragTransaction() {
   const record=fixedDragTransaction;if(!record)return false;
@@ -34805,6 +34872,30 @@ function productionAppendBindingMenu() {
   ctxAppendExpandableSettings('绑定操作',children);
 }
 let productionClipboard=null;
+function productionInsertionRecord(patch,present,label='粘贴字幕') {
+  return {kind:'subtitle-insertion',label,patch,present,view:snapshotEditorSelection()};
+}
+function productionApplyInsertion(record,{recordHistory=false}={}) {
+  const next=MSWProductionProject.applyInsertion(DATA,record.patch,record.present);
+  // Keep the validated checkpoint in step without copying every cue's words,
+  // styles and animations. Candidate construction never mutates live data.
+  const checkpoint=MSWProductionProject.applyInsertion(fixedLastContent,record.patch,record.present,{validate:false});
+  if(recordHistory)editorHistory.push(productionInsertionRecord(record.patch,!record.present,record.label));
+  for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks'])DATA[field]=next[field];
+  fixedLastContent=checkpoint;fixedInvalidate();
+  const ids=new Set(record.patch.sources.flatMap(s=>s.segments.map(c=>c.id)));
+  clearSelection({silent:true});
+  if(recordHistory) {
+    DATA.segments.forEach((c,i)=>{if(ids.has(c.id))selectedIdxs.add(i);});
+    getActiveExtensionTrack().segments.forEach((c,i)=>{if(ids.has(c.id))selectedExtensionIdxs.add(i);});
+    syncCuePanelSelection();
+  }
+  projectImportDirty=true;cueListPlaybackKey=null;
+  renderAll({changedCueIds:ids,validated:true});
+  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  if(!recordHistory)restoreEditorSelection(record.view);
+  updateUndoRedoButtons();scheduleAutoSaveFlush({validated:true});return true;
+}
 function productionCaptureClipboard() {
   if(!productionFlatMode())return false;
   commitProcessingEdits();
@@ -34826,8 +34917,10 @@ function productionPasteClipboard() {
       if(fromBottom>=0)fixedHitTrack(fromBottom);
     }
     const at=Math.round(window.MSWE?.resolve('audio-timeline')?.currentTimeMs()??player.currentTime*1000)||0;
-    const result=window.MSWProductionProject.place(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack()?.id,{...productionClipboard,canonical:true});
-    productionCommitProject(result.project,'粘贴字幕',result.ids);
+    if(!fixedAcceptEdit())return false;
+    const result=window.MSWProductionProject.preparePaste(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack()?.id,productionClipboard);
+    const patch=window.MSWProductionProject.insertionPatch(result.project);
+    productionApplyInsertion(productionInsertionRecord(patch,true),{recordHistory:true});
     refreshClipboardMenuState();return true;
   }catch(error){flashHint(error.message,'warning');return false;}
 }
@@ -35381,9 +35474,9 @@ function layerPreferredActive(segments, time, includeDisabled = false) {
   const own = target && (target.kind === 'main' ? DATA.segments : target.track?.segments);
   return own === segments && active.includes(target.index) ? target.index : active[0] ?? -1;
 }
-function layerPrepareRender() {
+function layerPrepareRender({validated=false}={}) {
   if (!layerMode()) return;
-  if (fixedTrackMode()) fixedAcceptEdit();
+  if (fixedTrackMode()&&!validated) fixedAcceptEdit();
   const liveIds = new Set(DATA.segments.map(cue => cue.id));
   DATA.subtitle_layers.legacy_overlay.cue_ids = DATA.subtitle_layers.legacy_overlay.cue_ids.filter(id => liveIds.has(id));
   const snapshot = snapshotEditorSelection();
@@ -38288,6 +38381,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-insertion')return productionInsertionRecord(sourceRecord.patch,!sourceRecord.present,label);
   if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
   if(kind==='subtitle-appearance')return snapshotFixedAppearance(sourceRecord,label);
   if(kind==='cue-markers')return snapshotCueMarkers(sourceRecord.changes,label);
@@ -38380,6 +38474,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-insertion')return productionApplyInsertion(record);
   if(record.kind==='subtitle-timing')return fixedApplyTimingHistory(record);
   if(record.kind==='subtitle-appearance')return fixedCommitAppearance(record,record.label,{restore:true});
   if(record.kind==='cue-markers') {
@@ -43161,10 +43256,10 @@ function alignSelectedExtensionSubtitleRanges() {
 }
 
 // === 渲染 ===
-function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null } = {}) {
+function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null, validated = false } = {}) {
   queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
-  layerPrepareRender();
+  layerPrepareRender({validated});
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
   (getMultiSubtitleState().tracks || []).forEach(track => MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(track.segments, track.id + '-segment'));
   // 其它编辑入口仍以毫秒修改工程对象；在重绘前把它们投影回当前时间基准，
@@ -43179,25 +43274,26 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const dockHandle = container.querySelector(':scope > .dock-handle');
   const cueListToolbar = container.querySelector(':scope > .cue-list-toolbar');
   const emptyState = cuesEmpty;
-  // A timing transaction does not alter text or binding structure. Reuse rows
-  // whose identities AND indices are unchanged: their event handlers capture
-  // those indices. Reordered/affected rows still use the normal builders.
+  // Reuse unchanged identities even when insertion shifts their list indices.
+  // Update event targets and marker links before the row returns to the DOM.
   const rowKey=(main,extension,track)=>JSON.stringify([main||'',extension||'',track||'']);
   const reusable=changedCueIds?new Map([...container.querySelectorAll(':scope > .cue')]
     .map(el=>[rowKey(el.dataset.mainId,el.dataset.extId,el.dataset.trackId),el])):null;
   const cueRow=(main,extension,track,mainIndex,extIndex,build)=>{
     const old=reusable?.get(rowKey(main?.id,extension?.id,extension?track?.id:null));
-    if(old&&!changedCueIds.has(main?.id)&&!changedCueIds.has(extension?.id)
-      &&(mainIndex==null||Number(old.dataset.mainIdx??old.dataset.idx)===mainIndex)
-      &&(extIndex==null||Number(old.dataset.extIdx)===extIndex))return old;
+    if(old&&!changedCueIds.has(main?.id)&&!changedCueIds.has(extension?.id)) {
+      reindexCueRow(old,main,extension,track,mainIndex,extIndex);return old;
+    }
     return build();
   };
-  container.replaceChildren();
-  if (dockHandle) container.appendChild(dockHandle);
-  if (cueListToolbar) container.appendChild(cueListToolbar);
+  if(!reusable) {
+    container.replaceChildren();
+    if (dockHandle) container.appendChild(dockHandle);
+    if (cueListToolbar) container.appendChild(cueListToolbar);
+  }
   if (emptyState) {
     emptyState.classList.toggle('hidden', DATA.segments.length > 0);
-    container.appendChild(emptyState);
+    if(!reusable)container.appendChild(emptyState);
   }
   const cueFragment = document.createDocumentFragment();
   const multiVisible = multiSubtitleVisible();
@@ -43232,8 +43328,18 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   }
   overlaySegments.forEach((seg, i) => rows.push({ start: seg.start, order: 1, el: buildOverlayCueEl(seg, i) }));
   rows.sort((a, b) => a.start - b.start || a.order - b.order);
-  rows.forEach((row) => cueFragment.appendChild(row.el));
-  container.appendChild(cueFragment);
+  if(reusable) {
+    const retained=new Set(rows.map(row=>row.el));
+    container.querySelectorAll(':scope > .cue').forEach(el=>{if(!retained.has(el))el.remove();});
+    let cursor=container.querySelector(':scope > .cue');
+    for(const {el} of rows) {
+      if(el===cursor)cursor=cursor.nextElementSibling;
+      else container.insertBefore(el,cursor);
+    }
+  } else {
+    rows.forEach((row) => cueFragment.appendChild(row.el));
+    container.appendChild(cueFragment);
+  }
   fixedSyncUI();
   applyCueListDisplaySettings({ preserveCueListScroll: false });
   refreshColorFilterUi();
@@ -43242,7 +43348,8 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   // 计算隐藏状态和数量，避免长工程 renderAll() 再逐行重建一遍文本节点。
   applySearch(searchEl.value, { refreshText: false, preserveCueListScroll: false });
   // 重新应用选中样式（idx 不变时还有效；如果有 splice 改了顺序就先 clearSelection）
-  selectedIdxs.forEach(i => {
+  if(selectedIdxs.size>32)container.querySelectorAll(':scope > .cue[data-idx]').forEach(el=>el.classList.toggle('selected',selectedIdxs.has(Number(el.dataset.idx))));
+  else selectedIdxs.forEach(i => {
     const el = container.querySelector(`.cue[data-idx="${i}"]`);
     if (el) el.classList.add('selected');
   });
@@ -43274,6 +43381,30 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   // Paused fixed-track previews must reflect edits and enabled states too.
   // Playback events alone leave deleted/disabled annotations on the frame.
   if (fixedPresentationMode()) refreshSubtitlePreview();
+}
+
+function reindexCueRow(row,main,extension,track,mainIndex,extIndex) {
+  const dual=row.classList.contains('multi-dual-cue');
+  for(const [cue,index,kind] of [[main,mainIndex,'main'],[extension,extIndex,'extension']]) {
+    if(!cue)continue;
+    const node=dual?row.querySelector('.multi-cue-column.'+kind):row;
+    if(kind==='main') {
+      row.reindexMainCue?.(index);row.dataset.idx=String(index);
+      if(dual||row.dataset.mainIdx!==undefined)row.dataset.mainIdx=String(index);
+      if(dual)node.dataset.mainIdx=String(index);
+    } else {node.reindexExtensionCue?.(index,track);row.dataset.extIdx=String(index);node.dataset.extIdx=String(index);}
+    const label=node.querySelector('.index-label')||node.querySelector('.index');
+    if(label&&productionFlatMode()) {
+      const text=fixedCueLabel(cue,kind,kind==='extension'?track.id:null);
+      if(label.firstChild?.nodeType===Node.TEXT_NODE){if(label.firstChild.nodeValue!==text)label.firstChild.nodeValue=text;}
+      else if(label.textContent!==text)label.textContent=text;
+      const indexLabel=node.querySelector('.index');if(indexLabel.title!==text)indexLabel.title=text;
+    }
+    // Unchanged colors need no repaint; index-based references do.
+    if(cue.color_ref)updateCueColorPresentation(node,node.querySelector('.color-bar'),cue);
+    if(cue.sticker||cue.sticker_ref)updateCueStickerPresentation(node,node.querySelector('.sticker-slot'),cue,index,{extensionTrack:kind==='extension'?track:null});
+  }
+  row.classList.remove('selected');
 }
 
 function parsePanelTime(value, fallback) {
@@ -44014,8 +44145,11 @@ function appendProcessingReview(node, cue) {
   badge.textContent = window.MSWE_I18N?.translateText?.('待校对') || '待校对';
   badge.title = window.MSWE_I18N?.translateText?.('区外片段保留原文；检查文字后点击标记为已校对') || '区外片段保留原文；检查文字后点击标记为已校对';
   badge.addEventListener('click', event => {
-    event.stopPropagation(); commitProcessingEdits(); pushUndo('标记字幕已校对');
-    delete cue.review_required; projectImportDirty = true; renderAll({waveform:'overlay'}); scheduleAutoSaveFlush();
+    event.stopPropagation(); commitProcessingEdits();
+    const current=layerCore.tracks(DATA).flatMap(source=>source.segments).find(row=>row.id===cue.id);
+    if(!current)return;
+    pushUndo('标记字幕已校对');
+    delete current.review_required; projectImportDirty = true; renderAll({waveform:'overlay'}); scheduleAutoSaveFlush();
   });
   node.append(badge);
 }
@@ -44838,6 +44972,7 @@ function finishExtensionEdit(save) {
 function bindExtensionCueEvents(el, index, track = getActiveExtensionTrack(), dualRow = null) {
   if (!el || !track?.segments?.[index]) return;
   let pointerDown = null;
+  el.reindexExtensionCue=(next,nextTrack)=>{index=next;track=nextTrack;pointerDown=null;};
   el.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || (extensionEditingState?.el === el)) return;
     event.stopPropagation();
@@ -48343,6 +48478,7 @@ function splitAtShortcutTarget(event, { independent = false } = {}) {
 function bindCueEvents(el, idx) {
   let pointerDownState = null;
   let lastPrimaryPointerDownAt = 0;
+  el.reindexMainCue=next=>{idx=next;pointerDownState=null;lastPrimaryPointerDownAt=0;};
 
   function selectFromCuePointer(event) {
     // Alt+点击 = 快速切换禁用状态
@@ -60334,7 +60470,7 @@ function initWaveformEditor() {
         restoreEditorSelection(selection);
       } else if (linkedChanged || multiSubtitleVisible() || track === 'extension') markMultiSubtitleDirty();
       const validated=fixedFinishDragTransaction();
-      renderAll({changedCueIds:timingIds});
+      renderAll({changedCueIds:timingIds,validated});
       updateWithoutCueListAutoScroll();
       // 移动/裁切的松手总结气泡已按需求移除：拖动期间的实时数据仍挂在
       // 右上常显数据行（quiet 状态），结束后由 refreshMediaReadout 还原。
@@ -69098,11 +69234,29 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     },'修改说话人外观');
   }
   const speakerPresetMatches=preset=>{const effective=speakerAppearance();return global.MSWCueStyle.fields.every(k=>preset.main[k]===effective[k]);};
+  // Cache only during a synchronous form refresh. A multi-selection often
+  // shares a track; resolving its style for each field/cue repeats the same work.
+  // Discard on return so later edits, undo and project changes cannot go stale.
+  let propertyReadCache=null;
+  function readProperties(fn) {
+    const previous=propertyReadCache;propertyReadCache||={tracks:new Map(),appearances:new Map()};
+    try{return fn();}finally{propertyReadCache=previous;}
+  }
+  function readTrackStyle(track) {
+    if(!propertyReadCache)return global.MSWTrackPresentation.styleFor(host.data,track);
+    if(!propertyReadCache.tracks.has(track.id))propertyReadCache.tracks.set(track.id,global.MSWTrackPresentation.styleFor(host.data,track));
+    return propertyReadCache.tracks.get(track.id);
+  }
   const trackAppearance=row=>{
-    const track=fixedTrack(row.cue,row.role,row.track_id),style=global.MSWTrackPresentation.styleFor(host.data,track);
+    const track=fixedTrack(row.cue,row.role,row.track_id),style=readTrackStyle(track);
     return global.MSWCueStyle.apply(style[track.flat_style_slot||'main'],{});
   };
-  const rowAppearance=row=>global.MSWSpeaker.appearance(global.MSWCueStyle.apply(trackAppearance(row),row.cue),row.cue,global.MSWSpeaker.profile(host.data,row.cue));
+  const rowAppearance=row=>{
+    const calculate=()=>global.MSWSpeaker.appearance(global.MSWCueStyle.apply(trackAppearance(row),row.cue),row.cue,global.MSWSpeaker.profile(host.data,row.cue));
+    if(!propertyReadCache)return calculate();
+    if(!propertyReadCache.appearances.has(row.cue.id))propertyReadCache.appearances.set(row.cue.id,calculate());
+    return propertyReadCache.appearances.get(row.cue.id);
+  };
   const displayedAppearance=(style,field)=>field==='backgroundShape'&&style.backgroundShape==='rect'?'rounded':
     field==='backgroundRadius'&&style.backgroundShape==='rect'?0:style[field];
   const presetMatches=(preset,rows=selectedRows())=>rows.length&&rows.every(row=>{
@@ -69162,7 +69316,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     const owned=cue||profileScope||!target?[]:layerCore.tracks(host.data).flatMap(source=>source.segments.flatMap((c,index)=>
       fixedOwner(c,source.role,source.track_id)===target.id?[{cue:c,index,...fixedRef(c,source.role,source.track_id),subtitle_track_id:target.id}]:[]));
     const items=sources.map(({row,track})=>{
-      const style=global.MSWTrackPresentation.styleFor(host.data,track),trackBase=style[track.flat_style_slot||'main'].animation;
+      const style=readTrackStyle(track),trackBase=style[track.flat_style_slot||'main'].animation;
       const base=cue?M.resolve(trackBase,global.MSWSpeaker.profile(host.data,row.cue)?.animation):trackBase;
       const override=profileScope?speaker()?.animation:row?.cue.subtitle_animation;
       const previewRow=row||owned.find(r=>r.cue.start<=player.currentTime*1000&&r.cue.end>player.currentTime*1000)||owned[0];
@@ -69270,6 +69424,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     return result;
   }
   function rebuild() {
+    return readProperties(rebuildControls);
+  }
+  function rebuildControls() {
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
     fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name])],proof.mode);
     if(!$('style-preview-mode').value){proof.mode='project';$('style-preview-mode').value='project';persistProof();}
@@ -69305,6 +69462,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
   }
   function sync() {
+    return readProperties(syncControls);
+  }
+  function syncControls() {
     // Undo/project reload can clear selection without passing syncSelection.
     // Cache the selection actually rendered, not the one from before undo.
     lastSelectionKey=selectionKey();
@@ -69376,7 +69536,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=appearanceScope()||track&&fixedTrackCore.placement(track)==='fixed';
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
-    const backgroundValues=cueScope()?selectedRows().map(rowAppearance):[style[role]];
+    const backgroundValues=cueScope()?appearances:[style[role]];
     const withBackground=backgroundValues.some(s=>global.MSWSubtitleBackground.enabled(s));
     for(const key of global.MSWSubtitleBackground.fields.filter(k=>k!=='backgroundShape')) {
       const input=$('style-field-'+key);

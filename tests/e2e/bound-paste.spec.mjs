@@ -112,3 +112,48 @@ test('paste before locked source marker groups preserves references and undo',as
   await page.keyboard.press('Control+z');expect(await snap(page)).toEqual(before);
   await page.keyboard.press('Control+Shift+z');expect(await snap(page)).toEqual(after);expect(errors).toEqual([]);
 });
+
+test('reused list cards keep correct click, edit and context targets after indices shift',async({page})=>{
+  const errors=await setup(page);
+  const original=await page.evaluate(()=>{
+    const a=DATA.segments[0],b=getActiveExtensionTrack().segments[0];
+    window.originalPasteRow=document.querySelector(`.cue[data-main-id="${a.id}"]`);return {a:a.id,b:b.id};
+  });
+  await page.keyboard.press('Control+c');await hover(page,'dest');await seek(page,0);await page.keyboard.press('Control+v');
+  expect(await page.evaluate(id=>document.querySelector(`.cue[data-main-id="${id}"]`)===window.originalPasteRow,original.a)).toBe(true);
+  expect(await page.evaluate(()=>({kind:editorHistory.peekUndo().kind,bytes:JSON.stringify(editorHistory.peekUndo()).length})))
+    .toEqual({kind:'subtitle-insertion',bytes:expect.any(Number)});
+  const row=page.locator(`.cue[data-main-id="${original.a}"]`);
+  await row.locator('.multi-cue-column.main .text').click();
+  expect(await page.evaluate(()=>getCurrentCuePanelTarget().segment.id)).toBe(original.a);
+  await row.locator('.multi-cue-column.extension .text').click();
+  expect(await page.evaluate(()=>getCurrentCuePanelTarget().segment.id)).toBe(original.b);
+  await row.locator('.multi-cue-column.extension .text').click({button:'right'});
+  expect(await page.evaluate(()=>[...processingSelection().extensionIds])).toEqual([original.b]);
+  await page.keyboard.press('Escape');
+  await row.locator('.multi-cue-column.main .text').dblclick();
+  expect(await page.evaluate(()=>DATA.segments[editingState.idx].id)).toBe(original.a);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+z');await page.keyboard.press('Control+Shift+z');
+  await row.locator('.multi-cue-column.extension .text').click();
+  expect(await page.evaluate(()=>getCurrentCuePanelTarget().segment.id)).toBe(original.b);
+  expect(errors).toEqual([]);
+});
+
+test('reused marker references jump to the reindexed head and review updates the live cue',async({page})=>{
+  const errors=await setup(page,{markers:true});
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),head=p.subtitles.cues.find(c=>c.content.text==='Hello');
+    p.subtitles.cues.push({id:'tail',track_id:head.track_id,content:{start:4000,end:4500,text:'Review tail',items:[],review_required:true,color_ref:{cue_id:head.id},sticker_ref:{cue_id:head.id,name:'star'}}});
+    applyCanonicalProject(p,'review.mosp');clearSelection();selectedIdxs.add(0);selectedExtensionIdxs.add(0);waveformEditor.render();
+    window.originalTail=document.querySelector('.cue[data-main-id="tail"]');
+  });
+  await page.keyboard.press('Control+c');await hover(page,'dest');await seek(page,0);await page.keyboard.press('Control+v');
+  expect(await page.evaluate(()=>document.querySelector('.cue[data-main-id="tail"]')===window.originalTail)).toBe(true);
+  const tail=page.locator('.cue[data-main-id="tail"]');await tail.locator('.color-bar.is-ref').click();
+  expect(await page.evaluate(()=>getCurrentCuePanelTarget().segment.text)).toBe('Hello');
+  await tail.locator('.sticker-slot .sref').click();expect(await page.evaluate(()=>getCurrentCuePanelTarget().segment.text)).toBe('Hello');
+  await tail.locator('.msw-review-badge').click();expect(await page.evaluate(()=>DATA.segments.find(c=>c.id==='tail').review_required)).toBeUndefined();
+  await page.keyboard.press('Control+z');expect(await page.evaluate(()=>DATA.segments.find(c=>c.id==='tail').review_required)).toBe(true);
+  expect(errors).toEqual([]);
+});

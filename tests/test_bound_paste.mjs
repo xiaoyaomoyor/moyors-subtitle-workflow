@@ -108,3 +108,32 @@ test('independent physical tracks keep relative order including gaps, not the di
   assert.deepEqual(r.ids.map(id=>r.project.subtitles.cues.find(c=>c.id===id).track_id),['dest','dest-sub']);
   assert.throws(()=>paste(v,c,6000,'dest-sub'),/足够/);
 });
+
+for(const reverse of [false,true])for(const swap of [false,true])test(`local insertion matches canonical paste and reverses exactly (${reverse}/${swap})`,()=>{
+  const p=bridge.toProject(fixture({reverse,swap,frames:true})),head=p.subtitles.cues.find(c=>c.content.text==='Hello');
+  const peer=p.subtitles.cues.find(c=>c.id!==head.id);
+  head.content.sticker={name:'star',start:1000,end:2400};
+  peer.content.color_ref={cue_id:head.id};peer.content.sticker_ref={cue_id:head.id};
+  p.subtitles.cues.push({id:'tail',track_id:head.track_id,content:{start:2500,end:2900,text:'Tail',items:[],color_ref:{cue_id:head.id}}});
+  const v=bridge.fromProject(p),before=JSON.stringify(v),c=copy(v);
+  const plan=bridge.preparePaste(v,c.rows,c.bindings,0,'dest',c),patch=bridge.insertionPatch(plan.project),saved=JSON.stringify(patch);
+  const next=bridge.applyInsertion(v,patch,true),canonical=bridge.toProject(next),original=bridge.toProject(v);
+  assert.deepEqual(canonical.subtitles.cues.filter(c=>!plan.ids.includes(c.id)),original.subtitles.cues);
+  assert.deepEqual(canonical.subtitles.cues.filter(c=>plan.ids.includes(c.id)).sort((a,b)=>a.id.localeCompare(b.id)),
+    plan.project.subtitles.cues.sort((a,b)=>a.id.localeCompare(b.id)));
+  assert.deepEqual(bridge.applyInsertion(next,patch,false),v);
+  assert.deepEqual(bridge.applyInsertion(bridge.applyInsertion(next,patch,false),patch,true),next);
+  assert.equal(JSON.stringify(v),before);assert.equal(JSON.stringify(patch),saved);
+  assert.throws(()=>bridge.applyInsertion(next,patch,true),/不一致/);
+  assert.throws(()=>bridge.applyInsertion(v,patch,false),/不一致/);
+});
+
+test('local insertion shares untouched content and keeps history proportional to the copied selection',()=>{
+  const p=bridge.toProject(fixture()),track=p.subtitles.tracks[0].id;
+  for(let i=0;i<6000;i++)p.subtitles.cues.push({id:'extra-'+i,track_id:track,content:{start:3000+i*2000,end:4000+i*2000,text:'Unchanged',items:[]}});
+  const v=bridge.fromProject(p),c=copy(v,v.segments.slice(0,1).map(c=>c.id)),plan=bridge.preparePaste(v,c.rows,c.bindings,0,'dest',c);
+  const patch=bridge.insertionPatch(plan.project),next=bridge.applyInsertion(v,patch,true);
+  assert.ok(JSON.stringify(patch).length<4000);
+  assert.equal(next.segments.find(c=>c.id==='extra-5999'),v.segments.find(c=>c.id==='extra-5999'));
+  assert.deepEqual(bridge.applyInsertion(next,patch,false),v);
+});

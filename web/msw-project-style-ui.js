@@ -232,11 +232,29 @@
     },'修改说话人外观');
   }
   const speakerPresetMatches=preset=>{const effective=speakerAppearance();return global.MSWCueStyle.fields.every(k=>preset.main[k]===effective[k]);};
+  // Cache only during a synchronous form refresh. A multi-selection often
+  // shares a track; resolving its style for each field/cue repeats the same work.
+  // Discard on return so later edits, undo and project changes cannot go stale.
+  let propertyReadCache=null;
+  function readProperties(fn) {
+    const previous=propertyReadCache;propertyReadCache||={tracks:new Map(),appearances:new Map()};
+    try{return fn();}finally{propertyReadCache=previous;}
+  }
+  function readTrackStyle(track) {
+    if(!propertyReadCache)return global.MSWTrackPresentation.styleFor(host.data,track);
+    if(!propertyReadCache.tracks.has(track.id))propertyReadCache.tracks.set(track.id,global.MSWTrackPresentation.styleFor(host.data,track));
+    return propertyReadCache.tracks.get(track.id);
+  }
   const trackAppearance=row=>{
-    const track=fixedTrack(row.cue,row.role,row.track_id),style=global.MSWTrackPresentation.styleFor(host.data,track);
+    const track=fixedTrack(row.cue,row.role,row.track_id),style=readTrackStyle(track);
     return global.MSWCueStyle.apply(style[track.flat_style_slot||'main'],{});
   };
-  const rowAppearance=row=>global.MSWSpeaker.appearance(global.MSWCueStyle.apply(trackAppearance(row),row.cue),row.cue,global.MSWSpeaker.profile(host.data,row.cue));
+  const rowAppearance=row=>{
+    const calculate=()=>global.MSWSpeaker.appearance(global.MSWCueStyle.apply(trackAppearance(row),row.cue),row.cue,global.MSWSpeaker.profile(host.data,row.cue));
+    if(!propertyReadCache)return calculate();
+    if(!propertyReadCache.appearances.has(row.cue.id))propertyReadCache.appearances.set(row.cue.id,calculate());
+    return propertyReadCache.appearances.get(row.cue.id);
+  };
   const displayedAppearance=(style,field)=>field==='backgroundShape'&&style.backgroundShape==='rect'?'rounded':
     field==='backgroundRadius'&&style.backgroundShape==='rect'?0:style[field];
   const presetMatches=(preset,rows=selectedRows())=>rows.length&&rows.every(row=>{
@@ -296,7 +314,7 @@
     const owned=cue||profileScope||!target?[]:layerCore.tracks(host.data).flatMap(source=>source.segments.flatMap((c,index)=>
       fixedOwner(c,source.role,source.track_id)===target.id?[{cue:c,index,...fixedRef(c,source.role,source.track_id),subtitle_track_id:target.id}]:[]));
     const items=sources.map(({row,track})=>{
-      const style=global.MSWTrackPresentation.styleFor(host.data,track),trackBase=style[track.flat_style_slot||'main'].animation;
+      const style=readTrackStyle(track),trackBase=style[track.flat_style_slot||'main'].animation;
       const base=cue?M.resolve(trackBase,global.MSWSpeaker.profile(host.data,row.cue)?.animation):trackBase;
       const override=profileScope?speaker()?.animation:row?.cue.subtitle_animation;
       const previewRow=row||owned.find(r=>r.cue.start<=player.currentTime*1000&&r.cue.end>player.currentTime*1000)||owned[0];
@@ -404,6 +422,9 @@
     return result;
   }
   function rebuild() {
+    return readProperties(rebuildControls);
+  }
+  function rebuildControls() {
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
     fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name])],proof.mode);
     if(!$('style-preview-mode').value){proof.mode='project';$('style-preview-mode').value='project';persistProof();}
@@ -439,6 +460,9 @@
     if(!$('video-export-style-source').value)$('video-export-style-source').value='project';
   }
   function sync() {
+    return readProperties(syncControls);
+  }
+  function syncControls() {
     // Undo/project reload can clear selection without passing syncSelection.
     // Cache the selection actually rendered, not the one from before undo.
     lastSelectionKey=selectionKey();
@@ -510,7 +534,7 @@
     for(const key of ['marginL','marginR','marginV'])$('style-field-'+key).closest('label').hidden=appearanceScope()||track&&fixedTrackCore.placement(track)==='fixed';
     for(const input of panel.querySelectorAll('[data-animation]')) {const [g,k]=input.dataset.animation.split('.'),v=style.animations[g][k];if(input.type==='checkbox')input.checked=!!v&&!(g==='fad'&&style.animations.fade.enabled);else input.value=v??'';}
     $('style-field-charsPerLine').closest('label').hidden=style[role].wrapMode!=='characters';
-    const backgroundValues=cueScope()?selectedRows().map(rowAppearance):[style[role]];
+    const backgroundValues=cueScope()?appearances:[style[role]];
     const withBackground=backgroundValues.some(s=>global.MSWSubtitleBackground.enabled(s));
     for(const key of global.MSWSubtitleBackground.fields.filter(k=>k!=='backgroundShape')) {
       const input=$('style-field-'+key);

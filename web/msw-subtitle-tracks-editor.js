@@ -90,7 +90,7 @@ function fixedRestoreTiming(record) {
 }
 function fixedApplyTimingHistory(record) {
   fixedRestoreTiming(record);fixedTrackCore.validate(DATA);fixedTimingCheckpoint(record);
-  projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id))});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+  projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id)),validated:true});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
 }
 function fixedFinishDragTransaction() {
   const record=fixedDragTransaction;if(!record)return false;
@@ -458,6 +458,30 @@ function productionAppendBindingMenu() {
   ctxAppendExpandableSettings('绑定操作',children);
 }
 let productionClipboard=null;
+function productionInsertionRecord(patch,present,label='粘贴字幕') {
+  return {kind:'subtitle-insertion',label,patch,present,view:snapshotEditorSelection()};
+}
+function productionApplyInsertion(record,{recordHistory=false}={}) {
+  const next=MSWProductionProject.applyInsertion(DATA,record.patch,record.present);
+  // Keep the validated checkpoint in step without copying every cue's words,
+  // styles and animations. Candidate construction never mutates live data.
+  const checkpoint=MSWProductionProject.applyInsertion(fixedLastContent,record.patch,record.present,{validate:false});
+  if(recordHistory)editorHistory.push(productionInsertionRecord(record.patch,!record.present,record.label));
+  for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks'])DATA[field]=next[field];
+  fixedLastContent=checkpoint;fixedInvalidate();
+  const ids=new Set(record.patch.sources.flatMap(s=>s.segments.map(c=>c.id)));
+  clearSelection({silent:true});
+  if(recordHistory) {
+    DATA.segments.forEach((c,i)=>{if(ids.has(c.id))selectedIdxs.add(i);});
+    getActiveExtensionTrack().segments.forEach((c,i)=>{if(ids.has(c.id))selectedExtensionIdxs.add(i);});
+    syncCuePanelSelection();
+  }
+  projectImportDirty=true;cueListPlaybackKey=null;
+  renderAll({changedCueIds:ids,validated:true});
+  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  if(!recordHistory)restoreEditorSelection(record.view);
+  updateUndoRedoButtons();scheduleAutoSaveFlush({validated:true});return true;
+}
 function productionCaptureClipboard() {
   if(!productionFlatMode())return false;
   commitProcessingEdits();
@@ -479,8 +503,10 @@ function productionPasteClipboard() {
       if(fromBottom>=0)fixedHitTrack(fromBottom);
     }
     const at=Math.round(window.MSWE?.resolve('audio-timeline')?.currentTimeMs()??player.currentTime*1000)||0;
-    const result=window.MSWProductionProject.place(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack()?.id,{...productionClipboard,canonical:true});
-    productionCommitProject(result.project,'粘贴字幕',result.ids);
+    if(!fixedAcceptEdit())return false;
+    const result=window.MSWProductionProject.preparePaste(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack()?.id,productionClipboard);
+    const patch=window.MSWProductionProject.insertionPatch(result.project);
+    productionApplyInsertion(productionInsertionRecord(patch,true),{recordHistory:true});
     refreshClipboardMenuState();return true;
   }catch(error){flashHint(error.message,'warning');return false;}
 }

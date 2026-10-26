@@ -103,6 +103,11 @@
     const wanted=new Set(rows.filter(c=>c.start<range.end&&c.end>range.start).map(c=>root(c.id)));
     return new Set(rows.filter(c=>wanted.has(root(c.id))).map(c=>c.id));
   }
+  function canonicalTrack(t,context) {
+    return {...clone(context.tracks[t.id]||{}),id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),
+      ...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+      style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})};
+  }
   function toProject(view, {previewWindow=null}={}) {
     if(!isView(view))return core.migrate(view);
     if(!previewWindow)legacy.validate(view);
@@ -114,9 +119,7 @@
     const m={...clone(previewWindow?extras(context.model,['migration']):context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
     if(previewWindow)m.migration={schema:core.MIGRATION_SCHEMA,identities:[],structure:{segments:[],subtitle_layers:{presentation:clone(view.subtitle_layers?.presentation||{})}}};
     const owners=legacy.ownerMap(view),allIds=new Set();
-    for(const t of view.subtitle_tracks.tracks)m.tracks.push({...clone(context.tracks[t.id]||{}),
-      id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
-      style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})});
+    for(const t of view.subtitle_tracks.tracks)m.tracks.push(canonicalTrack(t,context));
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
     const byId=new Map(sources.flatMap(s=>s.segments).map(c=>[c.id,c]));
     for(const source of sources)for(const value of source.segments) {
@@ -235,14 +238,17 @@
     }
     return {rows,bindings,secondaryIds,tracks:view.subtitle_tracks.tracks.map(t=>({id:t.id,name:t.name,...(t.secondary_for?{secondary_for:t.secondary_for}:{})}))};
   }
-  function place(view,rows,bindings,anchor,ownerId,{tracks=view.subtitle_tracks.tracks,secondaryIds=[],canonical=false}={}) {
+  function preparePaste(view,rows,bindings,anchor,ownerId,{tracks=view.subtitle_tracks.tracks,secondaryIds=[]}={}) {
     const E=global.MSWFlatEditing,id=global.MSWProject.id;
-    if(!rows.length)return {project:canonical?toProject(view):clone(view),ids:[]};
+    if(!rows.length)return null;
     if(!Number.isSafeInteger(anchor)||anchor<0)throw Error('粘贴位置无效');
     const used=new Set(rows.map(c=>c.track_id)),anchorOwner=tracks.find(t=>used.has(t.id))?.id;
     if(!anchorOwner||[...used].some(owner=>!tracks.some(t=>t.id===owner)))throw Error('复制内容缺少源轨道信息，请重新复制');
     const mapping=moveOwners({tracks,anchorOwner,entries:rows.map(cue=>({cue,owner:cue.track_id}))},ownerId,view.subtitle_tracks.tracks);
-    const p=toProject(view),shift=anchor-Math.min(...rows.map(c=>c.content.start)),ids=new Map(rows.map(c=>[c.id,id('cue')]));
+    const p={schema:core.SCHEMA,...(view.timebase?{timebase:clone(view.timebase)}:{}),
+      subtitles:{schema:core.MODEL_SCHEMA,tracks:view.subtitle_tracks.tracks.map(t=>canonicalTrack(t,view.subtitle_tracks.flat_context)),cues:[],bindings:[]},
+      subtitle_view:{secondary_cue_ids:[]}};
+    const shift=anchor-Math.min(...rows.map(c=>c.content.start)),ids=new Map(rows.map(c=>[c.id,id('cue')]));
     const groups=new Map();
     for(const row of rows)for(const field of ['color','sticker']) {
       const head=row.content[field+'_ref']?.cue_id||(row.content[field]?row.id:null);if(!head)continue;
@@ -264,7 +270,9 @@
     // Validate the complete destination before touching live data or history.
     // Include new/new collisions as well as new/existing collisions.
     const added=new Set(ids.values()),lanes=new Map([...new Set(mapping.values())].map(id=>[id,[]]));
-    for(const cue of [...p.subtitles.cues,...additions])lanes.get(cue.track_id)?.push(cue);
+    const owners=new Map(view.subtitle_tracks.assignments.map(a=>[a.cue_id,a.subtitle_track_id]));
+    for(const source of layers.tracks(view))for(const cue of source.segments)lanes.get(owners.get(cue.id))?.push({id:cue.id,content:cue});
+    for(const cue of additions)lanes.get(cue.track_id).push(cue);
     for(const track of p.subtitles.tracks)if(lanes.has(track.id)) {
       const lane=lanes.get(track.id).sort((a,b)=>a.content.start-b.content.start);
       for(let i=1;i<lane.length;i++)if(lane[i].content.start<lane[i-1].content.end&&(added.has(lane[i].id)||added.has(lane[i-1].id)))
@@ -273,7 +281,66 @@
     p.subtitles.cues.push(...additions);
     for(const b of bindings)if(ids.has(b.source_id)&&ids.has(b.target_id))p.subtitles.bindings.push({...clone(b),id:id('binding'),source_id:ids.get(b.source_id),target_id:ids.get(b.target_id)});
     p.subtitle_view.secondary_cue_ids.push(...secondaryIds.filter(old=>ids.has(old)).map(old=>ids.get(old)));
-    core.validate(p);return {project:canonical?p:fromProject(p),ids:[...ids.values()]};
+    core.validate(p);return {project:p,ids:[...ids.values()]};
+  }
+  function place(view,rows,bindings,anchor,ownerId,options={}) {
+    const plan=preparePaste(view,rows,bindings,anchor,ownerId,options);
+    if(!plan)return {project:options.canonical?toProject(view):clone(view),ids:[]};
+    const p=toProject(view);
+    p.subtitles.cues.push(...plan.project.subtitles.cues);p.subtitles.bindings.push(...plan.project.subtitles.bindings);
+    p.subtitle_view.secondary_cue_ids.push(...plan.project.subtitle_view.secondary_cue_ids);
+    core.validate(p);return {project:options.canonical?p:fromProject(p),ids:plan.ids};
+  }
+  // A paste history entry owns only its additions. References inside this patch
+  // use stable IDs; display-column indices are resolved against each live list.
+  function insertionPatch(project) {
+    const v=fromProject(project),sources=layers.tracks(v);
+    return {sources:sources.map(s=>({role:s.role,track_id:s.track_id,segments:s.segments.map(c=>{
+      const row=clone(c);
+      for(const field of ['color_ref','sticker_ref'])if(row[field]) {
+        row[field].cue_id=s.segments[row[field].headIdx].id;delete row[field].headIdx;
+      }
+      return row;
+    })})),bindings:v.multi_subtitle.bindings,assignments:v.subtitle_tracks.assignments,
+      context:extras(v.subtitle_tracks.flat_context,['schema','model','tracks']),hidden:v.subtitle_layers.legacy_overlay.cue_ids};
+  }
+  function applyInsertion(view,patch,present,{validate=true}={}) {
+    const ids=new Set(patch.sources.flatMap(s=>s.segments.map(c=>c.id))),existing=new Set(layers.tracks(view).flatMap(s=>s.segments.map(c=>c.id)));
+    if([...ids].some(id=>existing.has(id)===present))throw Error('粘贴记录与当前字幕不一致');
+    const sources=new Map(patch.sources.map(s=>[JSON.stringify([s.role,s.track_id]),s]));
+    function rows(source) {
+      const additions=present?clone(sources.get(JSON.stringify([source.role,source.track_id]))?.segments||[]):[];
+      const added=new Set(additions.map(c=>c.id));
+      const next=source.segments.filter(c=>present||!ids.has(c.id)).concat(additions).sort((a,b)=>a.start-b.start||a.end-b.end);
+      const indices=new Map(next.map((c,i)=>[c.id,i]));
+      return next.map(c=>{
+        let row=c;
+        for(const field of ['color_ref','sticker_ref'])if(c[field]) {
+          const head=added.has(c.id)?c[field].cue_id:source.segments[c[field].headIdx]?.id,index=indices.get(head);
+          if(index===undefined)throw Error('字幕标记引用已失效');
+          if(added.has(c.id)||index!==c[field].headIdx) {
+            if(row===c)row={...c};row[field]={...c[field],headIdx:index};delete row[field].cue_id;
+          }
+        }
+        return row;
+      });
+    }
+    const context={...view.subtitle_tracks.flat_context};
+    for(const key of ['cues','bindings','bindingSources','markers']) {
+      context[key]={...context[key]};
+      for(const [id,value] of Object.entries(patch.context[key]||{})) {
+        if(present)context[key][id]=clone(value);else delete context[key][id];
+      }
+    }
+    const bindingIds=new Set(patch.bindings.map(b=>b.id));
+    const next={...view,segments:rows({role:'main',track_id:null,segments:view.segments}),
+      multi_subtitle:{...view.multi_subtitle,tracks:view.multi_subtitle.tracks.map(t=>({...t,segments:rows({role:'extension',track_id:t.id,segments:t.segments})})),
+        bindings:present?view.multi_subtitle.bindings.concat(clone(patch.bindings)):view.multi_subtitle.bindings.filter(b=>!bindingIds.has(b.id))},
+      subtitle_tracks:{...view.subtitle_tracks,flat_context:context,
+        assignments:present?view.subtitle_tracks.assignments.concat(clone(patch.assignments)):view.subtitle_tracks.assignments.filter(a=>!ids.has(a.cue_id))},
+      subtitle_layers:{...view.subtitle_layers,legacy_overlay:{...view.subtitle_layers.legacy_overlay,
+        cue_ids:present?view.subtitle_layers.legacy_overlay.cue_ids.concat(patch.hidden):view.subtitle_layers.legacy_overlay.cue_ids.filter(id=>!ids.has(id))}}};
+    if(validate)legacy.validate(next);return next;
   }
   function insertAssets(view,ids,anchor,ownerId,normalize) {
     const assets=view.msw.subtitle_assets.filter(a=>ids.includes(a.id));
@@ -440,6 +507,6 @@
       throw Error('目标轨道缺少对应的主副分组，无法放置整组字幕');
     return new Map(entries.map(e=>[e.cue.id,mapping.get(e.owner)]));
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,captureClipboard,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,prepareMove,moveOwners,EXT};
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,preparePaste,insertionPatch,applyInsertion,captureClipboard,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,prepareMove,moveOwners,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
