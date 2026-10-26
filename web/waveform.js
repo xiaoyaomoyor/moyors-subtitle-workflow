@@ -4034,6 +4034,7 @@
       if (lower > upper) { this.hideMagnetGuide(); return null; }
       const requested = clock.round(rawDelta);
       let delta = clamp(requested, lower, upper);
+      if(disableSnap){this.hideMagnetGuide();return delta;}
       const targets = segments.filter(segment => !moving.has(segment)
         && motions.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
         .flatMap(segment => [segment.start, segment.end]);
@@ -6288,7 +6289,9 @@
           if (segments[idx + 1] && isAttached(segments[idx], segments[idx + 1], timing)) cancelIndices.add(idx + 1);
         });
       }
-      const allOriginals = kind === 'move'
+      // Fixed-track movement cannot squeeze neighbours. Only the legacy
+      // squeezing tool needs a snapshot of every word on the storage track.
+      const allOriginals = kind === 'move' && !this.subtitleLayersEnabled()
         ? new Map(segments.map((segment, idx) => [idx, snapshotTiming(segment, timing)]))
         : null;
       const cancelOriginals = new Map([...cancelIndices].map((idx) => [idx, snapshotTiming(segments[idx], timing)]));

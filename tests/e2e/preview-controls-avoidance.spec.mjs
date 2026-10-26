@@ -75,6 +75,32 @@ test('fullscreen recalculates the safe area and restores normal picture geometry
   expect(await page.evaluate(()=>fixedAssDocument('both'))).toBe(original);
 });
 
+test('ASS document swaps, seeking and viewport resize preserve relative caption size',async({page})=>{
+  await toggle(page,false);
+  const size=()=>page.evaluate(async()=>{
+    await MSWSubtitleRenderer.repaint();
+    const c=await MSWSubtitleRenderer.renderer.renderer._drawCapture(player.currentTime);
+    let top=c.height,bottom=-1;
+    for(let i=3;i<c.data.length;i+=4)if(c.data[i]>64){const y=Math.floor(i/4/c.width);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+    return {height:(bottom-top+1)/c.height,hasPixels:bottom>=0};
+  });
+  const before=await size();expect(before.hasPixels).toBe(true);
+  const initialFallbacks=await page.evaluate(()=>MSWSubtitleRenderer.diagnostics.filter(e=>e.event==='fallback').length);
+  for(const width of [520,340,400]) {
+    await page.evaluate(width=>{
+      const stage=document.querySelector('.player-stage');stage.style.width=width+'px';stage.style.height=width*9/16+'px';
+      const track=DATA.subtitle_tracks.tracks[0],style=MSWProjectStyle.normalize(MSWTrackPresentation.styleFor(DATA,track));
+      style.main.primaryColor=width===340?'#ffff00':'#ffffff';
+      fixedCommitAppearance({tracks:[{id:track.id,style:{mode:'snapshot',value:style}}]},'Test repaint');
+      player.currentTime=2;
+    },width);
+    await idle(page);const next=await size();expect(next.hasPixels).toBe(true);
+    expect(Math.abs(next.height-before.height)).toBeLessThan(.018);
+  }
+  expect(await page.evaluate(()=>MSWSubtitleRenderer.status)).toBe('libass');
+  expect(await page.evaluate(()=>MSWSubtitleRenderer.diagnostics.filter(e=>e.event==='fallback').length)).toBe(initialFallbacks);
+});
+
 test('playing hides controls, hovering restores avoidance; picture positioning docks controls',async({page})=>{
   await page.mouse.move(1200,780);await page.evaluate(()=>player.play());
   await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);

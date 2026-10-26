@@ -34,6 +34,20 @@ test('multiselection resizes both columns together, keeps bound offsets, cancels
   await page.evaluate(()=>performRedo());expect(ranges(await snap(page))).toEqual(r);
 });
 
+test('pointer timing history only captures affected cues and does not snapshot the whole project',async({page})=>{
+  await page.evaluate(()=>{
+    selectOnly(0);window.dragSnapshots=0;window.untouchedRow=container.querySelector('.cue[data-main-idx="1"]');
+    const a=fixedContent,b=snapshotSegments;
+    fixedContent=(...args)=>{dragSnapshots++;return a(...args);};snapshotSegments=(...args)=>{dragSnapshots++;return b(...args);};
+  });
+  const before=await snap(page);await edgeDrag(page,500);
+  const history=await page.evaluate(()=>({snapshots:dragSnapshots,kind:editorHistory.peekUndo().kind,ids:editorHistory.peekUndo().cues.map(c=>c.id)}));
+  expect(history.snapshots).toBe(0);expect(history.kind).toBe('subtitle-timing');expect(history.ids).toHaveLength(2);
+  expect(await page.evaluate(()=>untouchedRow===container.querySelector('.cue[data-main-idx="1"]'))).toBe(true);
+  const after=await snap(page);await page.evaluate(()=>performUndo());expect(await snap(page)).toEqual(before);
+  await page.evaluate(()=>performRedo());expect(await snap(page)).toEqual(after);
+});
+
 test('multiselection endpoint resize stops at neighbours and locked bound tracks block the whole gesture',async({page})=>{
   await page.evaluate(()=>{selectOnly(0);addToSelection(1);});
   await edgeDrag(page,5000);

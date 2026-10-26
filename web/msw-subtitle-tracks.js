@@ -240,6 +240,22 @@
     return project;
   }
 
+  // Pointer frames only alter ranges and ownership. Validate those constraints
+  // locally; the complete contract is still checked once at gesture commit.
+  function validateTimingChanges(project, changes, ownerChanges=new Map()) {
+    const owners=new Map(project.subtitle_tracks.assignments.map(a=>[a.cue_id,ownerChanges.get(a.cue_id)||a.subtitle_track_id]));
+    for(const b of project.multi_subtitle?.bindings||[])if(owners.get(b.main_segment_ids[0])===owners.get(b.extension_segment_ids[0]))fail('绑定字幕必须位于不同轨道');
+    const lanes=new Map();
+    for(const row of sourceRecords(project)) {
+      const cue=changes.get(row.cue.id)||row.cue,owner=owners.get(cue.id);
+      if(!Number.isSafeInteger(cue.start)||!Number.isSafeInteger(cue.end)||cue.start<0||cue.end<=cue.start)fail('字幕时间范围无效');
+      if(!lanes.has(owner))lanes.set(owner,[]);lanes.get(owner).push(cue);
+    }
+    for(const cues of lanes.values()) {
+      cues.sort((a,b)=>a.start-b.start);
+      for(let i=1;i<cues.length;i++)if(cues[i].start<cues[i-1].end)fail('目标轨道此处已有字幕，请调整位置');
+    }
+  }
   function createIndex(project) {
     validate(project);
     const tracks = new Map(project.subtitle_tracks.tracks.map(t => [t.id, t]));
@@ -352,7 +368,7 @@
     return { count, bands, positions, owners };
   }
   const api = { SCHEMA, TRACK_SCHEMA, LEGACY_TRACK_SCHEMA, flatView, purpose, placement, styleKind, key, migrate, validate, createIndex, assign,
-    ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout };
+    ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout, validateTimingChanges };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSubtitleTracks = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

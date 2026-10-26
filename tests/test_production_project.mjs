@@ -5,6 +5,29 @@ const require=createRequire(import.meta.url),flat=require('../web/msw-flat-subti
 const fixture=()=>flat.migrate({segments:[{id:'a',start:0,end:2000,text:'Hello',items:[]}],multi_subtitle:{schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',tracks:[{id:'zh',role:'extension',segments:[{id:'b',start:100,end:2100,text:'你好',items:[]}]}],bindings:[{id:'pair',track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b'],start_offset_ms:100,end_offset_ms:100}]}});
 const comparable=p=>{const n=flat.normalizeGroups(structuredClone(p),{infer:true});delete n.subtitle_view;n.subtitles.cues.sort((a,b)=>a.id.localeCompare(b.id));return n;};
 
+test('preview windows keep transitive overlaps, remote bound peers and materialized colors without touching the project',()=>{
+  const p=fixture(),track=p.subtitles.tracks[0].id;
+  p.subtitles.cues.push(...[
+    {id:'tail',track_id:track,content:{start:2000,end:4000,text:'Overlap chain'}},
+    {id:'end',track_id:p.subtitles.tracks[1].id,content:{start:3900,end:5000,text:'Chain end'}},
+    {id:'remote',track_id:track,content:{start:9000,end:10000,text:'Outside',items:[]}},
+  ]);
+  const view=bridge.fromProject(p),before=JSON.stringify(view);
+  const preview=bridge.toProject(view,{previewWindow:{start:300,end:400}});
+  assert.equal(preview.subtitles.cues.length,4);
+  assert.ok(preview.subtitles.cues.every(c=>c.id!=='remote'&&!('items' in c.content)));
+  assert.deepEqual(preview.subtitles.bindings,p.subtitles.bindings);
+  assert.equal(JSON.stringify(view),before);
+  flat.validate(preview);
+  const remote=view.segments.find(c=>c.id==='remote');view.segments[0].color={name:'red',value:'#ff0000'};
+  remote.color_ref={headIdx:0};
+  const only=bridge.toProject(view,{previewWindow:{start:9000,end:10000}});
+  assert.equal(only.subtitles.cues.length,1);
+  assert.deepEqual(only.subtitles.cues[0].content.color,view.segments[0].color);
+  assert.equal(only.subtitles.cues[0].content.color_ref,undefined);
+  assert.equal(bridge.toProject(view,{previewWindow:{start:6000,end:7000}}).subtitles.cues.length,0);
+});
+
 test('translation track selection follows physical ownership even when display columns are swapped',()=>{
   const p=fixture(),id=p.subtitles.tracks[1].id,a=p.subtitles.cues[0].id,b=p.subtitles.cues[1].id;
   for(const secondary of [[b],[a]]){

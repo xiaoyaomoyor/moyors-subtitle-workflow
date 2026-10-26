@@ -19,6 +19,85 @@ let fixedNumberCache = null;
 let fixedLastMessage = '';
 let productionSplitTrackId = null;
 let productionSelectionOrder = [];
+let fixedDragTransaction = null;
+function snapshotFixedTiming(record,label=record.label) {
+  const ids=new Set(record.cues.map(c=>c.id));
+  return {kind:'subtitle-timing',label,view:snapshotEditorSelection(),
+    cues:layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>ids.has(c.id)).map(c=>{
+      const copy=structuredClone(c);
+      for(const field of ['color_ref','sticker_ref'])if(copy[field]){copy[field].cue_id=s.segments[copy[field].headIdx]?.id;delete copy[field].headIdx;}
+      return copy;
+    })),
+    owners:DATA.subtitle_tracks.assignments.filter(a=>ids.has(a.cue_id)).map(a=>({...a}))};
+}
+function fixedBeginDragTransaction(drag,label) {
+  if(!productionFlatMode()||!['move','resize-left','resize-right'].includes(drag.kind))return false;
+  if(fixedDragTransaction)return true;
+  if(fixedPositionEditing)fixedStopPositioning(false);
+  if(!fixedAcceptEdit())return false;
+  const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
+  const ids=new Set(drag.indices.map(i=>source[i].id));
+  if(drag.kind!=='move')for(const id of fixedPositionSelectedIds())ids.add(id);
+  for(const b of DATA.multi_subtitle.bindings) {
+    const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+    if(ids.has(a)||drag.kind!=='move'&&ids.size>1&&ids.has(z)){ids.add(a);ids.add(z);}
+  }
+  // A marker reference's range is owned by its head, which may be outside
+  // the selection. Include that head in this same undo transaction.
+  for(const s of layerCore.tracks(DATA))for(const c of s.segments)if(ids.has(c.id))
+    for(const field of ['color_ref','sticker_ref'])if(c[field])ids.add(s.segments[c[field].headIdx]?.id);
+  fixedDragTransaction=snapshotFixedTiming({cues:[...ids].map(id=>({id})),label});
+  return true;
+}
+function fixedTimingCheckpoint(record) {
+  const ids=new Set(record.cues.map(c=>c.id));
+  for(const s of layerCore.tracks(DATA)) {
+    const target=s.role==='main'?fixedLastContent.segments:fixedLastContent.multi_subtitle.tracks.find(t=>t.id===s.track_id).segments;
+    const saved=new Map(target.map(c=>[c.id,c]));
+    target.splice(0,target.length,...s.segments.map(c=>{
+      if(ids.has(c.id))return structuredClone(c);
+      const previous=saved.get(c.id);
+      for(const field of ['color_ref','sticker_ref'])if(c[field])previous[field]=structuredClone(c[field]);
+      return previous;
+    }));
+  }
+  const owners=new Map(DATA.subtitle_tracks.assignments.filter(a=>ids.has(a.cue_id)).map(a=>[a.cue_id,a]));
+  fixedLastContent.subtitle_tracks.assignments=fixedLastContent.subtitle_tracks.assignments.map(a=>owners.has(a.cue_id)?{...owners.get(a.cue_id)}:a);
+  MULTI_SUBTITLE_UTILS.rebuildBindingOffsets(fixedLastContent.multi_subtitle,fixedLastContent.segments);
+  fixedLastContent.multi_subtitle._dirty=DATA.multi_subtitle._dirty;
+  for(const t of fixedLastContent.multi_subtitle.tracks)t._dirty=DATA.multi_subtitle.tracks.find(s=>s.id===t.id)?._dirty;
+  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+}
+function fixedRestoreTiming(record) {
+  const byId=new Map(record.cues.map(c=>[c.id,c]));
+  for(const s of layerCore.tracks(DATA)) {
+    const index=new Map(s.segments.map((c,i)=>[c.id,i]));
+    for(const c of s.segments)if(byId.has(c.id)) {
+      const saved=byId.get(c.id);
+      for(const k of Object.keys(c))delete c[k];Object.assign(c,structuredClone(saved));
+      for(const field of ['color_ref','sticker_ref'])if(c[field]){c[field].headIdx=index.get(c[field].cue_id);delete c[field].cue_id;}
+    }
+  }
+  const owners=new Map(record.owners.map(a=>[a.cue_id,a]));
+  DATA.subtitle_tracks.assignments=DATA.subtitle_tracks.assignments.map(a=>owners.has(a.cue_id)?{...owners.get(a.cue_id)}:a);
+  for(const s of layerCore.tracks(DATA))layerCore.sortTrack(s.segments);
+  syncBindingOffsets();fixedInvalidate();
+}
+function fixedApplyTimingHistory(record) {
+  fixedRestoreTiming(record);fixedTrackCore.validate(DATA);fixedTimingCheckpoint(record);
+  projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id))});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+}
+function fixedFinishDragTransaction() {
+  const record=fixedDragTransaction;if(!record)return false;
+  fixedDragTransaction=null;
+  try {
+    fixedTrackCore.validate(DATA);
+    const now=snapshotFixedTiming(record);
+    for(const a of [...record.owners,...now.owners])if(DATA.subtitle_tracks.tracks.find(t=>t.id===a.subtitle_track_id)?.locked)throw Error('操作包含锁定轨道，请先解锁');
+    if(JSON.stringify([record.cues,record.owners])!==JSON.stringify([now.cues,now.owners]))editorHistory.push(record);
+    fixedTimingCheckpoint(record);updateUndoRedoButtons();return true;
+  }catch(error){fixedRestoreTiming(record);fixedTimingCheckpoint(record);fixedStatus(error.message);return true;}
+}
 function productionRememberSelection() {
   if(!productionFlatMode())return;
   const ids=[...selectedIdxs].map(i=>DATA.segments[i]?.id).concat([...selectedExtensionIdxs].map(i=>getActiveExtensionTrack()?.segments[i]?.id)).filter(Boolean);
@@ -126,7 +205,7 @@ function fixedContentKey() {
     subtitle_layers:DATA.subtitle_layers,subtitle_tracks:DATA.subtitle_tracks});
 }
 function fixedReset() {
-  fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
+  fixedDragTransaction=null;fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
 }
 function fixedBeginEdit() {
   if(fixedPositionEditing)fixedStopPositioning(false);
@@ -420,11 +499,10 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   if (productionFlatMode() && ['resize-left','resize-right'].includes(drag.kind)) return fixedResizeSelection(drag, rawDelta, disableSnap);
   if(!productionFlatMode()||drag.kind!=='move')return null;
   const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
-  if(!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
+  if(!drag.fixedMove&&!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
     drag.destinationPreview={...drag.destinationPreview,blocked:true,reason:fixedLastMessage};return false;
   }
   if(!drag.fixedMove) {
-    ensureBoundDragTimelineOriginals(drag);
     const entries=drag.indices.map(index=>({cue:source[index],original:structuredClone(source[index]),index}));
     const followers=waveformEditor.options.getSubtitleDragFollowers(drag).map(f=>({cue:f.segment,original:structuredClone(f.segment),index:f.index}));
     for(const follower of followers)ensureBoundDragOriginal(drag,follower.index,follower.cue);
@@ -468,13 +546,14 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
       if(clock.unit==='frames'){clock.setStart(next,clock.fromMs(next.start));clock.setEnd(next,clock.fromMs(next.end));}
       next.items=remapPanelItems(original.items,original.start,original.end,next.start,next.end);changes.set(follower.cue.id,next);
     }
-    const segments=DATA.segments.map(c=>changes.get(c.id)||c);
-    const multi={...DATA.multi_subtitle,tracks:DATA.multi_subtitle.tracks.map(t=>({...t,segments:t.segments.map(c=>changes.get(c.id)||c)}))};
-    const byId=new Map([...segments,...multi.tracks.flatMap(t=>t.segments)].map(c=>[c.id,c]));
-    bindings=multi.bindings.map(b=>({...b,start_offset_ms:byId.get(b.extension_segment_ids[0]).start-byId.get(b.main_segment_ids[0]).start,
-      end_offset_ms:byId.get(b.extension_segment_ids[0]).end-byId.get(b.main_segment_ids[0]).end}));
-    multi.bindings=bindings;
-    fixedTrackCore.validate({...DATA,segments,multi_subtitle:multi});
+    state.byId ||= new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,c])));
+    bindings=DATA.multi_subtitle.bindings.map(b=>{
+      const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+      if(!changes.has(a)&&!changes.has(z))return b;
+      const main=changes.get(a)||state.byId.get(a),secondary=changes.get(z)||state.byId.get(z);
+      return {...b,start_offset_ms:secondary.start-main.start,end_offset_ms:secondary.end-main.end};
+    });
+    fixedTrackCore.validateTimingChanges(DATA,changes,moving);
   } catch(error) {drag.destinationPreview.reason=error.message;return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
   const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
@@ -508,9 +587,9 @@ function fixedResizeSelection(drag, rawDelta, disableSnap) {
   if(!drag.fixedResize) {
     const rows=layerCore.tracks(DATA).flatMap(s=>s.segments.map((cue,index)=>({cue,index,source:s})));
     const ids=new Set([...selectedIdxs].map(i=>DATA.segments[i]?.id).concat([...selectedExtensionIdxs].map(i=>getActiveExtensionTrack()?.segments[i]?.id)));
-    if(ids.size<2)return null;
-    const p=MSWProductionProject.toProject(DATA);
-    for(const b of p.subtitles.bindings)if(ids.has(b.source_id)||ids.has(b.target_id)){ids.add(b.source_id);ids.add(b.target_id);}
+    if(ids.size<2){ids.clear();for(const i of drag.indices)ids.add((drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments)[i].id);}
+    const linkedBoth=ids.size>1;
+    for(const b of DATA.multi_subtitle.bindings){const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];if(ids.has(a)||linkedBoth&&ids.has(z)){ids.add(a);ids.add(z);}}
     const entries=rows.filter(e=>ids.has(e.cue.id));
     if(entries.some(e=>fixedTrack(e.cue,e.source.role,e.source.track_id)?.locked))return false;
     drag.fixedResize=entries.map(e=>({...e,original:structuredClone(e.cue)}));

@@ -2020,6 +2020,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
   if(kind==='subtitle-appearance')return snapshotFixedAppearance(sourceRecord,label);
   if(kind==='cue-markers')return snapshotCueMarkers(sourceRecord.changes,label);
   if (kind === 'project-style') return {kind,label,...window.MSWProjectStyle.capture(DATA)};
@@ -2111,6 +2112,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-timing')return fixedApplyTimingHistory(record);
   if(record.kind==='subtitle-appearance')return fixedCommitAppearance(record,record.label,{restore:true});
   if(record.kind==='cue-markers') {
     const cues=new Map(layerCore.tracks(DATA).flatMap(t=>t.segments.map(c=>[c.id,c])));
@@ -6891,7 +6893,7 @@ function alignSelectedExtensionSubtitleRanges() {
 }
 
 // === 渲染 ===
-function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor } = {}) {
+function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null } = {}) {
   queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
   layerPrepareRender();
@@ -6909,6 +6911,19 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const dockHandle = container.querySelector(':scope > .dock-handle');
   const cueListToolbar = container.querySelector(':scope > .cue-list-toolbar');
   const emptyState = cuesEmpty;
+  // A timing transaction does not alter text or binding structure. Reuse rows
+  // whose identities AND indices are unchanged: their event handlers capture
+  // those indices. Reordered/affected rows still use the normal builders.
+  const rowKey=(main,extension,track)=>JSON.stringify([main||'',extension||'',track||'']);
+  const reusable=changedCueIds?new Map([...container.querySelectorAll(':scope > .cue')]
+    .map(el=>[rowKey(el.dataset.mainId,el.dataset.extId,el.dataset.trackId),el])):null;
+  const cueRow=(main,extension,track,mainIndex,extIndex,build)=>{
+    const old=reusable?.get(rowKey(main?.id,extension?.id,extension?track?.id:null));
+    if(old&&!changedCueIds.has(main?.id)&&!changedCueIds.has(extension?.id)
+      &&(mainIndex==null||Number(old.dataset.mainIdx??old.dataset.idx)===mainIndex)
+      &&(extIndex==null||Number(old.dataset.extIdx)===extIndex))return old;
+    return build();
+  };
   container.replaceChildren();
   if (dockHandle) container.appendChild(dockHandle);
   if (cueListToolbar) container.appendChild(cueListToolbar);
@@ -6926,11 +6941,11 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const rows = [];
   if (!multiVisible || displayMode === 'main') {
     DATA.segments.forEach((seg, i) => {
-      if (fixedTrackMode() || !layerMode() || layerCore.visible(DATA, seg)) rows.push({ start: seg.start, order: 0, el: buildCueEl(seg, i) });
+      if (fixedTrackMode() || !layerMode() || layerCore.visible(DATA, seg)) rows.push({ start: seg.start, order: 0, el: cueRow(seg,null,null,i,null,()=>buildCueEl(seg, i)) });
     });
   } else if (displayMode === 'extension') {
     const track = getActiveExtensionTrack();
-    track.segments.forEach((seg, i) => rows.push({ start: seg.start, order: 0, el: buildExtensionCueEl(seg, i, track) }));
+    track.segments.forEach((seg, i) => rows.push({ start: seg.start, order: 0, el: cueRow(null,seg,track,null,i,()=>buildExtensionCueEl(seg, i, track)) }));
   } else {
     const track = getActiveExtensionTrack();
     const bindings = getMultiSubtitleState().bindings;
@@ -6943,7 +6958,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
       rows.push({
         start: mainSeg ? mainSeg.start : (extensionSeg ? extensionSeg.start : 0),
         order: 0,
-        el: buildDualCueEl(row.mainIndex, row.extensionIndex, track),
+        el: cueRow(mainSeg,extensionSeg,track,row.mainIndex,row.extensionIndex,()=>buildDualCueEl(row.mainIndex, row.extensionIndex, track)),
       });
     });
   }
@@ -23704,15 +23719,14 @@ document.addEventListener('asr:waveform-loudness-unavailable', () => {
   flashHint('当前媒体没有可用于适配的波形或响度数据', 'warning');
 });
 
-function syncTimelineGroupRanges() {
+function syncTimelineGroupRanges(changedIds=null) {
   function sync(segments, headField, refField) {
+    const ends=new Map();
+    for(const c of segments)if(c[refField])ends.set(c[refField].headIdx,Math.max(ends.get(c[refField].headIdx)||0,c.end));
     segments.forEach((segment, headIdx) => {
       const head = segment[headField];
-      if (!head) return;
-      let end = segment.end;
-      segments.forEach((candidate) => {
-        if (candidate[refField]?.headIdx === headIdx) end = Math.max(end, candidate.end);
-      });
+      if (!head || changedIds&&!changedIds.has(segment.id)) return;
+      const end = Math.max(segment.end,ends.get(headIdx)||0);
       head.start = segment.start;
       head.end = end;
     });
@@ -23807,9 +23821,10 @@ function initWaveformEditor() {
     canApplySubtitleRanges: (role, ranges) => layerCanApplyRanges(role, ranges, role === 'main'),
     onCancelCueDrag: (drag, {rejected = false} = {}) => {
       if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); fixedCancelMoveDrag(drag); layerInvalidate(); }
+      if(fixedDragTransaction){fixedRestoreTiming(fixedDragTransaction);fixedDragTransaction=null;}
       if (rejected && drag.destinationPreview?.reason) fixedStatus(drag.destinationPreview.reason);
     },
-    onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; },
+    onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; fixedDragTransaction=null; },
     getAllowSubtitleOverlap: layerAllowOverlap,
     isSubtitleVisible: (cue, role) => !layerMode() || layerCore.visible(DATA, cue, role),
     getMediaDurationMs: () => Number(DATA.media_metadata?.duration_ms) || 0,
@@ -24002,6 +24017,7 @@ function initWaveformEditor() {
     toggleAudioTrackMuted: (id) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(id),
     onAudioTrackContextMenu: (id, x, y) => fixedAudioTrackMenu(id, x, y),
     onBeginEdit: (label) => {
+      if(waveformEditor?.drag&&fixedBeginDragTransaction(waveformEditor.drag,label))return;
       if (fixedTrackMode() && !layerPendingDragHistory) fixedBeginEdit();
       if (layerMode() && waveformEditor?.drag) {
         layerPendingDragHistory ||= EDITOR_SETTINGS_UTILS.buildHistoryRecord('segments', label, snapshotSegments(), snapshotEditorSelection());
@@ -24027,7 +24043,8 @@ function initWaveformEditor() {
           });
         }
       }
-      syncTimelineGroupRanges();
+      const timingIds=fixedDragTransaction?new Set(fixedDragTransaction.cues.map(c=>c.id)):null;
+      syncTimelineGroupRanges(timingIds);
       // 拖动预览期间保持下标稳定；提交时再整理副轨数组，避免冲突裁剪后
       // 原本位于目标前面的字幕保留右侧区间而落到目标之后，保存时违反顺序契约。
       if (multiSubtitleVisible() && track !== 'overlay') sortExtensionTrackSegments(getActiveExtensionTrack());
@@ -24040,12 +24057,17 @@ function initWaveformEditor() {
           idxs.forEach((idx) => { if (overlay.segments[idx]) overlay.segments[idx]._dirty = true; });
         }
       }
-      if (linkedChanged || multiSubtitleVisible() || track === 'extension') markMultiSubtitleDirty();
-      renderAll();
+      if(timingIds) {
+        const selection=snapshotEditorSelection();
+        for(const s of layerCore.tracks(DATA)){for(const c of s.segments)if(timingIds.has(c.id))c._dirty=true;layerCore.sortTrack(s.segments);}
+        restoreEditorSelection(selection);
+      } else if (linkedChanged || multiSubtitleVisible() || track === 'extension') markMultiSubtitleDirty();
+      const validated=fixedFinishDragTransaction();
+      renderAll({changedCueIds:timingIds});
       updateWithoutCueListAutoScroll();
       // 移动/裁切的松手总结气泡已按需求移除：拖动期间的实时数据仍挂在
       // 右上常显数据行（quiet 状态），结束后由 refreshMediaReadout 还原。
-      scheduleAutoSaveFlush();
+      scheduleAutoSaveFlush({validated});
     },
     onPayload: (payload) => {
       DATA.waveform = payload;
@@ -26275,15 +26297,17 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     scheduleAutoSaveFlush();
     return plan;
   },
-  subtitlePreviewProject: () => {
+  subtitlePreviewProject: (previewWindow = null) => {
     // Preview is a read, not a save/commit transaction. Exclude media caches,
     // workspace, task history and word timings before cloning the live view.
     const fields=['schema','segments','multi_subtitle','subtitle_tracks','subtitle_layers','subtitles','subtitle_view','overlay_track','preview','color_palette'];
     const source=Object.fromEntries(fields.filter(k=>DATA[k]!==undefined).map(k=>[k,DATA[k]]));
     const cue=c=>Object.fromEntries(Object.entries(c).filter(([k])=>k!=='items'&&!k.startsWith('_')&&!['start_frame','end_frame','sticker','sticker_ref'].includes(k)));
-    if(source.segments)source.segments=source.segments.map(cue);
-    if(source.multi_subtitle)source.multi_subtitle={...source.multi_subtitle,tracks:source.multi_subtitle.tracks.map(t=>({...t,segments:t.segments.map(cue)}))};
-    let project=productionFlatMode()?window.MSWProductionProject.toProject(source):structuredClone(source);
+    if(!previewWindow||!productionFlatMode()) {
+      if(source.segments)source.segments=source.segments.map(cue);
+      if(source.multi_subtitle)source.multi_subtitle={...source.multi_subtitle,tracks:source.multi_subtitle.tracks.map(t=>({...t,segments:t.segments.map(cue)}))};
+    }
+    let project=productionFlatMode()?window.MSWProductionProject.toProject(source,{previewWindow}):structuredClone(source);
     project.preview ||= {};
     project.preview.burn_ass_library=structuredClone(ASS_STYLE_LIBRARY);
     const options=speakerExportOptions();

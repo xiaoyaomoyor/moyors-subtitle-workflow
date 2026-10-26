@@ -6,6 +6,13 @@
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;
   let previewRevision=0,previewEvents=[],previewGeometry=[],previewWrites=Promise.resolve();
   let controlsOffsets=new Map(),positionOffsets=new Map(),queuedWrites=0;
+  const diagnostics=[];
+  function trace(event,detail={}) {
+    diagnostics.push({event,at:Math.round(performance.now()),time:host.player.currentTime,
+      status:stage.dataset.subtitleRenderer,video:[host.player.videoWidth,host.player.videoHeight],
+      canvas:renderer?{width:renderer._canvas?.width,height:renderer._canvas?.height}:null,...detail});
+    if(diagnostics.length>80)diagnostics.shift();
+  }
   function clearPreviewDocument() {
     previewRevision++;previewEvents=[];previewGeometry=[];
     controlsOffsets=new Map();positionOffsets=new Map();
@@ -44,9 +51,11 @@
   const fontManifests=new Map();let loadedFontIds=new Set();
   const badge=document.createElement('span');badge.id='subtitle-render-status';badge.className='msw-style-render-status';badge.setAttribute('role','status');
   const stage=document.querySelector('.player-stage');stage.append(badge);
+  new ResizeObserver(()=>trace('viewport',{box:[Math.round(stage.clientWidth),Math.round(stage.clientHeight)],
+    frame:renderer?[renderer._videoWidth,renderer._videoHeight]:null})).observe(stage);
   function syncBadge(){badge.hidden=host.subtitlePreviewTarget()==='none';}
   syncBadge();
-  function fallback(text) {stage.dataset.subtitleRenderer='approximate';badge.textContent=host.flat?text.replace(/近似预览/g,'字幕预览不可用'):text;}
+  function fallback(text) {if(stage.dataset.subtitleRenderer!=='approximate')trace('fallback',{reason:text});stage.dataset.subtitleRenderer='approximate';badge.textContent=host.flat?text.replace(/近似预览/g,'字幕预览不可用'):text;}
   // A previous video's offscreen canvas must leave the DOM synchronously. Worker
   // cleanup can take longer, especially when the project changes during startup.
   function disposeRenderer() {
@@ -67,9 +76,13 @@
     if(next!==observedPlayer) {
       observedPlayer?.removeEventListener('emptied',resetMedia);
       observedPlayer?.removeEventListener('loadeddata',invalidate);
+      observedPlayer?.removeEventListener('timeupdate',playbackWindow);
+      observedPlayer?.removeEventListener('seeking',playbackWindow);
       observedPlayer=next;
       next.addEventListener('emptied',resetMedia);
       next.addEventListener('loadeddata',invalidate);
+      next.addEventListener('timeupdate',playbackWindow);
+      next.addEventListener('seeking',playbackWindow);
       resetMedia();
     }
   }
@@ -84,11 +97,11 @@
       fallback('字幕渲染失败，已使用近似预览：'+error.message);disposeRenderer();host.refreshStylePreview();
     });
   }
-  async function fonts(style) {
+  async function fonts(style,project) {
     const scriptFamilies=s=>global.AsrEditorUtils.ASS_FONT_SCRIPTS.map(([,k])=>s?.[k]);
     const familyNames=s=>[s.main,s.secondary,s.annotation?.main,s.annotation?.secondary].flatMap(scriptFamilies);
-    const cueFonts=[...(host.data.subtitles?.cues||[]).map(c=>c.content),...(host.data.segments||[]),...(host.data.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>scriptFamilies(c.subtitle_style));
-    const families=[...new Set([...familyNames(style),...(host.data.preview?.speaker_palette?.rows||[]).flatMap(r=>scriptFamilies(r.style)),...cueFonts,...(host.data.subtitles?.tracks||host.data.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
+    const cueFonts=[...(project.subtitles?.cues||[]).map(c=>c.content),...(project.segments||[]),...(project.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>scriptFamilies(c.subtitle_style));
+    const families=[...new Set([...familyNames(style),...(project.preview?.speaker_palette?.rows||[]).flatMap(r=>scriptFamilies(r.style)),...cueFonts,...(project.subtitles?.tracks||project.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
     if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
     const manifest=await fontManifests.get(fontKey);
     const bytes=await Promise.all(manifest.fonts.map(async item=>{
@@ -97,9 +110,19 @@
     }));
     return {bytes,manifest};
   }
-  function signature(preview) {
+  let windowBucket=-1;
+  function playbackWindow() {
+    const bucket=Math.floor(host.player.currentTime/30);
+    if(bucket!==windowBucket)invalidate();
+  }
+  function snapshot() {
+    const bucket=Math.floor(Math.max(0,host.player.currentTime)/30);
+    const range={start:Math.max(0,(bucket-1)*30000),end:(bucket+2)*30000};
+    return {bucket,project:host.subtitlePreviewProject?host.subtitlePreviewProject(range):host.exportProject()};
+  }
+  function signature(preview,project) {
     return JSON.stringify([host.generation,mediaSource(host.player),preview,host.player.videoWidth,host.player.videoHeight,
-      host.data.subtitles,host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()],(name,value)=>{
+      project,host.subtitleRenderSettings()],(name,value)=>{
         if(name==='items'||name.startsWith('_')||name==='start_frame'||name==='end_frame')return undefined;
         // The adapter's original migration snapshots are not live render data.
         if(name==='flat_context')return {bindingSources:value?.bindingSources};
@@ -113,7 +136,20 @@
     // to commit the editor's old time fields and snap the cue back to its start.
     if(host.editingGestureActive)return;
     if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
-    const preview=styles.currentPreview(),signatureKey=signature(preview);
+    const started=performance.now(),preview=styles.currentPreview();
+    if(!host.config?.processingUrl || host.player.tagName!=='VIDEO') {fallback(preview.label+' · 近似预览'+(!host.config?.processingUrl?'（便携模式）':''));return;}
+    // Seeking can briefly drop readyState without replacing the media. Keep
+    // the existing ASS renderer instead of flashing the CSS fallback.
+    if(host.player.readyState<2||!host.player.videoWidth){if(!renderer){key='';fallback(preview.label+' · 等待视频画面');}return;}
+    let state,signatureKey;
+    try {state=snapshot();signatureKey=signature(preview,state.project);}
+    catch(error){
+      trace('snapshot-error',{reason:error.message});
+      if(renderer)badge.textContent=preview.label+' · 更新失败：'+error.message;
+      else fallback(preview.label+' · 字幕预览不可用：'+error.message);
+      return;
+    }
+    windowBucket=state.bucket;
     // Player replacement resets key; a failed renderer should not be recreated
     // by every poll while the media and subtitle settings remain unchanged.
     if(key===signatureKey)return;
@@ -122,25 +158,24 @@
     // same document and repeatedly clears its temporary control-bar offsets.
     if(pending){again=true;return;}
     key=signatureKey;
-    if(!host.config?.processingUrl || host.player.tagName!=='VIDEO') {fallback(preview.label+' · 近似预览'+(!host.config?.processingUrl?'（便携模式）':''));return;}
-    if(host.player.readyState<2||!host.player.videoWidth){key='';fallback(preview.label+' · 等待视频画面');return;}
     pending=true;const ticket=++serial,generation=host.generation,target=host.player,targetSource=mediaSource(host.player);
     const current=()=>ticket===serial&&generation===host.generation&&target===host.player&&targetSource===mediaSource(target);
+    let swapping=false;
     try {
-      let project=host.subtitlePreviewProject?host.subtitlePreviewProject():host.exportProject();
+      let project=state.project;
       if(preview.scope==='export')project.preview.speaker_label_export=document.getElementById('video-export-speaker-labels').checked;
       if(preview.scope==='export'&&project.schema==='msw.project.v4')project=global.MSWProductionProject.exportScope(project,preview.trackIds);
       if(preview.scope==='proof'||preview.other)global.MSWProjectStyle.applyPreset(project,preview.style,{proof:preview.scope==='proof'});else global.MSWProjectStyle.apply(project,preview.style);
       for(const field of ['waveform','spectral','waveform_reapeaks','workspace'])delete project[field];
       const [payload,loaded,mod]=await Promise.all([
         styles.request('subtitle-preview',{project,target:preview.target,video:{width:host.player.videoWidth,height:host.player.videoHeight}}),
-        fonts(preview.style),modulePromise||=import('/subtitle-renderer/jassub.js')]);
+        fonts(preview.style,project),modulePromise||=import('/subtitle-renderer/jassub.js')]);
       if(!current())return;
       // An old request must not overwrite more recent edits. Keep the current
       // canvas until the latest document is ready, and coalesce interim edits.
-      if(signature(styles.currentPreview())!==signatureKey){key='';again=true;return;}
+      if(signature(styles.currentPreview(),snapshot().project)!==signatureKey){key='';again=true;trace('discard');return;}
       if(payload.layoutVersion!==global.MSWProjectStyle.layoutVersion)throw Error('编辑器服务尚未加载更新，请保存工程并重新启动本机编辑器；仅刷新页面无效。');
-      clearPreviewDocument();await previewWrites;
+      swapping=true;clearPreviewDocument();await previewWrites;
       if(!current())return;
       if(!renderer || video!==target || source!==targetSource) {
         disposeRenderer();fallback(preview.label+' · 正在加载字幕渲染…');
@@ -174,13 +209,18 @@
       // it. A settings-window repaint must not be needed to reveal the video.
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(!current())return;
-      if(signature(styles.currentPreview())!==signatureKey){key='';again=true;return;}
+      if(signature(styles.currentPreview(),snapshot().project)!==signatureKey){key='';again=true;trace('discard');return;}
       stage.dataset.subtitleRenderer='libass';
+      trace('document',{elapsed:Math.round(performance.now()-started),cues:payload.geometry?.length,scope:preview.scope,
+        fontSizes:[...new Set(eventStyles.map(s=>s.FontSize))],frame:renderer?[renderer._videoWidth,renderer._videoHeight]:null});
       global.MSWPreviewControls?.refresh();
-      if(payload.geometry?.length)global.fixedReceiveGeometry?.(payload.geometry);
+      if(payload.geometry)global.fixedReceiveGeometry?.(payload.geometry);
       badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'');
       badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。播放控制条避让仅临时调整预览位置。';
-    } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
+    } catch(error) {if(current()){
+      if(renderer&&!swapping){trace('update-error',{reason:error.message});badge.textContent=preview.label+' · 更新失败：'+error.message;}
+      else {fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}
+    }}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
   function invalidate(){
@@ -197,7 +237,7 @@
   // Existing editing paths do not all dispatch an event; compare state without
   // rebuilding an ASS document or starting a network request unless it changed.
   setInterval(()=>{if(!document.hidden)void update();},750);
-  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,applyPositionOffsets,get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined||queuedWrites>0;},get status(){return stage.dataset.subtitleRenderer;}};
+  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,applyPositionOffsets,get diagnostics(){return structuredClone(diagnostics);},get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined||queuedWrites>0;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
   }
   global.MSWCreateSubtitleRenderer=create;

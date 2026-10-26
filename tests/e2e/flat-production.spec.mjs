@@ -206,7 +206,7 @@ test('style toolbar selects track groups, edits both appearances and swaps witho
   await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle.ready)).toBe(true);
   const before=await snap(page),[a,b,c]=before.subtitles.tracks;
   await page.evaluate(id=>MSWSubtitleStyle.editTrack(id),a.id);
-  await expect(page.locator('#style-edit-scope option')).toHaveText(['所选字幕','S1','S2']);
+  await expect(page.locator('#style-edit-scope option')).toHaveText(['所选字幕','说话人','S1','S2']);
   await expect(page.locator('#style-track-controls')).toBeHidden();await expect(page.locator('#style-main')).toBeVisible();
   await expect(page.locator('#style-track-target')).toBeHidden();
   const toolbarSizes=await page.locator('#style-edit-scope,#style-main,#style-secondary,#style-swap').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
@@ -380,6 +380,25 @@ test('same-track cross-row relocation can pass earlier cues without overwriting 
   const result=await snap(page);expect(result.subtitles.cues.find(c=>c.content.text==='Hello world').content.start).toBe(11000);
   expect(result.subtitles.cues.find(c=>c.content.start===5000)).toEqual(initial.subtitles.cues.find(c=>c.content.start===5000));
   await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(initial.subtitles);
+});
+
+test('local timing undo preserves marker references when a head moves past its members',async({page})=>{
+  const before=await dragFixture(page),[main]=before.subtitles.tracks;
+  await page.evaluate(id=>{
+    layerCreateCue(5000,6000,'main',id);
+    DATA.segments[0].color={name:'red',value:'#ff0000',start:1000,end:6000};
+    DATA.segments[1].color_ref={headIdx:0};fixedBeginEdit();renderAll();
+  },main.id);
+  const initial=await snap(page),start=await trackPoint(page,main.id,2000),dest=await trackPoint(page,main.id,12000);
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(dest.x,dest.y);await page.mouse.up();
+  const moved=await snap(page);
+  expect(moved.subtitles.cues.find(c=>c.content.text==='Hello world').content.start).toBe(11000);
+  expect(await page.evaluate(()=>DATA.segments[0].color_ref.headIdx)).toBe(1);
+  for(let i=0;i<2;i++){
+    await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(initial.subtitles);
+    expect(await page.evaluate(()=>DATA.segments[1].color_ref.headIdx)).toBe(0);
+    await page.evaluate(()=>performRedo());expect((await snap(page)).subtitles).toEqual(moved.subtitles);
+  }
 });
 
 test('multi-selection changes physical tracks together while keeping relative lanes',async({page})=>{

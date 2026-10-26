@@ -86,8 +86,10 @@ for (const mode of ['multi', 'basic']) test(`pointer resize reaches exact neighb
   // One large pointer step goes beyond the neighbour rather than approaching it slowly.
   await page.mouse.move(row.x + row.width * .8, block.y + block.height / 2);
   expect(await times(page)).toEqual({ a: [1003, 4007], b: [4007, 5007] });
+  await expect(page.locator('.waveform-magnet-guide')).toHaveCount(0);
+  await page.keyboard.down('Shift');await page.mouse.move(row.x + row.width * .81, block.y + block.height / 2);
   await expect(page.locator('.waveform-magnet-guide')).toBeVisible();
-  await page.mouse.up(); await expect(page.locator('.waveform-magnet-guide')).toHaveCount(0);
+  await page.mouse.up();await page.keyboard.up('Shift');await expect(page.locator('.waveform-magnet-guide')).toHaveCount(0);
   await page.evaluate(() => performUndo()); expect(await times(page)).toEqual(initial);
   await page.evaluate(() => performRedo()); expect((await times(page)).a).toEqual([1003, 4007]);
   expect(errors).toEqual([]);
@@ -434,13 +436,17 @@ test('opening a frame-based v2 file from ordinary mode preserves overlaps and mu
     return openProjectFile(new File([JSON.stringify(project)], 'frames.mosp'));
   });
   expect(opened, errors.join('\n') || await page.locator('body').innerText()).toBe(true);
-  expect(await times(page)).toEqual({ long: [0, 12000], short: [2000, 4000], third: [3000, 5000] });
+  // Opening v2 migrates cue identities; timing and selection are preserved.
+  const textTimes=()=>page.evaluate(()=>Object.fromEntries(DATA.segments.map(c=>[c.text,[c.start,c.end]])));
+  const originalIds=await page.evaluate(()=>DATA.segments.map(c=>c.id));
+  expect(await textTimes()).toEqual({ long: [0, 12000], short: [2000, 4000], third: [3000, 5000] });
   await page.evaluate(() => {
     selectOnly(1); selectedIdxs.add(2); waveformEditor.adjustSelectedByKeyboard(1000);
   });
-  expect(await times(page)).toEqual({ long: [0, 12000], short: [3000, 5000], third: [4000, 6000] });
+  expect(await textTimes()).toEqual({ long: [0, 12000], short: [3000, 5000], third: [4000, 6000] });
   await page.evaluate(() => performUndo());
-  expect(await times(page)).toEqual({ long: [0, 12000], short: [2000, 4000], third: [3000, 5000] });
+  expect(await textTimes()).toEqual({ long: [0, 12000], short: [2000, 4000], third: [3000, 5000] });
+  expect(await page.evaluate(()=>DATA.segments.map(c=>c.id))).toEqual(originalIds);
 });
 
 test('held keyboard nudges followed by pointer movement preserve the bound subtitle baseline', async ({ page }) => {
@@ -482,12 +488,15 @@ test('CSS and ASS previews show every bilingual layer with separate positions an
  await page.screenshot({path:join(process.env.MSW_LAYER_EVIDENCE||tempDir,'bilingual-ass-preview.png')});
  const labelStyle=await page.evaluate(()=>{
   DATA.segments[0].color={name:'red',start:DATA.segments[0].start,end:DATA.segments[0].end};
-  setSubtitleAppearance({ass_color_style:'speaker',speaker_labels:{mapping_enabled:true,enabled:true,names:{red:'Alice'},separator:': '}});
+  const palette=structuredClone(DATA.preview.speaker_palette);
+  const row=palette.rows.find(r=>r.id==='red');row.name='Alice';row.mode='speaker';
+  DATA.preview.speaker_palette=palette;DATA.preview.speaker_labels_visible=true;
+  rebuildEditorColorPalette();fixedPreviewInvalidate();
   refreshSubtitlePreview(2500);
   const element=[...document.querySelectorAll('#msw-layer-preview > div')].find(n=>n.dataset.cueId===DATA.segments[0].id);
   return {label:element.firstElementChild.textContent,labelColor:getComputedStyle(element.firstElementChild).color,bodyColor:getComputedStyle(element).color,raw:DATA.segments[0].text};
  });
- expect(labelStyle.label).toBe('Alice: ');expect(labelStyle.labelColor).not.toBe(labelStyle.bodyColor);expect(labelStyle.raw).toBe('A');
+ expect(labelStyle.label).toBe('Alice：');expect(labelStyle.labelColor).not.toBe(labelStyle.bodyColor);expect(labelStyle.raw).toBe('A');
  await page.evaluate(()=>refreshSubtitlePreview(10000));await expect(previews).toHaveCount(0);
  expect(errors).toEqual([]);
 });

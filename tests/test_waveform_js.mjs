@@ -65,6 +65,13 @@ function layerPointerFixture(segments, { kind = 'move', indices = [0], overlap =
   return { drag, host, resolve: (delta, disableSnap = false) => helpers.resolveLayerPointerDelta.call(host, drag, delta, disableSnap) };
 }
 
+test('unsnapped pointer movement keeps collision limits without collecting snap targets',()=>{
+  const f=layerPointerFixture([{start:1000,end:2000},{start:3000,end:4000}]);
+  f.host.options.getCrossTrackSnapTargets=()=>{throw Error('unnecessary cross-track scan');};
+  f.host.audioLayer.edges=()=>{throw Error('unnecessary audio scan');};
+  assert.equal(f.resolve(2000,true),1000);
+});
+
 test('pointer collision limits preserve multi-selection offsets and cannot skip obstacles', () => {
   const fixture = layerPointerFixture([{ start: 1000, end: 2000 }, { start: 3000, end: 4000 }, { start: 5003, end: 6000 }], { indices: [0, 1] });
   assert.equal(fixture.resolve(9000), 1003); // exact imported boundary, not a 10ms grid

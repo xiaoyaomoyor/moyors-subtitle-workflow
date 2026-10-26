@@ -9,7 +9,7 @@ test.setTimeout(120000);
 test.beforeAll(async()=>{
   const dir=makeTempDir('editor-latency'),media=join(dir,'video.mp4'),project=join(dir,'project.mosp');
   process.env.MSW_APP_DATA_ROOT=join(dir,'settings');process.env.MAW_ENV_FILE=join(dir,'isolated.env');
-  execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-f','lavfi','-i','color=c=darkblue:s=640x360:r=25:d=6','-c:v','libx264','-pix_fmt','yuv420p',media],{windowsHide:true});
+  execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-f','lavfi','-i','color=c=darkblue:s=640x360:r=25:d=96','-c:v','libx264','-pix_fmt','yuv420p',media],{windowsHide:true});
   const segments=Array.from({length:400},(_,i)=>({id:'main-'+i,start:i*3000,end:i*3000+2000,text:'Subtitle '+i}));
   const secondary=segments.map((c,i)=>({...c,id:'secondary-'+i,text:'Translation '+i}));
   writeFileSync(project,JSON.stringify({media,segments,multi_subtitle:{enabled:true,tracks:[{id:'translation',segments:secondary}],
@@ -25,6 +25,37 @@ test.beforeEach(async({page})=>{
   await page.evaluate(()=>{player.pause();updateEditorSettings({autoSaveProject:false,selectBoundSubtitlePair:false});});
 });
 const paint=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+test('windowed previews match full export geometry and refresh after seeking beyond the current window',async({page})=>{
+  await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:30000});
+  const result=await page.evaluate(async()=>{
+    const host=MSWE.resolve('processing-host'),S=MSWSubtitleStyle,preview=S.currentPreview();
+    const project=host.subtitlePreviewProject();MSWProjectStyle.apply(project,preview.style);
+    const full=await S.request('subtitle-preview',{project,target:preview.target,video:{width:player.videoWidth,height:player.videoHeight}});
+    const fullById=new Map(full.geometry.map(g=>[g.key,g]));
+    const rows=MSWSubtitleRenderer.geometry;
+    return {count:rows.length,full:full.geometry.length,equal:rows.every(g=>JSON.stringify(g.position)===JSON.stringify(fullById.get(g.key)?.position))};
+  });
+  expect(result.equal).toBe(true);expect(result.count).toBeLessThan(result.full/5);
+  await page.evaluate(()=>{seekFromWaveform(91);});
+  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text==='Subtitle 30'));
+  expect(await page.evaluate(()=>MSWSubtitleRenderer.geometry.some(r=>r.text==='Subtitle 0'))).toBe(false);
+  await page.evaluate(()=>{seekFromWaveform(1);});
+  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text==='Subtitle 0'));
+});
+
+test('a failed preview refresh preserves libass and never measures every hidden CSS subtitle',async({page})=>{
+  await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:30000});
+  await page.evaluate(()=>{selectOnly(0);window.fallbackLayouts=0;const original=fixedPreviewLayout;fixedPreviewLayout=(...args)=>{fallbackLayouts++;return original(...args);};});
+  await page.route('**/subtitle-preview',route=>route.fulfill({status:500,json:{ok:false,error:'Test transient error'}}));
+  await page.evaluate(()=>{cuePanelText.value='Temporary failure';cuePanelText.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.waitForFunction(()=>MSWSubtitleRenderer.diagnostics.some(e=>e.event==='update-error'));
+  expect(await page.evaluate(()=>({status:MSWSubtitleRenderer.status,layouts:fallbackLayouts}))).toEqual({status:'libass',layouts:0});
+  await page.unroute('**/subtitle-preview');
+  await page.evaluate(()=>{cuePanelText.value='Recovered latest';cuePanelText.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text==='Recovered latest'));
+  expect(await page.evaluate(()=>fallbackLayouts)).toBe(0);
+});
 
 test('clearing dirty indicators after save does not rebuild or change the next save snapshot',async({page})=>{
   const result=await page.evaluate(async()=>{
@@ -199,6 +230,7 @@ test('preview snapshots do not commit edits, save history, or include waveform a
 
 test('rapid text edits coalesce, discard obsolete preview geometry and preserve unchanged cards',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const initialText=await page.evaluate(()=>DATA.segments[0].text);
   await page.evaluate(()=>{selectOnly(0);seekFromWaveform(.5);});
   await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:30000});
   let arrived,release;const waiting=new Promise(r=>arrived=r),held=new Promise(r=>release=r),requests=[];
@@ -231,7 +263,7 @@ test('rapid text edits coalesce, discard obsolete preview geometry and preserve 
   expect(await page.evaluate(()=>MSWSubtitleRenderer.revision)).toBe(revision);
   expect(requests).toHaveLength(2);expect(errors).toEqual([]);
   await page.evaluate(()=>performUndo());
-  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text==='Subtitle 0'));
+  await page.waitForFunction(text=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text===text),initialText);
 });
 
 test('text-only commit updates labels without rebuilding the list; unchanged saving retains geometry',async({page})=>{

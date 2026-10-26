@@ -86,14 +86,33 @@
     const p={subtitles:{...model,tracks:view.subtitle_tracks.tracks,cues:[],bindings:[]}};
     core.normalizeGroups(p);model.next_track_number=p.subtitles.next_track_number;return view;
   }
-  function toProject(view) {
+  // Preview keeps complete overlap components, including bound partners. A
+  // neighbouring group can affect lane allocation indirectly, so a plain
+  // time crop is not sufficient to preserve the export layout.
+  function previewIds(view, range) {
+    const rows=[...(view.segments||[]),...(view.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)];
+    const parent=new Map(rows.map(c=>[c.id,c.id]));
+    const root=id=>{let next=id;while(parent.get(next)!==next)next=parent.get(next);while(id!==next){const old=parent.get(id);parent.set(id,next);id=old;}return next;};
+    const join=(a,b)=>{if(parent.has(a)&&parent.has(b))parent.set(root(a),root(b));};
+    let last=null,end=-Infinity;
+    for(const c of [...rows].sort((a,b)=>a.start-b.start)) {
+      if(c.start<end)join(last,c.id);
+      if(c.end>end||c.start>=end){last=c.id;end=c.end;}
+    }
+    for(const b of view.multi_subtitle?.bindings||[])join(b.main_segment_ids[0],b.extension_segment_ids[0]);
+    const wanted=new Set(rows.filter(c=>c.start<range.end&&c.end>range.start).map(c=>root(c.id)));
+    return new Set(rows.filter(c=>wanted.has(root(c.id))).map(c=>c.id));
+  }
+  function toProject(view, {previewWindow=null}={}) {
     if(!isView(view))return core.migrate(view);
-    legacy.validate(view);
+    if(!previewWindow)legacy.validate(view);
+    const selected=previewWindow?previewIds(view,previewWindow):null;
     // Each cue is copied below. Do not first duplicate the same cue/word data
     // (and its operation-view metadata) only to discard those fields here.
     const p=clone(extras(view,structural)),context=view.subtitle_tracks.flat_context;
     p.schema=core.SCHEMA;
-    const m={...clone(context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
+    const m={...clone(previewWindow?extras(context.model,['migration']):context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
+    if(previewWindow)m.migration={schema:core.MIGRATION_SCHEMA,identities:[],structure:{segments:[],subtitle_layers:{presentation:clone(view.subtitle_layers?.presentation||{})}}};
     const owners=legacy.ownerMap(view),allIds=new Set();
     for(const t of view.subtitle_tracks.tracks)m.tracks.push({...clone(context.tracks[t.id]||{}),
       id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
@@ -101,9 +120,14 @@
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
     const byId=new Map(sources.flatMap(s=>s.segments).map(c=>[c.id,c]));
     for(const source of sources)for(const value of source.segments) {
-      const content=clone(value);delete content.id;
+      if(selected&&!selected.has(value.id))continue;
+      const content=clone(previewWindow?Object.fromEntries(Object.entries(value).filter(([k])=>!k.startsWith('_')&&!['items','start_frame','end_frame','sticker','sticker_ref'].includes(k))):value);delete content.id;
       for(const field of ['color','sticker']) {
         const ref=content[field+'_ref'];
+        if(previewWindow) {
+          if(ref){const head=source.segments[ref.headIdx];if(head?.[field])content[field]=clone(head[field]);delete content[field+'_ref'];}
+          continue;
+        }
         if(ref){const head=source.segments[ref.headIdx];if(!head)throw Error('字幕标记引用已失效');content[field+'_ref']={...ref,cue_id:head.id};delete content[field+'_ref'].headIdx;}
         else {const original=context.markers[value.id]?.[field];if(original&&same(content[field],original.value)) {
           const head=byId.get(original.ref.cue_id);
@@ -119,12 +143,13 @@
     }
     for(const b of view.multi_subtitle?.bindings||[]) {
       const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+      if(selected&&(!selected.has(a)||!selected.has(z)))continue;
       const reversed=context.bindingSources?.[a]===false||context.bindingSources?.[z]===true;
       m.bindings.push({...clone(context.bindings[b.id]||{}),id:b.id,source_id:reversed?z:a,target_id:reversed?a:z,
         start_offset_ms:(reversed?-1:1)*(b.start_offset_ms||0),end_offset_ms:(reversed?-1:1)*(b.end_offset_ms||0)});
     }
     // Display preference is not a track relationship.
-    p.subtitle_view={...p.subtitle_view,display_mode:view.multi_subtitle?.display_mode||'both',secondary_cue_ids:sources.filter(s=>s.role==='extension').flatMap(s=>s.segments.map(c=>c.id)),
+    p.subtitle_view={...p.subtitle_view,display_mode:view.multi_subtitle?.display_mode||'both',secondary_cue_ids:sources.filter(s=>s.role==='extension').flatMap(s=>s.segments.filter(c=>!selected||selected.has(c.id)).map(c=>c.id)),
       track_split_modes_migrated:true};
     delete p.subtitle_view.main_split_mode;delete p.subtitle_view.secondary_split_mode;
     core.normalizeGroups(p);core.validate(p);return p;

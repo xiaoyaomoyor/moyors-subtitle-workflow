@@ -34,7 +34,9 @@
   function sourceRows() {
     const exact=global.MSWSubtitleRenderer;
     const width=fixedVideoRect().referenceWidth;
-    if(exact?.status==='libass'&&exact.geometry.length) {
+    // Empty geometry is valid (a gap, disabled subtitles, or a document swap).
+    // Never measure the whole CSS fallback while the libass picture is active.
+    if(exact?.status==='libass'&&(exact.geometry.length||typeof fixedPresentationMode==='function'&&fixedPresentationMode())) {
       if(rowSource===exact.geometry&&rowWidth===width)return cachedRows;
       rowSource=exact.geometry;rowWidth=width;rowSerial++;
       return cachedRows=exact.geometry.map(r=>{
@@ -119,7 +121,7 @@
       }
       applyDom(current);
       stage.querySelector('.JASSUB')?.style.removeProperty('--controls-offset');
-    } else legacy(intersects?{y:bar.top,height:bar.height}:null,enabled);
+    } else if(exact?.status!=='libass'||typeof fixedPresentationMode==='function'&&!fixedPresentationMode())legacy(intersects?{y:bar.top,height:bar.height}:null,enabled);
   }
   const resize=new ResizeObserver(refresh);resize.observe(stage);resize.observe(controls);
   new MutationObserver(refresh).observe(stage,{subtree:true,childList:true,attributes:true,attributeFilter:['class','hidden','data-subtitle-renderer']});

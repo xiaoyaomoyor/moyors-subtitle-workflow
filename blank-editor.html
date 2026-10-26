@@ -19794,6 +19794,22 @@ export default MawDynamicCaptions;
     return project;
   }
 
+  // Pointer frames only alter ranges and ownership. Validate those constraints
+  // locally; the complete contract is still checked once at gesture commit.
+  function validateTimingChanges(project, changes, ownerChanges=new Map()) {
+    const owners=new Map(project.subtitle_tracks.assignments.map(a=>[a.cue_id,ownerChanges.get(a.cue_id)||a.subtitle_track_id]));
+    for(const b of project.multi_subtitle?.bindings||[])if(owners.get(b.main_segment_ids[0])===owners.get(b.extension_segment_ids[0]))fail('绑定字幕必须位于不同轨道');
+    const lanes=new Map();
+    for(const row of sourceRecords(project)) {
+      const cue=changes.get(row.cue.id)||row.cue,owner=owners.get(cue.id);
+      if(!Number.isSafeInteger(cue.start)||!Number.isSafeInteger(cue.end)||cue.start<0||cue.end<=cue.start)fail('字幕时间范围无效');
+      if(!lanes.has(owner))lanes.set(owner,[]);lanes.get(owner).push(cue);
+    }
+    for(const cues of lanes.values()) {
+      cues.sort((a,b)=>a.start-b.start);
+      for(let i=1;i<cues.length;i++)if(cues[i].start<cues[i-1].end)fail('目标轨道此处已有字幕，请调整位置');
+    }
+  }
   function createIndex(project) {
     validate(project);
     const tracks = new Map(project.subtitle_tracks.tracks.map(t => [t.id, t]));
@@ -19906,7 +19922,7 @@ export default MawDynamicCaptions;
     return { count, bands, positions, owners };
   }
   const api = { SCHEMA, TRACK_SCHEMA, LEGACY_TRACK_SCHEMA, flatView, purpose, placement, styleKind, key, migrate, validate, createIndex, assign,
-    ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout };
+    ownerMap, boundRefs, assertEditable, reconcile, assertLocks, addTrack, layout, validateTimingChanges };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSubtitleTracks = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -20904,14 +20920,33 @@ export default MawDynamicCaptions;
     const p={subtitles:{...model,tracks:view.subtitle_tracks.tracks,cues:[],bindings:[]}};
     core.normalizeGroups(p);model.next_track_number=p.subtitles.next_track_number;return view;
   }
-  function toProject(view) {
+  // Preview keeps complete overlap components, including bound partners. A
+  // neighbouring group can affect lane allocation indirectly, so a plain
+  // time crop is not sufficient to preserve the export layout.
+  function previewIds(view, range) {
+    const rows=[...(view.segments||[]),...(view.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)];
+    const parent=new Map(rows.map(c=>[c.id,c.id]));
+    const root=id=>{let next=id;while(parent.get(next)!==next)next=parent.get(next);while(id!==next){const old=parent.get(id);parent.set(id,next);id=old;}return next;};
+    const join=(a,b)=>{if(parent.has(a)&&parent.has(b))parent.set(root(a),root(b));};
+    let last=null,end=-Infinity;
+    for(const c of [...rows].sort((a,b)=>a.start-b.start)) {
+      if(c.start<end)join(last,c.id);
+      if(c.end>end||c.start>=end){last=c.id;end=c.end;}
+    }
+    for(const b of view.multi_subtitle?.bindings||[])join(b.main_segment_ids[0],b.extension_segment_ids[0]);
+    const wanted=new Set(rows.filter(c=>c.start<range.end&&c.end>range.start).map(c=>root(c.id)));
+    return new Set(rows.filter(c=>wanted.has(root(c.id))).map(c=>c.id));
+  }
+  function toProject(view, {previewWindow=null}={}) {
     if(!isView(view))return core.migrate(view);
-    legacy.validate(view);
+    if(!previewWindow)legacy.validate(view);
+    const selected=previewWindow?previewIds(view,previewWindow):null;
     // Each cue is copied below. Do not first duplicate the same cue/word data
     // (and its operation-view metadata) only to discard those fields here.
     const p=clone(extras(view,structural)),context=view.subtitle_tracks.flat_context;
     p.schema=core.SCHEMA;
-    const m={...clone(context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
+    const m={...clone(previewWindow?extras(context.model,['migration']):context.model),schema:core.MODEL_SCHEMA,tracks:[],cues:[],bindings:[]};p.subtitles=m;
+    if(previewWindow)m.migration={schema:core.MIGRATION_SCHEMA,identities:[],structure:{segments:[],subtitle_layers:{presentation:clone(view.subtitle_layers?.presentation||{})}}};
     const owners=legacy.ownerMap(view),allIds=new Set();
     for(const t of view.subtitle_tracks.tracks)m.tracks.push({...clone(context.tracks[t.id]||{}),
       id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
@@ -20919,9 +20954,14 @@ export default MawDynamicCaptions;
     const sources=[{role:'main',track_id:null,segments:view.segments},...(view.multi_subtitle?.tracks||[]).map(t=>({role:'extension',track_id:t.id,segments:t.segments}))];
     const byId=new Map(sources.flatMap(s=>s.segments).map(c=>[c.id,c]));
     for(const source of sources)for(const value of source.segments) {
-      const content=clone(value);delete content.id;
+      if(selected&&!selected.has(value.id))continue;
+      const content=clone(previewWindow?Object.fromEntries(Object.entries(value).filter(([k])=>!k.startsWith('_')&&!['items','start_frame','end_frame','sticker','sticker_ref'].includes(k))):value);delete content.id;
       for(const field of ['color','sticker']) {
         const ref=content[field+'_ref'];
+        if(previewWindow) {
+          if(ref){const head=source.segments[ref.headIdx];if(head?.[field])content[field]=clone(head[field]);delete content[field+'_ref'];}
+          continue;
+        }
         if(ref){const head=source.segments[ref.headIdx];if(!head)throw Error('字幕标记引用已失效');content[field+'_ref']={...ref,cue_id:head.id};delete content[field+'_ref'].headIdx;}
         else {const original=context.markers[value.id]?.[field];if(original&&same(content[field],original.value)) {
           const head=byId.get(original.ref.cue_id);
@@ -20937,12 +20977,13 @@ export default MawDynamicCaptions;
     }
     for(const b of view.multi_subtitle?.bindings||[]) {
       const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+      if(selected&&(!selected.has(a)||!selected.has(z)))continue;
       const reversed=context.bindingSources?.[a]===false||context.bindingSources?.[z]===true;
       m.bindings.push({...clone(context.bindings[b.id]||{}),id:b.id,source_id:reversed?z:a,target_id:reversed?a:z,
         start_offset_ms:(reversed?-1:1)*(b.start_offset_ms||0),end_offset_ms:(reversed?-1:1)*(b.end_offset_ms||0)});
     }
     // Display preference is not a track relationship.
-    p.subtitle_view={...p.subtitle_view,display_mode:view.multi_subtitle?.display_mode||'both',secondary_cue_ids:sources.filter(s=>s.role==='extension').flatMap(s=>s.segments.map(c=>c.id)),
+    p.subtitle_view={...p.subtitle_view,display_mode:view.multi_subtitle?.display_mode||'both',secondary_cue_ids:sources.filter(s=>s.role==='extension').flatMap(s=>s.segments.filter(c=>!selected||selected.has(c.id)).map(c=>c.id)),
       track_split_modes_migrated:true};
     delete p.subtitle_view.main_split_mode;delete p.subtitle_view.secondary_split_mode;
     core.normalizeGroups(p);core.validate(p);return p;
@@ -30267,6 +30308,7 @@ export default MawDynamicCaptions;
       if (lower > upper) { this.hideMagnetGuide(); return null; }
       const requested = clock.round(rawDelta);
       let delta = clamp(requested, lower, upper);
+      if(disableSnap){this.hideMagnetGuide();return delta;}
       const targets = segments.filter(segment => !moving.has(segment)
         && motions.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
         .flatMap(segment => [segment.start, segment.end]);
@@ -32521,7 +32563,9 @@ export default MawDynamicCaptions;
           if (segments[idx + 1] && isAttached(segments[idx], segments[idx + 1], timing)) cancelIndices.add(idx + 1);
         });
       }
-      const allOriginals = kind === 'move'
+      // Fixed-track movement cannot squeeze neighbours. Only the legacy
+      // squeezing tool needs a snapshot of every word on the storage track.
+      const allOriginals = kind === 'move' && !this.subtitleLayersEnabled()
         ? new Map(segments.map((segment, idx) => [idx, snapshotTiming(segment, timing)]))
         : null;
       const cancelOriginals = new Map([...cancelIndices].map((idx) => [idx, snapshotTiming(segments[idx], timing)]));
@@ -34178,6 +34222,85 @@ let fixedNumberCache = null;
 let fixedLastMessage = '';
 let productionSplitTrackId = null;
 let productionSelectionOrder = [];
+let fixedDragTransaction = null;
+function snapshotFixedTiming(record,label=record.label) {
+  const ids=new Set(record.cues.map(c=>c.id));
+  return {kind:'subtitle-timing',label,view:snapshotEditorSelection(),
+    cues:layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>ids.has(c.id)).map(c=>{
+      const copy=structuredClone(c);
+      for(const field of ['color_ref','sticker_ref'])if(copy[field]){copy[field].cue_id=s.segments[copy[field].headIdx]?.id;delete copy[field].headIdx;}
+      return copy;
+    })),
+    owners:DATA.subtitle_tracks.assignments.filter(a=>ids.has(a.cue_id)).map(a=>({...a}))};
+}
+function fixedBeginDragTransaction(drag,label) {
+  if(!productionFlatMode()||!['move','resize-left','resize-right'].includes(drag.kind))return false;
+  if(fixedDragTransaction)return true;
+  if(fixedPositionEditing)fixedStopPositioning(false);
+  if(!fixedAcceptEdit())return false;
+  const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
+  const ids=new Set(drag.indices.map(i=>source[i].id));
+  if(drag.kind!=='move')for(const id of fixedPositionSelectedIds())ids.add(id);
+  for(const b of DATA.multi_subtitle.bindings) {
+    const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+    if(ids.has(a)||drag.kind!=='move'&&ids.size>1&&ids.has(z)){ids.add(a);ids.add(z);}
+  }
+  // A marker reference's range is owned by its head, which may be outside
+  // the selection. Include that head in this same undo transaction.
+  for(const s of layerCore.tracks(DATA))for(const c of s.segments)if(ids.has(c.id))
+    for(const field of ['color_ref','sticker_ref'])if(c[field])ids.add(s.segments[c[field].headIdx]?.id);
+  fixedDragTransaction=snapshotFixedTiming({cues:[...ids].map(id=>({id})),label});
+  return true;
+}
+function fixedTimingCheckpoint(record) {
+  const ids=new Set(record.cues.map(c=>c.id));
+  for(const s of layerCore.tracks(DATA)) {
+    const target=s.role==='main'?fixedLastContent.segments:fixedLastContent.multi_subtitle.tracks.find(t=>t.id===s.track_id).segments;
+    const saved=new Map(target.map(c=>[c.id,c]));
+    target.splice(0,target.length,...s.segments.map(c=>{
+      if(ids.has(c.id))return structuredClone(c);
+      const previous=saved.get(c.id);
+      for(const field of ['color_ref','sticker_ref'])if(c[field])previous[field]=structuredClone(c[field]);
+      return previous;
+    }));
+  }
+  const owners=new Map(DATA.subtitle_tracks.assignments.filter(a=>ids.has(a.cue_id)).map(a=>[a.cue_id,a]));
+  fixedLastContent.subtitle_tracks.assignments=fixedLastContent.subtitle_tracks.assignments.map(a=>owners.has(a.cue_id)?{...owners.get(a.cue_id)}:a);
+  MULTI_SUBTITLE_UTILS.rebuildBindingOffsets(fixedLastContent.multi_subtitle,fixedLastContent.segments);
+  fixedLastContent.multi_subtitle._dirty=DATA.multi_subtitle._dirty;
+  for(const t of fixedLastContent.multi_subtitle.tracks)t._dirty=DATA.multi_subtitle.tracks.find(s=>s.id===t.id)?._dirty;
+  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+}
+function fixedRestoreTiming(record) {
+  const byId=new Map(record.cues.map(c=>[c.id,c]));
+  for(const s of layerCore.tracks(DATA)) {
+    const index=new Map(s.segments.map((c,i)=>[c.id,i]));
+    for(const c of s.segments)if(byId.has(c.id)) {
+      const saved=byId.get(c.id);
+      for(const k of Object.keys(c))delete c[k];Object.assign(c,structuredClone(saved));
+      for(const field of ['color_ref','sticker_ref'])if(c[field]){c[field].headIdx=index.get(c[field].cue_id);delete c[field].cue_id;}
+    }
+  }
+  const owners=new Map(record.owners.map(a=>[a.cue_id,a]));
+  DATA.subtitle_tracks.assignments=DATA.subtitle_tracks.assignments.map(a=>owners.has(a.cue_id)?{...owners.get(a.cue_id)}:a);
+  for(const s of layerCore.tracks(DATA))layerCore.sortTrack(s.segments);
+  syncBindingOffsets();fixedInvalidate();
+}
+function fixedApplyTimingHistory(record) {
+  fixedRestoreTiming(record);fixedTrackCore.validate(DATA);fixedTimingCheckpoint(record);
+  projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id))});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+}
+function fixedFinishDragTransaction() {
+  const record=fixedDragTransaction;if(!record)return false;
+  fixedDragTransaction=null;
+  try {
+    fixedTrackCore.validate(DATA);
+    const now=snapshotFixedTiming(record);
+    for(const a of [...record.owners,...now.owners])if(DATA.subtitle_tracks.tracks.find(t=>t.id===a.subtitle_track_id)?.locked)throw Error('操作包含锁定轨道，请先解锁');
+    if(JSON.stringify([record.cues,record.owners])!==JSON.stringify([now.cues,now.owners]))editorHistory.push(record);
+    fixedTimingCheckpoint(record);updateUndoRedoButtons();return true;
+  }catch(error){fixedRestoreTiming(record);fixedTimingCheckpoint(record);fixedStatus(error.message);return true;}
+}
 function productionRememberSelection() {
   if(!productionFlatMode())return;
   const ids=[...selectedIdxs].map(i=>DATA.segments[i]?.id).concat([...selectedExtensionIdxs].map(i=>getActiveExtensionTrack()?.segments[i]?.id)).filter(Boolean);
@@ -34285,7 +34408,7 @@ function fixedContentKey() {
     subtitle_layers:DATA.subtitle_layers,subtitle_tracks:DATA.subtitle_tracks});
 }
 function fixedReset() {
-  fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
+  fixedDragTransaction=null;fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
 }
 function fixedBeginEdit() {
   if(fixedPositionEditing)fixedStopPositioning(false);
@@ -34579,11 +34702,10 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   if (productionFlatMode() && ['resize-left','resize-right'].includes(drag.kind)) return fixedResizeSelection(drag, rawDelta, disableSnap);
   if(!productionFlatMode()||drag.kind!=='move')return null;
   const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
-  if(!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
+  if(!drag.fixedMove&&!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
     drag.destinationPreview={...drag.destinationPreview,blocked:true,reason:fixedLastMessage};return false;
   }
   if(!drag.fixedMove) {
-    ensureBoundDragTimelineOriginals(drag);
     const entries=drag.indices.map(index=>({cue:source[index],original:structuredClone(source[index]),index}));
     const followers=waveformEditor.options.getSubtitleDragFollowers(drag).map(f=>({cue:f.segment,original:structuredClone(f.segment),index:f.index}));
     for(const follower of followers)ensureBoundDragOriginal(drag,follower.index,follower.cue);
@@ -34627,13 +34749,14 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
       if(clock.unit==='frames'){clock.setStart(next,clock.fromMs(next.start));clock.setEnd(next,clock.fromMs(next.end));}
       next.items=remapPanelItems(original.items,original.start,original.end,next.start,next.end);changes.set(follower.cue.id,next);
     }
-    const segments=DATA.segments.map(c=>changes.get(c.id)||c);
-    const multi={...DATA.multi_subtitle,tracks:DATA.multi_subtitle.tracks.map(t=>({...t,segments:t.segments.map(c=>changes.get(c.id)||c)}))};
-    const byId=new Map([...segments,...multi.tracks.flatMap(t=>t.segments)].map(c=>[c.id,c]));
-    bindings=multi.bindings.map(b=>({...b,start_offset_ms:byId.get(b.extension_segment_ids[0]).start-byId.get(b.main_segment_ids[0]).start,
-      end_offset_ms:byId.get(b.extension_segment_ids[0]).end-byId.get(b.main_segment_ids[0]).end}));
-    multi.bindings=bindings;
-    fixedTrackCore.validate({...DATA,segments,multi_subtitle:multi});
+    state.byId ||= new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,c])));
+    bindings=DATA.multi_subtitle.bindings.map(b=>{
+      const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+      if(!changes.has(a)&&!changes.has(z))return b;
+      const main=changes.get(a)||state.byId.get(a),secondary=changes.get(z)||state.byId.get(z);
+      return {...b,start_offset_ms:secondary.start-main.start,end_offset_ms:secondary.end-main.end};
+    });
+    fixedTrackCore.validateTimingChanges(DATA,changes,moving);
   } catch(error) {drag.destinationPreview.reason=error.message;return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
   const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
@@ -34667,9 +34790,9 @@ function fixedResizeSelection(drag, rawDelta, disableSnap) {
   if(!drag.fixedResize) {
     const rows=layerCore.tracks(DATA).flatMap(s=>s.segments.map((cue,index)=>({cue,index,source:s})));
     const ids=new Set([...selectedIdxs].map(i=>DATA.segments[i]?.id).concat([...selectedExtensionIdxs].map(i=>getActiveExtensionTrack()?.segments[i]?.id)));
-    if(ids.size<2)return null;
-    const p=MSWProductionProject.toProject(DATA);
-    for(const b of p.subtitles.bindings)if(ids.has(b.source_id)||ids.has(b.target_id)){ids.add(b.source_id);ids.add(b.target_id);}
+    if(ids.size<2){ids.clear();for(const i of drag.indices)ids.add((drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments)[i].id);}
+    const linkedBoth=ids.size>1;
+    for(const b of DATA.multi_subtitle.bindings){const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];if(ids.has(a)||linkedBoth&&ids.has(z)){ids.add(a);ids.add(z);}}
     const entries=rows.filter(e=>ids.has(e.cue.id));
     if(entries.some(e=>fixedTrack(e.cue,e.source.role,e.source.track_id)?.locked))return false;
     drag.fixedResize=entries.map(e=>({...e,original:structuredClone(e.cue)}));
@@ -37999,6 +38122,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
   if(kind==='subtitle-appearance')return snapshotFixedAppearance(sourceRecord,label);
   if(kind==='cue-markers')return snapshotCueMarkers(sourceRecord.changes,label);
   if (kind === 'project-style') return {kind,label,...window.MSWProjectStyle.capture(DATA)};
@@ -38090,6 +38214,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-timing')return fixedApplyTimingHistory(record);
   if(record.kind==='subtitle-appearance')return fixedCommitAppearance(record,record.label,{restore:true});
   if(record.kind==='cue-markers') {
     const cues=new Map(layerCore.tracks(DATA).flatMap(t=>t.segments.map(c=>[c.id,c])));
@@ -42870,7 +42995,7 @@ function alignSelectedExtensionSubtitleRanges() {
 }
 
 // === 渲染 ===
-function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor } = {}) {
+function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null } = {}) {
   queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
   layerPrepareRender();
@@ -42888,6 +43013,19 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const dockHandle = container.querySelector(':scope > .dock-handle');
   const cueListToolbar = container.querySelector(':scope > .cue-list-toolbar');
   const emptyState = cuesEmpty;
+  // A timing transaction does not alter text or binding structure. Reuse rows
+  // whose identities AND indices are unchanged: their event handlers capture
+  // those indices. Reordered/affected rows still use the normal builders.
+  const rowKey=(main,extension,track)=>JSON.stringify([main||'',extension||'',track||'']);
+  const reusable=changedCueIds?new Map([...container.querySelectorAll(':scope > .cue')]
+    .map(el=>[rowKey(el.dataset.mainId,el.dataset.extId,el.dataset.trackId),el])):null;
+  const cueRow=(main,extension,track,mainIndex,extIndex,build)=>{
+    const old=reusable?.get(rowKey(main?.id,extension?.id,extension?track?.id:null));
+    if(old&&!changedCueIds.has(main?.id)&&!changedCueIds.has(extension?.id)
+      &&(mainIndex==null||Number(old.dataset.mainIdx??old.dataset.idx)===mainIndex)
+      &&(extIndex==null||Number(old.dataset.extIdx)===extIndex))return old;
+    return build();
+  };
   container.replaceChildren();
   if (dockHandle) container.appendChild(dockHandle);
   if (cueListToolbar) container.appendChild(cueListToolbar);
@@ -42905,11 +43043,11 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const rows = [];
   if (!multiVisible || displayMode === 'main') {
     DATA.segments.forEach((seg, i) => {
-      if (fixedTrackMode() || !layerMode() || layerCore.visible(DATA, seg)) rows.push({ start: seg.start, order: 0, el: buildCueEl(seg, i) });
+      if (fixedTrackMode() || !layerMode() || layerCore.visible(DATA, seg)) rows.push({ start: seg.start, order: 0, el: cueRow(seg,null,null,i,null,()=>buildCueEl(seg, i)) });
     });
   } else if (displayMode === 'extension') {
     const track = getActiveExtensionTrack();
-    track.segments.forEach((seg, i) => rows.push({ start: seg.start, order: 0, el: buildExtensionCueEl(seg, i, track) }));
+    track.segments.forEach((seg, i) => rows.push({ start: seg.start, order: 0, el: cueRow(null,seg,track,null,i,()=>buildExtensionCueEl(seg, i, track)) }));
   } else {
     const track = getActiveExtensionTrack();
     const bindings = getMultiSubtitleState().bindings;
@@ -42922,7 +43060,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
       rows.push({
         start: mainSeg ? mainSeg.start : (extensionSeg ? extensionSeg.start : 0),
         order: 0,
-        el: buildDualCueEl(row.mainIndex, row.extensionIndex, track),
+        el: cueRow(mainSeg,extensionSeg,track,row.mainIndex,row.extensionIndex,()=>buildDualCueEl(row.mainIndex, row.extensionIndex, track)),
       });
     });
   }
@@ -59683,15 +59821,14 @@ document.addEventListener('asr:waveform-loudness-unavailable', () => {
   flashHint('当前媒体没有可用于适配的波形或响度数据', 'warning');
 });
 
-function syncTimelineGroupRanges() {
+function syncTimelineGroupRanges(changedIds=null) {
   function sync(segments, headField, refField) {
+    const ends=new Map();
+    for(const c of segments)if(c[refField])ends.set(c[refField].headIdx,Math.max(ends.get(c[refField].headIdx)||0,c.end));
     segments.forEach((segment, headIdx) => {
       const head = segment[headField];
-      if (!head) return;
-      let end = segment.end;
-      segments.forEach((candidate) => {
-        if (candidate[refField]?.headIdx === headIdx) end = Math.max(end, candidate.end);
-      });
+      if (!head || changedIds&&!changedIds.has(segment.id)) return;
+      const end = Math.max(segment.end,ends.get(headIdx)||0);
       head.start = segment.start;
       head.end = end;
     });
@@ -59786,9 +59923,10 @@ function initWaveformEditor() {
     canApplySubtitleRanges: (role, ranges) => layerCanApplyRanges(role, ranges, role === 'main'),
     onCancelCueDrag: (drag, {rejected = false} = {}) => {
       if (layerMode()) { layerPendingDragHistory = null; restoreBoundDragTimelineOriginals(drag); fixedCancelMoveDrag(drag); layerInvalidate(); }
+      if(fixedDragTransaction){fixedRestoreTiming(fixedDragTransaction);fixedDragTransaction=null;}
       if (rejected && drag.destinationPreview?.reason) fixedStatus(drag.destinationPreview.reason);
     },
-    onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; },
+    onDiscardCueEdit: () => { if (layerMode()) layerPendingDragHistory = null; fixedDragTransaction=null; },
     getAllowSubtitleOverlap: layerAllowOverlap,
     isSubtitleVisible: (cue, role) => !layerMode() || layerCore.visible(DATA, cue, role),
     getMediaDurationMs: () => Number(DATA.media_metadata?.duration_ms) || 0,
@@ -59981,6 +60119,7 @@ function initWaveformEditor() {
     toggleAudioTrackMuted: (id) => window.MSWE?.resolve('audio-timeline')?.toggleAudioTrackMuted?.(id),
     onAudioTrackContextMenu: (id, x, y) => fixedAudioTrackMenu(id, x, y),
     onBeginEdit: (label) => {
+      if(waveformEditor?.drag&&fixedBeginDragTransaction(waveformEditor.drag,label))return;
       if (fixedTrackMode() && !layerPendingDragHistory) fixedBeginEdit();
       if (layerMode() && waveformEditor?.drag) {
         layerPendingDragHistory ||= EDITOR_SETTINGS_UTILS.buildHistoryRecord('segments', label, snapshotSegments(), snapshotEditorSelection());
@@ -60006,7 +60145,8 @@ function initWaveformEditor() {
           });
         }
       }
-      syncTimelineGroupRanges();
+      const timingIds=fixedDragTransaction?new Set(fixedDragTransaction.cues.map(c=>c.id)):null;
+      syncTimelineGroupRanges(timingIds);
       // 拖动预览期间保持下标稳定；提交时再整理副轨数组，避免冲突裁剪后
       // 原本位于目标前面的字幕保留右侧区间而落到目标之后，保存时违反顺序契约。
       if (multiSubtitleVisible() && track !== 'overlay') sortExtensionTrackSegments(getActiveExtensionTrack());
@@ -60019,12 +60159,17 @@ function initWaveformEditor() {
           idxs.forEach((idx) => { if (overlay.segments[idx]) overlay.segments[idx]._dirty = true; });
         }
       }
-      if (linkedChanged || multiSubtitleVisible() || track === 'extension') markMultiSubtitleDirty();
-      renderAll();
+      if(timingIds) {
+        const selection=snapshotEditorSelection();
+        for(const s of layerCore.tracks(DATA)){for(const c of s.segments)if(timingIds.has(c.id))c._dirty=true;layerCore.sortTrack(s.segments);}
+        restoreEditorSelection(selection);
+      } else if (linkedChanged || multiSubtitleVisible() || track === 'extension') markMultiSubtitleDirty();
+      const validated=fixedFinishDragTransaction();
+      renderAll({changedCueIds:timingIds});
       updateWithoutCueListAutoScroll();
       // 移动/裁切的松手总结气泡已按需求移除：拖动期间的实时数据仍挂在
       // 右上常显数据行（quiet 状态），结束后由 refreshMediaReadout 还原。
-      scheduleAutoSaveFlush();
+      scheduleAutoSaveFlush({validated});
     },
     onPayload: (payload) => {
       DATA.waveform = payload;
@@ -62254,15 +62399,17 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     scheduleAutoSaveFlush();
     return plan;
   },
-  subtitlePreviewProject: () => {
+  subtitlePreviewProject: (previewWindow = null) => {
     // Preview is a read, not a save/commit transaction. Exclude media caches,
     // workspace, task history and word timings before cloning the live view.
     const fields=['schema','segments','multi_subtitle','subtitle_tracks','subtitle_layers','subtitles','subtitle_view','overlay_track','preview','color_palette'];
     const source=Object.fromEntries(fields.filter(k=>DATA[k]!==undefined).map(k=>[k,DATA[k]]));
     const cue=c=>Object.fromEntries(Object.entries(c).filter(([k])=>k!=='items'&&!k.startsWith('_')&&!['start_frame','end_frame','sticker','sticker_ref'].includes(k)));
-    if(source.segments)source.segments=source.segments.map(cue);
-    if(source.multi_subtitle)source.multi_subtitle={...source.multi_subtitle,tracks:source.multi_subtitle.tracks.map(t=>({...t,segments:t.segments.map(cue)}))};
-    let project=productionFlatMode()?window.MSWProductionProject.toProject(source):structuredClone(source);
+    if(!previewWindow||!productionFlatMode()) {
+      if(source.segments)source.segments=source.segments.map(cue);
+      if(source.multi_subtitle)source.multi_subtitle={...source.multi_subtitle,tracks:source.multi_subtitle.tracks.map(t=>({...t,segments:t.segments.map(cue)}))};
+    }
+    let project=productionFlatMode()?window.MSWProductionProject.toProject(source,{previewWindow}):structuredClone(source);
     project.preview ||= {};
     project.preview.burn_ass_library=structuredClone(ASS_STYLE_LIBRARY);
     const options=speakerExportOptions();
@@ -69373,6 +69520,13 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;
   let previewRevision=0,previewEvents=[],previewGeometry=[],previewWrites=Promise.resolve();
   let controlsOffsets=new Map(),positionOffsets=new Map(),queuedWrites=0;
+  const diagnostics=[];
+  function trace(event,detail={}) {
+    diagnostics.push({event,at:Math.round(performance.now()),time:host.player.currentTime,
+      status:stage.dataset.subtitleRenderer,video:[host.player.videoWidth,host.player.videoHeight],
+      canvas:renderer?{width:renderer._canvas?.width,height:renderer._canvas?.height}:null,...detail});
+    if(diagnostics.length>80)diagnostics.shift();
+  }
   function clearPreviewDocument() {
     previewRevision++;previewEvents=[];previewGeometry=[];
     controlsOffsets=new Map();positionOffsets=new Map();
@@ -69411,9 +69565,11 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   const fontManifests=new Map();let loadedFontIds=new Set();
   const badge=document.createElement('span');badge.id='subtitle-render-status';badge.className='msw-style-render-status';badge.setAttribute('role','status');
   const stage=document.querySelector('.player-stage');stage.append(badge);
+  new ResizeObserver(()=>trace('viewport',{box:[Math.round(stage.clientWidth),Math.round(stage.clientHeight)],
+    frame:renderer?[renderer._videoWidth,renderer._videoHeight]:null})).observe(stage);
   function syncBadge(){badge.hidden=host.subtitlePreviewTarget()==='none';}
   syncBadge();
-  function fallback(text) {stage.dataset.subtitleRenderer='approximate';badge.textContent=host.flat?text.replace(/近似预览/g,'字幕预览不可用'):text;}
+  function fallback(text) {if(stage.dataset.subtitleRenderer!=='approximate')trace('fallback',{reason:text});stage.dataset.subtitleRenderer='approximate';badge.textContent=host.flat?text.replace(/近似预览/g,'字幕预览不可用'):text;}
   // A previous video's offscreen canvas must leave the DOM synchronously. Worker
   // cleanup can take longer, especially when the project changes during startup.
   function disposeRenderer() {
@@ -69434,9 +69590,13 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     if(next!==observedPlayer) {
       observedPlayer?.removeEventListener('emptied',resetMedia);
       observedPlayer?.removeEventListener('loadeddata',invalidate);
+      observedPlayer?.removeEventListener('timeupdate',playbackWindow);
+      observedPlayer?.removeEventListener('seeking',playbackWindow);
       observedPlayer=next;
       next.addEventListener('emptied',resetMedia);
       next.addEventListener('loadeddata',invalidate);
+      next.addEventListener('timeupdate',playbackWindow);
+      next.addEventListener('seeking',playbackWindow);
       resetMedia();
     }
   }
@@ -69451,11 +69611,11 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       fallback('字幕渲染失败，已使用近似预览：'+error.message);disposeRenderer();host.refreshStylePreview();
     });
   }
-  async function fonts(style) {
+  async function fonts(style,project) {
     const scriptFamilies=s=>global.AsrEditorUtils.ASS_FONT_SCRIPTS.map(([,k])=>s?.[k]);
     const familyNames=s=>[s.main,s.secondary,s.annotation?.main,s.annotation?.secondary].flatMap(scriptFamilies);
-    const cueFonts=[...(host.data.subtitles?.cues||[]).map(c=>c.content),...(host.data.segments||[]),...(host.data.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>scriptFamilies(c.subtitle_style));
-    const families=[...new Set([...familyNames(style),...(host.data.preview?.speaker_palette?.rows||[]).flatMap(r=>scriptFamilies(r.style)),...cueFonts,...(host.data.subtitles?.tracks||host.data.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
+    const cueFonts=[...(project.subtitles?.cues||[]).map(c=>c.content),...(project.segments||[]),...(project.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>scriptFamilies(c.subtitle_style));
+    const families=[...new Set([...familyNames(style),...(project.preview?.speaker_palette?.rows||[]).flatMap(r=>scriptFamilies(r.style)),...cueFonts,...(project.subtitles?.tracks||project.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
     if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
     const manifest=await fontManifests.get(fontKey);
     const bytes=await Promise.all(manifest.fonts.map(async item=>{
@@ -69464,9 +69624,19 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     }));
     return {bytes,manifest};
   }
-  function signature(preview) {
+  let windowBucket=-1;
+  function playbackWindow() {
+    const bucket=Math.floor(host.player.currentTime/30);
+    if(bucket!==windowBucket)invalidate();
+  }
+  function snapshot() {
+    const bucket=Math.floor(Math.max(0,host.player.currentTime)/30);
+    const range={start:Math.max(0,(bucket-1)*30000),end:(bucket+2)*30000};
+    return {bucket,project:host.subtitlePreviewProject?host.subtitlePreviewProject(range):host.exportProject()};
+  }
+  function signature(preview,project) {
     return JSON.stringify([host.generation,mediaSource(host.player),preview,host.player.videoWidth,host.player.videoHeight,
-      host.data.subtitles,host.data.segments,host.data.multi_subtitle,host.data.overlay_track,host.data.subtitle_layers,host.data.subtitle_tracks,host.subtitleRenderSettings()],(name,value)=>{
+      project,host.subtitleRenderSettings()],(name,value)=>{
         if(name==='items'||name.startsWith('_')||name==='start_frame'||name==='end_frame')return undefined;
         // The adapter's original migration snapshots are not live render data.
         if(name==='flat_context')return {bindingSources:value?.bindingSources};
@@ -69480,7 +69650,20 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     // to commit the editor's old time fields and snap the cue back to its start.
     if(host.editingGestureActive)return;
     if(!styles.ready){fallback(styles.error?'字幕样式加载失败：'+styles.error:'正在加载工程字幕样式…');return;}
-    const preview=styles.currentPreview(),signatureKey=signature(preview);
+    const started=performance.now(),preview=styles.currentPreview();
+    if(!host.config?.processingUrl || host.player.tagName!=='VIDEO') {fallback(preview.label+' · 近似预览'+(!host.config?.processingUrl?'（便携模式）':''));return;}
+    // Seeking can briefly drop readyState without replacing the media. Keep
+    // the existing ASS renderer instead of flashing the CSS fallback.
+    if(host.player.readyState<2||!host.player.videoWidth){if(!renderer){key='';fallback(preview.label+' · 等待视频画面');}return;}
+    let state,signatureKey;
+    try {state=snapshot();signatureKey=signature(preview,state.project);}
+    catch(error){
+      trace('snapshot-error',{reason:error.message});
+      if(renderer)badge.textContent=preview.label+' · 更新失败：'+error.message;
+      else fallback(preview.label+' · 字幕预览不可用：'+error.message);
+      return;
+    }
+    windowBucket=state.bucket;
     // Player replacement resets key; a failed renderer should not be recreated
     // by every poll while the media and subtitle settings remain unchanged.
     if(key===signatureKey)return;
@@ -69489,25 +69672,24 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     // same document and repeatedly clears its temporary control-bar offsets.
     if(pending){again=true;return;}
     key=signatureKey;
-    if(!host.config?.processingUrl || host.player.tagName!=='VIDEO') {fallback(preview.label+' · 近似预览'+(!host.config?.processingUrl?'（便携模式）':''));return;}
-    if(host.player.readyState<2||!host.player.videoWidth){key='';fallback(preview.label+' · 等待视频画面');return;}
     pending=true;const ticket=++serial,generation=host.generation,target=host.player,targetSource=mediaSource(host.player);
     const current=()=>ticket===serial&&generation===host.generation&&target===host.player&&targetSource===mediaSource(target);
+    let swapping=false;
     try {
-      let project=host.subtitlePreviewProject?host.subtitlePreviewProject():host.exportProject();
+      let project=state.project;
       if(preview.scope==='export')project.preview.speaker_label_export=document.getElementById('video-export-speaker-labels').checked;
       if(preview.scope==='export'&&project.schema==='msw.project.v4')project=global.MSWProductionProject.exportScope(project,preview.trackIds);
       if(preview.scope==='proof'||preview.other)global.MSWProjectStyle.applyPreset(project,preview.style,{proof:preview.scope==='proof'});else global.MSWProjectStyle.apply(project,preview.style);
       for(const field of ['waveform','spectral','waveform_reapeaks','workspace'])delete project[field];
       const [payload,loaded,mod]=await Promise.all([
         styles.request('subtitle-preview',{project,target:preview.target,video:{width:host.player.videoWidth,height:host.player.videoHeight}}),
-        fonts(preview.style),modulePromise||=import('/subtitle-renderer/jassub.js')]);
+        fonts(preview.style,project),modulePromise||=import('/subtitle-renderer/jassub.js')]);
       if(!current())return;
       // An old request must not overwrite more recent edits. Keep the current
       // canvas until the latest document is ready, and coalesce interim edits.
-      if(signature(styles.currentPreview())!==signatureKey){key='';again=true;return;}
+      if(signature(styles.currentPreview(),snapshot().project)!==signatureKey){key='';again=true;trace('discard');return;}
       if(payload.layoutVersion!==global.MSWProjectStyle.layoutVersion)throw Error('编辑器服务尚未加载更新，请保存工程并重新启动本机编辑器；仅刷新页面无效。');
-      clearPreviewDocument();await previewWrites;
+      swapping=true;clearPreviewDocument();await previewWrites;
       if(!current())return;
       if(!renderer || video!==target || source!==targetSource) {
         disposeRenderer();fallback(preview.label+' · 正在加载字幕渲染…');
@@ -69541,13 +69723,18 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       // it. A settings-window repaint must not be needed to reveal the video.
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(!current())return;
-      if(signature(styles.currentPreview())!==signatureKey){key='';again=true;return;}
+      if(signature(styles.currentPreview(),snapshot().project)!==signatureKey){key='';again=true;trace('discard');return;}
       stage.dataset.subtitleRenderer='libass';
+      trace('document',{elapsed:Math.round(performance.now()-started),cues:payload.geometry?.length,scope:preview.scope,
+        fontSizes:[...new Set(eventStyles.map(s=>s.FontSize))],frame:renderer?[renderer._videoWidth,renderer._videoHeight]:null});
       global.MSWPreviewControls?.refresh();
-      if(payload.geometry?.length)global.fixedReceiveGeometry?.(payload.geometry);
+      if(payload.geometry)global.fixedReceiveGeometry?.(payload.geometry);
       badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'');
       badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。播放控制条避让仅临时调整预览位置。';
-    } catch(error) {if(current()){fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}}
+    } catch(error) {if(current()){
+      if(renderer&&!swapping){trace('update-error',{reason:error.message});badge.textContent=preview.label+' · 更新失败：'+error.message;}
+      else {fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}
+    }}
     finally {pending=false;if(again){again=false;invalidate();}}
   }
   function invalidate(){
@@ -69564,7 +69751,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   // Existing editing paths do not all dispatch an event; compare state without
   // rebuilding an ASS document or starting a network request unless it changed.
   setInterval(()=>{if(!document.hidden)void update();},750);
-  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,applyPositionOffsets,get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined||queuedWrites>0;},get status(){return stage.dataset.subtitleRenderer;}};
+  global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,applyPositionOffsets,get diagnostics(){return structuredClone(diagnostics);},get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined||queuedWrites>0;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
   }
   global.MSWCreateSubtitleRenderer=create;
@@ -69607,7 +69794,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   function sourceRows() {
     const exact=global.MSWSubtitleRenderer;
     const width=fixedVideoRect().referenceWidth;
-    if(exact?.status==='libass'&&exact.geometry.length) {
+    // Empty geometry is valid (a gap, disabled subtitles, or a document swap).
+    // Never measure the whole CSS fallback while the libass picture is active.
+    if(exact?.status==='libass'&&(exact.geometry.length||typeof fixedPresentationMode==='function'&&fixedPresentationMode())) {
       if(rowSource===exact.geometry&&rowWidth===width)return cachedRows;
       rowSource=exact.geometry;rowWidth=width;rowSerial++;
       return cachedRows=exact.geometry.map(r=>{
@@ -69692,7 +69881,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       }
       applyDom(current);
       stage.querySelector('.JASSUB')?.style.removeProperty('--controls-offset');
-    } else legacy(intersects?{y:bar.top,height:bar.height}:null,enabled);
+    } else if(exact?.status!=='libass'||typeof fixedPresentationMode==='function'&&!fixedPresentationMode())legacy(intersects?{y:bar.top,height:bar.height}:null,enabled);
   }
   const resize=new ResizeObserver(refresh);resize.observe(stage);resize.observe(controls);
   new MutationObserver(refresh).observe(stage,{subtree:true,childList:true,attributes:true,attributeFilter:['class','hidden','data-subtitle-renderer']});
