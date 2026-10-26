@@ -23,6 +23,72 @@ test.beforeEach(async({page})=>{
 test.afterEach(async()=>{await server?.stop();});
 async function settings(page){await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.getByRole('button',{name:'说话人色系',exact:true}).click();}
 
+test('speaker schemes carry names and appearance across projects with explicit mapping, undo and independent snapshots',async({page,browser})=>{
+  await page.evaluate(()=>{
+    const row=MSWSpeaker.ensure(DATA).rows[0];Object.assign(row,{name:'Erwyn',names:{'zh-hans':'艾尔文'},mode:'stroke',color:'#33aa44',style:{fontSize:60}});
+    speakerPaletteChanged();
+  });
+  await settings(page);await page.locator('#speaker-scheme-save').click();await page.locator('#speaker-scheme-name').fill('同一期团录');
+  await page.locator('#speaker-scheme-form button[type=submit]').click();
+  await expect(page.locator('#speaker-scheme-status')).toContainText('方案已保存');
+  const scheme=await page.evaluate(()=>JSON.parse(MSWConfig.storage.getItem('msw.speaker-schemes.v1')).schemes[0]);
+  expect(scheme.rows[0].id).not.toBe('yellow');expect(scheme.rows[0].scheme_ref).toBeUndefined();
+  const raw=await page.evaluate(()=>MSWConfig.request({action:'export',categories:['speakerSchemes']}));
+  expect(raw.package.sections.speakerSchemes.schemes[0]).toEqual(scheme);
+  const second=join(dir,'second.mosp'),media=join(dir,'video.mp4');
+  const model=await page.evaluate(()=>{
+    let p=MSWFlatSubtitles.migrate({language:'en',segments:[{id:'different',start:0,end:3000,text:'Second video',items:[],color:{name:'green',start:0,end:3000}}]});
+    const main=p.subtitles.tracks[0];p=MSWFlatSubtitles.addTrack(p,{...main,id:'chinese',language:'zh',secondary_for:main.id,style:{...main.style,slot:'secondary'}});
+    p.subtitles.cues.push({id:'translated',track_id:'chinese',content:{start:0,end:3000,text:'第二个视频',items:[],color_ref:{cue_id:p.subtitles.cues[0].id},subtitle_style:{outlineColor:'#abcdef'}}});
+    p=MSWFlatSubtitles.bind(p,p.subtitles.cues[0].id,'translated','pair');
+    MSWSpeaker.ensure(p);p.preview.speaker_labels_visible=true;return p;
+  });
+  writeFileSync(second,JSON.stringify({...model,media,waveform:generateWaveformPayload(6000)}));
+  const other=await startServer(second,media,await findFreePort()),target=await browser.newPage(),errors=[];
+  target.on('pageerror',e=>errors.push(e.message));
+  try{
+    await disableOnboarding(target);await target.goto(other.url);await target.waitForFunction(()=>MSWSubtitleStyle?.ready&&player.readyState>=2);
+    await target.evaluate(()=>{updateEditorSettings({autoSaveProject:false,exportSpeakerLabels:true});player.currentTime=1;});
+    await settings(target);await target.locator('#speaker-scheme-select').selectOption(scheme.id);await target.locator('#speaker-scheme-open').click();
+    expect(await target.locator('#speaker-scheme-mapping-rows select').evaluateAll(rows=>rows.map(r=>r.value))).toEqual(['','','','','']);
+    await expect(target.locator('#speaker-scheme-mapping-rows')).toContainText('2 条 · Second video');
+    const before=await target.evaluate(()=>JSON.parse(buildJson()));
+    await target.locator('#speaker-scheme-mapping-rows select[data-speaker-id="green"]').selectOption(scheme.rows[0].id);
+    await expect(target.locator('#speaker-scheme-plan')).toHaveText('更新 1 人 · 新增 0 人');
+    await target.screenshot({path:join(dir,'speaker-scheme-mapping.png')});
+    await target.evaluate(()=>{updateEditorSettings({themePreset:'alice',colors:null});applyThemeAndColors();});
+    await expect(target.locator('html')).toHaveAttribute('data-theme','light');
+    await target.screenshot({path:join(dir,'speaker-scheme-mapping-light.png')});
+    await target.locator('#speaker-scheme-apply').click();
+    const applied=await target.evaluate(()=>JSON.parse(buildJson()));
+    expect(applied.subtitles).toEqual(before.subtitles);expect(applied.preview.speaker_palette.rows[0]).toEqual(before.preview.speaker_palette.rows[0]);
+    expect(applied.preview.speaker_palette.rows[1]).toMatchObject({id:'green',name:'Erwyn',names:{'zh-hans':'艾尔文'},color:'#33aa44',scheme_ref:{scheme_id:scheme.id,person_id:scheme.rows[0].id}});
+    await target.evaluate(()=>performUndo());expect(await target.evaluate(()=>DATA.preview.speaker_palette)).toEqual(before.preview.speaker_palette);
+    await target.evaluate(()=>performRedo());expect(await target.evaluate(()=>DATA.preview.speaker_palette)).toEqual(applied.preview.speaker_palette);
+    await target.evaluate(()=>setEditorSettingsPanelOpen(false));
+    await target.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('艾尔文：')),null,{timeout:20000});
+    const ass=await target.evaluate(()=>fixedAssDocument());expect(ass).toContain('Erwyn：');expect(ass).toContain('艾尔文：');expect(ass).toContain('EFCDAB');
+    await target.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);expect(await target.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
+    await target.reload();await target.waitForFunction(()=>MSWSubtitleStyle?.ready&&player.readyState>=2);
+    await settings(target);await target.locator('#speaker-scheme-select').selectOption(scheme.id);await target.locator('#speaker-scheme-open').click();
+    await expect(target.locator('#speaker-scheme-mapping-rows select[data-speaker-id="green"]')).toHaveValue(scheme.rows[0].id);
+    await expect(target.locator('#speaker-scheme-plan')).toHaveText('更新 0 人 · 新增 0 人');
+    await target.locator('#speaker-scheme-cancel').click();await target.locator('#speaker-scheme-delete').click();await target.locator('#speaker-scheme-delete-confirm').click();
+    await expect(target.locator('#speaker-scheme-status')).toContainText('方案已删除');
+    expect(await target.evaluate(()=>DATA.preview.speaker_palette.rows[1].name)).toBe('Erwyn');
+    expect(JSON.parse(readFileSync(second)).preview.speaker_palette.rows[1].scheme_ref.person_id).toBe(scheme.rows[0].id);
+    // The first window still has the old library. It must not resurrect a
+    // scheme deleted in the second window or silently overwrite that change.
+    await page.locator('#speaker-palette-rows tr[data-speaker-id="yellow"] input[type="text"]').first().fill('Erwyn updated');
+    await page.locator('#speaker-palette-rows tr[data-speaker-id="yellow"] input[type="text"]').first().press('Tab');
+    await page.locator('#speaker-scheme-overwrite').click();await page.locator('#speaker-scheme-form button[type=submit]').click();
+    await expect(page.locator('#speaker-scheme-status')).toContainText('其他窗口');
+    const persisted=await target.evaluate(()=>MSWConfig.request({action:'export',categories:['speakerSchemes']}));
+    expect(persisted.package.sections.speakerSchemes.schemes).toEqual([]);
+    expect(errors).toEqual([]);
+  }finally{await target.close();await other.stop();}
+});
+
 test('localized speaker names follow physical languages through UI, preview, SRT, ASS and reopen',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.evaluate(()=>{

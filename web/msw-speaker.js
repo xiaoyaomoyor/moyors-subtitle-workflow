@@ -53,6 +53,8 @@
     return value?.version===1&&Array.isArray(value.rows)&&value.rows.length>=1&&value.rows.length<=1024
       &&new Set(value.rows.map(r=>r?.id)).size===value.rows.length&&value.rows.every(r=>r&&typeof r.id==='string'&&/^[a-zA-Z0-9_-]{1,160}$/.test(r.id)
         &&typeof r.name==='string'&&r.name.trim()&&r.name.length<=64&&!/[\u0000-\u001f\u007f]/.test(r.name)
+        &&(r.scheme_ref===undefined||r.scheme_ref&&Object.keys(r.scheme_ref).length===2
+          &&['scheme_id','person_id'].every(k=>typeof r.scheme_ref[k]==='string'&&/^[a-zA-Z0-9_-]{1,160}$/.test(r.scheme_ref[k])))
         &&(r.names===undefined||r.names&&typeof r.names==='object'&&!Array.isArray(r.names)&&Object.keys(r.names).length<=64
           &&Object.entries(r.names).every(([k,v])=>k&&k===language(k)&&typeof v==='string'&&v.trim()&&v.length<=64&&!/[\u0000-\u001f\u007f]/.test(v)))
         &&/^#[\da-f]{6}$/i.test(r.color)&&modes.includes(r.mode)&&typeof r.separator==='string'&&r.separator.length<=16&&!/[\u0000-\u001f\u007f]/.test(r.separator)

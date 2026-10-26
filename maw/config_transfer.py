@@ -13,6 +13,7 @@ from maw.user_config import (FORMAT, VERSION, LIMIT, MISSING, REGISTRY, ENV_KEYS
 CATEGORIES = {
     'interface': '界面与编辑操作', 'waveform': '波形与工作区', 'launcher': '启动器',
     'subtitlePresets': '字幕样式预设', 'preview': '预览偏好', 'assStyles': 'ASS 样式库',
+    'speakerSchemes': '说话人方案',
     'processing': '翻译与文本处理', 'tts': '配音设置', 'recovery': '工程备份设置', 'onboarding': '首次使用提示',
 }
 # Keep their schema available to validate existing files and internal backups,
@@ -31,7 +32,7 @@ def paths(category):
         result += [['launcher', key] for key in sorted(ENV_KEYS)]
     if category == 'waveform':
         result += [['server', key] for key in sorted(SERVER_KEYS)]
-    if category in ('subtitlePresets', 'assStyles'):
+    if category in ('subtitlePresets', 'speakerSchemes', 'assStyles'):
         result += [[category]]
     if category in ('processing', 'tts', 'recovery'):
         result += [['defaults', 'postprocess' if category == 'processing' else category]]
@@ -134,6 +135,8 @@ def dependency_errors(sections):
 
 def notes(categories):
     result = []
+    if 'speakerSchemes' in categories:
+        result.append('说话人方案包含名字、译名、颜色、外观与动画；导入只更新方案库，在工程中确认对应后应用。字体文件不打包。')
     if 'subtitlePresets' in categories or 'assStyles' in categories:
         result.append('字体文件不随配置传输；目标机器需安装所用字体。')
     if 'tts' in categories:
@@ -187,6 +190,8 @@ def prepare(before, raw, categories, policy):
                     continue
                 if path == ['subtitlePresets'] and old is not MISSING:
                     new = dict(version=1, presets=merge_library(old.get('presets', []), new.get('presets', [])))
+                elif path == ['speakerSchemes'] and old is not MISSING:
+                    new = dict(version=1, schemes=merge_library(old.get('schemes', []), new.get('schemes', [])))
                 elif path == ['browser', 'moy.asr.editor.customThemes.v1'] and old is not MISSING:
                     new = merge_library(old, new)
                 else:

@@ -9,6 +9,14 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '说话人方案': 'Speaker schemes', '选择方案': 'Choose a scheme', '对应并应用': 'Match and apply',
+    '更新所选说话人方案': 'Update selected speaker scheme', '另存为说话人方案': 'Save as speaker scheme',
+    '删除说话人方案': 'Delete speaker scheme', '方案名称': 'Scheme name', '保存方案': 'Save scheme', '删除方案': 'Delete scheme',
+    '说话人对应': 'Speaker matching', '当前工程': 'Current project', '方案中的说话人': 'Speaker in scheme',
+    '保持当前': 'Keep current', '未标记字幕': 'No marked subtitles', '确认应用': 'Apply',
+    '补充方案中未对应的说话人': 'Add unmatched speakers from scheme', '加入尚未对应的工程说话人': 'Include unmatched project speakers',
+    '请先对应并应用方案': 'Match and apply the scheme first',
+    '方案保存名字、译名、颜色、外观和动画，可在配置管理中导出。不同工程的 SP 编号不代表同一个人，请先确认对应；应用后可一次撤销，单条手动样式优先。': 'Schemes store names, translations, colors, appearance and animation, and can be exported through Configuration management. SP numbers do not identify the same person across projects. Confirm matches before applying; undo once to revert. Individual subtitle overrides retain priority.',
     '名称语言': 'Name language', '默认名称': 'Default name', '轨道语言': 'Track language', '未指定（默认名称）': 'Unspecified (default name)',
     '名称按轨道语言显示；留空使用默认名称。轨道语言可在轨道按钮的右键菜单中调整。': 'Names follow the track language; a blank translation uses the default name. Set the language in the track button context menu.',
     '“名称语言”可为同一说话人填写不同语言的名字；轨道右键设置“轨道语言”，预览和导出据此显示。译名留空使用默认名称，交换列表左右列不会改变名字。': 'Use Name language to enter translations for the same speaker. Set Track language from its context menu for preview and export. A blank translation uses the default name; swapping list columns does not change names.',

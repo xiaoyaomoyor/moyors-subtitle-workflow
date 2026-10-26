@@ -38,6 +38,11 @@ def validate(value):
         if not isinstance(identity, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,160}', identity) or identity in ids:
             raise ValueError('说话人编号无效或重复')
         ids.add(identity)
+        if 'scheme_ref' in row:
+            ref = row['scheme_ref']
+            if (not isinstance(ref, dict) or set(ref) != {'scheme_id', 'person_id'}
+                    or any(not isinstance(v, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,160}', v) for v in ref.values())):
+                raise ValueError('说话人方案对应无效')
         if 'names' in row:
             names = row['names']
             if not isinstance(names, dict) or len(names) > 64 or any(

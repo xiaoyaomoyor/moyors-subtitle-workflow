@@ -1098,6 +1098,7 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 | `style` | 可选的部分外观覆盖，字段与单条 `subtitle_style` 相同；不包含轨道位置、边距或锚点 |
 | `style_preset` | 可选的预设 ID，仅记录编辑来源；实际外观由 `style` 保存 |
 | `animation` | 可选动画覆盖，与 `subtitle_animation` 使用同一校验和按效果继承规则 |
+| `scheme_ref` | 可选 `{scheme_id,person_id}`，两个值均为 1–160 个英文字母、数字、`_` 或 `-`；只记录明确确认的方案人物对应，不作为渲染依赖，也不替代本工程 `id` |
 
 默认五行 SP1–SP5、旧五色色值、不着色、分隔符 `：`。可添加至 1024 行。第 0 行是界面的批量操作，不写入 `rows`。当前 `color.name` / `color_ref.name` 存储说话人行的稳定 ID；沿用前五个 ID `yellow/green/red/purple/blue`，新增一般为 `speaker-N`。同色、同名的两行仍是不同身份。原始 ASR `speaker` 元数据不改变；旧工程已有颜色标记按 ID 迁入，不从 RGB 反推或改写人工标记。
 
@@ -1109,9 +1110,19 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 
 媒体播放器设置的“在预览中显示说话人”保存为 `preview.speaker_labels_visible` 布尔值，与着色模式独立。缺省时保持旧规则：只有 `speaker` 模式显示前缀。该模式只给名称着色；其他模式显示名称时使用正文外观。SRT、ASS 和视频导出独立选择是否添加名称；ASS/视频请求使用 `preview.speaker_label_export` 布尔值覆盖预览规则，这个临时字段不属于普通工程保存。名称和前缀从不写回正文、TTS 文本或原始识别身份。每人的分隔符独立保存；按说话人分别导出时文件后缀可用名称，重名自动消歧、非法文件名字符自动替换。
 
-以下 beta.3/beta.6 字段仅用于读取旧工程；一旦存在 `speaker_palette`，以新表格为准。
+### 可复用说话人方案
+
+用户配置的 `sections.speakerSchemes` 保存 `{version:1,schemes:[{id,name,rows}]}`，默认空库，最多 64 个方案。方案 `id` 为 1–160 字符稳定标识，名称为 1–80 字符、非空且无控制字符；库内方案 ID 和名称分别唯一。每个方案最多 1024 人，至少 1 人；人物 `id` 是独立生成的稳定标识，不复用工程中的 `yellow`、`green` 或 SP 序号来推断身份。
+
+人物行只允许 `id/name/names/color/mode/separator/style/animation`，后七项规则沿用工程说话人表；未知字段拒绝。外观和动画保存实际覆盖参数，不保存 `style_preset`、工程 `scheme_ref`、字幕 ID、原始 ASR speaker、媒体路径、音色或密钥；没有独立覆盖的参数继续继承目标工程轨道。通过配置管理的 `speakerSchemes` 分类导入导出，不自动应用到工程。
+
+“对应并应用”输入为工程行 ID → 方案人物 ID；留空保留原行。只对已有且相同 `scheme_id/person_id` 的关系自动预选，不按名称、SP 编号、RGB 或顺序推断。允许多个识别身份对应同一方案人物，工程行及字幕绑定不合并；更新方案时若这些行的描述不同则拒绝静默覆盖。可显式补充尚未对应的方案人物，使用新的工程行 ID，不重复添加已有对应的人。
+
+应用复制名称／译名、颜色、模式、分隔符及样式／动画覆盖到工程，并记录 `scheme_ref`；不改字幕正文、时间、归属、绑定、原始识别身份或单条手动覆盖，操作支持一次撤销。保存新方案或更新方案时记录已保存人物的对应；更新默认只处理已有对应，可显式加入未对应的人，未出现在本工程的方案人物保留。删除或导入覆盖本机方案库不改变已保存工程；缺少方案时仍按工程快照渲染。
 
 ### beta.6 说话人导出兼容（历史）
+
+以下 beta.3/beta.6 字段仅用于读取旧工程；一旦存在 `speaker_palette`，以新表格为准。
 
 新建空工程显式设置 `preview.subtitle.speaker_labels.enabled: true`，映射仍默认关闭。缺字段的旧工程保持预览关闭；显式 true/false 原样读取。名称导出偏好保留用户明确关闭的值，`exportSpeakerLabelsExplicit` 只保存于本机编辑器偏好。
 

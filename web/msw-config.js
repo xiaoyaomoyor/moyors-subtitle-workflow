@@ -151,6 +151,7 @@
       else rawSet(key,rule.encoding==='text'?String(value):JSON.stringify(value));
     }
     if(!send)rawSet('msw.config.offline.v1',JSON.stringify(view));
+    global.dispatchEvent?.(new CustomEvent('msw:config-adopted'));
   }
   async function request(payload) {
     await ready;await flush();

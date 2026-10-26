@@ -14,6 +14,7 @@ msw-flat-subtitles.js
 msw-flat-editing.js
 msw-batch-editing.js
 msw-speaker.js
+msw-speaker-schemes.js
 msw-flat-processing-core.js
 msw-production-project.js
 msw-track-presentation.js
@@ -58,6 +59,7 @@ msw-subtitle-animation-ui.js
 msw-video-color-picker.js
 msw-font-picker.js
 msw-project-style-ui.js
+msw-speaker-schemes-ui.js
 msw-preview-avoidance.js
 msw-subtitle-renderer.js
 msw-preview-controls.js

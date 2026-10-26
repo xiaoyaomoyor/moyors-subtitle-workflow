@@ -7,7 +7,7 @@
   const get=(v,path)=>path.reduce((x,k)=>x?.[k],v);
   function put(v,path,value){for(const key of path.slice(0,-1)){v[key]??={};v=v[key];}if(value===undefined)delete v[path.at(-1)];else v[path.at(-1)]=clone(value);}
   const object=v=>v&&typeof v==='object'&&!Array.isArray(v);
-  const offlineIds=['interface','waveform','subtitlePresets','preview','assStyles','onboarding'];
+  const offlineIds=['interface','waveform','subtitlePresets','speakerSchemes','preview','assStyles','onboarding'];
   const offlineHistory='msw.config.snapshots.v1';
   function safe(value,depth=0){
     if(depth>40)throw Error('配置层级过深');
@@ -37,6 +37,7 @@
       const ids=new Set(['default','large','contrast','bilingual']);
       for(const item of library.presets){if(typeof item.id!=='string'||!item.id||ids.has(item.id))throw Error('预设标识重复或无效');ids.add(item.id);global.MSWProjectStyle.normalize(item);}
     }
+    if(raw.sections.speakerSchemes)global.MSWSpeakerSchemes.validate(raw.sections.speakerSchemes);
     return raw;
   }
   function keep(old,value){if(old===undefined)return clone(value);if(object(old)&&object(value))return {...old,...Object.fromEntries(Object.entries(value).map(([k,v])=>[k,keep(old[k],v)]))};return old;}
@@ -59,6 +60,7 @@
       let conflicts=0;
       for(const path of paths){const old=get(after,path);let value=get(raw.sections,path);if(old!==undefined&&!equal(old,value))conflicts++;if(payload.policy==='keep'&&value===undefined)continue;
         if(payload.policy==='keep'&&path[0]==='subtitlePresets'&&old)value={version:1,presets:mergeLibrary(old.presets,value.presets)};
+        else if(payload.policy==='keep'&&path[0]==='speakerSchemes'&&old)value={version:1,schemes:mergeLibrary(old.schemes,value.schemes)};
         else if(payload.policy==='keep'&&path[1]==='moy.asr.editor.customThemes.v1'&&old)value=mergeLibrary(old,value);
         else if(payload.policy==='keep')value=keep(old,value);
         put(after,path,value);
@@ -160,7 +162,7 @@
       <div id="config-preview-result" aria-live="polite"></div><p id="config-message" role="status"></p>
       <details class="config-scope-details"><summary>详情说明</summary>
       <p><strong>工程文件（.mosp）：</strong>保存字幕、时间、轨道与绑定、工程样式和说话人、音频贴片与空隙、工程布局及上次保存的播放位置。媒体仅保存引用，原视频、音频及素材文件需一并保留。</p>
-      <p><strong>配置文件（.mswconfig）：</strong>仅导出勾选分类的个人设置，如主题、布局、编辑与播放偏好、样式预设、识别／翻译／配音参数和工程备份规则；不包含工程字幕和媒体。</p>
+      <p><strong>配置文件（.mswconfig）：</strong>仅导出勾选分类的个人设置，如主题、布局、编辑与播放偏好、样式预设、说话人方案、识别／翻译／配音参数和工程备份规则；不包含工程字幕和媒体。说话人方案需在工程中确认对应后应用，不自动替换现有说话人。</p>
       <p><strong>不导出：</strong>密钥、账号与私人音色、文件路径、最近工程、任务记录、备份文件和波形缓存。</p>
       <p><strong>导入后：</strong>只更新所选分类，不改动当前工程或运行中的任务；界面设置重开窗口后生效，处理参数用于下一次任务。</p></details></div>
       <footer><button id="config-export" type="button">导出 .mswconfig</button><button id="config-preview" type="button" hidden>预览变更</button><button id="config-apply" type="button" hidden disabled>确认应用</button></footer>`;

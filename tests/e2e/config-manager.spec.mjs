@@ -37,14 +37,14 @@ test('editor import previews, isolates categories, preserves project and rolls b
     await expect(page.locator('.config-scope-details')).toContainText('配置文件（.mswconfig）');
     await expect(page.locator('.config-scope-details')).toContainText('不导出：');
     await expect(page.locator('.config-scope-details')).toContainText('媒体仅保存引用');
-    await expect(page.locator('[data-config-category]')).toHaveCount(8);
+    await expect(page.locator('[data-config-category]')).toHaveCount(9);
     await expect(page.locator('#config-categories')).not.toContainText('ASS');
     await expect(page.locator('#config-categories')).not.toContainText('首次使用');
     const all=page.getByRole('checkbox',{name:'配置分类',exact:true});
     await expect(all).toBeChecked();
     await page.locator('[data-config-category][value="tts"]').uncheck();
     expect(await all.evaluate(e=>e.indeterminate)).toBe(true);
-    await all.click();await expect(page.locator('[data-config-category]:checked')).toHaveCount(8);
+    await all.click();await expect(page.locator('[data-config-category]:checked')).toHaveCount(9);
     await all.uncheck();await expect(page.locator('[data-config-category]:checked')).toHaveCount(0);
     await all.check();
     const fonts=await page.locator('.msw-config-manager').evaluate(e=>[...e.querySelectorAll('legend label,#config-categories label,nav button,footer button')].map(x=>getComputedStyle(x).fontSize));
@@ -102,7 +102,7 @@ test('stale previews and invalid files cannot change settings',async({page})=>{
 test('portable editor transfers browser preferences and named legacy workspace',async({page})=>{
   await page.goto(pathToFileURL(resolve('blank-editor.html')).href);await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);await open(page);
   await expect(page.locator('#config-message')).toContainText('便携 HTML');
-  await expect(page.locator('[data-config-category]')).toHaveCount(4);
+  await expect(page.locator('[data-config-category]')).toHaveCount(5);
   await page.locator('[data-config-mode="import"]').click();await expect(page.locator('#config-all')).toBeDisabled();
   // An old file may contain retired categories; only selected current settings
   // are imported, and the onboarding flag remains local.
@@ -129,13 +129,13 @@ test('launcher entry uses common manager and native export bridge',async({page})
     MSWLauncher.backend='real';
     const original=MSWLauncher.callBackend;
     MSWLauncher.callBackend=async(method,payload)=>{configCalls.push(method);if(method==='save_user_config_file')return {ok:true};return original(method,payload);};
-    const categories=Object.entries({interface:'界面与编辑操作',waveform:'波形与工作区',launcher:'启动器',subtitlePresets:'字幕样式预设',preview:'预览偏好',processing:'翻译与文本处理',tts:'配音设置',recovery:'工程备份设置',assStyles:'ASS 样式库',onboarding:'首次使用提示'}).map(([id,name])=>({id,name,paths:[],retired:['assStyles','onboarding'].includes(id)}));
+    const categories=Object.entries({interface:'界面与编辑操作',waveform:'波形与工作区',launcher:'启动器',subtitlePresets:'字幕样式预设',speakerSchemes:'说话人方案',preview:'预览偏好',processing:'翻译与文本处理',tts:'配音设置',recovery:'工程备份设置',assStyles:'ASS 样式库',onboarding:'首次使用提示'}).map(([id,name])=>({id,name,paths:[],retired:['assStyles','onboarding'].includes(id)}));
     MSWConfig.connect({registry:{},sections:{},transfer:categories},async p=>p.action==='catalog'?{categories}:{});
     MSWLauncher.openSettings();
   });
   await page.locator('#launcher-config-manager-open').click();await expect(page.locator('.msw-config-manager')).toBeVisible();await page.locator('#config-export').click();await expect(page.locator('#config-message')).toContainText('已导出');
   await expect(page.locator('dialog.msw-config-manager')).toHaveCount(0);
-  await expect(page.locator('[data-config-category]')).toHaveCount(8);
+  await expect(page.locator('[data-config-category]')).toHaveCount(9);
   await expect(page.locator('#launcher-config-manager-open')).toHaveAttribute('aria-selected','true');
   await expect(page.locator('#settingsAppearancePanel')).toBeHidden();
   expect(await page.evaluate(()=>configCalls)).toContain('save_user_config_file');

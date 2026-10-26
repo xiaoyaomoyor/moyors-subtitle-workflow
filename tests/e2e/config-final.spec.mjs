@@ -5,6 +5,31 @@ import {makeTempDir,cleanupTempDir,findFreePort,startServer,generateWav,generate
 
 test.beforeEach(()=>{delete process.env.MSW_APP_DATA_ROOT;delete process.env.MAW_APP_DATA_ROOT;});
 
+test('portable speaker scheme import stays separate from project and subsequent deletion persists',async({page})=>{
+  await page.goto(pathToFileURL(resolve('blank-editor.html')).href);await page.waitForFunction(()=>MSWSubtitleStyle?.ready);
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const original=await page.evaluate(()=>JSON.stringify(DATA));
+  const imported=await page.evaluate(async()=>{
+    const scheme={id:'series',name:'便携团录',rows:[{...MSWSpeaker.row(0,'person-1'),name:'Erwyn',names:{'zh-hans':'艾尔文'}}]};
+    const raw={format:'msw-config',version:1,kind:'preferences',categories:['speakerSchemes'],sections:{speakerSchemes:{version:1,schemes:[scheme]}}};
+    const request={package:raw,categories:['speakerSchemes'],policy:'replace'};
+    const p=await MSWConfig.request({...request,action:'preview'});await MSWConfig.request({...request,action:'import',revision:p.revision,token:p.token});
+    return (await MSWConfig.request({action:'export',categories:['speakerSchemes']})).package;
+  });
+  expect(imported.sections.speakerSchemes.schemes[0].rows[0].names['zh-hans']).toBe('艾尔文');
+  expect(await page.evaluate(()=>JSON.stringify(DATA))).toBe(original);
+  await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.getByRole('button',{name:'说话人色系',exact:true}).click();
+  await page.locator('#speaker-scheme-select').selectOption('series');await page.locator('#speaker-scheme-open').click();
+  await page.locator('#speaker-scheme-add-missing').check();await expect(page.locator('#speaker-scheme-plan')).toHaveText('更新 0 人 · 新增 1 人');
+  await page.locator('#speaker-scheme-apply').click();expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows.at(-1).name)).toBe('Erwyn');
+  await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows.length)).toBe(5);
+  await page.locator('#speaker-scheme-delete').click();await page.locator('#speaker-scheme-delete-confirm').click();await expect(page.locator('#speaker-scheme-status')).toContainText('方案已删除');
+  expect(await page.evaluate(()=>MSWConfig.snapshot.sections.speakerSchemes.schemes)).toEqual([]);
+  await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready);
+  expect(await page.evaluate(()=>JSON.parse(MSWConfig.storage.getItem('msw.speaker-schemes.v1')).schemes)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test('cache analysis uses the active media and cannot delete unreviewed files',async({page})=>{
   const root=makeTempDir('config-cache'),media=join(root,'synthetic.wav'),project=join(root,'fixture.mosp');
   generateWav(media);generateProjectJson(project);
@@ -12,7 +37,9 @@ test('cache analysis uses the active media and cannot delete unreviewed files',a
   page.on('pageerror',error=>errors.push(error.message));
   try{
     await page.goto(server.url);await page.waitForFunction(()=>window.MSWConfig?.connected);
-    const before=await page.evaluate(()=>JSON.stringify(DATA));
+    // Boot may write the saved playhead while cache I/O runs. Compare content,
+    // not that independent navigation checkpoint.
+    const before=await page.evaluate(()=>{const {editor_state,...content}=DATA;return JSON.stringify(content);});
     await page.evaluate(()=>MSWConfigManager.open());
     await expect(page.locator('[data-config-mode]')).toHaveCount(2);
     await expect(page.locator('#config-cache-analyze')).toHaveCount(0);
@@ -20,7 +47,7 @@ test('cache analysis uses the active media and cannot delete unreviewed files',a
     expect(report.media).toBe('synthetic.wav');expect(report.count).toBe(0);
     const denied=await page.evaluate(async()=>{try{await MSWConfig.request({action:'cache-clean',token:'invalid-preview'});return '';}catch(e){return e.message;}});
     expect(denied).toContain('重新分析');
-    expect(await page.evaluate(()=>JSON.stringify(DATA))).toBe(before);
+    expect(await page.evaluate(()=>{const {editor_state,...content}=DATA;return JSON.stringify(content);})).toBe(before);
     await page.screenshot({path:'output/config56-cache-panel.png'});
     expect(errors).toEqual([]);
   }finally{await server.stop();cleanupTempDir(root);}

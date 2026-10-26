@@ -50,6 +50,8 @@ _register('MSW_SETTINGS_TAB_V1 MSW_LAUNCHER_PAGE MSW_TOOLS_PAGE_TOOL_V1 MSW_LAUN
 _register('MSW_HOME_GROUPS_V2', 'launcher')
 _register('msw.subtitle-presets.v1', 'subtitlePresets')
 REGISTRY['msw.subtitle-presets.v1']['path'] = ['subtitlePresets', 'presets']
+_register('msw.speaker-schemes.v1', 'speakerSchemes')
+REGISTRY['msw.speaker-schemes.v1']['path'] = ['speakerSchemes']
 _register('moy.asr.ass.styles.v1', 'assStyles')
 REGISTRY['moy.asr.ass.styles.v1']['path'] = ['assStyles']
 
@@ -128,7 +130,7 @@ def _safe_json(value, depth=0):
 
 
 def validate(sections):
-    if not isinstance(sections, dict) or set(sections) - {'browser', 'launcher', 'server', 'subtitlePresets', 'assStyles', 'defaults'}:
+    if not isinstance(sections, dict) or set(sections) - {'browser', 'launcher', 'server', 'subtitlePresets', 'speakerSchemes', 'assStyles', 'defaults'}:
         raise ValueError('不支持的配置分类')
     _safe_json(sections)
     if len(json.dumps(sections, ensure_ascii=False, allow_nan=False).encode()) > LIMIT:
@@ -169,6 +171,9 @@ def validate(sections):
     if 'assStyles' in sections:
         if not isinstance(sections['assStyles'], dict):
             raise ValueError('样式库格式无效')
+    if 'speakerSchemes' in sections:
+        from maw.msw.speaker_schemes import validate as validate_schemes
+        validate_schemes(sections['speakerSchemes'])
     if 'defaults' in sections:
         from maw.config_defaults_schema import validate as validate_defaults
         validate_defaults(sections['defaults'])
@@ -252,7 +257,7 @@ class UserConfig:
                 if current != expected and current != desired:
                     conflicts.append(path)
                 _put(after['sections'], path, desired)
-                if len(path) >= 2 and path[0] in ('browser', 'launcher', 'subtitlePresets', 'assStyles'):
+                if len(path) >= 2 and path[0] in ('browser', 'launcher', 'subtitlePresets', 'speakerSchemes', 'assStyles'):
                     markers.add(f'browser:{path[0]}:{path[1]}')
             if conflicts:
                 raise ConfigConflict(conflicts)
@@ -329,7 +334,7 @@ class UserConfig:
             values = payload.get('sections', {})
             if not isinstance(values, dict):
                 raise ValueError('配置分类格式无效')
-            if set(values) - {'browser', 'subtitlePresets', 'assStyles', 'launcher'}:
+            if set(values) - {'browser', 'subtitlePresets', 'speakerSchemes', 'assStyles', 'launcher'}:
                 raise ValueError('浏览器不能迁移服务器运行信息')
             return self.migrate(values, 'browser')
         if payload.get('action') == 'patch':

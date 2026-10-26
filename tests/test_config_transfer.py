@@ -66,7 +66,7 @@ class TransferTests(unittest.TestCase):
         self.store.update(['browser', key], 'done')
         rows = self.store.request({'action': 'catalog'})['categories']
         visible = [row['id'] for row in rows if not row['retired']]
-        self.assertEqual(len(visible), 8)
+        self.assertEqual(len(visible), 9)
         self.assertNotIn('assStyles', visible)
         self.assertNotIn('onboarding', visible)
         names = {row['id']: row['name'] for row in rows}
