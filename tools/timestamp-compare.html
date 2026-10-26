@@ -2183,14 +2183,25 @@
         || JSON.stringify(track.position) !== JSON.stringify(other.position))) fail(`“${track.name}”已锁定，不能修改样式或位置`);
     }
     const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
-    const canonical = cue => Object.fromEntries(Object.keys(cue).sort()
-      .filter(k => !k.startsWith('_') && !['start_frame', 'end_frame'].includes(k)).map(k => [k, cue[k]]));
+    const canonical = (row, project) => {
+      const cue=row.cue;
+      const segments=row.role==='main'?project.segments:project.multi_subtitle.tracks.find(t=>t.id===row.track_id).segments;
+      return Object.fromEntries(Object.keys(cue).sort()
+        .filter(k => !k.startsWith('_') && !['start_frame', 'end_frame'].includes(k)).map(k => {
+          // Inserting on another physical track changes display-array indices,
+          // but not the referenced cue. Locks protect content and identities.
+          if(['color_ref','sticker_ref'].includes(k)&&cue[k]) {
+            const ref={...cue[k],cue_id:segments[cue[k].headIdx]?.id};delete ref.headIdx;return [k,ref];
+          }
+          return [k,cue[k]];
+        }));
+    };
     const index = createIndex(before);
     for (const row of index.records({ includeHidden: true })) {
       if (!index.trackFor(row).locked) continue;
       const other = next.get(key(row));
       if (!other || owners.get(key(row)) !== row.subtitle_track_id
-        || JSON.stringify(canonical(row.cue)) !== JSON.stringify(canonical(other.cue))) fail(`“${index.trackFor(row).name}”已锁定，操作未提交`);
+        || JSON.stringify(canonical(row,before)) !== JSON.stringify(canonical(other,after))) fail(`“${index.trackFor(row).name}”已锁定，操作未提交`);
       const bindings = p => (p.multi_subtitle?.bindings || []).filter(b => row.role === 'main'
         ? b.main_segment_ids?.includes(row.cue_id) : b.track_id === row.track_id && b.extension_segment_ids?.includes(row.cue_id));
       if (JSON.stringify(bindings(before)) !== JSON.stringify(bindings(after))) fail('锁定轨道的绑定不能修改');

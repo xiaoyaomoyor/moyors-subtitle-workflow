@@ -24959,11 +24959,16 @@ function refreshClipboardMenuState() {
   if (cueCutButton) cueCutButton.disabled = !hasSelection;
   if (cueCopyButton) cueCopyButton.disabled = !hasSelection;
   if (cueDeleteButton) cueDeleteButton.disabled = !hasSelection;
-  if (cuePasteButton) cuePasteButton.disabled = !cueClipboardSegments?.length && !cueClipboardExtensionSegments?.length && !cueClipboardOverlaySegments.length;
+  if (cuePasteButton) cuePasteButton.disabled = !hasCueClipboard();
+}
+function hasCueClipboard() {
+  return productionFlatMode()?Boolean(productionClipboard?.rows.length):Boolean(cueClipboardSegments?.length||cueClipboardExtensionSegments?.length||cueClipboardOverlaySegments.length);
 }
 
 function copySelectedCues() {
-  productionCaptureClipboard();
+  if(productionFlatMode()) {
+    try{return productionCaptureClipboard();}catch(error){flashHint(error.message,'warning');return false;}
+  }
   const idxs = [...selectedIdxs].sort((a, b) => a - b);
   if (!idxs.length && !selectedExtensionIdxs.size && !selectedOverlayIdxs.size) return;
   cueClipboardSegments = idxs
@@ -24977,7 +24982,17 @@ function copySelectedCues() {
 }
 
 function cutSelectedCues() {
-  productionCaptureClipboard();
+  if(productionFlatMode()) {
+    try {
+      if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+      if(productionCaptureClipboard()) {
+        const ids=productionClipboard.rows.map(c=>c.id);
+        productionCommitProject(MSWFlatEditing.remove(MSWProductionProject.toProject(DATA),ids),'剪切字幕');
+      }
+    }
+    catch(error){flashHint(error.message,'warning');}
+    refreshClipboardMenuState();return;
+  }
   const idxs = [...selectedIdxs].sort((a, b) => a - b);
   if (!idxs.length && !selectedExtensionIdxs.size && !selectedOverlayIdxs.size) return;
   const extIdxs = [...selectedExtensionIdxs].sort((a, b) => a - b);
@@ -24992,7 +25007,7 @@ function cutSelectedCues() {
 }
 
 function pasteCuesFromClipboard() {
-  if(productionFlatMode()&&productionClipboard)return productionPasteClipboard();
+  if(productionFlatMode())return productionPasteClipboard();
   if (!cueClipboardSegments?.length && !cueClipboardExtensionSegments?.length && !cueClipboardOverlaySegments.length) return;
   if (editingState) finishEdit(true);
   commitCuePanelEdit();
@@ -25228,7 +25243,7 @@ document.addEventListener('keydown', (event) => {
     if (!selectedIdxs.size && !selectedExtensionIdxs.size) return;
     event.preventDefault();
     copySelectedCues();
-  } else if (cueClipboardSegments?.length || cueClipboardExtensionSegments?.length || cueClipboardOverlaySegments.length) {
+  } else if (hasCueClipboard()) {
     event.preventDefault();
     pasteCuesFromClipboard();
   }

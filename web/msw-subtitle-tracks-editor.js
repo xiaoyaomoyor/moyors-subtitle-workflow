@@ -459,25 +459,30 @@ function productionAppendBindingMenu() {
 }
 let productionClipboard=null;
 function productionCaptureClipboard() {
-  if(!productionFlatMode()){productionClipboard=null;return;}
-  const p=window.MSWProductionProject.toProject(DATA),ids=new Set([...processingSelection().mainIds,...processingSelection().extensionIds]);
-  const rows=structuredClone(p.subtitles.cues.filter(c=>ids.has(c.id)));
-  for(const c of rows)for(const f of ['color','sticker'])if(c.content[f+'_ref']) {
-    c.content[f]=structuredClone(p.subtitles.cues.find(r=>r.id===c.content[f+'_ref'].cue_id).content[f]);delete c.content[f+'_ref'];
-  }
-  productionClipboard={rows,bindings:p.subtitles.bindings.filter(b=>ids.has(b.source_id)&&ids.has(b.target_id))};
+  if(!productionFlatMode())return false;
+  commitProcessingEdits();
+  const selection=processingSelection();
+  const next=MSWProductionProject.captureClipboard(DATA,[...selection.mainIds,...selection.extensionIds]);
+  if(!next)return false;
+  productionClipboard=next;window.MSW_CLIPBOARD_KIND='cues';refreshClipboardMenuState();return true;
 }
 function productionPasteClipboard() {
   try {
+    if(!productionClipboard?.rows.length)return false;
+    if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+    commitProcessingEdits();
     const row=waveformEditor?.pointerLineRow,point=waveformEditor?.pointerLineEvent;
-    if(row?.isConnected&&Number.isFinite(point?.clientY)){
+    if(row?.isConnected&&Number.isFinite(point?.clientY)&&Number.isFinite(point?.clientX)
+      &&document.elementFromPoint(point.clientX,point.clientY)?.closest('.waveform-row')===row){
       const rect=row.getBoundingClientRect();
-      fixedHitTrack(rect.bottom-point.clientY-7-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0));
+      const fromBottom=rect.bottom-point.clientY-7-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0);
+      if(fromBottom>=0)fixedHitTrack(fromBottom);
     }
     const at=Math.round(window.MSWE?.resolve('audio-timeline')?.currentTimeMs()??player.currentTime*1000)||0;
-    const result=window.MSWProductionProject.place(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack().id);
-    productionCommitProject(window.MSWProductionProject.toProject(result.project),'粘贴字幕',result.ids);
-  }catch(error){flashHint(error.message,'warning');}
+    const result=window.MSWProductionProject.place(DATA,productionClipboard.rows,productionClipboard.bindings,at,fixedActiveTrack()?.id,{...productionClipboard,canonical:true});
+    productionCommitProject(result.project,'粘贴字幕',result.ids);
+    refreshClipboardMenuState();return true;
+  }catch(error){flashHint(error.message,'warning');return false;}
 }
 function fixedAddTrack(kind, refs = null) {
   try {
