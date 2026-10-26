@@ -42,8 +42,8 @@ from maw.language import (
     normalize_language_code,
     normalize_timestamp_range,
     resolve_language,
+    restore_timestamp_item_text,
     split_mode_for_text,
-    timestamp_items_cover_text,
     timestamp_granularity_for_items,
 )
 from maw.project_io import write_mosp
@@ -1659,12 +1659,12 @@ def parse_transcription_result(result: dict) -> dict:
         # in the middle of the sentence. Keep the complete sentence text and
         # use only the sentence range when it is valid.
         segment_text = str(sent.get("text") or "".join(raw_word_texts))
-        if (
-            segment_items
-            and not invalid_word_timestamp
-            and not timestamp_items_cover_text(segment_text, segment_items)
-        ):
-            invalid_word_timestamp = True
+        if segment_items and not invalid_word_timestamp:
+            restored = restore_timestamp_item_text(segment_text, segment_items)
+            if restored is None:
+                invalid_word_timestamp = True
+            else:
+                segment_items = restored
         if invalid_word_timestamp:
             segment_items = []
             has_fallback_segment = True
@@ -1810,9 +1810,13 @@ def parse_funasr_transcription_result(result: dict) -> dict:
             if raw_items and len(raw_items) > 1 and not invalid_word_timestamp
             else []
         )
-        if sentence_items and not timestamp_items_cover_text(sentence_text, sentence_items):
-            sentence_items = []
-            invalid_word_timestamp = True
+        if sentence_items:
+            restored = restore_timestamp_item_text(sentence_text, sentence_items)
+            if restored is None:
+                sentence_items = []
+                invalid_word_timestamp = True
+            else:
+                sentence_items = restored
         if sentence_items:
             has_word_timestamps = True
             all_items.extend(sentence_items)
@@ -1980,8 +1984,8 @@ def build_segments_from_api_sentences(
             sentence_text = "".join(raw_item_texts).strip()
         sentence_speaker = sentence.get("speaker")
 
-        if items and not timestamp_items_cover_text(sentence_text, items):
-            items = []
+        if items:
+            items = restore_timestamp_item_text(sentence_text, items) or []
         if not items:
             sentence_text = sentence_text.strip()
             if not sentence_text:

@@ -252,6 +252,73 @@ def timestamp_items_cover_text(text: str, items: Sequence[object]) -> bool:
     return key(str(text)) == key("".join(values))
 
 
+def restore_timestamp_item_text(text: str, items: Sequence[object]) -> list[dict] | None:
+    """Map complete sentence text back onto timed fragments, without guessing words.
+
+    Coverage ignores spaces/punctuation; it is not permission to concatenate the
+    provider's normalized tokens. Use the source sentence for the actual text.
+    Token ranges and other metadata are retained, including zero-width tokens.
+    Return None for incomplete/ambiguous alignment so callers can keep a coarse
+    sentence instead of silently losing text or inventing word timestamps.
+    """
+    if not items or any(not isinstance(item, Mapping) for item in items):
+        return None
+    restored = [dict(item) for item in items]
+    if "".join(str(item.get("text") or "") for item in restored) == text:
+        return restored
+
+    def key(char: str) -> str:
+        return "" if char.isspace() or unicodedata.category(char).startswith("P") else char.casefold()
+
+    source = []
+    for index, char in enumerate(text):
+        source.extend((unit, index) for unit in key(char))
+    tokens = ["".join(key(char) for char in str(item.get("text") or "")) for item in restored]
+    if not source or "".join(unit for unit, _ in source) != "".join(tokens):
+        return None
+
+    cursor = offset = 0
+    for index, (item, token) in enumerate(zip(restored, tokens)):
+        if token:
+            offset += len(token)
+            end = source[offset - 1][1] + 1
+            # A case-fold expansion (e.g. ß -> ss) cannot be split between two
+            # separate timestamps without assigning the same character twice.
+            if offset < len(source) and source[offset][1] < end:
+                return None
+            # Keep sentence-ending punctuation on the preceding word, unless
+            # the provider gave it a separate timed item (which must survive).
+            if index + 1 == len(tokens) or tokens[index + 1]:
+                while end < len(text) and not text[end].isspace() and not key(text[end]):
+                    end += 1
+        else:
+            # Match explicit punctuation/space-only items at the current source
+            # position; never search ahead across an unaccounted word.
+            literal = "".join(str(item.get("text") or "").split())
+            end = cursor
+            if literal:
+                matched = ""
+                while end < len(text) and not key(text[end]):
+                    if not text[end].isspace():
+                        matched += text[end]
+                    end += 1
+                    if matched == literal:
+                        break
+                    if not literal.startswith(matched):
+                        return None
+                if matched != literal:
+                    return None
+            else:
+                while end < len(text) and text[end].isspace():
+                    end += 1
+            if end == cursor:
+                return None
+        item["text"] = text[cursor:end]
+        cursor = end
+    restored[-1]["text"] += text[cursor:]
+    return restored
+
+
 def resolve_language(
     raw_language: object,
     language_hint: object = None,
@@ -331,6 +398,7 @@ __all__ = [
     "normalize_timestamp_range",
     "normalize_language_code",
     "resolve_language",
+    "restore_timestamp_item_text",
     "split_mode_for_language",
     "split_mode_for_text",
     "timestamp_items_cover_text",
