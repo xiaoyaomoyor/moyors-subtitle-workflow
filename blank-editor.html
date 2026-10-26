@@ -6782,7 +6782,13 @@
   max-width:calc(100vw - 16px); box-sizing:border-box; border:1px solid var(--selection-yellow);
   border-radius:var(--radius-sm); background:var(--bg-panel); color:var(--text-primary); font-size:12px;
   box-shadow:0 2px 8px #0003; }
-.waveform-drag-destination.blocked { border-style:dashed; }
+.waveform-drag-destination.blocked { border-style:dashed; border-color:var(--red); }
+.waveform-drag-preview { position:absolute; box-sizing:border-box; pointer-events:none; z-index:8;
+  border:1px dashed var(--selection-yellow); border-radius:var(--radius-sm);
+  background:color-mix(in srgb, var(--selection-yellow) 16%, transparent);
+  color:var(--text-primary); padding:3px 8px; font-size:12px; overflow:hidden;
+  white-space:nowrap; text-overflow:ellipsis; }
+.waveform-drag-preview.blocked { border-color:var(--red); background:color-mix(in srgb, var(--red) 14%, transparent); }
 
 @media (max-width: 820px) {
   .waveform-status { display: none; }
@@ -19805,9 +19811,12 @@ export default MawDynamicCaptions;
       if(!Number.isSafeInteger(cue.start)||!Number.isSafeInteger(cue.end)||cue.start<0||cue.end<=cue.start)fail('字幕时间范围无效');
       if(!lanes.has(owner))lanes.set(owner,[]);lanes.get(owner).push(cue);
     }
-    for(const cues of lanes.values()) {
+    for(const [owner,cues] of lanes) {
       cues.sort((a,b)=>a.start-b.start);
-      for(let i=1;i<cues.length;i++)if(cues[i].start<cues[i-1].end)fail('目标轨道此处已有字幕，请调整位置');
+      for(let i=1;i<cues.length;i++)if(cues[i].start<cues[i-1].end) {
+        const name=project.subtitle_tracks.tracks.find(t=>t.id===owner)?.name||'';
+        fail(`目标轨道 ${name} 在 ${(cues[i].start/1000).toFixed(3)} s 处已有字幕，请调整位置`);
+      }
     }
   }
   function createIndex(project) {
@@ -21175,7 +21184,51 @@ export default MawDynamicCaptions;
     for(const t of p.subtitles.tracks)t.enabled=t.enabled&&(!selected||selected.has(t.id));
     return p;
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
+  // A gesture uses stable cue IDs, never display-column indices or binding
+  // direction. Only its participating content is copied for preview/rollback.
+  function prepareMove(view, selectedIds, anchorId) {
+    const ids=new Set(selectedIds);ids.add(anchorId);
+    const neighbours=new Map();
+    for(const b of view.multi_subtitle.bindings) {
+      const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+      neighbours.set(a,z);neighbours.set(z,a);
+    }
+    for(const id of ids)if(neighbours.has(id))ids.add(neighbours.get(id));
+    const owners=new Map(view.subtitle_tracks.assignments.map(a=>[a.cue_id,a.subtitle_track_id]));
+    const tracks=clone(view.subtitle_tracks.tracks),byTrack=new Map(tracks.map(t=>[t.id,t]));
+    const entries=layers.tracks(view).flatMap(source=>source.segments.flatMap((cue,index)=>ids.has(cue.id)
+      ? [{cue,index,source,owner:owners.get(cue.id),original:clone(cue)}] : []));
+    if(entries.length!==ids.size)throw Error('移动对象已不存在，请重新选择字幕');
+    for(const e of entries)if(!byTrack.has(e.owner)||byTrack.get(e.owner).locked)throw Error('操作包含锁定或不存在的源轨道');
+    return {entries,tracks,anchorId,anchorOwner:owners.get(anchorId)};
+  }
+  function moveOwners(plan, destination) {
+    const {tracks,entries,anchorOwner}=plan,byId=new Map(tracks.map(t=>[t.id,t]));
+    const root=id=>byId.get(id)?.secondary_for||id;
+    const mate=id=>tracks.find(t=>t.secondary_for===root(id));
+    if(!byId.has(destination))throw Error('请选择有效的字幕轨道');
+    const used=new Set(entries.map(e=>e.owner)),sourceMate=mate(anchorOwner);
+    const paired=sourceMate&&used.has(root(anchorOwner))&&used.has(sourceMate.id);
+    const roots=tracks.filter(t=>!t.secondary_for);
+    const shift=paired?roots.findIndex(t=>t.id===root(destination))-roots.findIndex(t=>t.id===root(anchorOwner))
+      :tracks.findIndex(t=>t.id===destination)-tracks.findIndex(t=>t.id===anchorOwner);
+    const mapping=new Map();
+    for(const owner of used) {
+      let target;
+      if(paired) {
+        const group=roots[roots.findIndex(t=>t.id===root(owner))+shift];
+        target=byId.get(owner).secondary_for?(group&&mate(group.id)):group;
+        if(group&&mate(owner)&&used.has(root(owner))&&used.has(mate(owner).id)&&!mate(group.id))
+          throw Error(`${group.name} 没有对应副轨道，无法放置整组字幕`);
+      } else target=tracks[tracks.findIndex(t=>t.id===owner)+shift];
+      if(!target)throw Error('没有足够的轨道容纳所选字幕');
+      if(target.locked)throw Error(`${target.name} 已锁定，请先解锁`);
+      mapping.set(owner,target.id);
+    }
+    if(new Set(mapping.values()).size!==mapping.size)throw Error('目标轨道无法一一对应，请选择其他轨道组');
+    return new Map(entries.map(e=>[e.cue.id,mapping.get(e.owner)]));
+  }
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,prepareMove,moveOwners,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -30265,7 +30318,7 @@ export default MawDynamicCaptions;
     resolveLayerPointerDelta(drag, rawDelta, disableSnap) {
       const clock = resolveTiming(drag.timing);
       const segments = this.options.getSegments(drag.track);
-      const motions = drag.resizeMotions || drag.indices.map(index => {
+      const motions = drag.moveMotions || drag.resizeMotions || drag.indices.map(index => {
         const original = drag.originals.get(index);
         const moveStart = drag.kind === 'move' || drag.kind === 'resize-left' || drag.edge === 'start'
           || (drag.kind === 'resize-boundary' && index !== drag.indices[0]);
@@ -30274,7 +30327,7 @@ export default MawDynamicCaptions;
       });
       // Followers constrain the same delta, so neither duration nor binding
       // offsets change when any member reaches zero or a neighbouring cue.
-      for (const follower of drag.resizeMotions ? [] : this.options.getSubtitleDragFollowers?.(drag) || []) {
+      for (const follower of drag.moveMotions || drag.resizeMotions ? [] : this.options.getSubtitleDragFollowers?.(drag) || []) {
         const source = motions.find(motion => motion.index === follower.index);
         if (!source) continue;
         motions.push({ ...follower, moveStart: source.moveStart, moveEnd: source.moveEnd,
@@ -30309,7 +30362,7 @@ export default MawDynamicCaptions;
       const requested = clock.round(rawDelta);
       let delta = clamp(requested, lower, upper);
       if(disableSnap){this.hideMagnetGuide();return delta;}
-      const targets = segments.filter(segment => !moving.has(segment)
+      const targets = (this.options.getSubtitleCollisionSegments?.(segments) || segments).filter(segment => !moving.has(segment)
         && motions.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
         .flatMap(segment => [segment.start, segment.end]);
       targets.push(...(this.options.getCrossTrackSnapTargets?.(drag.track, moving) || []),
@@ -32594,9 +32647,9 @@ export default MawDynamicCaptions;
         commitIndices: new Set(dragIndices),
         started: false,
         changed: false,
-        // Alt+副字幕拖动临时解除主副联动；Alt+主字幕拖动仍带着绑定的
-        // 副字幕一起走，但允许先挤压主轨相邻字幕。
-        independent: Boolean(event.altKey && track === 'extension'),
+        // Independent Alt dragging belongs to the legacy editor. Production
+        // bound cues always move together; Alt+click still toggles disabled.
+        independent: Boolean(event.altKey && track === 'extension' && !this.options.getProductionTracksEnabled?.()),
         allowSqueeze: false,
         squeezeOriginals: allOriginals,
         // Retained for the explicit legacy overlay conversion path.
@@ -33002,6 +33055,15 @@ export default MawDynamicCaptions;
       const segments = this.options.getSegments(drag.track || 'main');
       const timing = drag.timing || this.cueTiming();
       const durationMs = Number(this.durationMs) > 0 ? timing.fromMs(this.durationMs) : Infinity;
+      if(this.options.getProductionTracksEnabled?.()&&drag.kind==='move') {
+        if(!drag.started){drag.started=true;this.options.onBeginEdit?.('调整字幕时间');}
+        if(!drag.fixedMove)return true;
+        const old=drag.fixedMove.keyboardDelta||0;
+        const move=()=>this.moveCueDrag({pointerId:drag.pointerId,clientX:drag.currentClientX,clientY:drag.currentClientY,preventDefault(){}});
+        drag.fixedMove.keyboardDelta=old+timing.fromMs(deltaMs);move();
+        if(drag.destinationPreview?.blocked){drag.fixedMove.keyboardDelta=old;move();}
+        return true;
+      }
       if (this.subtitleLayersEnabled()) {
         const currentOriginals = drag.originals;
         this.captureCueDragOriginals(drag);
@@ -33120,6 +33182,7 @@ export default MawDynamicCaptions;
         this.options.syncBoundCueDrag?.(drag);
         this.invalidateSubtitleLayouts();
       }
+      this.options.rebaseFixedSubtitleDrag?.(drag);
       this.captureCueDragOriginals(drag);
       drag.startClientX = drag.currentClientX;
       drag.startPointerTime = timing.fromMs(
@@ -33560,17 +33623,32 @@ export default MawDynamicCaptions;
         this.dragDestination.className='waveform-drag-destination';document.body.append(this.dragDestination);}
       const badge=this.dragDestination;
       const clock=drag.timing;
-      badge.textContent=`${preview.name} · ${clock.format(clock.fromMs(preview.start))} → ${clock.format(clock.fromMs(preview.end))}${preview.blocked?' · 无法放置':''}`;
+      badge.textContent=Number.isFinite(preview.start)?`${preview.name} · ${clock.format(clock.fromMs(preview.start))} → ${clock.format(clock.fromMs(preview.end))}${preview.blocked?' · 无法放置':''}`:(preview.reason||'无法放置');
       badge.classList.toggle('blocked',preview.blocked);
       badge.style.left=Math.max(4,Math.min(drag.currentClientX+16,window.innerWidth-badge.offsetWidth-8))+'px';
       badge.style.top=Math.max(4,Math.min(drag.currentClientY+20,window.innerHeight-badge.offsetHeight-8))+'px';
-      const moved=new Set([...(drag.fixedMove?.entries||[]),...(drag.fixedMove?.followers||[])].map(e=>e.cue.id));
+      this.content.querySelectorAll('.waveform-drag-preview').forEach(el=>el.remove());
+      const {height,pitch}=this.subtitleGeometry();
+      for(const row of this.content.querySelectorAll('.waveform-row')) {
+        const start=Number(row.dataset.startMs),end=Number(row.dataset.endMs);
+        for(const e of preview.entries||[]) {
+          const lane=this.options.getSubtitleTrackLane?.(e.trackId);
+          if(!Number.isFinite(lane)||e.end<=start||e.start>=end)continue;
+          const ghost=document.createElement('div');ghost.className='waveform-drag-preview';
+          ghost.classList.toggle('blocked',preview.blocked);ghost.dataset.cueId=e.id;ghost.dataset.subtitleTrackId=e.trackId;
+          ghost.textContent=preview.blocked?e.text:'';ghost.style.height=height+'px';
+          ghost.style.bottom=`calc(7px + var(--audio-lane-space, 0px) + ${lane*pitch}px)`;
+          ghost.style.left=((Math.max(start,e.start)-start)/(end-start)*100)+'%';
+          ghost.style.width=((Math.min(end,e.end)-Math.max(start,e.start))/(end-start)*100)+'%';row.append(ghost);
+        }
+      }
+      const moved=new Set((drag.fixedMove?.entries||[]).map(e=>e.cue.id));
       this.content.querySelectorAll('.waveform-cue-block').forEach(block=>block.classList.toggle('drag-destination',moved.has(block.dataset.cueId)));
     }
 
     clearCueDragDestination() {
       this.dragDestination?.remove();this.dragDestination=null;
-      this.content.querySelectorAll('.waveform-drag-origin').forEach(el=>el.remove());
+      this.content.querySelectorAll('.waveform-drag-origin, .waveform-drag-preview').forEach(el=>el.remove());
       this.content.querySelectorAll('.drag-destination').forEach(el=>el.classList.remove('drag-destination'));
       window.removeEventListener('keydown',this._dragModifiers);window.removeEventListener('keyup',this._dragModifiers);
     }
@@ -33598,7 +33676,7 @@ export default MawDynamicCaptions;
           : '调整字幕边界';
         this.options.onBeginEdit(label);
         if(drag.kind==='move'&&this.options.getFixedTracksEnabled?.()) {
-          const ids=new Set(drag.indices.map(i=>this.options.getSegments(drag.track)[i]?.id));
+          const ids=new Set(drag.fixedMove?drag.fixedMove.entries.map(e=>e.cue.id):drag.indices.map(i=>this.options.getSegments(drag.track)[i]?.id));
           for(const follower of this.options.getSubtitleDragFollowers?.(drag)||[])ids.add(follower.segment.id);
           this.content.querySelectorAll('.waveform-cue-block').forEach(block=>{
             if(!ids.has(block.dataset.cueId))return;
@@ -33613,7 +33691,7 @@ export default MawDynamicCaptions;
       // Shift+拖动的逃生口是转入叠加轨，不做同轨挤压。
       if (drag.kind === 'move' && adjacentCueAdjustmentIndependent && !drag.shiftOverlay) drag.allowSqueeze = true;
       // 主字幕/副字幕绑定的独立调整仍只由 Alt 临时触发，不受同轨自动吸附开关影响。
-      if (drag.track === 'extension' && event.altKey) drag.independent = true;
+      if (drag.track === 'extension' && event.altKey && !this.options.getProductionTracksEnabled?.()) drag.independent = true;
       // Magnetic snapping is opt-in for this gesture; Shift can change while held.
       const disableSnap = !event.shiftKey || drag.independent === true || drag.shiftOverlay === true;
       const pointerRow=drag.pointerRow||drag.row,rect=pointerRow.getBoundingClientRect();
@@ -34239,7 +34317,12 @@ function fixedBeginDragTransaction(drag,label) {
   if(fixedPositionEditing)fixedStopPositioning(false);
   if(!fixedAcceptEdit())return false;
   const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
-  const ids=new Set(drag.indices.map(i=>source[i].id));
+  let move;
+  if(drag.kind==='move') {
+    try {move=fixedPrepareMove(drag);}
+    catch(error){drag.destinationPreview={blocked:true,reason:error.message};return true;}
+  }
+  const ids=new Set(move?move.entries.map(e=>e.cue.id):drag.indices.map(i=>source[i].id));
   if(drag.kind!=='move')for(const id of fixedPositionSelectedIds())ids.add(id);
   for(const b of DATA.multi_subtitle.bindings) {
     const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
@@ -34608,7 +34691,12 @@ function productionBindSelected() {
     commitProcessingEdits();productionRememberSelection();const ids=[...productionSelectionOrder];
     if(ids.length!==2)throw Error('请选择不同轨道的两条字幕进行绑定');
     let p=window.MSWProductionProject.toProject(DATA);
-    for(const b of p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id)))p=window.MSWFlatSubtitles.unbind(p,b.id);
+    const bound=p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id));
+    if(bound.some(b=>ids.includes(b.source_id)&&ids.includes(b.target_id)))return;
+    if(bound.length)throw Error('所选字幕已与其他字幕绑定，请先解绑');
+    const rows=ids.map(id=>p.subtitles.cues.find(c=>c.id===id));
+    const first=p.subtitles.tracks.find(t=>t.id===rows[0].track_id);
+    if(first.secondary_for===rows[1].track_id)ids.reverse();
     let next=window.MSWFlatSubtitles.bind(p,ids[0],ids[1],window.MSWProject.id('binding'));
     if(EDITOR_SETTINGS.multiSubtitleAutoSyncDuration) {
       const a=next.subtitles.cues.find(c=>c.id===ids[0]).content;
@@ -34698,79 +34786,85 @@ function fixedMove(refs, targetId) {
 
 // Pointer moves change time and physical ownership in one validated transaction.
 // Display columns remain an adapter detail; crossing them never unbinds cues.
+function fixedPrepareMove(drag) {
+  if(drag.fixedMove)return drag.fixedMove;
+  const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
+  const anchor=source[drag.index];
+  const selected=fixedSelectedRows().map(r=>r.cue_id);
+  const ids=selected.includes(anchor.id)?selected:drag.indices.map(i=>source[i].id);
+  const plan=MSWProductionProject.prepareMove(DATA,ids,anchor.id);
+  drag.fixedMove={...plan,assignments:structuredClone(DATA.subtitle_tracks.assignments),active:fixedActiveTrackId};
+  drag.moveMotions=plan.entries.map(e=>({segment:e.cue,segments:e.source.segments,
+    start:drag.timing.fromMs(e.original.start),end:drag.timing.fromMs(e.original.end),moveStart:true,moveEnd:true}));
+  return drag.fixedMove;
+}
 function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   if (productionFlatMode() && ['resize-left','resize-right'].includes(drag.kind)) return fixedResizeSelection(drag, rawDelta, disableSnap);
   if(!productionFlatMode()||drag.kind!=='move')return null;
-  const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
-  if(!drag.fixedMove&&!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
-    drag.destinationPreview={...drag.destinationPreview,blocked:true,reason:fixedLastMessage};return false;
-  }
-  if(!drag.fixedMove) {
-    const entries=drag.indices.map(index=>({cue:source[index],original:structuredClone(source[index]),index}));
-    const followers=waveformEditor.options.getSubtitleDragFollowers(drag).map(f=>({cue:f.segment,original:structuredClone(f.segment),index:f.index}));
-    for(const follower of followers)ensureBoundDragOriginal(drag,follower.index,follower.cue);
-    drag.fixedMove={assignments:structuredClone(DATA.subtitle_tracks.assignments),entries,followers,
-      active:fixedActiveTrackId,owners:new Map(entries.map(e=>[e.cue.id,fixedOwner(e.cue,drag.track)]))};
-  }
-  const state=drag.fixedMove,tracks=fixedLayout().bands.map(b=>b.track),bands=fixedLayout().bands;
+  let state;
+  try {state=fixedPrepareMove(drag);}
+  catch(error){drag.destinationPreview={blocked:true,reason:error.message};return false;}
+  rawDelta+=state.keyboardDelta||0;
+  const {tracks,entries}=state,bands=fixedLayout().bands;
   const lane=Math.floor(fromBottom/fixedWaveGeometry().pitch),band=Number.isFinite(lane)&&bands.find(b=>lane>=b.bottom&&lane<b.bottom+b.size);
-  const originalOwner=state.owners.get(source[drag.index].id);
-  const destination=band?.track.id||state.target||originalOwner;
-  const original=drag.originals.get(drag.index),clock=drag.timing;
+  const destination=band?.track.id||state.target||state.anchorOwner;
+  const clock=drag.timing,anchor=entries.find(e=>e.cue.id===state.anchorId);
+  const deltaMs=clock.toMs(rawDelta);
   drag.destinationPreview={name:tracks.find(t=>t.id===destination)?.name||'',
-    start:clock.toMs(original.start+rawDelta),end:clock.toMs(original.end+rawDelta),blocked:true,reason:'目标轨道此处已有字幕，请调整位置'};
-  const shift=tracks.findIndex(t=>t.id===destination)-tracks.findIndex(t=>t.id===originalOwner);
-  const moving=new Map();
-  for(const entry of state.entries) {
-    const target=tracks[tracks.findIndex(t=>t.id===state.owners.get(entry.cue.id))+shift];
-    if(!target||target.locked){drag.destinationPreview.reason=target?'目标轨道已锁定，请先解锁':'没有足够的轨道容纳所选字幕';return false;}
-    moving.set(entry.cue.id,target.id);
-  }
+    start:anchor.original.start+deltaMs,end:anchor.original.end+deltaMs,blocked:true,reason:'请选择有效的字幕轨道'};
+  let moving;
+  try {moving=MSWProductionProject.moveOwners(state,destination);}
+  catch(error){drag.destinationPreview.reason=error.message;return false;}
+  const previews=delta=>entries.map(e=>({id:e.cue.id,trackId:moving.get(e.cue.id),text:e.cue.text,
+    start:e.original.start+delta,end:e.original.end+delta}));
+  drag.destinationPreview.entries=previews(deltaMs);
+  drag.destinationPreview.name=[...new Set(moving.values())].map(id=>{
+    const t=tracks.find(t=>t.id===id);return t.name+(t.collapsed?'（已折叠）':'');
+  }).join(' / ');
+  if(!band)return false;
   const previous=DATA.subtitle_tracks.assignments;
   const proposed=previous.map(a=>moving.has(a.cue_id)?{...a,subtitle_track_id:moving.get(a.cue_id)}:a);
-  // The existing snap solver reads physical owners. Expose only for this
-  // synchronous calculation; invalid candidates never reach rendering/save.
+  // Expose candidate owners only to the synchronous snap solver. All members
+  // constrain one delta; invalid candidates never reach rendering or saving.
   DATA.subtitle_tracks.assignments=proposed;fixedInvalidate();
-  drag.relocating=shift!==0||drag.pointerGeometry?.startMs!==undefined&&drag.pointerGeometry.startMs!==drag.geometry.startMs;
-  let changes,bindings;
+  drag.relocating=entries.some(e=>moving.get(e.cue.id)!==e.owner)
+    ||drag.pointerGeometry?.startMs!==undefined&&drag.pointerGeometry.startMs!==drag.geometry.startMs;
+  let changes;
   try {
     const delta=waveformEditor.resolveLayerPointerDelta(drag,rawDelta,disableSnap);
     if(delta===null)return false;
-    const clock=drag.timing;
-    changes=new Map(state.entries.map(e=>{
-      const original=drag.originals.get(e.index),next={...e.original};
-      clock.setStart(next,original.start+delta);clock.setEnd(next,original.end+delta);
+    const ms=clock.toMs(delta);
+    changes=new Map(entries.map(e=>{
+      // Shift instead of re-scaling: retain imported exact offsets and durations.
+      const next={...e.original,start:e.original.start+ms,end:e.original.end+ms};
+      if(clock.unit==='frames')for(const edge of ['start','end'])next[edge+'_frame']=clock.fromMs(e.original[edge])+delta;
       next.items=remapPanelItems(e.original.items,e.original.start,e.original.end,next.start,next.end);
       return [e.cue.id,next];
     }));
-    for(const follower of state.followers) {
-      const entry=state.entries.find(e=>e.index===follower.index),lead=changes.get(entry.cue.id),original=follower.original;
-      const next={...original,start:original.start+lead.start-entry.original.start,end:original.end+lead.end-entry.original.end};
-      if(clock.unit==='frames'){clock.setStart(next,clock.fromMs(next.start));clock.setEnd(next,clock.fromMs(next.end));}
-      next.items=remapPanelItems(original.items,original.start,original.end,next.start,next.end);changes.set(follower.cue.id,next);
-    }
-    state.byId ||= new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,c])));
-    bindings=DATA.multi_subtitle.bindings.map(b=>{
-      const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
-      if(!changes.has(a)&&!changes.has(z))return b;
-      const main=changes.get(a)||state.byId.get(a),secondary=changes.get(z)||state.byId.get(z);
-      return {...b,start_offset_ms:secondary.start-main.start,end_offset_ms:secondary.end-main.end};
-    });
+    drag.destinationPreview.entries=previews(ms);
     fixedTrackCore.validateTimingChanges(DATA,changes,moving);
   } catch(error) {drag.destinationPreview.reason=error.message;return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
   const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
-  const changed=ownerChanged||[...state.entries,...state.followers].some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
+  const changed=ownerChanged||entries.some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
   fixedStatus();state.target=destination;
-  Object.assign(drag.destinationPreview,{start:changes.get(source[drag.index].id).start,
-    end:changes.get(source[drag.index].id).end,blocked:false});
+  Object.assign(drag.destinationPreview,{start:changes.get(state.anchorId).start,end:changes.get(state.anchorId).end,blocked:false});
   if(!changed)return false;
   DATA.subtitle_tracks.assignments=proposed;
-  for(const entry of [...state.entries,...state.followers])Object.assign(entry.cue,changes.get(entry.cue.id));
-  DATA.multi_subtitle.bindings=bindings;fixedActiveTrackId=destination;
-  // Physical ownership changes lane positions, not just the time-range index.
+  for(const entry of entries)Object.assign(entry.cue,changes.get(entry.cue.id));
+  // Both binding ends received the same delta; their saved offsets stay intact.
+  fixedActiveTrackId=moving.get(state.anchorId);
   if(ownerChanged)waveformEditor.subtitleLayouts=null;
   layerInvalidate();return true;
+}
+function fixedRebaseMoveDrag(drag) {
+  const state=drag.fixedMove;if(!state)return;
+  // Explicit keyboard edge edits establish a new pointer baseline. Keep the
+  // initial content separately so Escape still cancels the entire gesture.
+  for(const e of state.entries){e.initial ||= e.original;e.original=structuredClone(e.cue);}
+  state.keyboardDelta=0;
+  drag.moveMotions=state.entries.map(e=>({segment:e.cue,segments:e.source.segments,
+    start:drag.timing.fromMs(e.original.start),end:drag.timing.fromMs(e.original.end),moveStart:true,moveEnd:true}));
 }
 function fixedCancelMoveDrag(drag) {
   if(drag.fixedResize) {
@@ -34779,9 +34873,10 @@ function fixedCancelMoveDrag(drag) {
   }
   if(!drag.fixedMove)return;
   const state=drag.fixedMove;DATA.subtitle_tracks.assignments=state.assignments;fixedActiveTrackId=state.active;
-  for(const entry of [...state.entries,...state.followers]){
-    for(const field of Object.keys(entry.cue))if(!(field in entry.original))delete entry.cue[field];
-    Object.assign(entry.cue,entry.original);
+  for(const entry of state.entries){
+    const original=entry.initial||entry.original;
+    for(const field of Object.keys(entry.cue))if(!(field in original))delete entry.cue[field];
+    Object.assign(entry.cue,original);
   }
   syncBindingOffsets();fixedStatus();layerInvalidate();
 }
@@ -59909,6 +60004,9 @@ function initWaveformEditor() {
     getCueCreationContext: fixedCueCreationContext,
     sameSubtitleTrack: fixedSameTrack,
     moveFixedSubtitleDrag: fixedMoveDrag,
+    rebaseFixedSubtitleDrag: fixedRebaseMoveDrag,
+    getProductionTracksEnabled: productionFlatMode,
+    getSubtitleTrackLane: id => fixedLayout().positions.get(JSON.stringify([id,'main'])),
     getSubtitleCollisionSegments: segments => productionFlatMode()?layerCore.tracks(DATA).flatMap(t=>t.segments):segments,
     canEditSubtitleCues: (indices, role) => fixedCanEdit(indices.map(index => (role === 'main' ? DATA.segments : getActiveExtensionTrack()?.segments || [])[index]), role),
     decorateFixedCue: (block, cue, role) => {

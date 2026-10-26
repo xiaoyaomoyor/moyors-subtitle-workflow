@@ -17,7 +17,8 @@ const trackPoint=(page,id,time)=>page.evaluate(({id,time})=>{
 
 async function dragFixture(page){
   const p=fixture();p.waveform=generateWaveformPayload(30000);
-  await page.evaluate(p=>{applyCanonicalProject(p,'drag.mosp');fixedAddTrack('subtitle');
+  await page.evaluate(p=>{applyCanonicalProject(p,'drag.mosp');fixedAddTrack('subtitle');fixedAddTrack('subtitle');
+    const tracks=DATA.subtitle_tracks.tracks;fixedUpdateTrack(tracks[3].id,{secondary_for:tracks[2].id});
     waveformEditor.settings.mode='multi';waveformEditor.settings.secondsPerRow=10;waveformEditor.settings.rowHeight=170;
     updateEditorSettings({clickBehavior:'select-only',autoSaveProject:false});waveformEditor.render();},p);
   return snap(page);
@@ -102,8 +103,9 @@ test('single-cue merge is quiet and track rejections use one transient notificat
 });
 
 test('invalid track drag stays quiet until release and Escape or pointer cancellation shows no notice',async({page})=>{
-  const before=await dragFixture(page),[main,secondary,target]=before.subtitles.tracks;
-  const start=await trackPoint(page,main.id,2000),partner=await trackPoint(page,secondary.id,2000);
+  const initial=await dragFixture(page),[main,secondary,target]=initial.subtitles.tracks;
+  await page.evaluate(id=>fixedUpdateTrack(id,{locked:true}),target.id);const before=await snap(page);
+  const start=await trackPoint(page,main.id,2000),partner=await trackPoint(page,target.id,2000);
   const begin=async()=>{
     await page.evaluate(()=>document.getElementById('hint-stack')?.replaceChildren());
     await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(partner.x,partner.y,{steps:5});
@@ -112,7 +114,7 @@ test('invalid track drag stays quiet until release and Escape or pointer cancell
   };
   await begin();await page.mouse.up();
   await expect(page.locator('#hint-stack .hint-card')).toHaveCount(1);
-  await expect(page.locator('#hint-stack .hint-card')).toContainText('不同轨道');
+  await expect(page.locator('#hint-stack .hint-card')).toContainText('已锁定');
   expect((await snap(page)).subtitles).toEqual(before.subtitles);
   await begin();await page.keyboard.press('Escape');await page.mouse.up();
   await expect(page.locator('#hint-stack .hint-card')).toHaveCount(0);
@@ -277,27 +279,27 @@ test('track context menus collapse lanes, restore from blank space and open styl
 
 for(const role of ['main','secondary'])test(`drag ${role} across physical tracks and time rows keeps bindings and one-step undo`,async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));const before=await dragFixture(page);
-  const [main,secondary,target]=before.subtitles.tracks,source=role==='main'?main:secondary;
+  const [main,secondary,target,targetSub]=before.subtitles.tracks,source=role==='main'?main:secondary,expected=role==='main'?target:targetSub;
   const start=await trackPoint(page,source.id,2000),vertical=await trackPoint(page,target.id,2000);
   await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(vertical.x,vertical.y,{steps:5});await page.mouse.up();
   const moved=await snap(page),cue=before.subtitles.cues.find(c=>c.track_id===source.id);
-  expect(moved.subtitles.cues.find(c=>c.id===cue.id).track_id).toBe(target.id);
+  expect(moved.subtitles.cues.find(c=>c.id===cue.id).track_id).toBe(expected.id);
   expect(moved.subtitles.cues.find(c=>c.id===cue.id).content.start).toBe(cue.content.start);
   expect(moved.subtitles.bindings).toEqual(before.subtitles.bindings);
   await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(before.subtitles);
   const destination=await trackPoint(page,target.id,12000);
   await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(destination.x,destination.y,{steps:8});
   const landing=page.locator(`.waveform-row[data-start-ms="10000"] .waveform-cue-block[data-cue-id="${cue.id}"]`);
-  const rect=await landing.boundingBox();expect(rect.y).toBeLessThan(destination.y);expect(rect.y+rect.height).toBeGreaterThan(destination.y);
+  const rect=await landing.boundingBox(),expectedPoint=await trackPoint(page,expected.id,12000);expect(rect.y).toBeLessThan(expectedPoint.y);expect(rect.y+rect.height).toBeGreaterThan(expectedPoint.y);
   await expect(landing).toHaveClass(/drag-destination/);await expect(page.locator('.waveform-drag-destination')).toContainText(target.name);
   await page.screenshot({path:info.outputPath('drag-destination-'+role+'.png')});
   await page.mouse.up();await expect(page.locator('.waveform-drag-destination')).toHaveCount(0);
   const after=await snap(page),a=after.subtitles.cues.find(c=>c.id===cue.id);
-  expect(a.track_id).toBe(target.id);expect(a.content.start).toBe(cue.content.start+10000);
+  expect(a.track_id).toBe(expected.id);expect(a.content.start).toBe(cue.content.start+10000);
   expect(a.content.end-a.content.start).toBe(cue.content.end-cue.content.start);
   expect(after.subtitles.bindings).toHaveLength(1);
-  if(role==='main')expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
-  else expect(after.subtitles.cues.find(c=>c.track_id===main.id).content).toEqual(before.subtitles.cues.find(c=>c.track_id===main.id).content);
+  expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
+  for(const c of before.subtitles.cues)expect(after.subtitles.cues.find(n=>n.id===c.id).content.start).toBe(c.content.start+10000);
   await page.screenshot({path:info.outputPath('cross-track-row-'+role+'.png')});
   await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(before.subtitles);
   expect(errors).toEqual([]);

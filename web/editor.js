@@ -23807,6 +23807,9 @@ function initWaveformEditor() {
     getCueCreationContext: fixedCueCreationContext,
     sameSubtitleTrack: fixedSameTrack,
     moveFixedSubtitleDrag: fixedMoveDrag,
+    rebaseFixedSubtitleDrag: fixedRebaseMoveDrag,
+    getProductionTracksEnabled: productionFlatMode,
+    getSubtitleTrackLane: id => fixedLayout().positions.get(JSON.stringify([id,'main'])),
     getSubtitleCollisionSegments: segments => productionFlatMode()?layerCore.tracks(DATA).flatMap(t=>t.segments):segments,
     canEditSubtitleCues: (indices, role) => fixedCanEdit(indices.map(index => (role === 'main' ? DATA.segments : getActiveExtensionTrack()?.segments || [])[index]), role),
     decorateFixedCue: (block, cue, role) => {

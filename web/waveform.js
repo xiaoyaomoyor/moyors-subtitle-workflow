@@ -3991,7 +3991,7 @@
     resolveLayerPointerDelta(drag, rawDelta, disableSnap) {
       const clock = resolveTiming(drag.timing);
       const segments = this.options.getSegments(drag.track);
-      const motions = drag.resizeMotions || drag.indices.map(index => {
+      const motions = drag.moveMotions || drag.resizeMotions || drag.indices.map(index => {
         const original = drag.originals.get(index);
         const moveStart = drag.kind === 'move' || drag.kind === 'resize-left' || drag.edge === 'start'
           || (drag.kind === 'resize-boundary' && index !== drag.indices[0]);
@@ -4000,7 +4000,7 @@
       });
       // Followers constrain the same delta, so neither duration nor binding
       // offsets change when any member reaches zero or a neighbouring cue.
-      for (const follower of drag.resizeMotions ? [] : this.options.getSubtitleDragFollowers?.(drag) || []) {
+      for (const follower of drag.moveMotions || drag.resizeMotions ? [] : this.options.getSubtitleDragFollowers?.(drag) || []) {
         const source = motions.find(motion => motion.index === follower.index);
         if (!source) continue;
         motions.push({ ...follower, moveStart: source.moveStart, moveEnd: source.moveEnd,
@@ -4035,7 +4035,7 @@
       const requested = clock.round(rawDelta);
       let delta = clamp(requested, lower, upper);
       if(disableSnap){this.hideMagnetGuide();return delta;}
-      const targets = segments.filter(segment => !moving.has(segment)
+      const targets = (this.options.getSubtitleCollisionSegments?.(segments) || segments).filter(segment => !moving.has(segment)
         && motions.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
         .flatMap(segment => [segment.start, segment.end]);
       targets.push(...(this.options.getCrossTrackSnapTargets?.(drag.track, moving) || []),
@@ -6320,9 +6320,9 @@
         commitIndices: new Set(dragIndices),
         started: false,
         changed: false,
-        // Alt+副字幕拖动临时解除主副联动；Alt+主字幕拖动仍带着绑定的
-        // 副字幕一起走，但允许先挤压主轨相邻字幕。
-        independent: Boolean(event.altKey && track === 'extension'),
+        // Independent Alt dragging belongs to the legacy editor. Production
+        // bound cues always move together; Alt+click still toggles disabled.
+        independent: Boolean(event.altKey && track === 'extension' && !this.options.getProductionTracksEnabled?.()),
         allowSqueeze: false,
         squeezeOriginals: allOriginals,
         // Retained for the explicit legacy overlay conversion path.
@@ -6728,6 +6728,15 @@
       const segments = this.options.getSegments(drag.track || 'main');
       const timing = drag.timing || this.cueTiming();
       const durationMs = Number(this.durationMs) > 0 ? timing.fromMs(this.durationMs) : Infinity;
+      if(this.options.getProductionTracksEnabled?.()&&drag.kind==='move') {
+        if(!drag.started){drag.started=true;this.options.onBeginEdit?.('调整字幕时间');}
+        if(!drag.fixedMove)return true;
+        const old=drag.fixedMove.keyboardDelta||0;
+        const move=()=>this.moveCueDrag({pointerId:drag.pointerId,clientX:drag.currentClientX,clientY:drag.currentClientY,preventDefault(){}});
+        drag.fixedMove.keyboardDelta=old+timing.fromMs(deltaMs);move();
+        if(drag.destinationPreview?.blocked){drag.fixedMove.keyboardDelta=old;move();}
+        return true;
+      }
       if (this.subtitleLayersEnabled()) {
         const currentOriginals = drag.originals;
         this.captureCueDragOriginals(drag);
@@ -6846,6 +6855,7 @@
         this.options.syncBoundCueDrag?.(drag);
         this.invalidateSubtitleLayouts();
       }
+      this.options.rebaseFixedSubtitleDrag?.(drag);
       this.captureCueDragOriginals(drag);
       drag.startClientX = drag.currentClientX;
       drag.startPointerTime = timing.fromMs(
@@ -7286,17 +7296,32 @@
         this.dragDestination.className='waveform-drag-destination';document.body.append(this.dragDestination);}
       const badge=this.dragDestination;
       const clock=drag.timing;
-      badge.textContent=`${preview.name} · ${clock.format(clock.fromMs(preview.start))} → ${clock.format(clock.fromMs(preview.end))}${preview.blocked?' · 无法放置':''}`;
+      badge.textContent=Number.isFinite(preview.start)?`${preview.name} · ${clock.format(clock.fromMs(preview.start))} → ${clock.format(clock.fromMs(preview.end))}${preview.blocked?' · 无法放置':''}`:(preview.reason||'无法放置');
       badge.classList.toggle('blocked',preview.blocked);
       badge.style.left=Math.max(4,Math.min(drag.currentClientX+16,window.innerWidth-badge.offsetWidth-8))+'px';
       badge.style.top=Math.max(4,Math.min(drag.currentClientY+20,window.innerHeight-badge.offsetHeight-8))+'px';
-      const moved=new Set([...(drag.fixedMove?.entries||[]),...(drag.fixedMove?.followers||[])].map(e=>e.cue.id));
+      this.content.querySelectorAll('.waveform-drag-preview').forEach(el=>el.remove());
+      const {height,pitch}=this.subtitleGeometry();
+      for(const row of this.content.querySelectorAll('.waveform-row')) {
+        const start=Number(row.dataset.startMs),end=Number(row.dataset.endMs);
+        for(const e of preview.entries||[]) {
+          const lane=this.options.getSubtitleTrackLane?.(e.trackId);
+          if(!Number.isFinite(lane)||e.end<=start||e.start>=end)continue;
+          const ghost=document.createElement('div');ghost.className='waveform-drag-preview';
+          ghost.classList.toggle('blocked',preview.blocked);ghost.dataset.cueId=e.id;ghost.dataset.subtitleTrackId=e.trackId;
+          ghost.textContent=preview.blocked?e.text:'';ghost.style.height=height+'px';
+          ghost.style.bottom=`calc(7px + var(--audio-lane-space, 0px) + ${lane*pitch}px)`;
+          ghost.style.left=((Math.max(start,e.start)-start)/(end-start)*100)+'%';
+          ghost.style.width=((Math.min(end,e.end)-Math.max(start,e.start))/(end-start)*100)+'%';row.append(ghost);
+        }
+      }
+      const moved=new Set((drag.fixedMove?.entries||[]).map(e=>e.cue.id));
       this.content.querySelectorAll('.waveform-cue-block').forEach(block=>block.classList.toggle('drag-destination',moved.has(block.dataset.cueId)));
     }
 
     clearCueDragDestination() {
       this.dragDestination?.remove();this.dragDestination=null;
-      this.content.querySelectorAll('.waveform-drag-origin').forEach(el=>el.remove());
+      this.content.querySelectorAll('.waveform-drag-origin, .waveform-drag-preview').forEach(el=>el.remove());
       this.content.querySelectorAll('.drag-destination').forEach(el=>el.classList.remove('drag-destination'));
       window.removeEventListener('keydown',this._dragModifiers);window.removeEventListener('keyup',this._dragModifiers);
     }
@@ -7324,7 +7349,7 @@
           : '调整字幕边界';
         this.options.onBeginEdit(label);
         if(drag.kind==='move'&&this.options.getFixedTracksEnabled?.()) {
-          const ids=new Set(drag.indices.map(i=>this.options.getSegments(drag.track)[i]?.id));
+          const ids=new Set(drag.fixedMove?drag.fixedMove.entries.map(e=>e.cue.id):drag.indices.map(i=>this.options.getSegments(drag.track)[i]?.id));
           for(const follower of this.options.getSubtitleDragFollowers?.(drag)||[])ids.add(follower.segment.id);
           this.content.querySelectorAll('.waveform-cue-block').forEach(block=>{
             if(!ids.has(block.dataset.cueId))return;
@@ -7339,7 +7364,7 @@
       // Shift+拖动的逃生口是转入叠加轨，不做同轨挤压。
       if (drag.kind === 'move' && adjacentCueAdjustmentIndependent && !drag.shiftOverlay) drag.allowSqueeze = true;
       // 主字幕/副字幕绑定的独立调整仍只由 Alt 临时触发，不受同轨自动吸附开关影响。
-      if (drag.track === 'extension' && event.altKey) drag.independent = true;
+      if (drag.track === 'extension' && event.altKey && !this.options.getProductionTracksEnabled?.()) drag.independent = true;
       // Magnetic snapping is opt-in for this gesture; Shift can change while held.
       const disableSnap = !event.shiftKey || drag.independent === true || drag.shiftOverlay === true;
       const pointerRow=drag.pointerRow||drag.row,rect=pointerRow.getBoundingClientRect();

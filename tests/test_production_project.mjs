@@ -215,3 +215,43 @@ test('a bilingual group consumes one number; ungroup allocates after existing gr
   assert.deepEqual(bridge.toProject(bridge.fromProject(p)),p);
   assert.deepEqual(p.subtitles.cues,old.subtitles.cues);assert.deepEqual(p.subtitles.bindings,old.subtitles.bindings);
 });
+
+function moveFixture() {
+  const view=bridge.fromProject(fixture()),[main,secondary]=view.subtitle_tracks.tracks;
+  view.subtitle_tracks.tracks.push({...main,id:'s2',name:'S2主',display_number:2}, {...secondary,id:'s2-sub',name:'S2副',display_number:2,secondary_for:'s2'});
+  return view;
+}
+test('move closure is bidirectional and role mapping ignores display column, binding direction and collapsed lanes',()=>{
+  const view=moveFixture(),[main,secondary]=view.subtitle_tracks.tracks;
+  const [a,b]=[view.segments[0].id,view.multi_subtitle.tracks[0].segments[0].id];
+  const original=JSON.stringify(view);
+  for(const anchor of [a,b])for(const target of ['s2','s2-sub']) {
+    const plan=bridge.prepareMove(view,[anchor],anchor),owners=bridge.moveOwners(plan,target);
+    assert.equal(plan.entries.length,2);assert.equal(owners.get(a),'s2');assert.equal(owners.get(b),'s2-sub');
+  }
+  assert.equal(JSON.stringify(view),original);
+  view.subtitle_tracks.tracks[3].collapsed=true;
+  const swapped=bridge.fromProject(bridge.swapColumns(view));
+  assert.deepEqual([...bridge.moveOwners(bridge.prepareMove(swapped,[b],b),'s2')].sort(),[[a,'s2'],[b,'s2-sub']].sort());
+  const reverse=bridge.fromProject(bridge.reverseBindings(view,[a]));
+  assert.deepEqual([...bridge.moveOwners(bridge.prepareMove(reverse,[b],b),'s2-sub')].sort(),[[a,'s2'],[b,'s2-sub']].sort());
+  assert.equal(bridge.moveOwners(bridge.prepareMove(view,[a],a),secondary.id).get(a),main.id);
+});
+test('move plan rejects missing peers and locks without changing live contents',()=>{
+  const view=moveFixture(),a=view.segments[0].id;
+  view.subtitle_tracks.tracks.pop();const before=JSON.stringify(view);
+  assert.throws(()=>bridge.moveOwners(bridge.prepareMove(view,[a],a),'s2'),/副轨道/);
+  assert.equal(JSON.stringify(view),before);
+  view.subtitle_tracks.tracks[2].locked=true;
+  assert.throws(()=>bridge.moveOwners(bridge.prepareMove(view,[a],a),'s2'),/副轨道|锁定/);
+  view.subtitle_tracks.tracks[1].locked=true;
+  assert.throws(()=>bridge.prepareMove(view,[a],a),/锁定/);
+});
+test('move plan includes other selected columns exactly once and keeps physical order for ungrouped tracks',()=>{
+  const view=moveFixture(),[main,secondary]=view.subtitle_tracks.tracks;
+  delete secondary.secondary_for;delete view.subtitle_tracks.tracks[3].secondary_for;
+  const a=view.segments[0].id,b=view.multi_subtitle.tracks[0].segments[0].id;
+  const plan=bridge.prepareMove(view,[a,b,a],b),owners=bridge.moveOwners(plan,'s2-sub');
+  assert.equal(plan.entries.length,2);assert.equal(owners.get(a),'s2');assert.equal(owners.get(b),'s2-sub');
+  assert.equal(plan.entries.find(e=>e.cue.id===b).original.start-plan.entries.find(e=>e.cue.id===a).original.start,100);
+});

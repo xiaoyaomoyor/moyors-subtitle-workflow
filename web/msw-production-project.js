@@ -341,6 +341,50 @@
     for(const t of p.subtitles.tracks)t.enabled=t.enabled&&(!selected||selected.has(t.id));
     return p;
   }
-  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,EXT};
+  // A gesture uses stable cue IDs, never display-column indices or binding
+  // direction. Only its participating content is copied for preview/rollback.
+  function prepareMove(view, selectedIds, anchorId) {
+    const ids=new Set(selectedIds);ids.add(anchorId);
+    const neighbours=new Map();
+    for(const b of view.multi_subtitle.bindings) {
+      const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
+      neighbours.set(a,z);neighbours.set(z,a);
+    }
+    for(const id of ids)if(neighbours.has(id))ids.add(neighbours.get(id));
+    const owners=new Map(view.subtitle_tracks.assignments.map(a=>[a.cue_id,a.subtitle_track_id]));
+    const tracks=clone(view.subtitle_tracks.tracks),byTrack=new Map(tracks.map(t=>[t.id,t]));
+    const entries=layers.tracks(view).flatMap(source=>source.segments.flatMap((cue,index)=>ids.has(cue.id)
+      ? [{cue,index,source,owner:owners.get(cue.id),original:clone(cue)}] : []));
+    if(entries.length!==ids.size)throw Error('移动对象已不存在，请重新选择字幕');
+    for(const e of entries)if(!byTrack.has(e.owner)||byTrack.get(e.owner).locked)throw Error('操作包含锁定或不存在的源轨道');
+    return {entries,tracks,anchorId,anchorOwner:owners.get(anchorId)};
+  }
+  function moveOwners(plan, destination) {
+    const {tracks,entries,anchorOwner}=plan,byId=new Map(tracks.map(t=>[t.id,t]));
+    const root=id=>byId.get(id)?.secondary_for||id;
+    const mate=id=>tracks.find(t=>t.secondary_for===root(id));
+    if(!byId.has(destination))throw Error('请选择有效的字幕轨道');
+    const used=new Set(entries.map(e=>e.owner)),sourceMate=mate(anchorOwner);
+    const paired=sourceMate&&used.has(root(anchorOwner))&&used.has(sourceMate.id);
+    const roots=tracks.filter(t=>!t.secondary_for);
+    const shift=paired?roots.findIndex(t=>t.id===root(destination))-roots.findIndex(t=>t.id===root(anchorOwner))
+      :tracks.findIndex(t=>t.id===destination)-tracks.findIndex(t=>t.id===anchorOwner);
+    const mapping=new Map();
+    for(const owner of used) {
+      let target;
+      if(paired) {
+        const group=roots[roots.findIndex(t=>t.id===root(owner))+shift];
+        target=byId.get(owner).secondary_for?(group&&mate(group.id)):group;
+        if(group&&mate(owner)&&used.has(root(owner))&&used.has(mate(owner).id)&&!mate(group.id))
+          throw Error(`${group.name} 没有对应副轨道，无法放置整组字幕`);
+      } else target=tracks[tracks.findIndex(t=>t.id===owner)+shift];
+      if(!target)throw Error('没有足够的轨道容纳所选字幕');
+      if(target.locked)throw Error(`${target.name} 已锁定，请先解锁`);
+      mapping.set(owner,target.id);
+    }
+    if(new Set(mapping.values()).size!==mapping.size)throw Error('目标轨道无法一一对应，请选择其他轨道组');
+    return new Map(entries.map(e=>[e.cue.id,mapping.get(e.owner)]));
+  }
+  const api={isView,fromProject,toProject,normalizeView,translation,translationIds,translationScope,trackSelection,applyResults,place,insertAssets,importSubtitles,swapColumns,reverseBindings,alignBindings,exportScope,prepareMove,moveOwners,EXT};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWProductionProject=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

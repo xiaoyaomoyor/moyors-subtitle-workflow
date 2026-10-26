@@ -36,7 +36,12 @@ function fixedBeginDragTransaction(drag,label) {
   if(fixedPositionEditing)fixedStopPositioning(false);
   if(!fixedAcceptEdit())return false;
   const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
-  const ids=new Set(drag.indices.map(i=>source[i].id));
+  let move;
+  if(drag.kind==='move') {
+    try {move=fixedPrepareMove(drag);}
+    catch(error){drag.destinationPreview={blocked:true,reason:error.message};return true;}
+  }
+  const ids=new Set(move?move.entries.map(e=>e.cue.id):drag.indices.map(i=>source[i].id));
   if(drag.kind!=='move')for(const id of fixedPositionSelectedIds())ids.add(id);
   for(const b of DATA.multi_subtitle.bindings) {
     const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
@@ -405,7 +410,12 @@ function productionBindSelected() {
     commitProcessingEdits();productionRememberSelection();const ids=[...productionSelectionOrder];
     if(ids.length!==2)throw Error('请选择不同轨道的两条字幕进行绑定');
     let p=window.MSWProductionProject.toProject(DATA);
-    for(const b of p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id)))p=window.MSWFlatSubtitles.unbind(p,b.id);
+    const bound=p.subtitles.bindings.filter(b=>ids.includes(b.source_id)||ids.includes(b.target_id));
+    if(bound.some(b=>ids.includes(b.source_id)&&ids.includes(b.target_id)))return;
+    if(bound.length)throw Error('所选字幕已与其他字幕绑定，请先解绑');
+    const rows=ids.map(id=>p.subtitles.cues.find(c=>c.id===id));
+    const first=p.subtitles.tracks.find(t=>t.id===rows[0].track_id);
+    if(first.secondary_for===rows[1].track_id)ids.reverse();
     let next=window.MSWFlatSubtitles.bind(p,ids[0],ids[1],window.MSWProject.id('binding'));
     if(EDITOR_SETTINGS.multiSubtitleAutoSyncDuration) {
       const a=next.subtitles.cues.find(c=>c.id===ids[0]).content;
@@ -495,79 +505,85 @@ function fixedMove(refs, targetId) {
 
 // Pointer moves change time and physical ownership in one validated transaction.
 // Display columns remain an adapter detail; crossing them never unbinds cues.
+function fixedPrepareMove(drag) {
+  if(drag.fixedMove)return drag.fixedMove;
+  const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
+  const anchor=source[drag.index];
+  const selected=fixedSelectedRows().map(r=>r.cue_id);
+  const ids=selected.includes(anchor.id)?selected:drag.indices.map(i=>source[i].id);
+  const plan=MSWProductionProject.prepareMove(DATA,ids,anchor.id);
+  drag.fixedMove={...plan,assignments:structuredClone(DATA.subtitle_tracks.assignments),active:fixedActiveTrackId};
+  drag.moveMotions=plan.entries.map(e=>({segment:e.cue,segments:e.source.segments,
+    start:drag.timing.fromMs(e.original.start),end:drag.timing.fromMs(e.original.end),moveStart:true,moveEnd:true}));
+  return drag.fixedMove;
+}
 function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
   if (productionFlatMode() && ['resize-left','resize-right'].includes(drag.kind)) return fixedResizeSelection(drag, rawDelta, disableSnap);
   if(!productionFlatMode()||drag.kind!=='move')return null;
-  const source=drag.track==='extension'?getActiveExtensionTrack().segments:DATA.segments;
-  if(!drag.fixedMove&&!fixedCanEdit(drag.indices.map(i=>source[i]),drag.track,null,true,{silent:true})) {
-    drag.destinationPreview={...drag.destinationPreview,blocked:true,reason:fixedLastMessage};return false;
-  }
-  if(!drag.fixedMove) {
-    const entries=drag.indices.map(index=>({cue:source[index],original:structuredClone(source[index]),index}));
-    const followers=waveformEditor.options.getSubtitleDragFollowers(drag).map(f=>({cue:f.segment,original:structuredClone(f.segment),index:f.index}));
-    for(const follower of followers)ensureBoundDragOriginal(drag,follower.index,follower.cue);
-    drag.fixedMove={assignments:structuredClone(DATA.subtitle_tracks.assignments),entries,followers,
-      active:fixedActiveTrackId,owners:new Map(entries.map(e=>[e.cue.id,fixedOwner(e.cue,drag.track)]))};
-  }
-  const state=drag.fixedMove,tracks=fixedLayout().bands.map(b=>b.track),bands=fixedLayout().bands;
+  let state;
+  try {state=fixedPrepareMove(drag);}
+  catch(error){drag.destinationPreview={blocked:true,reason:error.message};return false;}
+  rawDelta+=state.keyboardDelta||0;
+  const {tracks,entries}=state,bands=fixedLayout().bands;
   const lane=Math.floor(fromBottom/fixedWaveGeometry().pitch),band=Number.isFinite(lane)&&bands.find(b=>lane>=b.bottom&&lane<b.bottom+b.size);
-  const originalOwner=state.owners.get(source[drag.index].id);
-  const destination=band?.track.id||state.target||originalOwner;
-  const original=drag.originals.get(drag.index),clock=drag.timing;
+  const destination=band?.track.id||state.target||state.anchorOwner;
+  const clock=drag.timing,anchor=entries.find(e=>e.cue.id===state.anchorId);
+  const deltaMs=clock.toMs(rawDelta);
   drag.destinationPreview={name:tracks.find(t=>t.id===destination)?.name||'',
-    start:clock.toMs(original.start+rawDelta),end:clock.toMs(original.end+rawDelta),blocked:true,reason:'目标轨道此处已有字幕，请调整位置'};
-  const shift=tracks.findIndex(t=>t.id===destination)-tracks.findIndex(t=>t.id===originalOwner);
-  const moving=new Map();
-  for(const entry of state.entries) {
-    const target=tracks[tracks.findIndex(t=>t.id===state.owners.get(entry.cue.id))+shift];
-    if(!target||target.locked){drag.destinationPreview.reason=target?'目标轨道已锁定，请先解锁':'没有足够的轨道容纳所选字幕';return false;}
-    moving.set(entry.cue.id,target.id);
-  }
+    start:anchor.original.start+deltaMs,end:anchor.original.end+deltaMs,blocked:true,reason:'请选择有效的字幕轨道'};
+  let moving;
+  try {moving=MSWProductionProject.moveOwners(state,destination);}
+  catch(error){drag.destinationPreview.reason=error.message;return false;}
+  const previews=delta=>entries.map(e=>({id:e.cue.id,trackId:moving.get(e.cue.id),text:e.cue.text,
+    start:e.original.start+delta,end:e.original.end+delta}));
+  drag.destinationPreview.entries=previews(deltaMs);
+  drag.destinationPreview.name=[...new Set(moving.values())].map(id=>{
+    const t=tracks.find(t=>t.id===id);return t.name+(t.collapsed?'（已折叠）':'');
+  }).join(' / ');
+  if(!band)return false;
   const previous=DATA.subtitle_tracks.assignments;
   const proposed=previous.map(a=>moving.has(a.cue_id)?{...a,subtitle_track_id:moving.get(a.cue_id)}:a);
-  // The existing snap solver reads physical owners. Expose only for this
-  // synchronous calculation; invalid candidates never reach rendering/save.
+  // Expose candidate owners only to the synchronous snap solver. All members
+  // constrain one delta; invalid candidates never reach rendering or saving.
   DATA.subtitle_tracks.assignments=proposed;fixedInvalidate();
-  drag.relocating=shift!==0||drag.pointerGeometry?.startMs!==undefined&&drag.pointerGeometry.startMs!==drag.geometry.startMs;
-  let changes,bindings;
+  drag.relocating=entries.some(e=>moving.get(e.cue.id)!==e.owner)
+    ||drag.pointerGeometry?.startMs!==undefined&&drag.pointerGeometry.startMs!==drag.geometry.startMs;
+  let changes;
   try {
     const delta=waveformEditor.resolveLayerPointerDelta(drag,rawDelta,disableSnap);
     if(delta===null)return false;
-    const clock=drag.timing;
-    changes=new Map(state.entries.map(e=>{
-      const original=drag.originals.get(e.index),next={...e.original};
-      clock.setStart(next,original.start+delta);clock.setEnd(next,original.end+delta);
+    const ms=clock.toMs(delta);
+    changes=new Map(entries.map(e=>{
+      // Shift instead of re-scaling: retain imported exact offsets and durations.
+      const next={...e.original,start:e.original.start+ms,end:e.original.end+ms};
+      if(clock.unit==='frames')for(const edge of ['start','end'])next[edge+'_frame']=clock.fromMs(e.original[edge])+delta;
       next.items=remapPanelItems(e.original.items,e.original.start,e.original.end,next.start,next.end);
       return [e.cue.id,next];
     }));
-    for(const follower of state.followers) {
-      const entry=state.entries.find(e=>e.index===follower.index),lead=changes.get(entry.cue.id),original=follower.original;
-      const next={...original,start:original.start+lead.start-entry.original.start,end:original.end+lead.end-entry.original.end};
-      if(clock.unit==='frames'){clock.setStart(next,clock.fromMs(next.start));clock.setEnd(next,clock.fromMs(next.end));}
-      next.items=remapPanelItems(original.items,original.start,original.end,next.start,next.end);changes.set(follower.cue.id,next);
-    }
-    state.byId ||= new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,c])));
-    bindings=DATA.multi_subtitle.bindings.map(b=>{
-      const a=b.main_segment_ids[0],z=b.extension_segment_ids[0];
-      if(!changes.has(a)&&!changes.has(z))return b;
-      const main=changes.get(a)||state.byId.get(a),secondary=changes.get(z)||state.byId.get(z);
-      return {...b,start_offset_ms:secondary.start-main.start,end_offset_ms:secondary.end-main.end};
-    });
+    drag.destinationPreview.entries=previews(ms);
     fixedTrackCore.validateTimingChanges(DATA,changes,moving);
   } catch(error) {drag.destinationPreview.reason=error.message;return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
   const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
-  const changed=ownerChanged||[...state.entries,...state.followers].some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
+  const changed=ownerChanged||entries.some(e=>e.cue.start!==changes.get(e.cue.id).start||e.cue.end!==changes.get(e.cue.id).end);
   fixedStatus();state.target=destination;
-  Object.assign(drag.destinationPreview,{start:changes.get(source[drag.index].id).start,
-    end:changes.get(source[drag.index].id).end,blocked:false});
+  Object.assign(drag.destinationPreview,{start:changes.get(state.anchorId).start,end:changes.get(state.anchorId).end,blocked:false});
   if(!changed)return false;
   DATA.subtitle_tracks.assignments=proposed;
-  for(const entry of [...state.entries,...state.followers])Object.assign(entry.cue,changes.get(entry.cue.id));
-  DATA.multi_subtitle.bindings=bindings;fixedActiveTrackId=destination;
-  // Physical ownership changes lane positions, not just the time-range index.
+  for(const entry of entries)Object.assign(entry.cue,changes.get(entry.cue.id));
+  // Both binding ends received the same delta; their saved offsets stay intact.
+  fixedActiveTrackId=moving.get(state.anchorId);
   if(ownerChanged)waveformEditor.subtitleLayouts=null;
   layerInvalidate();return true;
+}
+function fixedRebaseMoveDrag(drag) {
+  const state=drag.fixedMove;if(!state)return;
+  // Explicit keyboard edge edits establish a new pointer baseline. Keep the
+  // initial content separately so Escape still cancels the entire gesture.
+  for(const e of state.entries){e.initial ||= e.original;e.original=structuredClone(e.cue);}
+  state.keyboardDelta=0;
+  drag.moveMotions=state.entries.map(e=>({segment:e.cue,segments:e.source.segments,
+    start:drag.timing.fromMs(e.original.start),end:drag.timing.fromMs(e.original.end),moveStart:true,moveEnd:true}));
 }
 function fixedCancelMoveDrag(drag) {
   if(drag.fixedResize) {
@@ -576,9 +592,10 @@ function fixedCancelMoveDrag(drag) {
   }
   if(!drag.fixedMove)return;
   const state=drag.fixedMove;DATA.subtitle_tracks.assignments=state.assignments;fixedActiveTrackId=state.active;
-  for(const entry of [...state.entries,...state.followers]){
-    for(const field of Object.keys(entry.cue))if(!(field in entry.original))delete entry.cue[field];
-    Object.assign(entry.cue,entry.original);
+  for(const entry of state.entries){
+    const original=entry.initial||entry.original;
+    for(const field of Object.keys(entry.cue))if(!(field in original))delete entry.cue[field];
+    Object.assign(entry.cue,original);
   }
   syncBindingOffsets();fixedStatus();layerInvalidate();
 }

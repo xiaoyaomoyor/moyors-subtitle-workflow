@@ -40,6 +40,8 @@ async function loadAttachedCues(page, autoSnapAdjacentCues) {
   }, autoSnapAdjacentCues);
   await page.goto(server.url);
   await expect.poll(()=>page.evaluate(()=>DATA.segments.length)).toBe(3);
+  // The test server persists settings between pages; explicitly set this case's preference.
+  await page.evaluate(enabled=>updateEditorSettings({autoSaveProject:false,cueMoveStepMs:50,autoSnapAdjacentCues:enabled!==false}),autoSnapAdjacentCues);
 }
 
 function readTimings(page) {

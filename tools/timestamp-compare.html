@@ -2106,9 +2106,12 @@
       if(!Number.isSafeInteger(cue.start)||!Number.isSafeInteger(cue.end)||cue.start<0||cue.end<=cue.start)fail('字幕时间范围无效');
       if(!lanes.has(owner))lanes.set(owner,[]);lanes.get(owner).push(cue);
     }
-    for(const cues of lanes.values()) {
+    for(const [owner,cues] of lanes) {
       cues.sort((a,b)=>a.start-b.start);
-      for(let i=1;i<cues.length;i++)if(cues[i].start<cues[i-1].end)fail('目标轨道此处已有字幕，请调整位置');
+      for(let i=1;i<cues.length;i++)if(cues[i].start<cues[i-1].end) {
+        const name=project.subtitle_tracks.tracks.find(t=>t.id===owner)?.name||'';
+        fail(`目标轨道 ${name} 在 ${(cues[i].start/1000).toFixed(3)} s 处已有字幕，请调整位置`);
+      }
     }
   }
   function createIndex(project) {
