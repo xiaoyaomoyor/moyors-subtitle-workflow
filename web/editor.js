@@ -1764,6 +1764,7 @@ function buildEditorColorPalette() {
 }
 let COLOR_PALETTE = buildEditorColorPalette();
 let COLOR_BY_NAME = Object.fromEntries(COLOR_PALETTE.map(c => [c.name, c]));
+let speakerNameLanguage='';
 function rebuildEditorColorPalette() {
   EDITOR_SETTINGS.subtitleColorPalette = normalizeSubtitleColorPalette(
     EDITOR_SETTINGS.subtitleColorPalette,
@@ -15464,9 +15465,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
     : null;
   const speakerProfile = window.MSWSpeaker.profile(DATA,seg,DATA.segments[seg?.color_ref?.headIdx]);
   const speakerLabel = mainVisible && !!window.MSWSpeaker.prefix(DATA,speakerProfile)
-    ? window.AsrEditorUtils.speakerLabelForSegment(
-      seg, DATA.segments, speakerLabels.names,
-    )
+    ? MSWSpeaker.displayName(speakerProfile,speakerCueLanguage(seg))
     : '';
   const speakerLabelVisible = Boolean(speakerLabel && mainColorName && COLOR_BY_NAME[mainColorName]);
   const speakerLabelColor = speakerLabelVisible
@@ -15481,7 +15480,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const mainText = mainVisible ? window.MSWProjectStyle.wrapText(seg.text,previewStyle?.main) : '';
   const wrappedExtension=extensionVisible?window.MSWProjectStyle.wrapText(extension.text,previewStyle?.secondary):'';
   const extensionProfile=window.MSWSpeaker.profile(DATA,extension,getActiveExtensionTrack()?.segments[extension?.color_ref?.headIdx]);
-  const extensionText = extensionVisible ? window.MSWSpeaker.prefix(DATA,extensionProfile)+wrappedExtension : '';
+  const extensionText = extensionVisible ? window.MSWSpeaker.prefix(DATA,extensionProfile,speakerCueLanguage(extension,'extension',getActiveExtensionTrack()?.id))+wrappedExtension : '';
   if (overlayMainSpeakerLabelEl.classList.contains('hidden') === speakerLabelVisible) {
     overlayMainSpeakerLabelEl.classList.toggle('hidden', !speakerLabelVisible);
   }
@@ -15516,9 +15515,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const overlayProfile=window.MSWSpeaker.profile(DATA,overlayCue,overlayColorContext[overlayCue?.color_ref?.headIdx]);
   const overlaySpeakerLabel = overlayCueVisible
     && !!window.MSWSpeaker.prefix(DATA,overlayProfile)
-    ? window.AsrEditorUtils.speakerLabelForSegment(
-      overlayCue, overlayColorContext, speakerLabels.names,
-    )
+    ? MSWSpeaker.displayName(overlayProfile,speakerCueLanguage(overlayCue,'overlay'))
     : '';
   const overlaySpeakerColorName = overlayCueVisible
     ? MULTI_SUBTITLE_UTILS.effectiveColorName(overlayCue, overlayColorContext)
@@ -15837,14 +15834,30 @@ function speakerSettings() {
 }
 function speakerExportOptions() {
   const rows=speakerSettings().palette.rows;
+  let resolveName;
   return {speakerLabelsEnabled:EDITOR_SETTINGS.exportSpeakerLabels===true,
     speakerLabels:Object.fromEntries(rows.map(r=>[r.id,r.name])),speakerLabelSeparator:'：',
-    speakerSeparators:Object.fromEntries(rows.map(r=>[r.id,r.separator]))};
+    speakerSeparators:Object.fromEntries(rows.map(r=>[r.id,r.separator])),
+    speakerTextResolver:(cue,context)=>{
+      resolveName||=MSWSpeaker.nameResolver(DATA);
+      const profile=MSWSpeaker.profile(DATA,cue,context?.[cue.color_ref?.headIdx]);
+      return (profile?resolveName(profile,cue)+profile.separator:'')+String(cue.text||'');
+    }};
 }
+function speakerCueLanguage(cue,role='main',trackId=null) {
+  if(!cue)return '';
+  const owner=fixedTrackMode()?fixedOwner(cue,role,trackId):null;
+  return owner?DATA.subtitle_tracks.tracks.find(t=>t.id===owner)?.language:
+    role==='extension'?getExtensionTrack(trackId)?.language:DATA.language;
+}
+document.getElementById('speaker-name-language').onchange=event=>{speakerNameLanguage=event.target.value;syncSpeakerControls();};
 function syncSpeakerControls() {
   const palette=window.MSWSpeaker.ensure(DATA),body=document.getElementById('speaker-palette-rows');
   if(!body)return;
-  const key=JSON.stringify(palette);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
+  const choices=window.MSWSpeaker.languageOptions(DATA),picker=document.getElementById('speaker-name-language');
+  if(!choices.some(([code])=>code===speakerNameLanguage))speakerNameLanguage='';
+  const key=JSON.stringify([palette,speakerNameLanguage,choices]);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
+  picker.replaceChildren(...choices.map(([code,label])=>new Option(label,code)));picker.value=speakerNameLanguage;
   const titles=['不着色','字幕填充色','字幕描边色','字幕背景框色','说话人名称色'];
   const create=(entry,index)=>{
     const tr=document.createElement('tr');tr.dataset.speakerId=entry?.id||'all';
@@ -15859,17 +15872,19 @@ function syncSpeakerControls() {
         input.title='属性调整表示此说话人有独立外观；选择普通模式恢复色系外观，保留动画。';
       }
       else {input=document.createElement('input');input.type=field==='color'?'color':'text';if(field!=='color')input.maxLength=field==='name'?64:16;}
-      const shown=r=>field==='mode'&&Object.keys(r.style||{}).length?'properties':r[field];
+      const shown=r=>field==='name'&&speakerNameLanguage?r.names?.[speakerNameLanguage]||'':field==='mode'&&Object.keys(r.style||{}).length?'properties':r[field];
       const values=palette.rows.map(shown),same=values.every(v=>v===values[0]);
       input.value=entry?shown(entry):same?values[0]:field==='color'?values[0]:'';
+      if(field==='name'&&speakerNameLanguage)input.placeholder=entry.name;
       input.setAttribute('aria-label',(entry?entry.name:'全部说话人')+' '+({name:'名称',color:'颜色',mode:'着色模式',separator:'分隔符'}[field]));
       if(!entry&&!same)input.title='多个值；修改后应用到全部说话人';
       input.onchange=()=>{
         const value=input.value;if(field==='mode'&&!value)return;
-        if(field==='name'&&!value.trim()){input.value=entry.name;return;}
+        if(field==='name'&&!speakerNameLanguage&&!value.trim()){input.value=entry.name;return;}
         pushPreviewUndo('调整说话人色系',snapshotPreviewState());
         for(const r of entry?[entry]:palette.rows){
-          r[field]=field==='name'?value.trim():value;
+          if(field==='name'&&speakerNameLanguage){r.names||={};if(value.trim())r.names[speakerNameLanguage]=value.trim();else delete r.names[speakerNameLanguage];if(!Object.keys(r.names).length)delete r.names;}
+          else r[field]=field==='name'?value.trim():value;
           if(field==='mode'){delete r.style;delete r.style_preset;}
         }
         speakerPaletteChanged();
@@ -23882,8 +23897,10 @@ function initWaveformEditor() {
         ? (overlayTrackVisible() ? (getOverlayTrack()?.segments || []) : [])
         : DATA.segments,
     getExtensionSegments: (trackId = null) => getExtensionTrack(trackId)?.segments || [],
-    getCueSpeaker: (cue, role) => window.MSWSpeaker.profile(DATA, cue,
-      (role === 'extension' ? getActiveExtensionTrack()?.segments : role === 'overlay' ? getOverlayTrack()?.segments : DATA.segments)?.[cue.color_ref?.headIdx]),
+    getCueSpeaker: (cue, role) => {
+      const profile=MSWSpeaker.profile(DATA, cue,(role==='extension'?getActiveExtensionTrack()?.segments:role==='overlay'?getOverlayTrack()?.segments:DATA.segments)?.[cue.color_ref?.headIdx]);
+      return profile?{...profile,name:MSWSpeaker.displayName(profile,speakerCueLanguage(cue,role,role==='extension'?getActiveExtensionTrack()?.id:null))}:null;
+    },
     getSubtitleDragFollowers: drag => {
       if (drag.track !== 'main' || (!fixedTrackMode() && !multiSubtitleVisible())) return [];
       return drag.indices.flatMap(index => {

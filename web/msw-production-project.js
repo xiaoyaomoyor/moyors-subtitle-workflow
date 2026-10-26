@@ -73,9 +73,9 @@
     view.subtitle_layers=clone(m.migration?.structure?.subtitle_layers||layers.migrate({segments:[]}).subtitle_layers);
     view.subtitle_layers.legacy_overlay={...view.subtitle_layers.legacy_overlay,visible:false,cue_ids:m.cues.filter(c=>c.hidden&&!right.has(c.id)).map(c=>c.id)};
     view.subtitle_tracks={schema:legacy.TRACK_SCHEMA,presentation:'fixed',tracks:m.tracks.map(t=>{
-      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position','display_number','secondary_for','split_mode']);
+      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position','display_number','secondary_for','split_mode','language']);
       return {id:t.id,name:t.name,display_number:t.display_number,...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:t.purpose,layout:t.layout,kind:t.style.base,style_base:t.style.base,
-        origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,...(t.split_mode?{split_mode:t.split_mode}:{}),
+        origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,...(t.language!==undefined?{language:t.language}:{}),...(t.split_mode?{split_mode:t.split_mode}:{}),
         style:clone(extras(t.style,['slot','base'])),flat_style_slot:t.style.slot,...(t.position?{position:clone(t.position)}:{})};
     }),assignments:m.cues.map(c=>({role:right.has(c.id)?'extension':'main',track_id:right.has(c.id)?EXT:null,cue_id:c.id,subtitle_track_id:c.track_id})),flat_context:context};
     legacy.validate(view);return view;
@@ -105,7 +105,7 @@
   }
   function canonicalTrack(t,context) {
     return {...clone(context.tracks[t.id]||{}),id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),
-      ...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+      ...(t.secondary_for?{secondary_for:t.secondary_for}:{}),...(t.language!==undefined?{language:t.language}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
       style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})};
   }
   function toProject(view, {previewWindow=null}={}) {

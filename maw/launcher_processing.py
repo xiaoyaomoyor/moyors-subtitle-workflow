@@ -138,6 +138,8 @@ def apply_translation(project, source_id, target_id, segments, *, language='zh')
         if 'secondary_for' not in source and not any(t.get('secondary_for') == source_id for t in result['subtitles']['tracks']):
             target['secondary_for'] = source_id
         result['subtitles']['tracks'].append(target)
+    if not target.get('language'):
+        target['language'] = language
     index = SubtitleIndex(result)
     for cue in selected:
         translated = rows[cue['id']]

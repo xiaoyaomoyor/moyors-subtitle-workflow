@@ -10,6 +10,36 @@
   }
   const defaults=[['yellow','#c4a019'],['green','#66bb6a'],['red','#f07f6f'],['purple','#bf89e6'],['blue','#61a7fa']];
   const modes=['none','text','stroke','background','speaker'];
+  const languages=[['','默认名称'],['en','英文'],['zh-hans','简体中文'],['zh-hant','繁体中文'],['ja','日文'],['ko','韩文'],['fr','法文'],['de','德文'],['es','西班牙文'],['pt','葡萄牙文'],['ru','俄文'],['ar','阿拉伯文'],['it','意大利文'],['vi','越南文'],['th','泰文'],['id','印尼文'],['hi','印地文']];
+  function language(value) {
+    const raw=typeof value==='string'?value.trim().toLowerCase().replace(/_/g,'-'):'';
+    const aliases={zh:'zh-hans','zh-cn':'zh-hans','zh-sg':'zh-hans','zh-tw':'zh-hant','zh-hk':'zh-hant','zh-mo':'zh-hant',chinese:'zh-hans',english:'en',japanese:'ja',korean:'ko'};
+    const code=aliases[raw]||raw;
+    return code.length<=35&&/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/.test(code)&&!['und','mul'].includes(code)?code:'';
+  }
+  function displayName(profile,locale='') {
+    if(!profile)return '';
+    const code=language(locale),keys=[code];
+    if(code.startsWith('zh-hans-'))keys.push('zh-hans');
+    if(code.startsWith('zh-hant-'))keys.push('zh-hant');
+    keys.push(code.split('-')[0]);
+    return keys.map(k=>profile.names?.[k]).find(Boolean)||profile.name;
+  }
+  // Build once per operation. Do not scan a long project's assignments for
+  // every rendered cue; identity/ownership, not list columns, decides language.
+  function nameResolver(project) {
+    const model=project.subtitles||project.subtitle_tracks;
+    const tracks=new Map((model?.tracks||[]).map(t=>[t.id,t]));
+    const owners=new Map(project.subtitles?project.subtitles.cues.map(c=>[c.id,c.track_id]):(model?.assignments||[]).map(a=>[a.cue_id,a.subtitle_track_id]));
+    return (profile,cue)=>displayName(profile,tracks.get(owners.get(cue?.id))?.language);
+  }
+  function languageOptions(project) {
+    const extra=[...(project.subtitles?.tracks||project.subtitle_tracks?.tracks||[]).map(t=>language(t.language)),
+      ...(project.preview?.speaker_palette?.rows||[]).flatMap(r=>Object.keys(r.names||{}))];
+    const result=languages.map(r=>r.slice()),known=new Set(result.map(r=>r[0]));
+    for(const code of extra)if(code&&!known.has(code)){let label=code;try{label=new Intl.DisplayNames(['zh'],{type:'language'}).of(code)||code;}catch(_){}result.push([code,label]);known.add(code);}
+    return result;
+  }
   const cueStyle=()=>global.MSWCueStyle||(typeof require==='function'?require('./msw-cue-style.js'):null);
   const motion=()=>global.MSWSubtitleAnimation||(typeof require==='function'?require('./msw-subtitle-animation.js'):null);
   const safeText=(value,max,fallback='')=>typeof value==='string'?value.replace(/[\u0000-\u001f\u007f]/g,'').slice(0,max):fallback;
@@ -23,6 +53,8 @@
     return value?.version===1&&Array.isArray(value.rows)&&value.rows.length>=1&&value.rows.length<=1024
       &&new Set(value.rows.map(r=>r?.id)).size===value.rows.length&&value.rows.every(r=>r&&typeof r.id==='string'&&/^[a-zA-Z0-9_-]{1,160}$/.test(r.id)
         &&typeof r.name==='string'&&r.name.trim()&&r.name.length<=64&&!/[\u0000-\u001f\u007f]/.test(r.name)
+        &&(r.names===undefined||r.names&&typeof r.names==='object'&&!Array.isArray(r.names)&&Object.keys(r.names).length<=64
+          &&Object.entries(r.names).every(([k,v])=>k&&k===language(k)&&typeof v==='string'&&v.trim()&&v.length<=64&&!/[\u0000-\u001f\u007f]/.test(v)))
         &&/^#[\da-f]{6}$/i.test(r.color)&&modes.includes(r.mode)&&typeof r.separator==='string'&&r.separator.length<=16&&!/[\u0000-\u001f\u007f]/.test(r.separator)
         &&(r.style===undefined||cueStyle()?.valid(r.style))&&(r.animation===undefined||motion()?.valid(r.animation))
         &&(r.style_preset===undefined||typeof r.style_preset==='string'&&r.style_preset.length<=160));
@@ -65,10 +97,10 @@
     const name=cue?.color?.name||head?.color?.name||cue?.color_ref?.name;
     return project.preview?.speaker_palette?.rows.find(r=>r.id===name)||null;
   }
-  function prefix(project,profile) {
+  function prefix(project,profile,locale='') {
     if(!profile)return '';
     const show=project.preview?.speaker_label_export??project.preview?.speaker_labels_visible;
-    return (typeof show==='boolean'?show:profile.mode==='speaker')?profile.name+profile.separator:'';
+    return (typeof show==='boolean'?show:profile.mode==='speaker')?displayName(profile,locale)+profile.separator:'';
   }
   function appearance(style,cue,profile) {
     if(!profile)return {...style};
@@ -82,7 +114,7 @@
     if(profile.animation)result.animation=motion().resolve(style.animation,profile.animation);
     return result;
   }
-  const api = { inherit,defaults,modes,row,colorAt,valid,ensure,profile,prefix,appearance };
+  const api = { inherit,defaults,modes,languages,language,displayName,nameResolver,languageOptions,row,colorAt,valid,ensure,profile,prefix,appearance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSpeaker = api;
 })(typeof window !== 'undefined' ? window : globalThis);

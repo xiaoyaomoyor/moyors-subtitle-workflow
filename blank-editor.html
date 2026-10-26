@@ -5636,6 +5636,8 @@
 .curve-menu-icon { flex:0 0 14px; width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.4; }
 #ctxmenu .item:has(.curve-menu-icon) { gap:8px; }
 .speaker-palette-scroll { overflow-x:auto; margin:10px 0; }
+.speaker-name-language { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:inherit; }
+.speaker-name-language select { width:auto; min-width:130px; max-width:220px; }
 .speaker-palette-table { width:100%; border-collapse:separate; border-spacing:6px; font-size:inherit; }
 .speaker-palette-table th { text-align:left; color:var(--text-secondary); font-weight:500; white-space:nowrap; }
 .speaker-palette-table th:first-child { width:36px; text-align:center; }
@@ -7955,6 +7957,7 @@
         <h5 class="help-subtitle">版本与说话人</h5>
         <p>设置 → 保存：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。</p>
         <p>全局设置 → 说话人色系：配置随工程保存。右键“标记字幕”或按 1–9 标记，0 清除；属性列表选择“说话人”可调整外观及动画，单条设置优先。播放器设置控制预览名称，导出名称独立选择，不改动正文或配音。</p>
+        <p>“名称语言”可为同一说话人填写不同语言的名字；轨道右键设置“轨道语言”，预览和导出据此显示。译名留空使用默认名称，交换列表左右列不会改变名字。</p>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">鼠标操作</h5>
@@ -8562,6 +8565,8 @@
           <div class="settings-category-header">说话人色系</div>
           <div class="editor-settings-sub-group" id="speaker-label-settings">
             <p class="editor-settings-hint">配置随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。</p>
+            <label class="speaker-name-language">名称语言<select id="speaker-name-language" aria-label="名称语言"></select><span class="msw-help-anchor" id="speaker-name-language-help"></span></label>
+            <p hidden data-help-for="speaker-name-language-help">名称按轨道语言显示；留空使用默认名称。轨道语言可在轨道按钮的右键菜单中调整。</p>
             <div class="speaker-palette-scroll"><table class="speaker-palette-table"><thead><tr><th scope="col">序号</th><th scope="col">说话人名称</th><th scope="col">指定颜色</th><th scope="col">着色模式</th><th scope="col">分隔符</th></tr></thead><tbody id="speaker-palette-rows"></tbody></table></div>
             <button type="button" class="msw-icon-button" id="speaker-palette-add" title="添加说话人" aria-label="添加说话人">＋</button>
           </div>
@@ -15605,7 +15610,8 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
       outputIndex += 1;
       parts.push(String(outputIndex));
       parts.push(`${formatTime(start)} --> ${formatTime(end)}`);
-      parts.push(disabled ? '' : speakerLabels
+      parts.push(disabled ? '' : options.speakerLabelsEnabled===true&&typeof options.speakerTextResolver==='function'
+        ? options.speakerTextResolver(segment,colorContext) : speakerLabels
         ? formatSpeakerLabelledText(
           segment.text, segment, colorContext, speakerLabels, options.speakerSeparators?.[effectiveColorName(segment,colorContext)] ?? speakerLabelSeparator,
         )
@@ -18992,7 +18998,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 17;
+  const layoutVersion = 18;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     return {order:raw.order,gap:raw.gap};
@@ -19674,6 +19680,7 @@ export default MawDynamicCaptions;
       || Object.hasOwn(metadata.legacy_overlay_settings, 'segments'))) fail('旧叠加设置不能包含第二份字幕正文');
     const tracks = new Map();
     for (const track of metadata.tracks) {
+      if(track?.language!==undefined&&(typeof track.language!=='string'||track.language.length>64||/[\u0000-\u001f\u007f]/.test(track.language)))fail('轨道语言无效');
       if (!stable(track?.id) || tracks.has(track.id) || !stable(track.name)
         || !['dialogue', 'annotation'].includes(track.kind)
         || ((metadata.schema === TRACK_SCHEMA || track.purpose !== undefined) && !['none', 'dialogue', 'source', 'translation', 'annotation'].includes(track.purpose))
@@ -20027,6 +20034,7 @@ export default MawDynamicCaptions;
     if(!object(m)||m.schema!==MODEL_SCHEMA||!Array.isArray(m.tracks)||!m.tracks.length||!Array.isArray(m.cues)||!Array.isArray(m.bindings))fail('字幕结构无效');
     const tracks=new Map(),cues=new Map(),lanes=new Map();
     for(const track of m.tracks) {
+      if(track?.language!==undefined&&(typeof track.language!=='string'||track.language.length>64||/[\u0000-\u001f\u007f]/.test(track.language)))fail('轨道语言无效');
       if(!object(track)||!stable(track.id)||tracks.has(track.id)||!stable(track.name)
         ||['parent_id','children','segments','cues'].some(k=>Object.hasOwn(track,k))
         ||!['none','dialogue','source','translation','annotation'].includes(track.purpose)
@@ -20180,6 +20188,7 @@ export default MawDynamicCaptions;
           locked:t.locked,collapsed:t.collapsed,style:{...clone(t.style),slot:role==='main'?'main':'secondary',base:old.styleKind(t)}};
         if(t.position)track.position=clone(t.position);
         if(storage?.language)track.language=storage.language;
+        else if(role==='main'&&(t.language||project.language))track.language=t.language||project.language;
         const splitMode=role==='main'?(project.multi_subtitle?.main_split_mode||project.split_mode):storage?.split_mode;
         if(['word','continuous'].includes(splitMode))track.split_mode=splitMode;
         m.tracks.push(track);ownerTracks.set(key,id);
@@ -20696,6 +20705,36 @@ export default MawDynamicCaptions;
   }
   const defaults=[['yellow','#c4a019'],['green','#66bb6a'],['red','#f07f6f'],['purple','#bf89e6'],['blue','#61a7fa']];
   const modes=['none','text','stroke','background','speaker'];
+  const languages=[['','默认名称'],['en','英文'],['zh-hans','简体中文'],['zh-hant','繁体中文'],['ja','日文'],['ko','韩文'],['fr','法文'],['de','德文'],['es','西班牙文'],['pt','葡萄牙文'],['ru','俄文'],['ar','阿拉伯文'],['it','意大利文'],['vi','越南文'],['th','泰文'],['id','印尼文'],['hi','印地文']];
+  function language(value) {
+    const raw=typeof value==='string'?value.trim().toLowerCase().replace(/_/g,'-'):'';
+    const aliases={zh:'zh-hans','zh-cn':'zh-hans','zh-sg':'zh-hans','zh-tw':'zh-hant','zh-hk':'zh-hant','zh-mo':'zh-hant',chinese:'zh-hans',english:'en',japanese:'ja',korean:'ko'};
+    const code=aliases[raw]||raw;
+    return code.length<=35&&/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/.test(code)&&!['und','mul'].includes(code)?code:'';
+  }
+  function displayName(profile,locale='') {
+    if(!profile)return '';
+    const code=language(locale),keys=[code];
+    if(code.startsWith('zh-hans-'))keys.push('zh-hans');
+    if(code.startsWith('zh-hant-'))keys.push('zh-hant');
+    keys.push(code.split('-')[0]);
+    return keys.map(k=>profile.names?.[k]).find(Boolean)||profile.name;
+  }
+  // Build once per operation. Do not scan a long project's assignments for
+  // every rendered cue; identity/ownership, not list columns, decides language.
+  function nameResolver(project) {
+    const model=project.subtitles||project.subtitle_tracks;
+    const tracks=new Map((model?.tracks||[]).map(t=>[t.id,t]));
+    const owners=new Map(project.subtitles?project.subtitles.cues.map(c=>[c.id,c.track_id]):(model?.assignments||[]).map(a=>[a.cue_id,a.subtitle_track_id]));
+    return (profile,cue)=>displayName(profile,tracks.get(owners.get(cue?.id))?.language);
+  }
+  function languageOptions(project) {
+    const extra=[...(project.subtitles?.tracks||project.subtitle_tracks?.tracks||[]).map(t=>language(t.language)),
+      ...(project.preview?.speaker_palette?.rows||[]).flatMap(r=>Object.keys(r.names||{}))];
+    const result=languages.map(r=>r.slice()),known=new Set(result.map(r=>r[0]));
+    for(const code of extra)if(code&&!known.has(code)){let label=code;try{label=new Intl.DisplayNames(['zh'],{type:'language'}).of(code)||code;}catch(_){}result.push([code,label]);known.add(code);}
+    return result;
+  }
   const cueStyle=()=>global.MSWCueStyle||(typeof require==='function'?require('./msw-cue-style.js'):null);
   const motion=()=>global.MSWSubtitleAnimation||(typeof require==='function'?require('./msw-subtitle-animation.js'):null);
   const safeText=(value,max,fallback='')=>typeof value==='string'?value.replace(/[\u0000-\u001f\u007f]/g,'').slice(0,max):fallback;
@@ -20709,6 +20748,8 @@ export default MawDynamicCaptions;
     return value?.version===1&&Array.isArray(value.rows)&&value.rows.length>=1&&value.rows.length<=1024
       &&new Set(value.rows.map(r=>r?.id)).size===value.rows.length&&value.rows.every(r=>r&&typeof r.id==='string'&&/^[a-zA-Z0-9_-]{1,160}$/.test(r.id)
         &&typeof r.name==='string'&&r.name.trim()&&r.name.length<=64&&!/[\u0000-\u001f\u007f]/.test(r.name)
+        &&(r.names===undefined||r.names&&typeof r.names==='object'&&!Array.isArray(r.names)&&Object.keys(r.names).length<=64
+          &&Object.entries(r.names).every(([k,v])=>k&&k===language(k)&&typeof v==='string'&&v.trim()&&v.length<=64&&!/[\u0000-\u001f\u007f]/.test(v)))
         &&/^#[\da-f]{6}$/i.test(r.color)&&modes.includes(r.mode)&&typeof r.separator==='string'&&r.separator.length<=16&&!/[\u0000-\u001f\u007f]/.test(r.separator)
         &&(r.style===undefined||cueStyle()?.valid(r.style))&&(r.animation===undefined||motion()?.valid(r.animation))
         &&(r.style_preset===undefined||typeof r.style_preset==='string'&&r.style_preset.length<=160));
@@ -20751,10 +20792,10 @@ export default MawDynamicCaptions;
     const name=cue?.color?.name||head?.color?.name||cue?.color_ref?.name;
     return project.preview?.speaker_palette?.rows.find(r=>r.id===name)||null;
   }
-  function prefix(project,profile) {
+  function prefix(project,profile,locale='') {
     if(!profile)return '';
     const show=project.preview?.speaker_label_export??project.preview?.speaker_labels_visible;
-    return (typeof show==='boolean'?show:profile.mode==='speaker')?profile.name+profile.separator:'';
+    return (typeof show==='boolean'?show:profile.mode==='speaker')?displayName(profile,locale)+profile.separator:'';
   }
   function appearance(style,cue,profile) {
     if(!profile)return {...style};
@@ -20768,7 +20809,7 @@ export default MawDynamicCaptions;
     if(profile.animation)result.animation=motion().resolve(style.animation,profile.animation);
     return result;
   }
-  const api = { inherit,defaults,modes,row,colorAt,valid,ensure,profile,prefix,appearance };
+  const api = { inherit,defaults,modes,languages,language,displayName,nameResolver,languageOptions,row,colorAt,valid,ensure,profile,prefix,appearance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSpeaker = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -20824,6 +20865,8 @@ export default MawDynamicCaptions;
       const head=edit.cue(p,c.content.color_ref?.cue_id);
       speaker.inherit(c.content,content,head?.content);
     }
+    const owner=edit.track(n,s.subtitle_track_id),locale=speaker.language(job.result?.language||job.language);
+    if(ids.length&&!owner.language&&locale)owner.language=locale;
     mark(n,job);core.validate(n);return {project:n,ids};
   }
   function applyAsr(p,job,media,makeId){checkBase(p,job);const s=job.snapshot;writable(p,s.subtitle_track_id);
@@ -20840,6 +20883,8 @@ export default MawDynamicCaptions;
       if(content.start<s.range.start||content.end>s.range.end)throw Error('识别结果超出请求范围');
       for(const ref of ['color_ref','sticker_ref'])if(content[ref]){const head=content[ref].headIdx;if(!Number.isInteger(head)||!ids[head])throw Error('识别结果标记引用无效');content[ref]={...content[ref],cue_id:ids[head]};delete content[ref].headIdx;}
       edit.frame(n,content);n.subtitles.cues.push({id:ids[i],track_id:s.subtitle_track_id,content});});
+    const owner=edit.track(n,s.subtitle_track_id),locale=speaker.language(job.result?.language||job.language);
+    if(!owner.language&&locale)owner.language=locale;
     mark(n,job);core.validate(n);return {project:n,ids};
   }
   function applyTts(p,job){checkBase(p,job);const n=copy(p),items=job.result?.items||[],assets=items.filter(i=>i.status==='ready').map(i=>i.asset);
@@ -20927,9 +20972,9 @@ export default MawDynamicCaptions;
     view.subtitle_layers=clone(m.migration?.structure?.subtitle_layers||layers.migrate({segments:[]}).subtitle_layers);
     view.subtitle_layers.legacy_overlay={...view.subtitle_layers.legacy_overlay,visible:false,cue_ids:m.cues.filter(c=>c.hidden&&!right.has(c.id)).map(c=>c.id)};
     view.subtitle_tracks={schema:legacy.TRACK_SCHEMA,presentation:'fixed',tracks:m.tracks.map(t=>{
-      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position','display_number','secondary_for','split_mode']);
+      context.tracks[t.id]=extras(t,['id','name','purpose','layout','enabled','locked','collapsed','style','position','display_number','secondary_for','split_mode','language']);
       return {id:t.id,name:t.name,display_number:t.display_number,...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:t.purpose,layout:t.layout,kind:t.style.base,style_base:t.style.base,
-        origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,...(t.split_mode?{split_mode:t.split_mode}:{}),
+        origin:'main',enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,...(t.language!==undefined?{language:t.language}:{}),...(t.split_mode?{split_mode:t.split_mode}:{}),
         style:clone(extras(t.style,['slot','base'])),flat_style_slot:t.style.slot,...(t.position?{position:clone(t.position)}:{})};
     }),assignments:m.cues.map(c=>({role:right.has(c.id)?'extension':'main',track_id:right.has(c.id)?EXT:null,cue_id:c.id,subtitle_track_id:c.track_id})),flat_context:context};
     legacy.validate(view);return view;
@@ -20959,7 +21004,7 @@ export default MawDynamicCaptions;
   }
   function canonicalTrack(t,context) {
     return {...clone(context.tracks[t.id]||{}),id:t.id,name:t.name,...(t.display_number?{display_number:t.display_number}:{}),
-      ...(t.secondary_for?{secondary_for:t.secondary_for}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
+      ...(t.secondary_for?{secondary_for:t.secondary_for}:{}),...(t.language!==undefined?{language:t.language}:{}),purpose:legacy.purpose(t),layout:legacy.placement(t),enabled:t.enabled,locked:t.locked,collapsed:t.collapsed,
       style:{...clone(t.style),slot:t.flat_style_slot||'main',base:legacy.styleKind(t)},...(t.position?{position:clone(t.position)}:{}),...(t.split_mode?{split_mode:t.split_mode}:{})};
   }
   function toProject(view, {previewWindow=null}={}) {
@@ -23208,6 +23253,9 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '名称语言': 'Name language', '默认名称': 'Default name', '轨道语言': 'Track language', '未指定（默认名称）': 'Unspecified (default name)',
+    '名称按轨道语言显示；留空使用默认名称。轨道语言可在轨道按钮的右键菜单中调整。': 'Names follow the track language; a blank translation uses the default name. Set the language in the track button context menu.',
+    '“名称语言”可为同一说话人填写不同语言的名字；轨道右键设置“轨道语言”，预览和导出据此显示。译名留空使用默认名称，交换列表左右列不会改变名字。': 'Use Name language to enter translations for the same speaker. Set Track language from its context menu for preview and export. A blank translation uses the default name; swapping list columns does not change names.',
     '字幕 · 时间': 'Subtitles · Timing', '时间调整': 'Timing adjustment', '整体移动': 'Move together',
     '调整起点': 'Adjust starts', '调整终点': 'Adjust ends', '缩放时长': 'Scale duration',
     '方向': 'Direction', '延后': 'Later', '提前': 'Earlier', '移动时间': 'Time amount',
@@ -35135,6 +35183,10 @@ function fixedTrackMenu(track, x, y) {
   ctxAppendSeparator();
   if(productionFlatMode()) {
     const tracks=DATA.subtitle_tracks.tracks;
+    ctxAppendExpandableSettings('轨道语言',MSWSpeaker.languageOptions(DATA).map(([code,label])=>({
+      label:code?label:'未指定（默认名称）',selected:MSWSpeaker.language(track.language)===code,disabled:track.locked,
+      action:()=>fixedUpdateTrack(track.id,{language:code})
+    })));
     const apply=main=>{try{const p=window.MSWProductionProject.toProject(DATA);productionCommitProject(window.MSWFlatSubtitles.setTrackGroup(p,track.id,main),'调整主副轨道分组');}catch(e){fixedStatus(e.message);}};
     if(track.secondary_for||tracks.some(t=>t.secondary_for===track.id))fixedMenuItem('解除主副分组',()=>apply(null),track.locked);
     if(!tracks.some(t=>t.secondary_for===track.id)) {
@@ -35693,7 +35745,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('download-merged-srt')?.addEventListener('click',async()=>{
     if(!fixedCanExport())return;
-    commitProcessingEdits();const cues=window.MSWSubtitlePresentation.mergedSrtRows(fixedTrackMode()?fixedSrtProject():DATA);
+    commitProcessingEdits();const project=fixedTrackMode()?fixedSrtProject():structuredClone(DATA),options=speakerExportOptions();
+    if(options.speakerLabelsEnabled)for(const source of layerCore.tracks(project))for(const cue of source.segments)cue.text=options.speakerTextResolver(cue,source.segments);
+    const cues=window.MSWSubtitlePresentation.mergedSrtRows(project);
     await downloadFile(window.AsrEditorUtils.buildSrtPayload(cues,{formatTime:fmtSrtTime}),`${FILENAME_BASE}.merged.srt`,'text/plain',{desc:'合并显示 SRT',types:{'text/plain':['.srt']}});
   });
   document.getElementById('subtitle-legacy-visible')?.addEventListener('change', event => {
@@ -35968,7 +36022,8 @@ function fixedMeasureText(row, projectStyle, width) {
   const speaker=labels.enabled&&labels.mapping_enabled?window.AsrEditorUtils.speakerLabelForSegment(row.cue,segments,labels.names):'';
   const profile=window.MSWSpeaker.profile(DATA,row.cue,segments[row.cue.color_ref?.headIdx]);
   const exportView=window.MSWSubtitleStyle?.currentPreview()?.scope==='export';
-  const prefix=DATA.preview?.speaker_palette?window.MSWSpeaker.prefix(exportView?{preview:{...DATA.preview,speaker_label_export:document.getElementById('video-export-speaker-labels').checked}}:DATA,profile):speaker?speaker+labels.separator:'';
+  const locale=DATA.subtitle_tracks?.tracks.find(t=>t.id===row.subtitle_track_id)?.language;
+  const prefix=DATA.preview?.speaker_palette?window.MSWSpeaker.prefix(exportView?{preview:{...DATA.preview,speaker_label_export:document.getElementById('video-export-speaker-labels').checked}}:DATA,profile,locale):speaker?speaker+labels.separator:'';
   const text=prefix+window.MSWProjectStyle.wrapText(row.cue.text,style);
   const key=JSON.stringify([text,prefix,style,width]);if(fixedTextMeasures.has(key))return fixedTextMeasures.get(key);
   if(!fixedMeasureRoot){fixedMeasureRoot=document.createElement('div');fixedMeasureRoot.className='fixed-subtitle-measure';document.body.append(fixedMeasureRoot);}
@@ -38125,6 +38180,7 @@ function buildEditorColorPalette() {
 }
 let COLOR_PALETTE = buildEditorColorPalette();
 let COLOR_BY_NAME = Object.fromEntries(COLOR_PALETTE.map(c => [c.name, c]));
+let speakerNameLanguage='';
 function rebuildEditorColorPalette() {
   EDITOR_SETTINGS.subtitleColorPalette = normalizeSubtitleColorPalette(
     EDITOR_SETTINGS.subtitleColorPalette,
@@ -51825,9 +51881,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
     : null;
   const speakerProfile = window.MSWSpeaker.profile(DATA,seg,DATA.segments[seg?.color_ref?.headIdx]);
   const speakerLabel = mainVisible && !!window.MSWSpeaker.prefix(DATA,speakerProfile)
-    ? window.AsrEditorUtils.speakerLabelForSegment(
-      seg, DATA.segments, speakerLabels.names,
-    )
+    ? MSWSpeaker.displayName(speakerProfile,speakerCueLanguage(seg))
     : '';
   const speakerLabelVisible = Boolean(speakerLabel && mainColorName && COLOR_BY_NAME[mainColorName]);
   const speakerLabelColor = speakerLabelVisible
@@ -51842,7 +51896,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const mainText = mainVisible ? window.MSWProjectStyle.wrapText(seg.text,previewStyle?.main) : '';
   const wrappedExtension=extensionVisible?window.MSWProjectStyle.wrapText(extension.text,previewStyle?.secondary):'';
   const extensionProfile=window.MSWSpeaker.profile(DATA,extension,getActiveExtensionTrack()?.segments[extension?.color_ref?.headIdx]);
-  const extensionText = extensionVisible ? window.MSWSpeaker.prefix(DATA,extensionProfile)+wrappedExtension : '';
+  const extensionText = extensionVisible ? window.MSWSpeaker.prefix(DATA,extensionProfile,speakerCueLanguage(extension,'extension',getActiveExtensionTrack()?.id))+wrappedExtension : '';
   if (overlayMainSpeakerLabelEl.classList.contains('hidden') === speakerLabelVisible) {
     overlayMainSpeakerLabelEl.classList.toggle('hidden', !speakerLabelVisible);
   }
@@ -51877,9 +51931,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const overlayProfile=window.MSWSpeaker.profile(DATA,overlayCue,overlayColorContext[overlayCue?.color_ref?.headIdx]);
   const overlaySpeakerLabel = overlayCueVisible
     && !!window.MSWSpeaker.prefix(DATA,overlayProfile)
-    ? window.AsrEditorUtils.speakerLabelForSegment(
-      overlayCue, overlayColorContext, speakerLabels.names,
-    )
+    ? MSWSpeaker.displayName(overlayProfile,speakerCueLanguage(overlayCue,'overlay'))
     : '';
   const overlaySpeakerColorName = overlayCueVisible
     ? MULTI_SUBTITLE_UTILS.effectiveColorName(overlayCue, overlayColorContext)
@@ -52198,14 +52250,30 @@ function speakerSettings() {
 }
 function speakerExportOptions() {
   const rows=speakerSettings().palette.rows;
+  let resolveName;
   return {speakerLabelsEnabled:EDITOR_SETTINGS.exportSpeakerLabels===true,
     speakerLabels:Object.fromEntries(rows.map(r=>[r.id,r.name])),speakerLabelSeparator:'：',
-    speakerSeparators:Object.fromEntries(rows.map(r=>[r.id,r.separator]))};
+    speakerSeparators:Object.fromEntries(rows.map(r=>[r.id,r.separator])),
+    speakerTextResolver:(cue,context)=>{
+      resolveName||=MSWSpeaker.nameResolver(DATA);
+      const profile=MSWSpeaker.profile(DATA,cue,context?.[cue.color_ref?.headIdx]);
+      return (profile?resolveName(profile,cue)+profile.separator:'')+String(cue.text||'');
+    }};
 }
+function speakerCueLanguage(cue,role='main',trackId=null) {
+  if(!cue)return '';
+  const owner=fixedTrackMode()?fixedOwner(cue,role,trackId):null;
+  return owner?DATA.subtitle_tracks.tracks.find(t=>t.id===owner)?.language:
+    role==='extension'?getExtensionTrack(trackId)?.language:DATA.language;
+}
+document.getElementById('speaker-name-language').onchange=event=>{speakerNameLanguage=event.target.value;syncSpeakerControls();};
 function syncSpeakerControls() {
   const palette=window.MSWSpeaker.ensure(DATA),body=document.getElementById('speaker-palette-rows');
   if(!body)return;
-  const key=JSON.stringify(palette);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
+  const choices=window.MSWSpeaker.languageOptions(DATA),picker=document.getElementById('speaker-name-language');
+  if(!choices.some(([code])=>code===speakerNameLanguage))speakerNameLanguage='';
+  const key=JSON.stringify([palette,speakerNameLanguage,choices]);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
+  picker.replaceChildren(...choices.map(([code,label])=>new Option(label,code)));picker.value=speakerNameLanguage;
   const titles=['不着色','字幕填充色','字幕描边色','字幕背景框色','说话人名称色'];
   const create=(entry,index)=>{
     const tr=document.createElement('tr');tr.dataset.speakerId=entry?.id||'all';
@@ -52220,17 +52288,19 @@ function syncSpeakerControls() {
         input.title='属性调整表示此说话人有独立外观；选择普通模式恢复色系外观，保留动画。';
       }
       else {input=document.createElement('input');input.type=field==='color'?'color':'text';if(field!=='color')input.maxLength=field==='name'?64:16;}
-      const shown=r=>field==='mode'&&Object.keys(r.style||{}).length?'properties':r[field];
+      const shown=r=>field==='name'&&speakerNameLanguage?r.names?.[speakerNameLanguage]||'':field==='mode'&&Object.keys(r.style||{}).length?'properties':r[field];
       const values=palette.rows.map(shown),same=values.every(v=>v===values[0]);
       input.value=entry?shown(entry):same?values[0]:field==='color'?values[0]:'';
+      if(field==='name'&&speakerNameLanguage)input.placeholder=entry.name;
       input.setAttribute('aria-label',(entry?entry.name:'全部说话人')+' '+({name:'名称',color:'颜色',mode:'着色模式',separator:'分隔符'}[field]));
       if(!entry&&!same)input.title='多个值；修改后应用到全部说话人';
       input.onchange=()=>{
         const value=input.value;if(field==='mode'&&!value)return;
-        if(field==='name'&&!value.trim()){input.value=entry.name;return;}
+        if(field==='name'&&!speakerNameLanguage&&!value.trim()){input.value=entry.name;return;}
         pushPreviewUndo('调整说话人色系',snapshotPreviewState());
         for(const r of entry?[entry]:palette.rows){
-          r[field]=field==='name'?value.trim():value;
+          if(field==='name'&&speakerNameLanguage){r.names||={};if(value.trim())r.names[speakerNameLanguage]=value.trim();else delete r.names[speakerNameLanguage];if(!Object.keys(r.names).length)delete r.names;}
+          else r[field]=field==='name'?value.trim():value;
           if(field==='mode'){delete r.style;delete r.style_preset;}
         }
         speakerPaletteChanged();
@@ -60243,8 +60313,10 @@ function initWaveformEditor() {
         ? (overlayTrackVisible() ? (getOverlayTrack()?.segments || []) : [])
         : DATA.segments,
     getExtensionSegments: (trackId = null) => getExtensionTrack(trackId)?.segments || [],
-    getCueSpeaker: (cue, role) => window.MSWSpeaker.profile(DATA, cue,
-      (role === 'extension' ? getActiveExtensionTrack()?.segments : role === 'overlay' ? getOverlayTrack()?.segments : DATA.segments)?.[cue.color_ref?.headIdx]),
+    getCueSpeaker: (cue, role) => {
+      const profile=MSWSpeaker.profile(DATA, cue,(role==='extension'?getActiveExtensionTrack()?.segments:role==='overlay'?getOverlayTrack()?.segments:DATA.segments)?.[cue.color_ref?.headIdx]);
+      return profile?{...profile,name:MSWSpeaker.displayName(profile,speakerCueLanguage(cue,role,role==='extension'?getActiveExtensionTrack()?.id:null))}:null;
+    },
     getSubtitleDragFollowers: drag => {
       if (drag.track !== 'main' || (!fixedTrackMode() && !multiSubtitleVisible())) return [];
       return drag.indices.flatMap(index => {

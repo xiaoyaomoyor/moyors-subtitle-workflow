@@ -191,6 +191,9 @@ def validate(project):
                 or not _style_valid(track.get("style"))
                 or ("position" in track and not _position_valid(track["position"]))):
             _fail("轨道 ID、名称、状态或样式无效")
+        if 'language' in track and (not isinstance(track['language'], str) or len(track['language']) > 64
+                                    or any(ord(c) < 32 or ord(c) == 127 for c in track['language'])):
+            _fail('轨道语言无效')
         tracks[track["id"]] = track
     by_key, owners = {key(row): row for row in rows}, {}
     for entry in metadata["assignments"]:

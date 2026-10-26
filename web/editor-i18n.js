@@ -9,6 +9,9 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '名称语言': 'Name language', '默认名称': 'Default name', '轨道语言': 'Track language', '未指定（默认名称）': 'Unspecified (default name)',
+    '名称按轨道语言显示；留空使用默认名称。轨道语言可在轨道按钮的右键菜单中调整。': 'Names follow the track language; a blank translation uses the default name. Set the language in the track button context menu.',
+    '“名称语言”可为同一说话人填写不同语言的名字；轨道右键设置“轨道语言”，预览和导出据此显示。译名留空使用默认名称，交换列表左右列不会改变名字。': 'Use Name language to enter translations for the same speaker. Set Track language from its context menu for preview and export. A blank translation uses the default name; swapping list columns does not change names.',
     '字幕 · 时间': 'Subtitles · Timing', '时间调整': 'Timing adjustment', '整体移动': 'Move together',
     '调整起点': 'Adjust starts', '调整终点': 'Adjust ends', '缩放时长': 'Scale duration',
     '方向': 'Direction', '延后': 'Later', '提前': 'Earlier', '移动时间': 'Time amount',

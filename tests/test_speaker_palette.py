@@ -11,6 +11,51 @@ from maw.speaker import apply_speaker_colors, inherit_speaker_color
 
 
 class SpeakerPaletteTests(unittest.TestCase):
+    def test_localized_names_follow_physical_track_in_preview_and_export(self):
+        from maw.msw.speaker_palette import display_name
+        p = self.project()
+        row = p['preview']['speaker_palette']['rows'][0]
+        row.update(name='Erwyn', names={'en': 'Erwyn', 'zh-hans': '艾尔文', 'zh-hant': '艾爾文'}, mode='speaker')
+        a = p['subtitles']['tracks'][0]
+        a['language'] = 'en-US'
+        b = copy.deepcopy(a)
+        b.update(id='chinese', language='zh', display_number=2)
+        p['subtitles']['tracks'].append(b)
+        cue = copy.deepcopy(p['subtitles']['cues'][0])
+        cue.update(id='translated', track_id=b['id'])
+        cue['content']['text'] = '你好'
+        p['subtitles']['cues'].append(cue)
+        source_id = p['subtitles']['cues'][0]['id']
+        p['subtitles']['bindings'] = [dict(id='bound', source_id=source_id, target_id=cue['id'], start_offset_ms=0, end_offset_ms=0)]
+        video = dict(width=640, height=360)
+        plan = dict(intervals=[dict(start_ms=0, end_ms=2000, output_start_ms=0)])
+        before = copy.deepcopy(p)
+        expected = {source_id: 'Erwyn / ', cue['id']: '艾尔文 / '}
+        self.assertEqual({r['cue_id']: r['prefix'] for r in layout(p)}, expected)
+        preview = preview_ass(dict(project=p, video=video))['ass']
+        self.assertEqual(preview, styled_ass(p, plan, 'both', video))
+        self.assertIn('艾尔文 / ', preview)
+        self.assertIn('Erwyn / ', preview)
+        self.assertEqual(p, before)
+        p['subtitles']['cues'][0]['track_id'], cue['track_id'] = b['id'], a['id']
+        self.assertEqual({r['cue_id']: r['prefix'] for r in layout(p)}, {source_id: '艾尔文 / ', cue['id']: 'Erwyn / '})
+        self.assertEqual(display_name(row, 'zh-TW'), '艾爾文')
+        self.assertEqual(display_name(row, 'de'), 'Erwyn')
+        p['preview']['speaker_label_export'] = False
+        self.assertNotIn('艾尔文 / ', styled_ass(p, plan, 'both', video))
+
+    def test_names_validation_and_legacy_language_migration(self):
+        for names in [[], {'en': ''}, {'zh': '非规范语言'}, {'en': 'bad\n'}, {'en': 1}, {'bad_key': 'name'}]:
+            p = self.project()
+            p['preview']['speaker_palette']['rows'][0]['names'] = names
+            with self.assertRaises(ValueError):
+                validate(p)
+        p = migrate_project({'language': 'en', 'segments': [dict(start=0, end=1000, text='Hi')]})
+        self.assertEqual(p['subtitles']['tracks'][0]['language'], 'en')
+        p['subtitles']['tracks'][0]['language'] = []
+        with self.assertRaises(ValueError):
+            validate(p)
+
     def test_track_changes_yield_to_speaker_defaults_and_manual_cue_style(self):
         from maw.project_subtitle_style import builtin_presets
         project = self.project()

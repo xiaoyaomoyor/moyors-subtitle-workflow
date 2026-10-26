@@ -188,7 +188,7 @@ def layout(project, width=1920):
                 row['style'] = speaker_palette.appearance(row['style'], cue, row['speaker'])
                 if background.enabled(row['style']):
                     row['style']['borderStyle'] = 1
-                prefix = speaker_palette.prefix(project, row['speaker'])
+                prefix = speaker_palette.prefix(project, row['speaker'], index.tracks[row['subtitle_track_id']].get('language', ''))
             else:
                 label = (labels.get('names') or {}).get(row['color'].get('name'), '') if labels.get('enabled') else ''
                 prefix = label+labels.get('separator', '：') if label and row['role']=='main' else ''

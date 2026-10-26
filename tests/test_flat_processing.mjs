@@ -8,6 +8,17 @@ const base=()=>{let p=flat.migrate({segments:[{id:'a',start:0,end:1000,text:'hel
 const job=(snapshot,kind,result)=>({id:id('job'),project_id:'test',snapshot,kind,status:'succeeded',result});
 const media={id:'media-test',revision:'a'.repeat(64),reference:'test.wav',name:'test.wav',audio_index:0,metadata:{duration_ms:2000,audio_tracks:[{audio_index:0}]}};
 
+test('ASR and translation fill known track language, preserving an explicit existing language',()=>{
+  const p=base(),a=p.subtitles.cues[0],snapshot=processing.translation(p,[a.id],'target');
+  const translated=processing.applyTranslation(p,job(snapshot,'translation',{language:'zh',translations:[{id:a.id,text:'你好'}]}),id).project;
+  assert.equal(edit.track(translated,'target').language,'zh-hans');
+  const input=processing.asr(p,media,'target');
+  const recognized=processing.applyAsr(p,job(input,'asr',{language:'en',segments:[{start:0,end:900,text:'Hi'}]}),media,id).project;
+  assert.equal(edit.track(recognized,'target').language,'en');
+  p.subtitles.tracks.find(t=>t.id==='target').language='ja';
+  assert.equal(edit.track(processing.applyTranslation(p,job(processing.translation(p,[a.id],'target'),'translation',{language:'zh',translations:[{id:a.id,text:'你好'}]}),id).project,'target').language,'ja');
+});
+
 test('translation applies into explicit flat track with bindings, once, and restores with one undo',()=>{
   const p=base(),source=p.subtitles.cues[0],input=processing.translation(p,[source.id],'target'),j=job(input,'translation',{translations:[{id:source.id,text:'你好'}]}),before=structuredClone(p);
   const out=processing.applyTranslation(p,j,id);assert.equal(p.subtitles.cues.length,2);assert.deepEqual(p,before);assert.equal(out.project.subtitles.cues.at(-1).track_id,'target');assert.equal(out.project.subtitles.bindings[0].source_id,source.id);

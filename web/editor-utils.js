@@ -4173,7 +4173,8 @@
       outputIndex += 1;
       parts.push(String(outputIndex));
       parts.push(`${formatTime(start)} --> ${formatTime(end)}`);
-      parts.push(disabled ? '' : speakerLabels
+      parts.push(disabled ? '' : options.speakerLabelsEnabled===true&&typeof options.speakerTextResolver==='function'
+        ? options.speakerTextResolver(segment,colorContext) : speakerLabels
         ? formatSpeakerLabelledText(
           segment.text, segment, colorContext, speakerLabels, options.speakerSeparators?.[effectiveColorName(segment,colorContext)] ?? speakerLabelSeparator,
         )

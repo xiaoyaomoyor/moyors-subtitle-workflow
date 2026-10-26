@@ -721,6 +721,10 @@ function fixedTrackMenu(track, x, y) {
   ctxAppendSeparator();
   if(productionFlatMode()) {
     const tracks=DATA.subtitle_tracks.tracks;
+    ctxAppendExpandableSettings('轨道语言',MSWSpeaker.languageOptions(DATA).map(([code,label])=>({
+      label:code?label:'未指定（默认名称）',selected:MSWSpeaker.language(track.language)===code,disabled:track.locked,
+      action:()=>fixedUpdateTrack(track.id,{language:code})
+    })));
     const apply=main=>{try{const p=window.MSWProductionProject.toProject(DATA);productionCommitProject(window.MSWFlatSubtitles.setTrackGroup(p,track.id,main),'调整主副轨道分组');}catch(e){fixedStatus(e.message);}};
     if(track.secondary_for||tracks.some(t=>t.secondary_for===track.id))fixedMenuItem('解除主副分组',()=>apply(null),track.locked);
     if(!tracks.some(t=>t.secondary_for===track.id)) {

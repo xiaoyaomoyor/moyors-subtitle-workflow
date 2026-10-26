@@ -76,7 +76,8 @@ function fixedMeasureText(row, projectStyle, width) {
   const speaker=labels.enabled&&labels.mapping_enabled?window.AsrEditorUtils.speakerLabelForSegment(row.cue,segments,labels.names):'';
   const profile=window.MSWSpeaker.profile(DATA,row.cue,segments[row.cue.color_ref?.headIdx]);
   const exportView=window.MSWSubtitleStyle?.currentPreview()?.scope==='export';
-  const prefix=DATA.preview?.speaker_palette?window.MSWSpeaker.prefix(exportView?{preview:{...DATA.preview,speaker_label_export:document.getElementById('video-export-speaker-labels').checked}}:DATA,profile):speaker?speaker+labels.separator:'';
+  const locale=DATA.subtitle_tracks?.tracks.find(t=>t.id===row.subtitle_track_id)?.language;
+  const prefix=DATA.preview?.speaker_palette?window.MSWSpeaker.prefix(exportView?{preview:{...DATA.preview,speaker_label_export:document.getElementById('video-export-speaker-labels').checked}}:DATA,profile,locale):speaker?speaker+labels.separator:'';
   const text=prefix+window.MSWProjectStyle.wrapText(row.cue.text,style);
   const key=JSON.stringify([text,prefix,style,width]);if(fixedTextMeasures.has(key))return fixedTextMeasures.get(key);
   if(!fixedMeasureRoot){fixedMeasureRoot=document.createElement('div');fixedMeasureRoot.className='fixed-subtitle-measure';document.body.append(fixedMeasureRoot);}

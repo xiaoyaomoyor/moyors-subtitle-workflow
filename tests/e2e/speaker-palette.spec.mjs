@@ -12,6 +12,7 @@ test.beforeEach(async({page})=>{
   execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-f','lavfi','-i','color=c=darkblue:s=640x360:r=25:d=6','-c:v','libx264','-pix_fmt','yuv420p',media],{windowsHide:true});
   writeFileSync(project,JSON.stringify({media,segments:[{id:'a',start:0,end:3000,text:'Hello 世界'},{id:'b',start:3500,end:5500,text:'Second'}],waveform:generateWaveformPayload(6000)}));
   server=await startServer(project,media,await findFreePort());
+  page.on('pageerror',error=>appendFileSync(join(dir,'page-errors.log'),error.stack+'\n'));
   page.on('response',async response=>{if(response.status()>=400&&response.url().includes('/api/'))appendFileSync(join(dir,'responses.log'),response.url()+' '+response.status()+' '+await response.text().catch(()=>'' )+'\n');});
   for(const stream of [server.proc.stdout,server.proc.stderr])stream.on('data',chunk=>appendFileSync(join(dir,'server.log'),chunk));
   await disableOnboarding(page);
@@ -21,6 +22,59 @@ test.beforeEach(async({page})=>{
 });
 test.afterEach(async()=>{await server?.stop();});
 async function settings(page){await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.getByRole('button',{name:'说话人色系',exact:true}).click();}
+
+test('localized speaker names follow physical languages through UI, preview, SRT, ASS and reopen',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(()=>{
+    let p=JSON.parse(buildJson());const a=p.subtitles.tracks[0];a.language='en';
+    p=MSWFlatSubtitles.addTrack(p,{...a,id:'chinese',language:'zh',secondary_for:a.id,style:{...a.style,slot:'secondary'}});
+    p.subtitles.cues[1].track_id='chinese';p.subtitles.cues[1].content={start:0,end:3000,text:'你好',items:[]};
+    for(const c of p.subtitles.cues)c.content.color={name:'yellow',start:c.content.start,end:c.content.end};
+    p=MSWFlatSubtitles.bind(p,p.subtitles.cues[0].id,p.subtitles.cues[1].id,'pair');
+    productionCommitProject(p,'names fixture');updateEditorSettings({exportSpeakerLabels:true});
+    DATA.preview.speaker_labels_visible=true;player.currentTime=1;
+  });
+  await settings(page);
+  const name=page.locator('#speaker-palette-rows tr[data-speaker-id="yellow"] input[type="text"]').first();
+  await name.fill('Erwyn');await name.press('Tab');
+  await page.locator('#speaker-name-language').selectOption('zh-hans');
+  await expect(name).toHaveValue('');await expect(name).toHaveAttribute('placeholder','Erwyn');
+  await name.fill('艾尔文');await name.press('Tab');
+  await page.screenshot({path:join(dir,'localized-names.png')});
+  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await expect(page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first()).toHaveAttribute('title',/^Erwyn：Hello/);
+  await expect(page.locator('.waveform-cue-block[data-track="extension"][data-ext-idx="0"]').first()).toHaveAttribute('title',/^艾尔文：你好/);
+  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('艾尔文：')),null,{timeout:20000});
+  const output=await page.evaluate(async()=>({srt:buildSrt(),ass:await fixedAssDocument(),body:JSON.parse(buildJson()).subtitles.cues.map(c=>c.content.text)}));
+  expect(output.srt).toContain('Erwyn：Hello');expect(output.srt).toContain('艾尔文：你好');
+  expect(output.ass).toContain('Erwyn：');expect(output.ass).toContain('艾尔文：');expect(output.body).toEqual(['Hello 世界','你好']);
+  const merged=await page.evaluate(async()=>{
+    const original=downloadFile;let complete;const done=new Promise(resolve=>complete=resolve);
+    try{downloadFile=async text=>complete(text);document.getElementById('download-merged-srt').click();return await done;}
+    finally{downloadFile=original;}
+  });
+  expect(merged).toContain('Erwyn：Hello 世界');expect(merged).toContain('艾尔文：你好');
+  expect(await page.evaluate(()=>JSON.parse(buildJson()).subtitles.cues.map(c=>c.content.text))).toEqual(output.body);
+  await page.evaluate(()=>fixedTrackMenu(DATA.subtitle_tracks.tracks.find(t=>t.id==='chinese'),500,220));
+  await page.getByRole('menuitem',{name:'轨道语言',exact:true}).hover();
+  await page.getByRole('menuitem',{name:'法文',exact:true}).click();
+  expect(await page.evaluate(()=>buildSrt())).toContain('Erwyn：你好');
+  await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>buildSrt())).toContain('艾尔文：你好');
+  await page.evaluate(()=>productionCommitProject(MSWProductionProject.swapColumns(DATA),'交换显示列'));
+  expect(await page.evaluate(()=>buildSrt())).toContain('艾尔文：你好');
+  await page.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
+  const saved=JSON.parse(readFileSync(project));expect(saved.preview.speaker_palette.rows[0].names).toEqual({'zh-hans':'艾尔文'});
+  expect(saved.subtitles.tracks.find(t=>t.id==='chinese').language).toBe('zh');
+  await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready&&player.readyState>=2);
+  expect(await page.evaluate(()=>buildSrt())).toContain('艾尔文：你好');
+  await settings(page);await page.locator('#speaker-name-language').selectOption('zh-hans');
+  await name.fill('');await name.press('Tab');
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].names)).toBeUndefined();
+  expect(await page.evaluate(()=>buildSrt())).toContain('Erwyn：你好');
+  await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>buildSrt())).toContain('艾尔文：你好');
+  expect(errors).toEqual([]);
+});
 
 test('track presets yield to speaker colors and manual cue overrides in properties and ASS',async({page})=>{
   await settings(page);

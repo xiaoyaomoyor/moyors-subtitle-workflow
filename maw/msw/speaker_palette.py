@@ -8,6 +8,25 @@ from maw.msw import cue_style, subtitle_animation
 MODES = {'none', 'text', 'stroke', 'background', 'speaker'}
 
 
+def language(value):
+    raw = value.strip().lower().replace('_', '-') if isinstance(value, str) else ''
+    aliases = {'zh': 'zh-hans', 'zh-cn': 'zh-hans', 'zh-sg': 'zh-hans', 'zh-tw': 'zh-hant',
+               'zh-hk': 'zh-hant', 'zh-mo': 'zh-hant', 'chinese': 'zh-hans', 'english': 'en', 'japanese': 'ja', 'korean': 'ko'}
+    code = aliases.get(raw, raw)
+    return code if len(code) <= 35 and re.fullmatch(r'[a-z]{2,3}(?:-[a-z0-9]{2,8})*', code) and code not in ('und', 'mul') else ''
+
+
+def display_name(row, locale=''):
+    if not row:
+        return ''
+    code = language(locale)
+    keys = [code]
+    if code.startswith(('zh-hans-', 'zh-hant-')):
+        keys.append('-'.join(code.split('-')[:2]))
+    keys.append(code.split('-')[0])
+    return next((row.get('names', {}).get(k) for k in keys if row.get('names', {}).get(k)), row['name'])
+
+
 def validate(value):
     if not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] != 1 or not isinstance(value.get('rows'), list) or not 1 <= len(value['rows']) <= 1024:
         raise ValueError('说话人色系必须包含 1–1024 个说话人')
@@ -19,6 +38,12 @@ def validate(value):
         if not isinstance(identity, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,160}', identity) or identity in ids:
             raise ValueError('说话人编号无效或重复')
         ids.add(identity)
+        if 'names' in row:
+            names = row['names']
+            if not isinstance(names, dict) or len(names) > 64 or any(
+                    not k or k != language(k) or not isinstance(v, str) or not v.strip() or len(v) > 64
+                    or any(ord(c) < 32 or ord(c) == 127 for c in v) for k, v in names.items()):
+                raise ValueError('说话人多语言名称无效')
         for field, limit in [('name', 64), ('separator', 16)]:
             text = row.get(field)
             if not isinstance(text, str) or len(text) > limit or any(ord(c) < 32 or ord(c) == 127 for c in text) or field == 'name' and not text.strip():
@@ -37,12 +62,12 @@ def profiles(project):
     return {row['id']: row for row in validate(value)['rows']} if value is not None else None
 
 
-def prefix(project, row):
+def prefix(project, row, locale=''):
     if not row:
         return ''
     preview = project.get('preview') or {}
     show = preview.get('speaker_label_export', preview.get('speaker_labels_visible'))
-    return row['name'] + row['separator'] if (show if type(show) is bool else row['mode'] == 'speaker') else ''
+    return display_name(row, locale) + row['separator'] if (show if type(show) is bool else row['mode'] == 'speaker') else ''
 
 
 def appearance(style, cue, row):

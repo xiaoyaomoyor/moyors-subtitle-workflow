@@ -78,6 +78,7 @@
     if(!object(m)||m.schema!==MODEL_SCHEMA||!Array.isArray(m.tracks)||!m.tracks.length||!Array.isArray(m.cues)||!Array.isArray(m.bindings))fail('字幕结构无效');
     const tracks=new Map(),cues=new Map(),lanes=new Map();
     for(const track of m.tracks) {
+      if(track?.language!==undefined&&(typeof track.language!=='string'||track.language.length>64||/[\u0000-\u001f\u007f]/.test(track.language)))fail('轨道语言无效');
       if(!object(track)||!stable(track.id)||tracks.has(track.id)||!stable(track.name)
         ||['parent_id','children','segments','cues'].some(k=>Object.hasOwn(track,k))
         ||!['none','dialogue','source','translation','annotation'].includes(track.purpose)
@@ -231,6 +232,7 @@
           locked:t.locked,collapsed:t.collapsed,style:{...clone(t.style),slot:role==='main'?'main':'secondary',base:old.styleKind(t)}};
         if(t.position)track.position=clone(t.position);
         if(storage?.language)track.language=storage.language;
+        else if(role==='main'&&(t.language||project.language))track.language=t.language||project.language;
         const splitMode=role==='main'?(project.multi_subtitle?.main_split_mode||project.split_mode):storage?.split_mode;
         if(['word','continuous'].includes(splitMode))track.split_mode=splitMode;
         m.tracks.push(track);ownerTracks.set(key,id);

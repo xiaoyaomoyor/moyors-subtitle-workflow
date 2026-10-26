@@ -1061,6 +1061,7 @@ __WAVEFORM_CSS__
         <h5 class="help-subtitle">版本与说话人</h5>
         <p>设置 → 保存：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。</p>
         <p>全局设置 → 说话人色系：配置随工程保存。右键“标记字幕”或按 1–9 标记，0 清除；属性列表选择“说话人”可调整外观及动画，单条设置优先。播放器设置控制预览名称，导出名称独立选择，不改动正文或配音。</p>
+        <p>“名称语言”可为同一说话人填写不同语言的名字；轨道右键设置“轨道语言”，预览和导出据此显示。译名留空使用默认名称，交换列表左右列不会改变名字。</p>
       </section>
       <section class="help-subgroup">
         <h5 class="help-subtitle">鼠标操作</h5>
@@ -1668,6 +1669,8 @@ __WAVEFORM_CSS__
           <div class="settings-category-header">说话人色系</div>
           <div class="editor-settings-sub-group" id="speaker-label-settings">
             <p class="editor-settings-hint">配置随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。</p>
+            <label class="speaker-name-language">名称语言<select id="speaker-name-language" aria-label="名称语言"></select><span class="msw-help-anchor" id="speaker-name-language-help"></span></label>
+            <p hidden data-help-for="speaker-name-language-help">名称按轨道语言显示；留空使用默认名称。轨道语言可在轨道按钮的右键菜单中调整。</p>
             <div class="speaker-palette-scroll"><table class="speaker-palette-table"><thead><tr><th scope="col">序号</th><th scope="col">说话人名称</th><th scope="col">指定颜色</th><th scope="col">着色模式</th><th scope="col">分隔符</th></tr></thead><tbody id="speaker-palette-rows"></tbody></table></div>
             <button type="button" class="msw-icon-button" id="speaker-palette-add" title="添加说话人" aria-label="添加说话人">＋</button>
           </div>

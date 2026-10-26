@@ -276,7 +276,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('download-merged-srt')?.addEventListener('click',async()=>{
     if(!fixedCanExport())return;
-    commitProcessingEdits();const cues=window.MSWSubtitlePresentation.mergedSrtRows(fixedTrackMode()?fixedSrtProject():DATA);
+    commitProcessingEdits();const project=fixedTrackMode()?fixedSrtProject():structuredClone(DATA),options=speakerExportOptions();
+    if(options.speakerLabelsEnabled)for(const source of layerCore.tracks(project))for(const cue of source.segments)cue.text=options.speakerTextResolver(cue,source.segments);
+    const cues=window.MSWSubtitlePresentation.mergedSrtRows(project);
     await downloadFile(window.AsrEditorUtils.buildSrtPayload(cues,{formatTime:fmtSrtTime}),`${FILENAME_BASE}.merged.srt`,'text/plain',{desc:'合并显示 SRT',types:{'text/plain':['.srt']}});
   });
   document.getElementById('subtitle-legacy-visible')?.addEventListener('change', event => {

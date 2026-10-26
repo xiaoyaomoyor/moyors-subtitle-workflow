@@ -114,6 +114,7 @@
       || Object.hasOwn(metadata.legacy_overlay_settings, 'segments'))) fail('旧叠加设置不能包含第二份字幕正文');
     const tracks = new Map();
     for (const track of metadata.tracks) {
+      if(track?.language!==undefined&&(typeof track.language!=='string'||track.language.length>64||/[\u0000-\u001f\u007f]/.test(track.language)))fail('轨道语言无效');
       if (!stable(track?.id) || tracks.has(track.id) || !stable(track.name)
         || !['dialogue', 'annotation'].includes(track.kind)
         || ((metadata.schema === TRACK_SCHEMA || track.purpose !== undefined) && !['none', 'dialogue', 'source', 'translation', 'annotation'].includes(track.purpose))

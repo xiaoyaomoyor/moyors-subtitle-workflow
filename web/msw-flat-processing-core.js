@@ -49,6 +49,8 @@
       const head=edit.cue(p,c.content.color_ref?.cue_id);
       speaker.inherit(c.content,content,head?.content);
     }
+    const owner=edit.track(n,s.subtitle_track_id),locale=speaker.language(job.result?.language||job.language);
+    if(ids.length&&!owner.language&&locale)owner.language=locale;
     mark(n,job);core.validate(n);return {project:n,ids};
   }
   function applyAsr(p,job,media,makeId){checkBase(p,job);const s=job.snapshot;writable(p,s.subtitle_track_id);
@@ -65,6 +67,8 @@
       if(content.start<s.range.start||content.end>s.range.end)throw Error('识别结果超出请求范围');
       for(const ref of ['color_ref','sticker_ref'])if(content[ref]){const head=content[ref].headIdx;if(!Number.isInteger(head)||!ids[head])throw Error('识别结果标记引用无效');content[ref]={...content[ref],cue_id:ids[head]};delete content[ref].headIdx;}
       edit.frame(n,content);n.subtitles.cues.push({id:ids[i],track_id:s.subtitle_track_id,content});});
+    const owner=edit.track(n,s.subtitle_track_id),locale=speaker.language(job.result?.language||job.language);
+    if(!owner.language&&locale)owner.language=locale;
     mark(n,job);core.validate(n);return {project:n,ids};
   }
   function applyTts(p,job){checkBase(p,job);const n=copy(p),items=job.result?.items||[],assets=items.filter(i=>i.status==='ready').map(i=>i.asset);
