@@ -18,11 +18,25 @@ class SpeakerPaletteTests(unittest.TestCase):
         row.update(name='Condi', names={'zh-hans':'康迪'}, mode='text')
         p['preview']['speaker_labels_visible'] = True
         self.assertTrue(name_visible(row, 'en'))
-        row['name_visibility'] = {'en':False, '':False}
+        row['name_visibility'] = {'':False}
         for locale in ('en', 'en-US', ''):
             self.assertEqual(prefix(p, row, locale), '')
         self.assertEqual(prefix(p, row, 'zh-CN'), '康迪 / ')
+        self.assertEqual(prefix(p, row, 'fr'), '')
+        row['names']['fr'] = 'Condi'
         self.assertEqual(prefix(p, row, 'fr'), 'Condi / ')
+        del row['names']['fr']
+        self.assertEqual(prefix(p, row, 'fr'), '')
+        row['name_visibility']['fr'] = True
+        self.assertEqual(prefix(p, row, 'fr'), 'Condi / ')
+        row['name_visibility']['zh-hans'] = False
+        self.assertEqual(prefix(p, row, 'zh'), '')
+        del row['name_visibility']['zh-hans']
+        self.assertEqual(prefix(p, row, 'zh'), '康迪 / ')
+        row['names']['pt'] = 'Nome'
+        self.assertEqual(prefix(p, row, 'pt-BR'), 'Nome / ')
+        row['name_visibility']['pt'] = False
+        self.assertEqual(prefix(p, row, 'pt-BR'), '')
         row['name_visibility']['en-us'] = True
         self.assertEqual(prefix(p, row, 'en-US'), 'Condi / ')
         p['preview']['speaker_labels_visible'] = False

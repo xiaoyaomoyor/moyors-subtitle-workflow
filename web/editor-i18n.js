@@ -18,7 +18,7 @@
     '请先对应并应用方案': 'Match and apply the scheme first',
     '方案保存名字、译名、颜色、外观和动画，可在配置管理中导出。不同工程的 SP 编号不代表同一个人，请先确认对应；应用后可一次撤销，单条手动样式优先。': 'Schemes store names, translations, colors, appearance and animation, and can be exported through Configuration management. SP numbers do not identify the same person across projects. Confirm matches before applying; undo once to revert. Individual subtitle overrides retain priority.',
     '名称语言': 'Name language', '默认名称': 'Default name', '轨道语言': 'Track language', '未指定（默认名称）': 'Unspecified (default name)',
-    '显示按轨道语言控制；默认名称的勾选仅用于未指定语言的轨道。留空名称使用默认名称，预览需开启“预览说话人”。': 'Visibility follows the track language. The default-name checkbox applies to tracks with no language. Blank names use the default name. Preview speaker names must also be enabled.',
+    '未填写名称的语言跟随默认显示开关；已填写的默认显示。各语言可单独勾选，预览还需开启“预览说话人”。': 'Languages with no name follow default visibility; filled names are shown by default. Each language can override this. Preview speaker names must also be enabled.',
     '仅控制当前语言的名称；预览还需开启“预览说话人”。': 'Controls names in the current language only. Preview speaker names must also be enabled.',
     '“名称语言”可为同一说话人填写不同语言的名字；轨道右键设置“轨道语言”，预览和导出据此显示。译名留空使用默认名称，交换列表左右列不会改变名字。': 'Use Name language to enter translations for the same speaker. Set Track language from its context menu for preview and export. A blank translation uses the default name; swapping list columns does not change names.',
     '字幕 · 时间': 'Subtitles · Timing', '时间调整': 'Timing adjustment', '整体移动': 'Move together',

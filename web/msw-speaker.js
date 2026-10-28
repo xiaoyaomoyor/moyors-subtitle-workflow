@@ -30,7 +30,9 @@
     if(code.startsWith('zh-hans-'))keys.push('zh-hans');
     if(code.startsWith('zh-hant-'))keys.push('zh-hant');
     keys.push(code.split('-')[0]);
-    return keys.map(k=>profile?.name_visibility?.[k]).find(v=>typeof v==='boolean')??true;
+    const explicit=keys.map(k=>profile?.name_visibility?.[k]).find(v=>typeof v==='boolean');
+    if(explicit!==undefined)return explicit;
+    return keys.some(k=>profile?.names?.[k])?true:profile?.name_visibility?.['']??true;
   }
   // Build once per operation. Do not scan a long project's assignments for
   // every rendered cue; identity/ownership, not list columns, decides language.

@@ -37,8 +37,13 @@ test('language visibility controls names independently, survives reopen and obey
     updateEditorSettings({exportSpeakerLabels:true});player.currentTime=1;
   });
   const flags=page.locator('#speaker-palette-rows tr[data-speaker-id="yellow"] input[type=checkbox]');
-  await settings(page);await page.locator('#speaker-name-language').selectOption('en');
-  await expect(flags).toBeChecked();await flags.uncheck();
+  await settings(page);await flags.uncheck();
+  await page.locator('#speaker-name-language').selectOption('en');
+  await expect(flags).toBeChecked(); // A filled name does not inherit the hidden default.
+  const name=page.locator('#speaker-palette-rows tr[data-speaker-id="yellow"] input[type=text]').first();
+  await name.fill('');await name.press('Tab');await expect(flags).not.toBeChecked();
+  await name.fill('Condi');await name.press('Tab');await expect(flags).toBeChecked();
+  await flags.uncheck(); // An explicit language choice still overrides a filled name.
   await expect(page.locator('#speaker-palette-rows tr[data-speaker-id="all"] input[type=checkbox]')).toHaveJSProperty('indeterminate',true);
   await page.locator('#speaker-name-language').selectOption('zh-hans');await expect(flags).toBeChecked();
   await page.screenshot({path:join(dir,'speaker-name-visibility.png')});
@@ -55,7 +60,7 @@ test('language visibility controls names independently, survives reopen and obey
   expect(await page.evaluate(()=>buildSrt())).toContain('康迪：你好');
   await page.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);
   expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
-  expect(JSON.parse(readFileSync(project)).preview.speaker_palette.rows[0].name_visibility).toEqual({en:false});
+  expect(JSON.parse(readFileSync(project)).preview.speaker_palette.rows[0].name_visibility).toEqual({'':false,en:false});
   await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready&&player.readyState>=2);
   await expect(page.locator('#style-preview-speakers')).not.toBeChecked();
   await settings(page);await page.locator('#speaker-name-language').selectOption('en');await expect(flags).not.toBeChecked();
@@ -63,7 +68,7 @@ test('language visibility controls names independently, survives reopen and obey
   await page.locator('#speaker-name-language').selectOption('zh-hans');
   await page.locator('#speaker-palette-rows tr[data-speaker-id="all"] input[type=checkbox]').uncheck();
   await expect(flags).not.toBeChecked();
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].name_visibility)).toEqual({en:false,'zh-hans':false});
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].name_visibility)).toEqual({'':false,en:false,'zh-hans':false});
   await page.evaluate(()=>performUndo());await expect(flags).toBeChecked();
   expect(errors).toEqual([]);
 });

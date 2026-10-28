@@ -34,7 +34,10 @@ def name_visible(row, locale=''):
         keys.append('-'.join(code.split('-')[:2]))
     keys.append(code.split('-')[0])
     flags = (row or {}).get('name_visibility', {})
-    return next((flags[k] for k in keys if type(flags.get(k)) is bool), True)
+    explicit = next((flags[k] for k in keys if type(flags.get(k)) is bool), None)
+    if explicit is not None:
+        return explicit
+    return True if any((row or {}).get('names', {}).get(k) for k in keys) else flags.get('', True)
 
 
 def validate(value):
