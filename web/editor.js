@@ -13309,12 +13309,13 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Ctrl(Cmd)+D：取消选中（清空当前字幕选择）。浏览器默认是「添加书签」，这里接管；
-// 与 Ctrl(Cmd)+A 同样仅在非编辑字幕状态下生效。ESC 清除选中的行为保持不变。
+// 捕获阶段始终阻止浏览器书签操作；文字编辑时保留输入与选择。
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'd' && e.key !== 'D') return;
   if (!e.ctrlKey && !e.metaKey) return;
   if (e.altKey || e.shiftKey) return;
-  if (editingState) return;
+  e.preventDefault();
+  if (editingState || extensionEditingState || e.isComposing) return;
   if (e.target === cuePanelText) return;
   const a = document.activeElement;
   if (a && (
@@ -13328,13 +13329,12 @@ document.addEventListener('keydown', (e) => {
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
-  if (ctxmenu.classList.contains('show')) return;
+  ctxmenu.classList.remove('show');
   const assetSelection = window.MSWE?.resolve('asset-library');
   if (assetSelection?.isActive()) { e.preventDefault(); assetSelection.clearSelection(); return; }
-  if (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0) return;
-  e.preventDefault();
+  if (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0 && selectedOverlayIdxs.size === 0) return;
   clearSelection();
-});
+}, true);
 
 // T：给选中字幕分配表情包。单选直接分配本条，多选统一分配（与右键菜单一致）。
 document.addEventListener('keydown', (e) => {

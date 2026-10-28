@@ -7,6 +7,16 @@ const context={window:{MSWSubtitleTracks:trackCore},TextEncoder,TextDecoder,Uint
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-subtitle-background.js','msw-subtitle-gradient.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const S=context.window.MSWProjectStyle,U=context.window.AsrEditorUtils;
 
+test('paragraph alignment survives style normalization and rejects invalid values',()=>{
+  for(const textAlign of ['left','center','right']){
+    const style=S.defaults();style.main.textAlign=textAlign;
+    assert.equal(S.normalize(style).main.textAlign,textAlign);
+    assert.equal(S.normalize(style).main.alignment,style.main.alignment);
+  }
+  for(const textAlign of ['justify',null,3])assert.throws(()=>S.normalize({...S.defaults(),main:{textAlign}}),/对齐/);
+  assert.equal(S.defaults().main.textAlign,undefined);
+});
+
 test('script fonts normalize and render distinct writing systems without losing other mappings',()=>{
   const samples=['漢','éA','かな','한글','Жя','Ωα','سلام','שלום','नमस्ते','ไทย'];
   const style=Object.fromEntries(U.ASS_FONT_SCRIPTS.map(([,field])=>[field,field]));

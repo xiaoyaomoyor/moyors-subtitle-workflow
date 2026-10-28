@@ -286,7 +286,7 @@ def boundaries(raw, duration, count):
     return result
 
 
-def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefix='', speaker_color=None, *, drawing=None):
+def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefix='', speaker_color=None, *, drawing=None, align_offset=0):
     """Yield source-relative fragments. Hidden text retains its original geometry."""
     from maw.subtitle_wrapping import _characters
     from maw.msw.subtitle_style import ass_text
@@ -335,6 +335,12 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
         span = b-a
         def tags_at(dy_left=0, dy_right=0):
             xy = [x+left['x'], y+left['y']+dy_left, x+right['x'], y+right['y']+dy_right]
+            if align_offset:
+                for index, state in ((0, left), (2, right)):
+                    angle = math.radians(style['angle']+state['rotation'])
+                    offset = align_offset*state['scale']/100
+                    xy[index] += offset*math.cos(angle)
+                    xy[index+1] -= offset*math.sin(angle)
             movement = abs(xy[0]-xy[2]) > 1e-6 or abs(xy[1]-xy[3]) > 1e-6
             position = ('\\move('+','.join(number(v) for v in [*xy, 0, span])+')' if movement
                         else '\\pos('+','.join(number(v) for v in xy[:2])+')')

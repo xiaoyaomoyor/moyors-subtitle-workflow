@@ -15810,9 +15810,12 @@ window.ASR_EDITOR_PALETTE = [{"name": "yellow", "value": "#c4a019"}, {"name": "g
   function normalizeAssStyle(value, fallback = ASS_DEFAULT_ASS_STYLE, styleId = '') {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const base = { ...fallback };
+    const textAlign=Object.hasOwn(source,'textAlign')?source.textAlign:fallback.textAlign;
+    if(textAlign!==undefined&&!['left','center','right'].includes(textAlign))throw Error('文字对齐方式无效');
     const resolvedId = normalizeAssStyleId(styleId || source.id || fallback.id, fallback.id || 'ass');
     return {
       ...base,
+      ...(textAlign!==undefined?{textAlign}:{}),
       id: resolvedId,
       name: normalizeAssLibraryText(source.name, fallback.name || '样式'),
       builtin: Boolean(fallback.builtin),
@@ -19040,7 +19043,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 20;
+  const layoutVersion = 21;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     const base=raw.marginBase;
@@ -19267,7 +19270,7 @@ export default MawDynamicCaptions;
   const background=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground;
   const gradient=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-gradient.js'):global.MSWSubtitleGradient;
   const fonts=['latinFontName','kanaFontName','hangulFontName','cyrillicFontName','greekFontName','arabicFontName','hebrewFontName','devanagariFontName','thaiFontName'];
-  const fields=Object.freeze(['fontName',...fonts,...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
+  const fields=Object.freeze(['fontName',...fonts,...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode','textAlign',...background.fields,...gradient.fields]);
   function valid(value) {
     return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>{
       if(background.fields.includes(k))return background.valid({[k]:v});
@@ -19279,6 +19282,7 @@ export default MawDynamicCaptions;
       if(fonts.includes(k))return typeof v==='string'&&v.length<=128&&!/[\\{},\r\n\x00]/.test(v);
       if(k==='borderStyle')return v===1||v===3;
       if(k==='wrapMode')return v==='auto'||v==='characters';
+      if(k==='textAlign')return ['left','center','right'].includes(v);
       return false;
     });
   }
@@ -36203,7 +36207,7 @@ function fixedMeasureText(row, projectStyle, width) {
   const background=window.MSWSubtitleBackground,bg=background.enabled(style);
   const maxWidth=Math.max(1,(width-style.marginL-style.marginR-2*(padding+(bg?style.backgroundPaddingX:0)))/Math.max(.01,(style.scaleX||100)/100));
   Object.assign(node.style,{width:'max-content',maxWidth:maxWidth+'px',
-    textAlign:['left','center','right'][((style.alignment||2)-1)%3],whiteSpace:'pre-wrap',overflowWrap:'anywhere'});
+    textAlign:style.textAlign||['left','center','right'][((style.alignment||2)-1)%3],whiteSpace:'pre-wrap',overflowWrap:'anywhere'});
   fixedMeasureRoot.replaceChildren(node);
   const rect=node.getBoundingClientRect(),root=fixedMeasureRoot.getBoundingClientRect();
   const result={width:rect.width+2*padding,height:rect.height+2*padding,css:node.style.cssText,text,prefix,maxWidth,
@@ -49896,12 +49900,13 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Ctrl(Cmd)+D：取消选中（清空当前字幕选择）。浏览器默认是「添加书签」，这里接管；
-// 与 Ctrl(Cmd)+A 同样仅在非编辑字幕状态下生效。ESC 清除选中的行为保持不变。
+// 捕获阶段始终阻止浏览器书签操作；文字编辑时保留输入与选择。
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'd' && e.key !== 'D') return;
   if (!e.ctrlKey && !e.metaKey) return;
   if (e.altKey || e.shiftKey) return;
-  if (editingState) return;
+  e.preventDefault();
+  if (editingState || extensionEditingState || e.isComposing) return;
   if (e.target === cuePanelText) return;
   const a = document.activeElement;
   if (a && (
@@ -49915,13 +49920,12 @@ document.addEventListener('keydown', (e) => {
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
-  if (ctxmenu.classList.contains('show')) return;
+  ctxmenu.classList.remove('show');
   const assetSelection = window.MSWE?.resolve('asset-library');
   if (assetSelection?.isActive()) { e.preventDefault(); assetSelection.clearSelection(); return; }
-  if (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0) return;
-  e.preventDefault();
+  if (selectedIdxs.size === 0 && selectedExtensionIdxs.size === 0 && selectedOverlayIdxs.size === 0) return;
   clearSelection();
-});
+}, true);
 
 // T：给选中字幕分配表情包。单选直接分配本条，多选统一分配（与右键菜单一致）。
 document.addEventListener('keydown', (e) => {
@@ -69309,6 +69313,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       $(target).append(label);
     }
   }
+  basic.splice(basic.findIndex(r=>r[0]==='primaryColor'),0,['textAlign','文字对齐','select',[['left','左对齐'],['center','居中'],['right','右对齐']]]);
   fields(basic,'style-basic-fields');fields(advanced.filter(r=>r[2]==='checkbox'),'style-emphasis-fields');fields(advanced.filter(r=>r[2]!=='checkbox'),'style-advanced-fields');
   const backgroundSection=document.createElement('div');backgroundSection.id='style-background';backgroundSection.className='msw-property-group';
   backgroundSection.innerHTML='<div id="style-background-fields" class="msw-style-fields"></div>';
@@ -69502,7 +69507,8 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     return propertyReadCache.appearances.get(row.cue.id);
   };
   const displayedAppearance=(style,field)=>field==='backgroundShape'&&style.backgroundShape==='rect'?'rounded':
-    field==='backgroundRadius'&&style.backgroundShape==='rect'?0:style[field];
+    field==='backgroundRadius'&&style.backgroundShape==='rect'?0:
+    field==='textAlign'?style.textAlign||['left','center','right'][((style.alignment||2)-1)%3]:style[field];
   const presetMatches=(preset,rows=selectedRows())=>rows.length&&rows.every(row=>{
     const track=fixedTrack(row.cue,row.role,row.track_id),candidate=S.forKind(preset,fixedTrackCore.styleKind(track))[track.flat_style_slot||'main'],effective=rowAppearance(row);
     return global.MSWCueStyle.fields.every(k=>candidate[k]===effective[k]);
@@ -69879,7 +69885,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
-    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape','gradientMode'].includes(field)?Number(input.value):input.value;
+    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','textAlign','backgroundShape','gradientMode'].includes(field)?Number(input.value):input.value;
     if(appearanceScope()){if(field)commitCueAppearance({[field]:v});return;}
     // Exact legacy burn parameters survive until the user deliberately edits them.
     if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){

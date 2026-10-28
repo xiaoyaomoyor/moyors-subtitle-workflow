@@ -4343,9 +4343,12 @@
   function normalizeAssStyle(value, fallback = ASS_DEFAULT_ASS_STYLE, styleId = '') {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const base = { ...fallback };
+    const textAlign=Object.hasOwn(source,'textAlign')?source.textAlign:fallback.textAlign;
+    if(textAlign!==undefined&&!['left','center','right'].includes(textAlign))throw Error('文字对齐方式无效');
     const resolvedId = normalizeAssStyleId(styleId || source.id || fallback.id, fallback.id || 'ass');
     return {
       ...base,
+      ...(textAlign!==undefined?{textAlign}:{}),
       id: resolvedId,
       name: normalizeAssLibraryText(source.name, fallback.name || '样式'),
       builtin: Boolean(fallback.builtin),

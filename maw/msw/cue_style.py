@@ -35,6 +35,8 @@ def valid(value):
             ok = type(v) in (int, float) and v in (1, 3)
         elif key == 'wrapMode':
             ok = v in ('auto', 'characters')
+        elif key == 'textAlign':
+            ok = v in ('left', 'center', 'right')
         else:
             return False
         if not ok:

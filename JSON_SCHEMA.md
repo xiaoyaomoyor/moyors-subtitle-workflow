@@ -18,6 +18,7 @@ v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对
 - `bold`、`italic`、`underline`、`strikeOut`：布尔值；`borderStyle`：1 或 3。
 - `outline`、`shadow`：0–100；`spacing`：−100–100；`angle`：−360–360；`scaleX`、`scaleY`：0–1000，均为有限数字。
 - `wrapMode`：`auto` / `characters`；`charsPerLine`：1–200 的整数。
+- `textAlign`：`left` / `center` / `right`。多行文字在原字幕框内对齐，不改变 `subtitle_position`；未设置时沿用轨道锚点的水平对齐。工程样式、轨道快照、说话人外观和预设也可保存该字段，预览、ASS 和烧录使用相同规则。
 - `backgroundShape`：`none` / `rect` / `rounded`，缺省 `none`；`backgroundColor`：`#RRGGBB`，缺省黑色；`backgroundOpacity`：0–100 的有限数值，缺省 75。
 - `backgroundPaddingX` / `backgroundPaddingY` / `backgroundRadius`：0–240 的有限数值，分别为左右／上下内边距及圆角半径，缺省 16 / 8 / 12，单位为 1080p 像素。半径渲染时不超过框宽／高的一半。
 - `gradientMode`：`none` / `characters`，缺省 `none`；`gradientStart` / `gradientEnd`：`#RRGGBB`，缺省 `#ffffff` / `#b79cff`。双色沿整条字幕可见字素的阅读顺序线性插值 RGB，四舍五入到整数通道；空格、换行不占步长，换行不重置，单字使用起始颜色。一个字素内部为纯色，组合音标、ZWJ 表情不拆开。渐变启用后覆盖文字填充和说话人颜色映射，不改描边、阴影或背景；关闭后恢复原文字颜色。字段同样用于轨道样式和预设。

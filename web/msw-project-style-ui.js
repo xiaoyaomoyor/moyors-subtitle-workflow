@@ -63,6 +63,7 @@
       $(target).append(label);
     }
   }
+  basic.splice(basic.findIndex(r=>r[0]==='primaryColor'),0,['textAlign','文字对齐','select',[['left','左对齐'],['center','居中'],['right','右对齐']]]);
   fields(basic,'style-basic-fields');fields(advanced.filter(r=>r[2]==='checkbox'),'style-emphasis-fields');fields(advanced.filter(r=>r[2]!=='checkbox'),'style-advanced-fields');
   const backgroundSection=document.createElement('div');backgroundSection.id='style-background';backgroundSection.className='msw-property-group';
   backgroundSection.innerHTML='<div id="style-background-fields" class="msw-style-fields"></div>';
@@ -256,7 +257,8 @@
     return propertyReadCache.appearances.get(row.cue.id);
   };
   const displayedAppearance=(style,field)=>field==='backgroundShape'&&style.backgroundShape==='rect'?'rounded':
-    field==='backgroundRadius'&&style.backgroundShape==='rect'?0:style[field];
+    field==='backgroundRadius'&&style.backgroundShape==='rect'?0:
+    field==='textAlign'?style.textAlign||['left','center','right'][((style.alignment||2)-1)%3]:style[field];
   const presetMatches=(preset,rows=selectedRows())=>rows.length&&rows.every(row=>{
     const track=fixedTrack(row.cue,row.role,row.track_id),candidate=S.forKind(preset,fixedTrackCore.styleKind(track))[track.flat_style_slot||'main'],effective=rowAppearance(row);
     return global.MSWCueStyle.fields.every(k=>candidate[k]===effective[k]);
@@ -633,7 +635,7 @@
     if(!ready||styleGeneration!==host.generation)return;
     const input=event.target,field=input.dataset.styleField,animation=input.dataset.animation;if(!field&&!animation)return;
     if(!input.checkValidity()){input.reportValidity();sync();return;}
-    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','backgroundShape','gradientMode'].includes(field)?Number(input.value):input.value;
+    const style=S.normalize(value()),v=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.tagName==='SELECT'&&!['wrapMode','textAlign','backgroundShape','gradientMode'].includes(field)?Number(input.value):input.value;
     if(appearanceScope()){if(field)commitCueAppearance({[field]:v});return;}
     // Exact legacy burn parameters survive until the user deliberately edits them.
     if(style.legacyBurn&&!['wrapMode','charsPerLine'].includes(field)){

@@ -223,6 +223,11 @@ _LEGACY_BUILTIN_NAMES: Final[dict[tuple[str, str], str]] = {
 def _normalize_style(raw: object, fallback: Mapping[str, object], *, style_id: str) -> dict[str, object]:
     source = raw if isinstance(raw, Mapping) else {}
     base = _copy(fallback)
+    if 'textAlign' in source or 'textAlign' in fallback:
+        text_align = source.get('textAlign', fallback.get('textAlign'))
+        if text_align not in ('left', 'center', 'right'):
+            raise ValueError('文字对齐方式无效')
+        base['textAlign'] = text_align
     base.update({
         "id": style_id,
         "name": _text(source.get("name"), str(fallback.get("name") or "样式")),

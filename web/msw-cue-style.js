@@ -7,7 +7,7 @@
   const background=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-background.js'):global.MSWSubtitleBackground;
   const gradient=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-gradient.js'):global.MSWSubtitleGradient;
   const fonts=['latinFontName','kanaFontName','hangulFontName','cyrillicFontName','greekFontName','arabicFontName','hebrewFontName','devanagariFontName','thaiFontName'];
-  const fields=Object.freeze(['fontName',...fonts,...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode',...background.fields,...gradient.fields]);
+  const fields=Object.freeze(['fontName',...fonts,...Object.keys(numbers),...booleans,...colors,'borderStyle','wrapMode','textAlign',...background.fields,...gradient.fields]);
   function valid(value) {
     return !!value&&typeof value==='object'&&!Array.isArray(value)&&Object.entries(value).every(([k,v])=>{
       if(background.fields.includes(k))return background.valid({[k]:v});
@@ -19,6 +19,7 @@
       if(fonts.includes(k))return typeof v==='string'&&v.length<=128&&!/[\\{},\r\n\x00]/.test(v);
       if(k==='borderStyle')return v===1||v===3;
       if(k==='wrapMode')return v==='auto'||v==='characters';
+      if(k==='textAlign')return ['left','center','right'].includes(v);
       return false;
     });
   }

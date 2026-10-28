@@ -99,7 +99,7 @@ function fixedMeasureText(row, projectStyle, width) {
   const background=window.MSWSubtitleBackground,bg=background.enabled(style);
   const maxWidth=Math.max(1,(width-style.marginL-style.marginR-2*(padding+(bg?style.backgroundPaddingX:0)))/Math.max(.01,(style.scaleX||100)/100));
   Object.assign(node.style,{width:'max-content',maxWidth:maxWidth+'px',
-    textAlign:['left','center','right'][((style.alignment||2)-1)%3],whiteSpace:'pre-wrap',overflowWrap:'anywhere'});
+    textAlign:style.textAlign||['left','center','right'][((style.alignment||2)-1)%3],whiteSpace:'pre-wrap',overflowWrap:'anywhere'});
   fixedMeasureRoot.replaceChildren(node);
   const rect=node.getBoundingClientRect(),root=fixedMeasureRoot.getBoundingClientRect();
   const result={width:rect.width+2*padding,height:rect.height+2*padding,css:node.style.cssText,text,prefix,maxWidth,

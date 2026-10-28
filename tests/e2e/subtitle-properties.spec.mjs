@@ -21,6 +21,86 @@ test.beforeEach(async({page})=>{
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();expect(errors).toEqual([]);});
 async function idle(page){await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled),{timeout:30000}).toBe(true);}
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
+
+test('multiline text alignment keeps its anchor and matches preview, burn, undo and reopen',async({page},info)=>{
+  test.setTimeout(120000);
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),c=p.subtitles.cues[0];
+    c.content.text='MMMMMMMMMM\nMM';c.content.items=[];
+    c.content.subtitle_position={x:.5,y:.55,alignment:2};
+    c.content.subtitle_style={fontName:'Arial',latinFontName:'Arial',fontSize:96,primaryColor:'#ff0000'};
+    productionCommitProject(p,'multiline fixture',[c.id]);MSWSubtitleStyle.open('cue');
+  });await idle(page);
+  await expect(page.locator('#style-field-textAlign')).toHaveValue('center');
+  const position=(await snap(page)).subtitles.cues[0].content.subtitle_position,files=[];
+  for(const align of ['left','center','right']){
+    await page.locator('#style-field-textAlign').selectOption(align);await idle(page);
+    expect((await snap(page)).subtitles.cues[0].content.subtitle_position).toEqual(position);
+    const ass=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),target:'both',video:{width:640,height:360}}));
+    writeFileSync(join(folder,'aligned.ass'),ass.ass);
+    const preview=join(folder,align+'-preview.png'),burn=join(folder,align+'-burn.png');
+    const canvas=page.locator('.JASSUB'),box=await canvas.boundingBox();await canvas.screenshot({path:preview});
+    execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-i','video.mp4','-ss','1','-vf',`ass=aligned.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',burn],{cwd:folder,windowsHide:true});
+    files.push(preview,burn);
+  }
+  const rows=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON,['-c',`from PIL import Image
+import json,sys
+def lines(path):
+ im=Image.open(path).convert('RGB');groups=[]
+ for y in range(im.height):
+  xs=[x for x in range(im.width) if (lambda c:c[0]>100 and c[0]>c[1]*2 and c[0]>c[2]*2)(im.getpixel((x,y)))]
+  if xs:
+   if not groups or y>groups[-1][2]+1: groups.append([min(xs),max(xs),y])
+   else: groups[-1]=[min(groups[-1][0],min(xs)),max(groups[-1][1],max(xs)),y]
+ return [g[:2] for g in groups]
+print(json.dumps([lines(p) for p in sys.argv[1:]]))`,...files],{encoding:'utf8',windowsHide:true}));
+  for(let i=0;i<rows.length;i++){
+    expect(rows[i]).toHaveLength(2);
+    const [long,short]=rows[i],mode=Math.floor(i/2),edge=b=>mode===0?b[0]:mode===1?(b[0]+b[1])/2:b[1];
+    expect(Math.abs(edge(long)-edge(short))).toBeLessThan(3);
+    if(i%2)for(let j=0;j<2;j++)for(let k=0;k<2;k++)expect(Math.abs(rows[i][j][k]-rows[i-1][j][k])).toBeLessThan(4);
+  }
+  await page.evaluate(()=>performUndo());await idle(page);await expect(page.locator('#style-field-textAlign')).toHaveValue('center');
+  await page.evaluate(()=>performRedo());await idle(page);await expect(page.locator('#style-field-textAlign')).toHaveValue('right');
+  await page.locator('#subtitle-properties').evaluate(el=>Object.assign(el.style,{position:'fixed',top:'40px',left:'40px',width:'640px',height:'760px',zIndex:'60'}));
+  await page.locator('#style-field-textAlign').scrollIntoViewIfNeeded();
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('multiline-alignment.png')});
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);await page.reload();await idle(page);
+  expect((await snap(page)).subtitles.cues[0].content.subtitle_style.textAlign).toBe('right');
+});
+
+test('Ctrl+D reserves the shortcut when empty, editing, or a context menu is open',async({page})=>{
+  // A target listener can stop bubbling; capture must still block bookmarks.
+  const dispatch=()=>page.evaluate(()=>{
+    const e=new KeyboardEvent('keydown',{key:'d',code:'KeyD',ctrlKey:true,bubbles:true,cancelable:true});
+    (document.activeElement||document.body).dispatchEvent(e);return e.defaultPrevented;
+  });
+  await page.evaluate(()=>{document.activeElement?.blur();selectOnly(0);addExtensionToSelection(0);});
+  expect(await dispatch()).toBe(true);
+  expect(await page.evaluate(()=>selectedIdxs.size+selectedExtensionIdxs.size)).toBe(0);
+  expect(await dispatch()).toBe(true);
+  await page.evaluate(()=>{selectOnly(0);ctxmenu.classList.add('show');document.activeElement?.blur();});
+  await page.keyboard.press('Control+d');
+  await expect(page.locator('#ctxmenu')).not.toHaveClass(/show/);
+  expect(await page.evaluate(()=>selectedIdxs.size+selectedExtensionIdxs.size)).toBe(0);
+  await page.evaluate(()=>{
+    waveformEditor.activateModuleTab('panel');selectOnly(0);
+  });
+  await page.locator('#cue-panel-text').focus();
+  await expect(page.locator('#cue-panel-text')).toBeFocused();
+  await page.evaluate(()=>{
+    cuePanelText.setSelectionRange(0,5);
+    cuePanelText.addEventListener('keydown',e=>e.stopPropagation(),{once:true});
+  });
+  const before=await page.evaluate(()=>({value:cuePanelText.value,start:cuePanelText.selectionStart,end:cuePanelText.selectionEnd}));
+  expect(await dispatch()).toBe(true);
+  expect(await page.evaluate(()=>({value:cuePanelText.value,start:cuePanelText.selectionStart,end:cuePanelText.selectionEnd}))).toEqual(before);
+  expect(await page.evaluate(()=>selectedIdxs.size)).toBe(1);
+  await page.evaluate(()=>MSWSubtitleStyle.open('cue'));
+  await page.locator('#style-field-fontSize').focus();await expect(page.locator('#style-field-fontSize')).toBeFocused();expect(await dispatch()).toBe(true);
+  await page.evaluate(()=>document.activeElement?.blur());await page.keyboard.press('Control+d');
+  expect(await page.evaluate(()=>selectedIdxs.size)).toBe(0);
+});
 async function field(page,name,value){if(name.endsWith('FontName'))await page.locator('#style-font-script').selectOption(name.replace('FontName',''));await page.locator('#style-field-'+name).fill(String(value));await page.locator('#style-field-'+name).blur();await idle(page);}
 
 test('single and cross-track edits preserve inheritance, binding, undo and reopen',async({page},info)=>{

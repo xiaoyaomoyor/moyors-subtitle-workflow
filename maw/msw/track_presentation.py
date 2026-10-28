@@ -326,12 +326,22 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
         position = position_anchor(r, width)
         x, y, alignment = position['x']*width, position['y']*1080, position['alignment']
         drawing = background.drawing(r['style'], r['size'], alignment) if background.enabled(r['style']) else None
+        # Paragraph alignment is independent of the box's saved picture anchor.
+        # Move the ASS anchor by the measured line width, keeping the box in place.
+        text_x, text_y, align_offset = x, y, 0
+        if r['style'].get('textAlign'):
+            horizontal = ('left', 'center', 'right').index(r['style']['textAlign'])
+            align_offset = (horizontal-(alignment-1)%3)*r['size']['textWidth']/2
+            alignment = 1+(alignment-1)//3*3+horizontal
+            angle = math.radians(r['style']['angle'])
+            text_x += align_offset*math.cos(angle)
+            text_y -= align_offset*math.sin(angle)
         base=rf'\an{alignment}\q2'
         animations=r['animations']
         move=animations['move']
         if move['enabled']:
-            base+=r'\move('+','.join(str(round(v,4)) for v in (x,y,x+move['x2']-move['x1'],y+move['y2']-move['y1'],move['t1'],move['t2']))+')'
-        else:base+=rf'\pos({x:.4f},{y:.4f})'
+            base+=r'\move('+','.join(str(round(v,4)) for v in (text_x,text_y,text_x+move['x2']-move['x1'],text_y+move['y2']-move['y1'],move['t1'],move['t2']))+')'
+        else:base+=rf'\pos({text_x:.4f},{text_y:.4f})'
         for tag,keys in [('fad',('inMs','outMs')),('fade',('alpha1','alpha2','alpha3','t1','t2','t3','t4')),('t',('startMs','endMs','accel','tags'))]:
             a=animations[tag]
             if a['enabled']:base+='\\'+tag+'('+','.join(str(a[k]) for k in keys)+')'
@@ -366,7 +376,7 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
                 if clip_hi<=clip_lo:continue
                 origin=r['cue']['start']
                 streams = [(text_layer, subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
-                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if cue_mode=='speaker' else None))]
+                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if cue_mode=='speaker' else None,align_offset=align_offset))]
                 if drawing:
                     streams.insert(0, (layer, subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
                         clip_lo-origin,clip_hi-origin,x,y,7,drawing=drawing)))
