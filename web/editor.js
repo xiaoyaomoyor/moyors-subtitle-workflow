@@ -6315,7 +6315,7 @@ function isHiddenDisabled(idx, track = 'main') {
     : (track?.segments || DATA.segments);
   const kind = segments === DATA.segments ? 'main' : segments === getOverlayTrack()?.segments ? 'overlay' : 'extension';
   const trackId = kind === 'extension' ? (track?.id || getActiveExtensionTrack()?.id) : null;
-  return hideDisabled && !!segments[idx]?.disabled && !temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(kind,segments[idx],trackId));
+  return hideDisabled && !!segments[idx]?.disabled && !temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(kind,segments[idx],trackId)) && !window.MSWFindEdit?.keepVisible(segments[idx]);
 }
 
 function cancelPendingExtensionBinding(message = '已取消绑定副字幕') {
@@ -23553,7 +23553,8 @@ function initWaveformEditor() {
     toggleDisabled: (idxs, track = 'main') => toggleDisabled(idxs, track),
     keepCueVisible: (index, role) => {
       const track = role === 'extension' ? getActiveExtensionTrack() : role === 'overlay' ? getOverlayTrack() : null;
-      return temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(role,(track?.segments || DATA.segments)[index],track?.id));
+      const cue = (track?.segments || DATA.segments)[index];
+      return temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(role,cue,track?.id)) || window.MSWFindEdit?.keepVisible(cue);
     },
     getGapRemoveGaps,
     getEffectiveGapRanges: getRemovedGapRanges,

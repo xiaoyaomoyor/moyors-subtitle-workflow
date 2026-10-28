@@ -5110,6 +5110,8 @@
     }
 
     layoutBlock(block, segment, startMs, endMs, ownerRow = null) {
+      block.dataset.cueId = segment.id;
+      window.MSWFindEdit?.decorateBlock(block, segment);
       if (this.subtitleLayersEnabled()) this.applyLayerCueLayout(block, segment);
       const duration = Math.max(1, endMs - startMs);
       const visibleStart = Math.max(startMs, segment.start);
@@ -5246,6 +5248,7 @@
       if (!segment) return;
       this.content.querySelectorAll(`.waveform-cue-block[data-track="main"][data-idx="${index}"] .waveform-cue-label`)
         .forEach((label) => { label.textContent = segment.text.replace(/\s+/g, ' ');label.parentElement.title=this.cueHoverTitle(segment,index,label.textContent); });
+      window.MSWFindEdit?.changed();
     }
 
     refreshExtensionCueLabel(index, trackId = null) {
@@ -5253,6 +5256,7 @@
       if (!segment) return;
       this.content.querySelectorAll(`.waveform-cue-block[data-track="extension"][data-ext-idx="${index}"] .waveform-cue-label`)
         .forEach((label) => { label.textContent = String(segment.text || '').replace(/\s+/g, ' ');label.parentElement.title=this.cueHoverTitle(segment,index,label.textContent,'extension'); });
+      window.MSWFindEdit?.changed();
     }
 
     updateSelection() {

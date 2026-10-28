@@ -9,6 +9,19 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '查找并编辑': 'Find and edit', '关闭查找并编辑': 'Close find and edit',
+    '指定轨道': 'Specific tracks', '搜索轨道': 'Search tracks', '使用当前选择': 'Use current selection',
+    '匹配设置': 'Match options', '查找字幕文字…': 'Find subtitle text…', '查找字幕文字': 'Find subtitle text',
+    '清空查找': 'Clear search', '上一处': 'Previous match', '下一处': 'Next match',
+    '上一处（Shift+Enter）': 'Previous match (Shift+Enter)', '下一处（Enter）': 'Next match (Enter)',
+    '查找结果': 'Search results', '输入文字开始查找': 'Enter text to search', '没有匹配的字幕': 'No matching subtitles',
+    '正在查找…': 'Searching…', '正则表达式无效': 'Invalid regular expression',
+    '此环境无法安全运行正则，请使用普通文字查找': 'Safe regex execution is unavailable here. Use plain-text search.',
+    '查询耗时过长，请简化正则表达式': 'Search timed out. Simplify the regular expression.',
+    '匹配过多，仅显示前 50000 处，请缩小范围': 'Showing the first 50,000 matches. Narrow the scope.',
+    '已忽略不包含文字的零宽匹配': 'Zero-width matches without text were omitted.',
+    '请先完成当前编辑，再展开目标轨道': 'Finish the current edit before expanding the target track.',
+    '查找字幕并定位到波形，支持全部轨道、指定轨道和所选字幕': 'Find and locate subtitles in the waveform, across all tracks, specific tracks or selected cues',
     'SRT 字幕': 'SRT subtitles',
     'ASS 带样式字幕': 'ASS styled subtitles',
     'TXT 纯文本': 'TXT plain text',

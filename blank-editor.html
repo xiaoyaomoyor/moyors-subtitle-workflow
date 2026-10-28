@@ -3645,6 +3645,40 @@
 
   /* === Modal === */
   .gap-remove-panel.msw-processing-panel { width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 60px); }
+  .gap-remove-panel.msw-find-panel { width: min(520px, calc(100vw - 24px)); height: min(510px, calc(100vh - 32px)); min-width: min(320px, calc(100vw - 24px)); min-height: min(300px, calc(100vh - 32px)); max-width: calc(100vw - 12px); max-height: calc(100vh - 12px); resize: both; overflow: hidden; }
+  .find-edit-tools { flex: 0 0 auto; padding: 12px 14px 8px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border-subtle); }
+  .find-edit-scope-row, .find-edit-query-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+  .find-edit-scope-label { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px; white-space: nowrap; }
+  .msw-find-panel .find-edit-scope-label select { width: 128px; }
+  #find-edit-selection { display: inline-flex; align-items: center; gap: 2px; color: var(--text-secondary); font-size: 12px; }
+  .msw-find-panel .find-edit-options { margin: 0 0 0 auto; border: none; padding: 0; position: relative; }
+  .find-edit-options > div { padding-top: 8px; display: grid; gap: 8px; }
+  #find-edit-tracks { display: flex; gap: 8px 14px; flex-wrap: wrap; max-height: 96px; overflow-y: auto; }
+  .msw-find-panel .media-preview-toggle input { width: 15px; height: 15px; margin: 0; padding: 0; box-shadow: none; accent-color: var(--accent); }
+  .msw-find-panel .media-preview-toggle { font-size: 13px; white-space: nowrap; }
+  .msw-find-panel .find-icon { width: 30px; height: 32px; min-height: 0; padding: 5px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-secondary); background: var(--bg-input); cursor: pointer; }
+  .find-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .msw-find-panel .find-icon:hover { color: var(--text-primary); border-color: var(--accent); }
+  .msw-find-panel .find-icon:disabled { opacity: .4; cursor: default; }
+  .find-query-input { flex: 1; min-width: 120px; position: relative; }
+  .msw-find-panel .find-query-input input { padding-right: 33px; }
+  .msw-find-panel .find-query-input .find-icon { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); border: none; background: transparent; height: 28px; }
+  .find-edit-summary { color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+  #find-edit-message { margin: 0; }
+  #find-edit-results { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; position: relative; scrollbar-gutter: stable; }
+  #find-edit-rows { position: relative; }
+  #find-edit-empty { color: var(--text-secondary); text-align: center; padding: 20px 10px; font-size: 13px; }
+  .msw-find-panel .find-result { position: absolute; left: 0; width: 100%; height: 70px; padding: 9px 14px; display: flex; flex-direction: column; gap: 6px; text-align: left; border: none; border-bottom: 1px solid var(--border-subtle); border-radius: 0; background: transparent; color: var(--text-primary); cursor: pointer; box-sizing: border-box; font: inherit; }
+  .msw-find-panel .find-result:hover, .msw-find-panel .find-result[aria-current="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .msw-find-panel .find-result:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+  .find-result-meta { display: flex; gap: 10px; align-items: center; font-size: 11px; color: var(--text-secondary); white-space: nowrap; width: 100%; }
+  .find-result-meta strong { font-weight: 600; color: var(--text-primary); }
+  .find-result-status { margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
+  .find-result-text { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .find-result mark, .waveform-cue-label mark { color: inherit; background: color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 2px; }
+  .waveform-cue-block.msw-search-hit::after { content: ''; position: absolute; left: 7px; right: 7px; bottom: 2px; height: 2px; border-bottom: 2px dotted var(--accent); pointer-events: none; }
+  .waveform-cue-block.msw-search-current::after { border-bottom-style: solid; }
+  .waveform-cue-label mark.current { background: color-mix(in srgb, var(--accent) 48%, transparent); }
   .msw-processing-panel .gap-remove-panel-body { overflow-y: auto; overscroll-behavior: contain; }
   .msw-processing-panel [hidden] { display:none !important; }
   .msw-processing-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
@@ -7145,6 +7179,7 @@
         <div class="dropdown-item dropdown-submenu-toggle" id="batch-operations-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="批量处理字幕文本">批量操作</div>
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
           <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="选择轨道与范围，按字符数或关键词清理字幕">清理字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+          <button type="button" class="dropdown-item" id="find-edit-open" role="menuitem"><span>查找并编辑</span><kbd class="menu-kbd" data-mod>Ctrl+F</kbd></button>
           <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
@@ -8196,6 +8231,7 @@
       <section class="help-subgroup">
         <h5 class="help-subtitle">字幕列表</h5>
         <div class="help-category">
+          <span><kbd data-mod>Ctrl+F</kbd> 查找字幕并定位到波形，支持全部轨道、指定轨道和所选字幕</span>
           <span><kbd>批量替换</kbd> 查找并批量替换字幕文本</span>
           <span><kbd>纯文本编辑</kbd> 集中编辑字幕文本，可预览拆分、合并和字词时间码映射</span>
           <span><kbd>文本处理</kbd> 批量修剪空白、首字母大写、添加前缀/后缀或去除 Markdown 符号</span>
@@ -9547,6 +9583,29 @@
     <p id="audio-export-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details class="msw-job-history" id="audio-export-history" open><summary>导出记录 <span id="audio-export-history-count"></span></summary><div id="audio-export-jobs" class="msw-processing-jobs" aria-label="音频导出任务" tabindex="0"></div></details>
   </div>
+</aside>
+
+<aside class="gap-remove-panel msw-processing-panel msw-find-panel" id="find-edit-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="find-edit-title">
+  <header class="gap-remove-panel-header" id="find-edit-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕</span><h3 id="find-edit-title">查找并编辑</h3></div>
+    <button type="button" id="find-edit-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭查找并编辑"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="find-edit-tools">
+    <div class="find-edit-scope-row">
+      <label class="find-edit-scope-label">范围<select id="find-edit-scope"><option value="all">全部轨道</option><option value="tracks">指定轨道</option><option value="selected">所选字幕</option></select></label>
+      <span id="find-edit-selection" hidden><span id="find-edit-selected-count">0</span><span> 条</span><button type="button" id="find-edit-use-selection" class="find-icon" title="使用当前选择" aria-label="使用当前选择"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6"/></svg></button></span>
+      <details class="find-edit-options"><summary>匹配设置</summary><div><label class="media-preview-toggle"><input id="find-edit-case" type="checkbox">区分大小写</label><label class="media-preview-toggle"><input id="find-edit-regex" type="checkbox">正则表达式</label></div></details>
+    </div>
+    <div id="find-edit-tracks" hidden aria-label="搜索轨道"></div>
+    <div class="find-edit-query-row">
+      <div class="find-query-input"><input type="text" id="find-edit-query" placeholder="查找字幕文字…" aria-label="查找字幕文字" autocomplete="off" spellcheck="false"><button type="button" id="find-edit-clear" class="find-icon" title="清空查找" aria-label="清空查找"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
+      <button type="button" id="find-edit-prev" class="find-icon" title="上一处（Shift+Enter）" aria-label="上一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
+      <button type="button" id="find-edit-next" class="find-icon" title="下一处（Enter）" aria-label="下一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    </div>
+    <div class="find-edit-summary" id="find-edit-count" role="status" aria-live="polite">0 条字幕 · 0 处匹配</div>
+    <p id="find-edit-message" class="msw-processing-hint" role="status" hidden></p>
+  </div>
+  <div id="find-edit-results" tabindex="0" aria-label="查找结果" aria-busy="false"><p id="find-edit-empty">输入文字开始查找</p><div id="find-edit-rows" data-i18n-skip></div></div>
 </aside>
 
 <!-- 批量替换 modal -->
@@ -20686,6 +20745,57 @@ export default MawDynamicCaptions;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWBatchEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
+// Text-only search. This factory also runs inside a cancellable worker.
+(function (global) {
+  'use strict';
+  function createEngine() {
+    const records = new Map();
+    function update({ rows = [], removed = [], reset = false } = {}) {
+      if (reset) records.clear();
+      for (const key of removed) records.delete(key);
+      for (const row of rows) records.set(row.key, row);
+    }
+    function search({ query = '', caseSensitive = false, regex = false, scope = 'all', tracks = [], selected = [], limit = 50000 } = {}) {
+      if (!query) return { rows: [], count: 0, limited: false };
+      let pattern;
+      try { pattern = new RegExp(regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'gu' : 'giu'); }
+      catch (_) { return { rows: [], count: 0, error: 'invalid-regex' }; }
+      const trackSet = new Set(tracks), ids = new Set(selected), rows = [];
+      let count = 0, limited = false, zeroWidth = false;
+      for (const row of records.values()) {
+        if (scope === 'tracks' && !trackSet.has(row.trackId) || scope === 'selected' && !ids.has(row.id)) continue;
+        pattern.lastIndex = 0;
+        const matches = [];
+        let match;
+        while ((match = pattern.exec(row.text)) !== null) {
+          // A point has no visible text to mark. Never spin on empty matches.
+          if (!match[0].length) {
+            zeroWidth = true;
+            pattern.lastIndex = match.index + ((row.text.codePointAt(match.index) || 0) > 0xffff ? 2 : 1);
+            continue;
+          }
+          matches.push([match.index, match.index + match[0].length]);
+          if (++count >= limit) { limited = true; break; }
+        }
+        if (matches.length) rows.push({ key: row.key, matches });
+        if (limited) break;
+      }
+      rows.sort((a, b) => {
+        const x = records.get(a.key), y = records.get(b.key);
+        return x.start - y.start || x.order - y.order || x.number - y.number || x.key.localeCompare(y.key);
+      });
+      return { rows, count, limited, zeroWidth };
+    }
+    return { update, search };
+  }
+  function workerSource() {
+    return `const engine=(${createEngine.toString()})();onmessage=({data})=>{if(data.type==='update')engine.update(data.patch);else postMessage({version:data.version,result:engine.search(data.query)});};`;
+  }
+  const api = { createEngine, workerSource };
+  if (typeof module !== 'undefined') module.exports = api;
+  global.MSWFindCore = api;
+})(typeof window === 'undefined' ? globalThis : window);
+
 // Translation metadata is independent of track roles and reference formats.
 (function (global) {
   'use strict';
@@ -23338,6 +23448,19 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '查找并编辑': 'Find and edit', '关闭查找并编辑': 'Close find and edit',
+    '指定轨道': 'Specific tracks', '搜索轨道': 'Search tracks', '使用当前选择': 'Use current selection',
+    '匹配设置': 'Match options', '查找字幕文字…': 'Find subtitle text…', '查找字幕文字': 'Find subtitle text',
+    '清空查找': 'Clear search', '上一处': 'Previous match', '下一处': 'Next match',
+    '上一处（Shift+Enter）': 'Previous match (Shift+Enter)', '下一处（Enter）': 'Next match (Enter)',
+    '查找结果': 'Search results', '输入文字开始查找': 'Enter text to search', '没有匹配的字幕': 'No matching subtitles',
+    '正在查找…': 'Searching…', '正则表达式无效': 'Invalid regular expression',
+    '此环境无法安全运行正则，请使用普通文字查找': 'Safe regex execution is unavailable here. Use plain-text search.',
+    '查询耗时过长，请简化正则表达式': 'Search timed out. Simplify the regular expression.',
+    '匹配过多，仅显示前 50000 处，请缩小范围': 'Showing the first 50,000 matches. Narrow the scope.',
+    '已忽略不包含文字的零宽匹配': 'Zero-width matches without text were omitted.',
+    '请先完成当前编辑，再展开目标轨道': 'Finish the current edit before expanding the target track.',
+    '查找字幕并定位到波形，支持全部轨道、指定轨道和所选字幕': 'Find and locate subtitles in the waveform, across all tracks, specific tracks or selected cues',
     'SRT 字幕': 'SRT subtitles',
     'ASS 带样式字幕': 'ASS styled subtitles',
     'TXT 纯文本': 'TXT plain text',
@@ -31726,6 +31849,8 @@ export default MawDynamicCaptions;
     }
 
     layoutBlock(block, segment, startMs, endMs, ownerRow = null) {
+      block.dataset.cueId = segment.id;
+      window.MSWFindEdit?.decorateBlock(block, segment);
       if (this.subtitleLayersEnabled()) this.applyLayerCueLayout(block, segment);
       const duration = Math.max(1, endMs - startMs);
       const visibleStart = Math.max(startMs, segment.start);
@@ -31862,6 +31987,7 @@ export default MawDynamicCaptions;
       if (!segment) return;
       this.content.querySelectorAll(`.waveform-cue-block[data-track="main"][data-idx="${index}"] .waveform-cue-label`)
         .forEach((label) => { label.textContent = segment.text.replace(/\s+/g, ' ');label.parentElement.title=this.cueHoverTitle(segment,index,label.textContent); });
+      window.MSWFindEdit?.changed();
     }
 
     refreshExtensionCueLabel(index, trackId = null) {
@@ -31869,6 +31995,7 @@ export default MawDynamicCaptions;
       if (!segment) return;
       this.content.querySelectorAll(`.waveform-cue-block[data-track="extension"][data-ext-idx="${index}"] .waveform-cue-label`)
         .forEach((label) => { label.textContent = String(segment.text || '').replace(/\s+/g, ' ');label.parentElement.title=this.cueHoverTitle(segment,index,label.textContent,'extension'); });
+      window.MSWFindEdit?.changed();
     }
 
     updateSelection() {
@@ -42827,7 +42954,7 @@ function isHiddenDisabled(idx, track = 'main') {
     : (track?.segments || DATA.segments);
   const kind = segments === DATA.segments ? 'main' : segments === getOverlayTrack()?.segments ? 'overlay' : 'extension';
   const trackId = kind === 'extension' ? (track?.id || getActiveExtensionTrack()?.id) : null;
-  return hideDisabled && !!segments[idx]?.disabled && !temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(kind,segments[idx],trackId));
+  return hideDisabled && !!segments[idx]?.disabled && !temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(kind,segments[idx],trackId)) && !window.MSWFindEdit?.keepVisible(segments[idx]);
 }
 
 function cancelPendingExtensionBinding(message = '已取消绑定副字幕') {
@@ -60065,7 +60192,8 @@ function initWaveformEditor() {
     toggleDisabled: (idxs, track = 'main') => toggleDisabled(idxs, track),
     keepCueVisible: (index, role) => {
       const track = role === 'extension' ? getActiveExtensionTrack() : role === 'overlay' ? getOverlayTrack() : null;
-      return temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(role,(track?.segments || DATA.segments)[index],track?.id));
+      const cue = (track?.segments || DATA.segments)[index];
+      return temporaryVisibleSplitCueKeys.has(splitCueVisibilityKey(role,cue,track?.id)) || window.MSWFindEdit?.keepVisible(cue);
     },
     getGapRemoveGaps,
     getEffectiveGapRanges: getRemovedGapRanges,
@@ -68308,6 +68436,284 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   global.addEventListener('msw:subtitles-changed',refresh);
   global.addEventListener('msw:project-changed',()=>{setScope(null);trackKey='';filenameProject=null;message('');if(floating.isOpen())queueMicrotask(()=>open());});
   global.MSWSubtitleExport={open,refresh};
+})(window);
+
+// Stage one: read-only search and explicit navigation; editing tools remain separate.
+(function (global) {
+  'use strict';
+  const core = global.MSWFindCore, host = global.MSWE.resolve('processing-host');
+  const el = id => document.getElementById('find-edit-' + id), panel = el('panel');
+  const viewport = el('results'), canvas = el('rows'), rowHeight = 70;
+  const t = text => global.MSWE_I18N?.translateText(text) || text;
+  let records = new Map(), references = new Map(), cuesById = new Map(), tracks = [], trackSignature = '';
+  let result = { rows: [], count: 0 }, matchMap = new Map(), selected = [], trackIds = new Set();
+  let activeKey = null, activeMatch = 0, queryVersion = 0, worker = null, workerBusy = false;
+  let timeout, queryTimer, syncTimer, renderFrame, plainEngine = core.createEngine();
+  const floating = host.createFloatingPanel({ panel, dragHandle: el('drag'),
+    anchorButton: document.querySelector('[data-menubar-item="subtitle"] > button'),
+    positionKey: 'msw.findEdit.position.v1', onClose: onClose });
+
+  function sources() { return layerCore.tracks(DATA); }
+  function readIndex() {
+    const flat = fixedTrackMode();
+    tracks = flat ? DATA.subtitle_tracks.tracks : sources().map((s, i) => ({ id: s.track_id || 'main', name: `S${i + 1}`, enabled: true }));
+    const trackMap = new Map(tracks.map((track, order) => [track.id, { ...track, order }]));
+    const owners = flat ? new Map(DATA.subtitle_tracks.assignments.map(a => [fixedTrackCore.key(a), a.subtitle_track_id])) : null;
+    const next = new Map(), refs = new Map(), groups = new Map();
+    for (const source of sources()) source.segments.forEach((cue, index) => {
+      const trackId = owners ? owners.get(fixedTrackCore.key({ role: source.role, track_id: source.track_id, cue_id: cue.id })) : source.track_id || 'main';
+      const track = trackMap.get(trackId); if (!track) return;
+      const key = JSON.stringify([trackId, cue.id]);
+      const row = { key, id: cue.id, trackId, trackName: track.name, order: track.order, start: cue.start, end: cue.end,
+        text: String(cue.text || ''), locked: !!track.locked, disabled: track.enabled === false || !!cue.disabled };
+      if (!groups.has(trackId)) groups.set(trackId, []);
+      groups.get(trackId).push(row); refs.set(key, { cue, source, index });
+    });
+    const changed = [];
+    for (const rows of groups.values()) rows.sort((a, b) => a.start - b.start || a.end - b.end || a.id.localeCompare(b.id)).forEach((row, i) => {
+      row.number = i + 1;
+      const old = records.get(row.key);
+      if (!old || Object.keys(row).some(k => row[k] !== old[k])) changed.push(row);
+      next.set(row.key, row);
+    });
+    const removed = [...records.keys()].filter(key => !next.has(key));
+    records = next; references = refs; cuesById = new Map([...refs.values()].map(ref => [ref.cue.id, ref.cue]));
+    const patch = { rows: changed, removed };
+    plainEngine.update(patch); worker?.postMessage({ type: 'update', patch });
+    refreshTracks();
+    return changed.length > 0 || removed.length > 0;
+  }
+  function refreshTracks() {
+    const signature = JSON.stringify(tracks.map(track => [track.id, track.name, track.locked, track.enabled]));
+    if (signature === trackSignature) return;
+    const first = !trackSignature; trackSignature = signature;
+    if (first) trackIds = new Set(tracks.map(track => track.id));
+    else trackIds = new Set([...trackIds].filter(id => tracks.some(track => track.id === id)));
+    el('tracks').replaceChildren(...tracks.map(track => {
+      const label = document.createElement('label'); label.className = 'media-preview-toggle';
+      const input = document.createElement('input'); input.type = 'checkbox'; input.value = track.id; input.checked = trackIds.has(track.id);
+      input.addEventListener('change', () => { if (input.checked) trackIds.add(track.id); else trackIds.delete(track.id); scheduleQuery(); });
+      label.append(input, document.createTextNode(track.name)); return label;
+    }));
+  }
+  function options() {
+    return { query: el('query').value, caseSensitive: el('case').checked, regex: el('regex').checked,
+      scope: el('scope').value, tracks: [...trackIds], selected };
+  }
+  function stopWorker() { clearTimeout(timeout); worker?.terminate(); worker = null; workerBusy = false; }
+  function ensureWorker() {
+    if (worker) return true;
+    let url;
+    try {
+      url = URL.createObjectURL(new Blob([core.workerSource()], { type: 'text/javascript' }));
+      worker = new Worker(url);
+      worker.onmessage = event => {
+        if (event.data.version !== queryVersion || !floating.isOpen()) return;
+        workerBusy = false; clearTimeout(timeout); publish(event.data.result);
+      };
+      worker.onerror = event => { event.preventDefault(); stopWorker(); fallback(queryVersion, options()); };
+      worker.postMessage({ type: 'update', patch: { rows: [...records.values()], reset: true } });
+      return true;
+    } catch (_) { stopWorker(); return false; }
+    finally { if (url) URL.revokeObjectURL(url); }
+  }
+  function fallback(version, query) {
+    if (version !== queryVersion || !floating.isOpen()) return;
+    if (query.regex) { publish({ rows: [], count: 0, error: 'worker-unavailable' }); return; }
+    // Literal matching is bounded. Never execute arbitrary regex on the UI thread.
+    publish(plainEngine.search(query));
+  }
+  function message(text) { el('message').textContent = t(text); el('message').hidden = !text; }
+  function publish(next) {
+    result = next; viewport.setAttribute('aria-busy', 'false');
+    matchMap = new Map(next.rows.map(row => [records.get(row.key)?.id, row]));
+    if (!next.rows.some(row => row.key === activeKey)) { activeKey = null; activeMatch = 0; }
+    else activeMatch = Math.min(activeMatch, matchMap.get(records.get(activeKey)?.id)?.matches.length - 1 || 0);
+    el('count').textContent = global.MSWE_I18N?.language === 'en'
+      ? `${next.rows.length} cues · ${next.count} matches` : `${next.rows.length} 条字幕 · ${next.count} 处匹配`;
+    const notices = { 'invalid-regex': '正则表达式无效', 'worker-unavailable': '此环境无法安全运行正则，请使用普通文字查找', 'timeout': '查询耗时过长，请简化正则表达式' };
+    message(notices[next.error] || (next.limited ? '匹配过多，仅显示前 50000 处，请缩小范围' : next.zeroWidth ? '已忽略不包含文字的零宽匹配' : ''));
+    el('empty').textContent = t(!el('query').value ? '输入文字开始查找' : '没有匹配的字幕');
+    el('empty').hidden = !!next.rows.length || !!next.error;
+    el('prev').disabled = el('next').disabled = !next.count;
+    canvas.style.height = `${next.rows.length * rowHeight}px`;
+    renderRows(); paintWaveform();
+  }
+  function runQuery() {
+    if (!floating.isOpen()) return;
+    const query = options(), version = queryVersion;
+    if (!query.query) { publish({ rows: [], count: 0 }); return; }
+    viewport.setAttribute('aria-busy', 'true'); el('count').textContent = t('正在查找…');
+    if (!ensureWorker()) { fallback(version, query); return; }
+    workerBusy = true; worker.postMessage({ type: 'search', version, query });
+    timeout = setTimeout(() => { if (version === queryVersion && workerBusy) { stopWorker(); publish({ rows: [], count: 0, error: 'timeout' }); } }, 1500);
+  }
+  function scheduleQuery({ resetScroll = true } = {}) {
+    clearTimeout(queryTimer); ++queryVersion;
+    if (workerBusy) stopWorker();
+    if (resetScroll) {
+      viewport.scrollTop = 0; activeKey = null; activeMatch = 0;
+      result = { rows: [], count: 0 }; canvas.replaceChildren(); canvas.style.height = '0px';
+      el('prev').disabled = el('next').disabled = true; el('empty').hidden = true; message('');
+    }
+    // Old highlights must not advertise a newer query while it is pending.
+    matchMap.clear(); paintWaveform();
+    queryTimer = setTimeout(runQuery, 170);
+  }
+  function changed() {
+    if (!floating.isOpen()) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => { if (readIndex()) scheduleQuery({ resetScroll: false }); }, 180);
+  }
+  function highlight(node, text, matches, active = -1) {
+    node.replaceChildren(); let cursor = 0;
+    matches.forEach(([start, end], i) => {
+      node.append(document.createTextNode(text.slice(cursor, start)));
+      const mark = document.createElement('mark'); mark.textContent = text.slice(start, end); mark.classList.toggle('current', i === active); node.append(mark); cursor = end;
+    });
+    node.append(document.createTextNode(text.slice(cursor)));
+  }
+  function renderRows() {
+    if (!floating.isOpen()) return;
+    cancelAnimationFrame(renderFrame);
+    const first = Math.max(0, Math.floor(viewport.scrollTop / rowHeight) - 3);
+    const last = Math.min(result.rows.length, first + Math.ceil(viewport.clientHeight / rowHeight) + 7);
+    const fragment = document.createDocumentFragment();
+    for (let i = first; i < last; i++) {
+      const hit = result.rows[i], row = records.get(hit.key); if (!row) continue;
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'find-result'; button.dataset.key = hit.key;
+      button.style.top = `${i * rowHeight}px`; button.setAttribute('aria-current', hit.key === activeKey ? 'true' : 'false');
+      button.setAttribute('aria-label', `${row.trackName}_${row.number} ${formatTime(row.start)} ${row.text}`);
+      const meta = document.createElement('span'); meta.className = 'find-result-meta';
+      const name = document.createElement('strong'); name.textContent = `${row.trackName}_${row.number}`;
+      const time = document.createElement('span'); time.textContent = formatTime(row.start);
+      const status = document.createElement('span'); status.className = 'find-result-status';
+      status.textContent = [row.locked ? t('已锁定') : '', row.disabled ? t('已禁用') : '', hit.matches.length > 1 ? `×${hit.matches.length}` : ''].filter(Boolean).join(' · ');
+      meta.append(name, time, status);
+      const text = document.createElement('span'); text.className = 'find-result-text'; text.dataset.i18nSkip = '';
+      const current = hit.key === activeKey ? activeMatch : 0, start = Math.max(0, hit.matches[current][0] - 35), end = Math.min(row.text.length, Math.max(start + 140, hit.matches[current][1] + 35));
+      const snippet = row.text.slice(start, end);
+      const ranges = hit.matches.map(([a, b]) => [Math.max(a, start) - start, Math.min(b, end) - start]).filter(([a, b]) => b > a);
+      highlight(text, snippet, ranges); if (start) text.prepend('…'); if (end < row.text.length) text.append('…');
+      button.append(meta, text); fragment.append(button);
+    }
+    canvas.replaceChildren(fragment);
+  }
+  function formatTime(ms) {
+    const total = Math.max(0, Math.round(ms)), seconds = Math.floor(total / 1000), minutes = Math.floor(seconds / 60);
+    return (minutes >= 60 ? `${String(Math.floor(minutes / 60)).padStart(2, '0')}:` : '') + `${String(minutes % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.${String(total % 1000).padStart(3, '0')}`;
+  }
+  function decorateBlock(block, cue) {
+    if (!floating.isOpen() && !block.classList.contains('msw-search-hit')) return;
+    const hit = floating.isOpen() ? matchMap.get(cue.id) : null;
+    const previous = block.classList.contains('msw-search-hit');
+    block.classList.toggle('msw-search-hit', !!hit);
+    block.classList.toggle('msw-search-current', !!hit && hit.key === activeKey);
+    const label = block.querySelector('.waveform-cue-label');
+    if (!label || !hit && !previous) return;
+    const text = String(cue.text || ''), display = text.replace(/\s+/g, ' ');
+    if (!hit) { label.textContent = display; delete block.dataset.searchSignature; return; }
+    const signature = `${queryVersion}:${hit.key === activeKey ? activeMatch : -1}:${text}`;
+    if (block.dataset.searchSignature === signature && label.querySelector('mark')) return;
+    block.dataset.searchSignature = signature;
+    const ranges = hit.matches.map(([a, b]) => [text.slice(0, a).replace(/\s+/g, ' ').length, text.slice(0, b).replace(/\s+/g, ' ').length]).filter(([a, b]) => b > a);
+    highlight(label, display, ranges, hit.key === activeKey ? activeMatch : -1);
+  }
+  function paintWaveform() {
+    if (!waveformEditor?.content) return;
+    waveformEditor.content.querySelectorAll('.waveform-cue-block').forEach(block => {
+      const cue = cuesById.get(block.dataset.cueId); if (cue) decorateBlock(block, cue);
+      else { block.classList.remove('msw-search-hit', 'msw-search-current'); block.querySelectorAll('mark').forEach(mark => mark.replaceWith(mark.textContent)); }
+    });
+  }
+  function keepVisible(cue) { return floating.isOpen() && cue?.id === records.get(activeKey)?.id; }
+  function navigate(key, occurrence = 0) {
+    // Resolve by ID again: indexes may have changed since the last query.
+    readIndex(); let ref = references.get(key); const row = records.get(key);
+    if (!ref || !row) { scheduleQuery({ resetScroll: false }); return; }
+    activeKey = key; activeMatch = occurrence;
+    if (fixedTrackMode()) {
+      const track = DATA.subtitle_tracks.tracks.find(track => track.id === row.trackId);
+      if (track?.collapsed) {
+        if (!fixedUpdateTrack(track.id, { collapsed: false })) { message('请先完成当前编辑，再展开目标轨道'); return; }
+        readIndex(); ref = references.get(key);
+      }
+      fixedActiveTrackId = row.trackId;
+    }
+    if (!ref) return;
+    // Search navigation must never complete a pending bind operation.
+    pendingExtensionBinding = null;
+    if (ref.source.role === 'extension') selectOnlyExtension(ref.index, getExtensionTrack(ref.source.track_id));
+    else if (ref.source.role === 'overlay') selectOverlayCueRow(ref.index);
+    else selectCueByClick(ref.index);
+    if (waveformEditor?.showModule?.('wave', { recordUndo: false })) rebuildShowModuleMenu();
+    waveformEditor?.activateModuleTab?.('wave');
+    seekFromWaveform(row.start / 1000, { pauseAfterSeek: true });
+    waveformEditor?.refreshCueOverlay?.();
+    waveformEditor?.revealTime(row.start, true);
+    const i = result.rows.findIndex(hit => hit.key === key), top = i * rowHeight;
+    if (top < viewport.scrollTop || top + rowHeight > viewport.scrollTop + viewport.clientHeight) viewport.scrollTop = top;
+    renderRows(); paintWaveform();
+  }
+  function step(direction) {
+    if (!result.count) return;
+    let index = result.rows.findIndex(row => row.key === activeKey), occurrence = activeMatch + direction;
+    if (index < 0) { index = direction > 0 ? 0 : result.rows.length - 1; occurrence = direction > 0 ? 0 : result.rows[index].matches.length - 1; }
+    else if (occurrence >= result.rows[index].matches.length) { index = (index + 1) % result.rows.length; occurrence = 0; }
+    else if (occurrence < 0) { index = (index + result.rows.length - 1) % result.rows.length; occurrence = result.rows[index].matches.length - 1; }
+    navigate(result.rows[index].key, occurrence);
+  }
+  function scopeChanged() {
+    const scope = el('scope').value;
+    el('tracks').hidden = scope !== 'tracks'; el('selection').hidden = scope !== 'selected';
+    if (scope === 'selected') selected = batchSelectedIds();
+    el('selected-count').textContent = String(selected.length); scheduleQuery();
+  }
+  function open() {
+    const wasOpen = floating.isOpen(); floating.open();
+    readIndex(); if (!wasOpen) scheduleQuery({ resetScroll: false });
+    el('query').focus(); el('query').select();
+  }
+  function onClose() {
+    clearTimeout(queryTimer); clearTimeout(syncTimer); ++queryVersion; stopWorker(); matchMap.clear(); paintWaveform();
+    // A disabled result revealed for navigation returns to the user's normal visibility.
+    waveformEditor?.refreshCueOverlay?.();
+  }
+  el('open').addEventListener('click', open); el('close').addEventListener('click', () => floating.close());
+  el('query').addEventListener('input', event => { if (!event.isComposing) scheduleQuery(); });
+  el('query').addEventListener('compositionend', () => scheduleQuery());
+  el('query').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); step(event.shiftKey ? -1 : 1); } });
+  el('clear').addEventListener('click', () => { el('query').value = ''; scheduleQuery(); el('query').focus(); });
+  el('prev').addEventListener('click', () => step(-1)); el('next').addEventListener('click', () => step(1));
+  el('scope').addEventListener('change', scopeChanged); el('use-selection').addEventListener('click', scopeChanged);
+  for (const id of ['case', 'regex']) el(id).addEventListener('change', () => scheduleQuery());
+  viewport.addEventListener('scroll', () => { cancelAnimationFrame(renderFrame); renderFrame = requestAnimationFrame(renderRows); });
+  canvas.addEventListener('click', event => { const button = event.target.closest('[data-key]'); if (button) navigate(button.dataset.key); });
+  const observer = new ResizeObserver(() => { if (floating.isOpen()) renderRows(); }); observer.observe(viewport);
+  new ResizeObserver(() => {
+    if (!floating.isOpen()) return;
+    const rect = panel.getBoundingClientRect();
+    panel.style.left = `${Math.max(6, Math.min(rect.left, innerWidth - rect.width - 6))}px`;
+    panel.style.top = `${Math.max(6, Math.min(rect.top, innerHeight - rect.height - 6))}px`;
+  }).observe(panel);
+  document.addEventListener('keydown', event => {
+    const modal = document.querySelector('.modal-mask.show, dialog[open]');
+    if (event.isComposing || modal || event.defaultPrevented) return;
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+      event.preventDefault(); event.stopImmediatePropagation(); open();
+    } else if (event.key === 'Escape' && floating.isOpen() && !document.querySelector('#msw-option-help:not([hidden])')) {
+      const front = [...document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show')].sort((a, b) => +getComputedStyle(b).zIndex - +getComputedStyle(a).zIndex)[0];
+      if (front === panel) { event.preventDefault(); event.stopImmediatePropagation(); floating.close(); }
+    }
+  }, true);
+  window.addEventListener('msw:subtitles-changed', changed);
+  window.addEventListener('msw:project-changed', () => {
+    stopWorker(); ++queryVersion; clearTimeout(queryTimer); clearTimeout(syncTimer);
+    records.clear(); references.clear(); plainEngine = core.createEngine(); trackSignature = ''; activeKey = null;
+    selected = []; el('scope').value = 'all'; el('query').value = ''; el('tracks').hidden = el('selection').hidden = true;
+    if (floating.isOpen()) { readIndex(); publish({ rows: [], count: 0 }); }
+  });
+  global.MSWFindEdit = Object.freeze({ open, close: () => floating.close(), changed, decorateBlock, keepVisible });
 })(window);
 
 // Channel curves share a cue clock, but retain independent values and keyframes.
