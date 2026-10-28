@@ -74,10 +74,10 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
   await page.goto(server.url);
   await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
 
-  await toggleMediaSettings(page);
-  await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
-  await page.locator('#style-field-fontName').fill('SimHei');
-  await page.locator('#style-field-fontName').dispatchEvent('change');
+  await page.evaluate(()=>{
+    const style=MSWProjectStyle.defaults();style.main.fontName='SimHei';
+    MSWProjectStyle.apply(DATA,style);MSWSubtitleStyle.open('track');
+  });
   await page.locator('#style-field-fontSize').fill('40');
   await page.locator('#style-field-fontSize').dispatchEvent('change');
   await page.locator('#style-field-primaryColor').evaluate((input) => {
@@ -86,9 +86,10 @@ test('exports ASS with the current font, size, color and enabled subtitle text',
   });
 
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
-  await expect(page.locator('#download-full-ass')).toHaveText('字幕（ASS）');
-  await clickMenubarItem(page, '文件', 'download-full-ass');
+  await page.evaluate(()=>MSWSubtitleExport.open('ass'));
+  await page.locator('#subtitle-export-start').click();
 
+  await expect(page.locator('#subtitle-export-message')).toContainText('已导出',{timeout:20000});
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
   const save = await page.evaluate(() => window.__exportSaves[0]);
   expect(save.suggestedName).toMatch(/\.ass$/);
@@ -127,12 +128,16 @@ test('writes source resolution, used palette styles and speaker names to physica
         names: { yellow: '主持', green: '嘉宾', red: '旁白', purple: '现场', blue: '字幕' },
       },
     };
+    const narrator=MSWSpeaker.ensure(DATA).rows.find(row=>row.id==='red');
+    narrator.name='旁白';narrator.color=COLOR_BY_NAME.red.value;narrator.mode='text';
     EDITOR_SETTINGS.exportSpeakerLabels = true;
     renderAll();
   });
 
-  await clickMenubarItem(page, '文件', 'download-full-ass');
+  await page.evaluate(()=>MSWSubtitleExport.open('ass'));
+  await page.locator('#subtitle-export-start').click();
 
+  await expect(page.locator('#subtitle-export-message')).toContainText('已导出',{timeout:20000});
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
   const save = await page.evaluate(() => window.__exportSaves[0]);
   expect(save.content).toContain('PlayResX: 1920');
@@ -154,8 +159,7 @@ test('keeps compact physical-track export shortcuts and color splitting', async 
   });
 
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
-  await expect(page.locator('#subtitle-export-menu > .dropdown-item:visible').allTextContents())
-    .resolves.toEqual(['合并同时显示文本（SRT）', '字幕（SRT）', '字幕（ASS）', '按颜色导出字幕']);
+  await expect(page.locator('#subtitle-export-mode option').allTextContents()).resolves.toEqual(['保留各条字幕','合并同时显示文本','按说话人分文件']);
 });
 
 test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ page }) => {
@@ -188,14 +192,13 @@ test('exports a gap-removed styled ASS subtitle with shifted timing', async ({ p
     renderAll();
   });
 
-  await clickMenubarItem(page, '文件', 'gap-removed-export-btn');
-  await expect(page.locator('#gap-removed-export-menu > .dropdown-item:visible').allTextContents())
-    .resolves.toEqual(['字幕 SRT', '带样式的 ASS 字幕', '按颜色导出字幕']);
-
-  await page.locator('#download-gap-removed-ass').click();
+  await page.evaluate(()=>MSWSubtitleExport.open('ass'));
+  await page.locator('#subtitle-export-remove-gaps').check();
+  await page.locator('#subtitle-export-start').click();
+  await expect(page.locator('#subtitle-export-message')).toContainText('已导出',{timeout:20000});
   await expect.poll(() => page.evaluate(() => window.__exportSaves.length)).toBe(1);
   const save = await page.evaluate(() => window.__exportSaves[0]);
-  expect(save.suggestedName).toBe('project.gap-removed.ass');
+  expect(save.suggestedName).toBe('project.ass');
   expect(save.content).toContain(
     'Dialogue: 0,0:00:01.00,0:00:02.00,cue-0,',
   );
@@ -237,9 +240,6 @@ test('project style snapshots survive library edits and freeze each video job', 
   expect(result.job.preview.project_style.main.fontName).toBe('Snapshot Font');
   expect(result.persisted.preview.project_style.main.fontName).toBe('Snapshot Font');
   expect(result.persisted.preview.burn_ass_library).toBeUndefined();
-  await page.locator('#style-save-as').click();
-  await expect(page.locator('#style-save-form')).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('ass-library.png'), fullPage: true });
 });
 
 test('dynamic exports use source canvas size and reject invalid custom sizes', async ({ page }) => {
@@ -248,11 +248,12 @@ test('dynamic exports use source canvas size and reject invalid custom sizes', a
   await expect.poll(() => page.evaluate(() => window.MSWSubtitleStyle?.ready)).toBe(true);
   const result = await page.evaluate(() => {
     DATA.media_metadata = { video_width: 1440, video_height: 1080 };
-    openLottieExportModal();
-    const source = lottieExportCanvasSize();
-    lottieExportCustomWidth.value = '15';
+    MSWSubtitleExport.open('lottie');
+    const size=()=>dynamicExportCanvasSize(document.getElementById('subtitle-export-resolution'),document.getElementById('subtitle-export-width'),document.getElementById('subtitle-export-height'));
+    const source = size();
+    document.getElementById('subtitle-export-width').value = '15';
     let message = '';
-    try { lottieExportCanvasSize(); } catch (error) { message = error.message; }
+    try { size(); } catch (error) { message = error.message; }
     return { source, message };
   });
   expect(result.source).toEqual({ width: 1440, height: 1080 });
@@ -275,6 +276,6 @@ for(const legacy of [false,true])test(`character wrapping reaches full, gap-remo
   for(const ass of [data.ass,data.gapAss]){expect(ass).toContain('ABC\\NDEF');expect(ass).toContain('甲乙\\N丙丁');}
   expect(data.srt).toContain('甲乙丙丁');expect(data.source[0].text).toBe('ABCDEF');
   await page.evaluate(()=>{fixedExportTracks=['wrap-secondary'];});
-  await clickMenubarItem(page,'文件','download-full-ass');await expect.poll(()=>page.evaluate(()=>window.__exportSaves.length)).toBe(1);
+  await page.evaluate(()=>MSWSubtitleExport.open('ass'));await page.locator('#subtitle-export-start').click();await expect.poll(()=>page.evaluate(()=>window.__exportSaves.length)).toBe(1);
   const saved=await page.evaluate(()=>window.__exportSaves[0]);expect(saved.content).toContain('甲乙\\N丙丁');expect(saved.content).not.toContain('ABC');
 });

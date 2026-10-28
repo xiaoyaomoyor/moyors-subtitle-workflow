@@ -54,6 +54,7 @@ msw-audio-transport.js
 msw-audio.js
 msw-audio-actions.js
 msw-audio-export.js
+msw-subtitle-export.js
 msw-animation-curves-ui.js
 msw-subtitle-animation-ui.js
 msw-video-color-picker.js

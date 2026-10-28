@@ -5488,3 +5488,16 @@
 .speaker-mark-swatches { display:grid; grid-template-columns:repeat(5,28px); gap:8px; padding:8px 10px 12px; max-height:220px; overflow-y:auto; }
 .speaker-mark-swatches button { display:grid; place-items:center; width:28px; height:28px; min-width:0; padding:0; border:1px solid var(--border); border-radius:50%; cursor:pointer; font-size:13px; font-weight:600; }
 .speaker-mark-swatches button:hover { box-shadow:0 0 0 2px var(--text-secondary); }
+#subtitle-export-fields { border:0; padding:0; margin:0; min-width:0; }
+#subtitle-export-panel .media-settings-grid { margin-top:10px; }
+#subtitle-export-panel .settings-panel-section + .settings-panel-section { margin-top:16px; }
+#subtitle-export-panel .subtitle-export-tracks,
+#subtitle-export-panel .subtitle-export-toggles { display:flex; flex-wrap:wrap; gap:12px 20px; margin-top:12px; align-items:center; }
+#subtitle-export-panel [hidden] { display:none !important; }
+#subtitle-export-panel .media-preview-toggle { display:inline-flex; align-items:center; gap:7px; font-size:12px; white-space:nowrap; margin:0; }
+#subtitle-export-panel .media-preview-toggle input { width:14px; height:14px; margin:0; padding:0; flex:none; accent-color:var(--accent); box-shadow:none; }
+#subtitle-export-panel .msw-export-section { display:block; padding:12px; }
+#subtitle-export-panel .settings-panel-title { display:block; margin:0 0 10px; }
+#subtitle-export-panel details > summary.settings-panel-title { display:list-item; cursor:pointer; margin:0; }
+#subtitle-export-panel details[open] > summary.settings-panel-title { margin-bottom:10px; }
+#subtitle-export-panel .msw-export-footer { justify-content:space-between; align-items:center; margin-top:16px; }

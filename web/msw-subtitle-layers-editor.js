@@ -83,7 +83,7 @@ function layerSyncControls() {
     option.hidden = layerMode();
     if (layerMode() && option.selected) option.parentElement.value = 'main';
   });
-  for (const id of ['subtitle-layer-presentation-settings','subtitle-layer-auto-wrap','download-merged-srt']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
+  for (const id of ['subtitle-layer-presentation-settings','subtitle-layer-auto-wrap']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
   const order=document.getElementById('subtitle-layer-order');if(order)order.value=DATA.subtitle_layers?.presentation?.order||'earlier-bottom';
   const auto=document.getElementById('subtitle-layer-auto'),gap=document.getElementById('subtitle-layer-gap');
   if(auto)auto.checked=DATA.subtitle_layers?.presentation?.mode!=='manual';if(gap)gap.value=DATA.subtitle_layers?.presentation?.gap??12;
@@ -273,13 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
   for(const id of ['subtitle-layer-auto','subtitle-layer-gap','subtitle-layer-order']) document.getElementById(id)?.addEventListener('change',()=>{
     if(!layerMode())return;const gap=document.getElementById('subtitle-layer-gap');if(!gap.validity.valid)return;
     pushUndo('多层字幕排布');DATA.subtitle_layers.presentation={mode:document.getElementById('subtitle-layer-auto').checked?'auto':'manual',gap:Number(gap.value),order:document.getElementById('subtitle-layer-order').value};layerInvalidate();projectImportDirty=true;refreshSubtitlePreview();scheduleAutoSaveFlush();
-  });
-  document.getElementById('download-merged-srt')?.addEventListener('click',async()=>{
-    if(!fixedCanExport())return;
-    commitProcessingEdits();const project=fixedTrackMode()?fixedSrtProject():structuredClone(DATA),options=speakerExportOptions();
-    if(options.speakerLabelsEnabled)for(const source of layerCore.tracks(project))for(const cue of source.segments)cue.text=options.speakerTextResolver(cue,source.segments);
-    const cues=window.MSWSubtitlePresentation.mergedSrtRows(project);
-    await downloadFile(window.AsrEditorUtils.buildSrtPayload(cues,{formatTime:fmtSrtTime}),`${FILENAME_BASE}.merged.srt`,'text/plain',{desc:'合并显示 SRT',types:{'text/plain':['.srt']}});
   });
   document.getElementById('subtitle-legacy-visible')?.addEventListener('change', event => {
     if (!layerMode()) return;

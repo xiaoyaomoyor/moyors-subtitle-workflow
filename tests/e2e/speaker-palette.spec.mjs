@@ -181,7 +181,7 @@ test('localized speaker names follow physical languages through UI, preview, SRT
   expect(output.ass).toContain('Erwyn：');expect(output.ass).toContain('艾尔文：');expect(output.body).toEqual(['Hello 世界','你好']);
   const merged=await page.evaluate(async()=>{
     const original=downloadFile;let complete;const done=new Promise(resolve=>complete=resolve);
-    try{downloadFile=async text=>complete(text);document.getElementById('download-merged-srt').click();return await done;}
+    try{downloadFile=async text=>{complete(text);return {status:'saved'};};MSWSubtitleExport.open('srt');document.getElementById('subtitle-export-mode').value='merged';document.getElementById('subtitle-export-start').click();return await done;}
     finally{downloadFile=original;}
   });
   expect(merged).toContain('Erwyn：Hello 世界');expect(merged).toContain('艾尔文：你好');

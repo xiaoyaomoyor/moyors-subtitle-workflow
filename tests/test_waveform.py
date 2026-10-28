@@ -340,11 +340,11 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="sticker-otio-export-mode-hint"', page)
         self.assertIn('选择引用原始表情包素材；选择便携模式时，服务器会将素材复制到工程同目录。', page)
         self.assertLess(page.index('id="editor-settings-panel"'), page.index('id="sticker-root-btn"'))
-        # 分类重组后：通用/导出/保存/表情包/彩蛋/外观 共 6 个分类
+        # 字幕导出设置归入独立面板，全局设置不再重复包含导出分类。
         self.assertIn('<span class="editor-settings-title">彩蛋</span>', page)
         self.assertIn('<span class="editor-settings-title">外观</span>', page)
         self.assertNotIn('<span class="editor-settings-title">🥷🏻</span>', page)
-        self.assertEqual(page.count('class="editor-settings-group settings-category"'), 9)
+        self.assertEqual(page.count('class="editor-settings-group settings-category"'), 8)
         self.assertIn('id="editor-config-manager"', page)
         self.assertNotIn('id="config-manager-open"', page)
         # 「静音空隙」分区（含空隙区段操作方式）已移入静音空隙工具窗
@@ -556,7 +556,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertNotIn('确定删除选中的 ${targetIdxs.length} 条字幕', page)
         self.assertIn('id="export-start-at-zero"', page)
         self.assertIn(
-            '<input type="checkbox" id="export-start-at-zero"> SRT 首条从 0 开始',
+            '<input id="export-start-at-zero" type="checkbox">首条字幕从 0 开始',
             page,
         )
         self.assertNotIn('id="export-start-at-zero" checked', page)
@@ -674,12 +674,11 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="gap-removed-export-dropdown" hidden', page)
         self.assertIn('id="gap-removed-export-btn"', page)
         self.assertIn('导出去空隙版本', page)
-        self.assertIn('id="subtitle-export-dropdown"', page)
+        self.assertIn('id="subtitle-export-panel"', page)
         self.assertNotIn('id="download-srt"', page)
-        self.assertIn('id="download-full-srt"', page)
-        self.assertIn('id="download-color-srt"', page)
-        self.assertIn('id="download-gap-removed-srt"', page)
-        self.assertIn('id="download-gap-removed-color-srt"', page)
+        self.assertIn('id="subtitle-export-format"', page)
+        self.assertIn('id="subtitle-export-mode"', page)
+        self.assertIn('id="subtitle-export-remove-gaps"', page)
         self.assertIn('id="download-gap-removed-otio"', page)
         self.assertIn('>OpenTimelineIO</div>', page)
         self.assertIn('>源媒体时间线（OTIO）</div>', page)
@@ -695,8 +694,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="download-fcp7-export"', page)
         self.assertIn('id="download-otio"', page)
         self.assertIn('id="download-otioz"', page)
-        self.assertIn('id="download-plain-text"', page)
-        self.assertIn('>纯文本 TXT</div>', page)
+        self.assertIn('<option value="txt">TXT 纯文本</option>', page)
         self.assertIn('>Resolve JSON</div>', page)
         self.assertNotIn('>下载表情包 OTIO', page)
         self.assertNotIn('>下载 Resolve JSON</div>', page)
@@ -725,39 +723,16 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('gapOperationAllowsBoundary', page)
         self.assertIn('gapOperationAllowsMiddle', page)
 
-        gap_menu_start = page.index('<div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">')
-        gap_menu_end = page.index('<div class="dropdown-submenu" id="extra-export-dropdown">', gap_menu_start)
-        gap_menu = page[gap_menu_start:gap_menu_end]
-        separator = '<div class="dropdown-separator" role="separator"></div>'
-        self.assertEqual(gap_menu.count(separator), 4)
-        first_separator = gap_menu.index(separator)
-        second_separator = gap_menu.index(separator, gap_menu.index('id="download-gap-removed-sticker-otioz"'))
-        self.assertLess(gap_menu.index('id="download-gap-removed-color-srt"'), first_separator)
-        self.assertLess(first_separator, gap_menu.index('id="download-gap-removed-otio"'))
-        self.assertLess(gap_menu.index('id="download-gap-removed-otioz"'), second_separator)
-        self.assertLess(
-            gap_menu.index('id="download-gap-removed-sticker-otioz"'),
-            second_separator,
-        )
-        self.assertLess(second_separator, gap_menu.index('id="download-gap-removed-ffconcat"'))
-
-        extra_menu_start = page.index('<div class="dropdown-menu dropdown-submenu-menu" id="extra-export-menu" role="menu">')
-        # 菜单栏改造后「更多导出」是文件菜单的最后一个子菜单；截到「编辑」菜单项为止。
-        extra_menu_end = page.index('<div class="menubar-item" data-menubar-item="edit">', extra_menu_start)
-        extra_menu = page[extra_menu_start:extra_menu_end]
-        # 源媒体选项增加两个内部分隔线，外层格式分组保持原顺序。
-        self.assertEqual(extra_menu.count(separator), 6)
-        self.assertIn('id="exit-editor"', extra_menu)
-        first_separator = extra_menu.index(separator)
-        second_separator = extra_menu.index(separator, extra_menu.index('id="download-sticker-otioz"'))
-        third_separator = extra_menu.index(separator, second_separator + len(separator))
-        self.assertLess(extra_menu.index('id="download-fcp7-export"'), first_separator)
-        self.assertLess(first_separator, extra_menu.index('id="download-otio"'))
-        self.assertLess(extra_menu.index('id="download-sticker-otioz"'), second_separator)
-        self.assertLess(second_separator, extra_menu.index('id="download-lottie"'))
-        self.assertLess(extra_menu.index('id="download-ograf"'), third_separator)
-        self.assertLess(third_separator, extra_menu.index('id="download-plain-text"'))
-        self.assertLess(extra_menu.index('id="download-plain-text"'), extra_menu.index('id="download-resolve-json"'))
+        self.assertIn('id="subtitle-export-panel"', page)
+        self.assertIn('id="subtitle-export-format"', page)
+        self.assertNotIn('id="subtitle-export-menu"', page)
+        self.assertNotIn('id="download-full-srt"', page)
+        self.assertIn('id="subtitle-export-remove-gaps"', page)
+        self.assertIn('id="extra-export-menu"', page)
+        self.assertIn('id="download-otio"', page)
+        self.assertIn('id="download-gap-removed-otio"', page)
+        self.assertIn('id="download-gap-removed-ffconcat"', page)
+        self.assertIn('id="download-resolve-json"', page)
         self.assertIn('showGapContextMenu?.(event.clientX, event.clientY, index)', page)
         self.assertIn("gap.retained ? '取消固定' : '固定空隙'", page)
         self.assertIn("addItem('删除该空隙', () => clearGap(index), { danger: true });", page)

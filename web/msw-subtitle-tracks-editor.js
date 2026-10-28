@@ -976,25 +976,7 @@ function fixedCanExport() {
 }
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('subtitle-track-add')?.addEventListener('click',()=>fixedAddTrack('subtitle'));
-  const anchor=document.getElementById('download-merged-srt');if(!anchor)return;
-  const row=document.createElement('details');row.id='subtitle-export-scope';row.className='msw-export-scope';
-  const summary=document.createElement('summary'),choices=document.createElement('div');row.append(summary,choices);anchor.before(row);
-  let trackKey='';
-  const sync=()=>{row.hidden=!fixedTrackMode();if(!fixedTrackMode())return;
-    summary.textContent=fixedExportTracks===null?'轨道范围 · 全部启用轨道':`轨道范围 · 已选 ${DATA.subtitle_tracks.tracks.filter(t=>t.enabled&&fixedExportTracks.includes(t.id)).length} 条`;
-    const nextKey=JSON.stringify(DATA.subtitle_tracks.tracks.map(t=>[t.id,t.name,t.enabled]));
-    if(trackKey===nextKey){for(const input of choices.querySelectorAll('input'))input.checked=input.dataset.track==='all'?fixedExportTracks===null:DATA.subtitle_tracks.tracks.some(t=>t.id===input.dataset.track&&t.enabled&&(fixedExportTracks===null||fixedExportTracks.includes(t.id)));return;}
-    trackKey=nextKey;
-    choices.replaceChildren();
-    const add=(id,text,checked,disabled,change)=>{const label=document.createElement('label');label.className='dropdown-setting-toggle';const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.checked=checked;input.disabled=disabled;input.onchange=change;label.append(input,document.createTextNode(text));choices.append(label);};
-    add('all','全部启用轨道',fixedExportTracks===null,false,()=>{fixedExportTracks=null;sync();});
-    for(const t of DATA.subtitle_tracks.tracks)add(t.id,t.name+(t.enabled?'':' · 已禁用'),t.enabled&&(fixedExportTracks===null||fixedExportTracks.includes(t.id)),!t.enabled,()=>{
-      const next=new Set(fixedExportTracks===null?DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>t.id):fixedExportTracks);
-      if(next.has(t.id))next.delete(t.id);else next.add(t.id);fixedExportTracks=[...next];sync();
-    });};
-  row.addEventListener('click',event=>event.stopPropagation());
-  anchor.parentElement.addEventListener('pointerenter',sync);window.addEventListener('msw:project-changed',sync);sync();
-  window.addEventListener('msw:project-changed',()=>{fixedExportTracks=null;sync();});
+  window.addEventListener('msw:project-changed',()=>{fixedExportTracks=null;});
 });
 
 async function fixedDownloadAss(target='both',removeGaps=false) {

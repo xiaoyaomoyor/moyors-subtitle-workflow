@@ -5685,6 +5685,19 @@
 .speaker-mark-swatches { display:grid; grid-template-columns:repeat(5,28px); gap:8px; padding:8px 10px 12px; max-height:220px; overflow-y:auto; }
 .speaker-mark-swatches button { display:grid; place-items:center; width:28px; height:28px; min-width:0; padding:0; border:1px solid var(--border); border-radius:50%; cursor:pointer; font-size:13px; font-weight:600; }
 .speaker-mark-swatches button:hover { box-shadow:0 0 0 2px var(--text-secondary); }
+#subtitle-export-fields { border:0; padding:0; margin:0; min-width:0; }
+#subtitle-export-panel .media-settings-grid { margin-top:10px; }
+#subtitle-export-panel .settings-panel-section + .settings-panel-section { margin-top:16px; }
+#subtitle-export-panel .subtitle-export-tracks,
+#subtitle-export-panel .subtitle-export-toggles { display:flex; flex-wrap:wrap; gap:12px 20px; margin-top:12px; align-items:center; }
+#subtitle-export-panel [hidden] { display:none !important; }
+#subtitle-export-panel .media-preview-toggle { display:inline-flex; align-items:center; gap:7px; font-size:12px; white-space:nowrap; margin:0; }
+#subtitle-export-panel .media-preview-toggle input { width:14px; height:14px; margin:0; padding:0; flex:none; accent-color:var(--accent); box-shadow:none; }
+#subtitle-export-panel .msw-export-section { display:block; padding:12px; }
+#subtitle-export-panel .settings-panel-title { display:block; margin:0 0 10px; }
+#subtitle-export-panel details > summary.settings-panel-title { display:list-item; cursor:pointer; margin:0; }
+#subtitle-export-panel details[open] > summary.settings-panel-title { margin-bottom:10px; }
+#subtitle-export-panel .msw-export-footer { justify-content:space-between; align-items:center; margin-top:16px; }
 /* The trial uses the existing dock, waveform and theme tokens. */
 .flat-processing-panel { position:fixed; inset:10vh auto auto 50%; transform:translateX(-50%); width:min(720px,94vw); max-height:80vh; overflow:auto; margin:0; padding:16px; border:1px solid var(--border); border-radius:var(--radius-md,8px); background:var(--bg-panel); color:var(--text-primary); box-shadow:0 8px 30px #0004; z-index:10050; }
 .flat-processing-panel>header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
@@ -7014,24 +7027,10 @@
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
-      <div class="dropdown-submenu" id="subtitle-export-dropdown">
-        <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出主/副字幕（SRT/ASS）或按颜色分别导出">导出字幕</div>
-        <div class="dropdown-menu dropdown-submenu-menu" id="subtitle-export-menu" role="menu">
-          <label class="dropdown-setting-toggle"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
-          <label class="dropdown-setting-toggle" title="分别导出时使用人名作为文件名后缀；不会修改字幕正文"><input id="export-speaker-names-suffix" type="checkbox">分文件使用说话人名称</label>
-          <div class="dropdown-item" id="download-merged-srt" role="menuitem" tabindex="0" hidden title="按同时显示的主副字幕合并文本，仅改变导出，不修改工程">合并主副字幕（SRT）</div>
-          <div class="dropdown-item" id="download-full-srt" role="menuitem" tabindex="0" title="导出主字幕轨（SRT）">主字幕（SRT）</div>
-          <div class="dropdown-item" id="download-full-ass" role="menuitem" tabindex="0" title="导出主字幕轨（ASS）">主字幕（ASS）</div>
-          <div class="dropdown-item" id="download-ext-srt" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（SRT）">副字幕（SRT）</div>
-          <div class="dropdown-item" id="download-ext-ass" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（ASS）">副字幕（ASS）</div>
-          <div class="dropdown-item" id="download-color-srt" role="menuitem" tabindex="0" hidden>按说话人分别导出</div>
-          <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
-            <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用当前空隙移除结果的字幕、时间线或保留区域计划">去空隙版本</div>
+      <button type="button" class="dropdown-item" id="subtitle-export-btn" role="menuitem" title="选择格式和轨道，导出字幕">导出字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
+            <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用空隙移除结果的时间线或保留区域计划">去空隙时间线</div>
             <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">
-              <div class="dropdown-item" id="download-gap-removed-srt" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出字幕；原工程时间不变">字幕 SRT</div>
-              <div class="dropdown-item" id="download-gap-removed-ass" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出带样式的 ASS 字幕；原工程时间不变">带样式的 ASS 字幕</div>
-              <div class="dropdown-item" id="download-gap-removed-color-srt" role="menuitem" tabindex="0" hidden title="按移除静音空隙后的时间轴，为每种已使用颜色分别导出一份字幕">按说话人分别导出</div>
-              <div class="dropdown-separator" role="separator"></div>
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-otio-menu" role="menu">
@@ -7057,8 +7056,8 @@
               </div>
             </div>
           </div>
-          <div class="dropdown-submenu" id="extra-export-dropdown">
-            <div class="dropdown-item dropdown-submenu-toggle" id="extra-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出 FCP7/OTIO/Lottie/OGraf 等更多格式">更多导出</div>
+      <div class="dropdown-submenu" id="extra-export-dropdown">
+            <div class="dropdown-item dropdown-submenu-toggle" id="extra-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出剪辑时间线和辅助数据">更多导出</div>
             <div class="dropdown-menu dropdown-submenu-menu" id="extra-export-menu" role="menu">
               <div class="dropdown-item" id="download-fcp7-export" role="menuitem" tabindex="0" title="实验性 Premiere 交接：导出 FCP 7 XML">Premiere FCP 7 XML（实验性）</div>
               <div class="dropdown-separator" role="separator"></div>
@@ -7080,25 +7079,13 @@
               </div>
               <div class="dropdown-separator" role="separator"></div>
               <div class="dropdown-submenu" role="none">
-                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-dynamic-menu">动态图形</div>
-                <div class="dropdown-menu dropdown-submenu-menu" id="extra-dynamic-menu" role="menu">
-                  <div class="dropdown-item" id="download-lottie" role="menuitem" tabindex="0" title="导出逐字高亮动态字幕 .lottie（需要以 server-editor 打开并绑定工程文件）">动态字幕（Lottie）</div>
-                  <div class="dropdown-item" id="download-ograf" role="menuitem" tabindex="0" title="导出符合 OGraf 规范的动态字幕包（需要以 server-editor 打开并绑定工程文件）">动态字幕（OGraf）</div>
-                </div>
-              </div>
-              <div class="dropdown-separator" role="separator"></div>
-              <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-data-menu">数据文件</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="extra-data-menu" role="menu">
-                  <div class="dropdown-item" id="download-plain-text" role="menuitem" tabindex="0" title="导出纯文本 TXT 字幕">纯文本 TXT</div>
                   <div class="dropdown-item" id="download-resolve-json" role="menuitem" tabindex="0" title="导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入">Resolve JSON</div>
                 </div>
               </div>
             </div>
           </div>
-          <div class="dropdown-separator" role="separator"></div>
-        </div>
-      </div>
       <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="导出带配音的视频 MP4">导出视频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-separator"></div>
@@ -8575,22 +8562,6 @@
           </div>
         </div>
 
-        <div class="editor-settings-group settings-category" data-settings-category="export">
-          <div class="settings-category-header">导出</div>
-          <div class="editor-settings-sub-group">
-            <span class="editor-settings-title">导出</span>
-            <label class="toggle editor-settings-item" title="只把第一条导出字幕的起点拉到 00:00，保留其结束时间和后续字幕时间码；不改动工程或 OTIO 的时间轴">
-              <input type="checkbox" id="export-start-at-zero"> SRT 首条从 0 开始
-            </label>
-            <div class="editor-settings-field">
-              <label class="toggle editor-settings-item" title="勾选后按颜色导出会先选择一个 SRT 文件名作为前缀，再下载「前缀_颜色.srt」；取消勾选则逐个颜色弹出保存对话框">
-                <input type="checkbox" id="export-color-unified" checked> 彩色字幕统一导出
-              </label>
-              <small class="editor-settings-hint">选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。</small>
-            </div>
-          </div>
-        </div>
-
         <div class="editor-settings-group settings-category" data-settings-category="subtitle-speakers">
           <div class="settings-category-header">说话人色系</div>
           <div class="editor-settings-sub-group" id="speaker-label-settings">
@@ -9230,97 +9201,10 @@
 </div>
 
 <!-- Lottie 动态字幕导出；由 server-editor 打包为单个 .lottie 文件。 -->
-<div class="modal-mask" id="lottie-export-modal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lottie-export-title" aria-describedby="lottie-export-description">
-    <h3 id="lottie-export-title">Lottie 动态字幕</h3>
-    <p class="modal-desc" id="lottie-export-description">导出单个 .lottie 文件，可直接拖入 DaVinci Resolve 21 的 Media Pool 或时间线。当前版本使用逐字/逐词高亮，并沿用 MSW 的字幕预览字体、颜色和位置。</p>
-    <label for="lottie-export-track">字幕轨道</label>
-    <select id="lottie-export-track">
-      <option value="main" selected>主轨字幕</option>
-      <option value="extension">副字幕轨</option>
-    </select>
-    <label class="row" for="lottie-export-gap-removed">
-      <input type="checkbox" id="lottie-export-gap-removed"> 去除间隙
-    </label>
-    <p class="modal-hint">勾选后将字幕和字词时间映射到去除静音空隙后的压缩时间线。</p>
-    <label for="lottie-export-resolution">合成尺寸</label>
-    <select id="lottie-export-resolution">
-      <option value="1920x1080" selected>1920 × 1080（横屏）</option>
-      <option value="1080x1920">1080 × 1920（竖屏）</option>
-      <option value="3840x2160">3840 × 2160（4K 横屏）</option>
-      <option value="custom">自定义…</option>
-    </select>
-    <div class="row" id="lottie-export-custom-size" hidden>
-      <input type="number" id="lottie-export-custom-width" min="16" max="7680" step="1" value="1920" aria-label="宽度">
-      <span aria-hidden="true">×</span>
-      <input type="number" id="lottie-export-custom-height" min="16" max="7680" step="1" value="1080" aria-label="高度">
-    </div>
-    <label for="lottie-export-fps">导出帧率</label>
-    <select id="lottie-export-fps">
-      <option value="24">24 fps</option>
-      <option value="25">25 fps</option>
-      <option value="30" selected>30 fps</option>
-      <option value="30000/1001">30000/1001 fps</option>
-      <option value="50">50 fps</option>
-      <option value="60">60 fps</option>
-      <option value="60000/1001">60000/1001 fps</option>
-    </select>
-    <label for="lottie-export-render-mode">文字渲染</label>
-    <select id="lottie-export-render-mode">
-      <option value="text" selected>文本模式（依赖系统字体）</option>
-      <option value="glyph">矢量模式（内置字形，文件更大）</option>
-    </select>
-    <p class="modal-hint">文本模式只记录字体名；矢量模式会把当前字幕实际用到的字形轮廓内置到包里，适合中文和未安装相同字体的机器。</p>
-    <div class="actions">
-      <button type="button" id="lottie-export-cancel">取消</button>
-      <button type="button" id="lottie-export-confirm" class="primary">导出 .lottie</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- OGraf 动态字幕导出；由 server-editor 打包 manifest 与 Web Component sidecar。 -->
-<div class="modal-mask" id="ograf-export-modal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ograf-export-title" aria-describedby="ograf-export-description">
-    <h3 id="ograf-export-title">OGraf 动态字幕</h3>
-    <p class="modal-desc" id="ograf-export-description">导出符合 OGraf 规范的 .ograf.zip；解压后保持 .ograf.json 与 .mjs 同目录，再把 .ograf.json 拖入 DaVinci Resolve 21。字幕由 Canvas Web Component 渲染。</p>
-    <label for="ograf-export-track">字幕轨道</label>
-    <select id="ograf-export-track">
-      <option value="main" selected>主轨字幕</option>
-      <option value="extension">副字幕轨</option>
-    </select>
-    <label class="row" for="ograf-export-gap-removed">
-      <input type="checkbox" id="ograf-export-gap-removed"> 去除间隙
-    </label>
-    <p class="modal-hint">勾选后将字幕和字词时间映射到去除静音空隙后的压缩时间线。</p>
-    <label for="ograf-export-resolution">合成尺寸</label>
-    <select id="ograf-export-resolution">
-      <option value="1920x1080" selected>1920 × 1080（横屏）</option>
-      <option value="1080x1920">1080 × 1920（竖屏）</option>
-      <option value="3840x2160">3840 × 2160（4K 横屏）</option>
-      <option value="custom">自定义…</option>
-    </select>
-    <div class="row" id="ograf-export-custom-size" hidden>
-      <input type="number" id="ograf-export-custom-width" min="16" max="7680" step="1" value="1920" aria-label="宽度">
-      <span aria-hidden="true">×</span>
-      <input type="number" id="ograf-export-custom-height" min="16" max="7680" step="1" value="1080" aria-label="高度">
-    </div>
-    <label for="ograf-export-fps">导出帧率</label>
-    <select id="ograf-export-fps">
-      <option value="24">24 fps</option>
-      <option value="25">25 fps</option>
-      <option value="30" selected>30 fps</option>
-      <option value="30000/1001">30000/1001 fps</option>
-      <option value="50">50 fps</option>
-      <option value="60">60 fps</option>
-      <option value="60000/1001">60000/1001 fps</option>
-    </select>
-    <p class="modal-hint">这是包含两个文件的压缩包，不是可单独使用的 JSON；解压后不要分离或改名。Canvas 使用 Resolve 所在机器的系统字体回退链，适合验证中文显示。</p>
-    <div class="actions">
-      <button type="button" id="ograf-export-cancel">取消</button>
-      <button type="button" id="ograf-export-confirm" class="primary">导出 .ograf.zip</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- 浏览器无法直接读取工程所在目录的关联媒体时，只通过这个按钮请求一次媒体授权。 -->
 <div class="modal-mask" id="project-media-modal">
@@ -9574,6 +9458,56 @@
       <div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-fill-count" class="msw-processing-hint"></small><button id="audio-actions-fill" type="button" disabled>补齐字幕</button></div></section>
     <p id="audio-actions-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details id="audio-actions-details" hidden><summary>处理详情</summary><div id="audio-actions-results" data-i18n-skip></div></details>
+  </div>
+</aside>
+
+<aside class="gap-remove-panel msw-processing-panel msw-media-export-panel" id="subtitle-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-export-title">
+  <header class="gap-remove-panel-header" id="subtitle-export-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">文件</span><h3 id="subtitle-export-title">导出字幕</h3></div>
+    <button type="button" id="subtitle-export-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕导出"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <fieldset id="subtitle-export-fields">
+      <section class="settings-panel-section msw-export-section">
+        <span class="settings-panel-title">导出设置</span>
+        <div class="media-settings-grid">
+          <label class="media-settings-field" data-option-help="SRT：文字与时间；ASS：工程样式、位置与动画；TXT：纯文本。Lottie／OGraf：单轨逐字高亮动态图形，使用独立渲染规则，不包含完整 ASS 效果。">格式<select id="subtitle-export-format"><option value="srt">SRT 字幕</option><option value="ass">ASS 带样式字幕</option><option value="txt">TXT 纯文本</option><option value="lottie">Lottie 动态字幕</option><option value="ograf">OGraf 动态字幕</option></select></label>
+          <label class="media-settings-field">文件名<input id="subtitle-export-filename" type="text" maxlength="160" autocomplete="off" spellcheck="false"></label>
+          <label class="media-settings-field" id="subtitle-export-mode-field" data-option-help="保留各条字幕：按时间输出。合并同时显示文本：把同一时刻的多轨字幕合为一条。按说话人分文件：每位说话人一份，未标记的字幕单独一份。">输出方式<select id="subtitle-export-mode"><option value="original">保留各条字幕</option><option value="merged">合并同时显示文本</option><option value="speaker">按说话人分文件</option></select></label>
+        </div>
+      </section>
+      <section class="settings-panel-section msw-export-section">
+        <span class="settings-panel-title">字幕轨道</span>
+        <div id="subtitle-export-scope" class="subtitle-export-tracks"></div>
+        <div class="media-settings-grid" id="subtitle-export-single-track-field" hidden><label class="media-settings-field">轨道<select id="subtitle-export-single-track"></select></label></div>
+        <div class="subtitle-export-toggles">
+          <label class="media-preview-toggle" id="subtitle-export-speaker-field" data-option-help="使用各轨道语言对应的名称，并遵守说话人表中的显示开关。不会把名称写回字幕正文。"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
+          <label class="media-preview-toggle" id="subtitle-export-gaps-field" data-option-help="移除已标记的空隙，并压缩导出时间轴；不会修改工程。固定空隙同样参与处理。"><input id="subtitle-export-remove-gaps" type="checkbox">跳过空隙</label>
+        </div>
+      </section>
+      <section class="settings-panel-section msw-export-section" id="subtitle-export-dynamic" hidden>
+        <span class="settings-panel-title">动态图形</span>
+        <div class="media-settings-grid">
+          <label class="media-settings-field">合成尺寸<select id="subtitle-export-resolution"><option value="1920x1080">1920 × 1080</option><option value="1080x1920">1080 × 1920</option><option value="3840x2160">3840 × 2160</option><option value="custom">自定义</option></select></label>
+          <label class="media-settings-field">帧率<select id="subtitle-export-fps"><option value="24">24 fps</option><option value="25">25 fps</option><option value="30" selected>30 fps</option><option value="30000/1001">29.97 fps</option><option value="50">50 fps</option><option value="60">60 fps</option><option value="60000/1001">59.94 fps</option></select></label>
+          <label class="media-settings-field" id="subtitle-export-render-field">文字渲染<select id="subtitle-export-render-mode"><option value="text">文本（使用系统字体）</option><option value="glyph">矢量（内置字形）</option></select></label>
+        </div>
+        <div class="media-settings-grid" id="subtitle-export-custom-size" hidden>
+          <label class="media-settings-field">宽度<input id="subtitle-export-width" type="number" min="16" max="7680" value="1920"></label>
+          <label class="media-settings-field">高度<input id="subtitle-export-height" type="number" min="16" max="7680" value="1080"></label>
+        </div>
+      </section>
+      <details class="settings-panel-section msw-export-section" id="subtitle-export-more">
+        <summary class="settings-panel-title">更多选项</summary>
+        <div class="subtitle-export-toggles">
+          <label class="media-preview-toggle" id="subtitle-export-zero-field" data-option-help="只将首条导出字幕的起点延长到 00:00，保留结束时间与后续字幕时间。不修改工程。"><input id="export-start-at-zero" type="checkbox">首条字幕从 0 开始</label>
+          <label class="media-preview-toggle" id="subtitle-export-unified-field" data-option-help="使用上方文件名统一下载。取消后，每份文件单独选择保存位置。浏览器可能需要允许下载多个文件。"><input id="export-color-unified" type="checkbox" checked>统一文件名前缀</label>
+          <label class="media-preview-toggle" id="subtitle-export-suffix-field"><input id="export-speaker-names-suffix" type="checkbox">分文件使用说话人名称</label>
+        </div>
+      </details>
+    </fieldset>
+    <p id="subtitle-export-message" class="msw-processing-message" role="status" aria-live="polite" hidden></p>
+    <div class="msw-processing-actions msw-export-footer"><span id="subtitle-export-summary" class="msw-processing-hint"></span><button id="subtitle-export-start" type="button" class="primary">开始导出</button></div>
   </div>
 </aside>
 
@@ -23404,6 +23338,18 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    'SRT 字幕': 'SRT subtitles',
+    'ASS 带样式字幕': 'ASS styled subtitles',
+    'TXT 纯文本': 'TXT plain text',
+    'Lottie 动态字幕': 'Lottie animated subtitles',
+    'OGraf 动态字幕': 'OGraf animated subtitles',
+    '保留各条字幕': 'Keep individual cues',
+    '合并同时显示文本': 'Merge simultaneous text',
+    '按说话人分文件': 'Separate files by speaker',
+    '统一文件名前缀': 'Use one filename prefix',
+    '首条字幕从 0 开始': 'Start the first cue at zero',
+    '去空隙时间线': 'Timelines with gaps removed',
+    '关闭字幕导出': 'Close subtitle export',
     '说话人方案': 'Speaker schemes', '选择方案': 'Choose a scheme', '对应并应用': 'Match and apply',
     '更新所选说话人方案': 'Update selected speaker scheme', '另存为说话人方案': 'Save as speaker scheme',
     '删除说话人方案': 'Delete speaker scheme', '方案名称': 'Scheme name', '保存方案': 'Save scheme', '删除方案': 'Delete scheme',
@@ -35600,25 +35546,7 @@ function fixedCanExport() {
 }
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('subtitle-track-add')?.addEventListener('click',()=>fixedAddTrack('subtitle'));
-  const anchor=document.getElementById('download-merged-srt');if(!anchor)return;
-  const row=document.createElement('details');row.id='subtitle-export-scope';row.className='msw-export-scope';
-  const summary=document.createElement('summary'),choices=document.createElement('div');row.append(summary,choices);anchor.before(row);
-  let trackKey='';
-  const sync=()=>{row.hidden=!fixedTrackMode();if(!fixedTrackMode())return;
-    summary.textContent=fixedExportTracks===null?'轨道范围 · 全部启用轨道':`轨道范围 · 已选 ${DATA.subtitle_tracks.tracks.filter(t=>t.enabled&&fixedExportTracks.includes(t.id)).length} 条`;
-    const nextKey=JSON.stringify(DATA.subtitle_tracks.tracks.map(t=>[t.id,t.name,t.enabled]));
-    if(trackKey===nextKey){for(const input of choices.querySelectorAll('input'))input.checked=input.dataset.track==='all'?fixedExportTracks===null:DATA.subtitle_tracks.tracks.some(t=>t.id===input.dataset.track&&t.enabled&&(fixedExportTracks===null||fixedExportTracks.includes(t.id)));return;}
-    trackKey=nextKey;
-    choices.replaceChildren();
-    const add=(id,text,checked,disabled,change)=>{const label=document.createElement('label');label.className='dropdown-setting-toggle';const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.checked=checked;input.disabled=disabled;input.onchange=change;label.append(input,document.createTextNode(text));choices.append(label);};
-    add('all','全部启用轨道',fixedExportTracks===null,false,()=>{fixedExportTracks=null;sync();});
-    for(const t of DATA.subtitle_tracks.tracks)add(t.id,t.name+(t.enabled?'':' · 已禁用'),t.enabled&&(fixedExportTracks===null||fixedExportTracks.includes(t.id)),!t.enabled,()=>{
-      const next=new Set(fixedExportTracks===null?DATA.subtitle_tracks.tracks.filter(t=>t.enabled).map(t=>t.id):fixedExportTracks);
-      if(next.has(t.id))next.delete(t.id);else next.add(t.id);fixedExportTracks=[...next];sync();
-    });};
-  row.addEventListener('click',event=>event.stopPropagation());
-  anchor.parentElement.addEventListener('pointerenter',sync);window.addEventListener('msw:project-changed',sync);sync();
-  window.addEventListener('msw:project-changed',()=>{fixedExportTracks=null;sync();});
+  window.addEventListener('msw:project-changed',()=>{fixedExportTracks=null;});
 });
 
 async function fixedDownloadAss(target='both',removeGaps=false) {
@@ -35714,7 +35642,7 @@ function layerSyncControls() {
     option.hidden = layerMode();
     if (layerMode() && option.selected) option.parentElement.value = 'main';
   });
-  for (const id of ['subtitle-layer-presentation-settings','subtitle-layer-auto-wrap','download-merged-srt']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
+  for (const id of ['subtitle-layer-presentation-settings','subtitle-layer-auto-wrap']) { const node=document.getElementById(id);if(node)node.hidden=!layerMode(); }
   const order=document.getElementById('subtitle-layer-order');if(order)order.value=DATA.subtitle_layers?.presentation?.order||'earlier-bottom';
   const auto=document.getElementById('subtitle-layer-auto'),gap=document.getElementById('subtitle-layer-gap');
   if(auto)auto.checked=DATA.subtitle_layers?.presentation?.mode!=='manual';if(gap)gap.value=DATA.subtitle_layers?.presentation?.gap??12;
@@ -35904,13 +35832,6 @@ document.addEventListener('DOMContentLoaded', () => {
   for(const id of ['subtitle-layer-auto','subtitle-layer-gap','subtitle-layer-order']) document.getElementById(id)?.addEventListener('change',()=>{
     if(!layerMode())return;const gap=document.getElementById('subtitle-layer-gap');if(!gap.validity.valid)return;
     pushUndo('多层字幕排布');DATA.subtitle_layers.presentation={mode:document.getElementById('subtitle-layer-auto').checked?'auto':'manual',gap:Number(gap.value),order:document.getElementById('subtitle-layer-order').value};layerInvalidate();projectImportDirty=true;refreshSubtitlePreview();scheduleAutoSaveFlush();
-  });
-  document.getElementById('download-merged-srt')?.addEventListener('click',async()=>{
-    if(!fixedCanExport())return;
-    commitProcessingEdits();const project=fixedTrackMode()?fixedSrtProject():structuredClone(DATA),options=speakerExportOptions();
-    if(options.speakerLabelsEnabled)for(const source of layerCore.tracks(project))for(const cue of source.segments)cue.text=options.speakerTextResolver(cue,source.segments);
-    const cues=window.MSWSubtitlePresentation.mergedSrtRows(project);
-    await downloadFile(window.AsrEditorUtils.buildSrtPayload(cues,{formatTime:fmtSrtTime}),`${FILENAME_BASE}.merged.srt`,'text/plain',{desc:'合并显示 SRT',types:{'text/plain':['.srt']}});
   });
   document.getElementById('subtitle-legacy-visible')?.addEventListener('change', event => {
     if (!layerMode()) return;
@@ -39111,27 +39032,6 @@ const fcp7ExportSubtitleTracks = document.getElementById('fcp7-export-subtitle-t
 const fcp7ExportNativeText = document.getElementById('fcp7-export-native-text');
 const fcp7ExportCancel = document.getElementById('fcp7-export-cancel');
 const fcp7ExportConfirm = document.getElementById('fcp7-export-confirm');
-const lottieExportModal = document.getElementById('lottie-export-modal');
-const lottieExportTrack = document.getElementById('lottie-export-track');
-const lottieExportGapRemoved = document.getElementById('lottie-export-gap-removed');
-const lottieExportResolution = document.getElementById('lottie-export-resolution');
-const lottieExportCustomSize = document.getElementById('lottie-export-custom-size');
-const lottieExportCustomWidth = document.getElementById('lottie-export-custom-width');
-const lottieExportCustomHeight = document.getElementById('lottie-export-custom-height');
-const lottieExportFps = document.getElementById('lottie-export-fps');
-const lottieExportRenderMode = document.getElementById('lottie-export-render-mode');
-const lottieExportCancel = document.getElementById('lottie-export-cancel');
-const lottieExportConfirm = document.getElementById('lottie-export-confirm');
-const ografExportModal = document.getElementById('ograf-export-modal');
-const ografExportTrack = document.getElementById('ograf-export-track');
-const ografExportGapRemoved = document.getElementById('ograf-export-gap-removed');
-const ografExportResolution = document.getElementById('ograf-export-resolution');
-const ografExportCustomSize = document.getElementById('ograf-export-custom-size');
-const ografExportCustomWidth = document.getElementById('ograf-export-custom-width');
-const ografExportCustomHeight = document.getElementById('ograf-export-custom-height');
-const ografExportFps = document.getElementById('ograf-export-fps');
-const ografExportCancel = document.getElementById('ograf-export-cancel');
-const ografExportConfirm = document.getElementById('ograf-export-confirm');
 const ctxmenu = document.getElementById('ctxmenu');
 const cuePanel = document.getElementById('current-cue-panel');
 const cuePanelPrev = document.getElementById('cue-panel-prev');
@@ -39151,9 +39051,6 @@ const saveProjectButton = document.getElementById('save-project');
 const saveProjectAsButton = document.getElementById('save-project-as');
 const saveProjectDropdown = document.getElementById('save-project-dropdown');
 const gapRemovedExportDropdown = document.getElementById('gap-removed-export-dropdown');
-const subtitleExportDropdown = document.getElementById('subtitle-export-dropdown');
-const downloadColorSrtItem = document.getElementById('download-color-srt');
-const downloadGapRemovedColorSrtItem = document.getElementById('download-gap-removed-color-srt');
 const multiSubtitleControls = document.getElementById('multi-subtitle-controls');
 const overlayTrackToggle = document.getElementById('overlay-track-toggle');
 const overlayTrackSeparator = document.getElementById('overlay-track-separator');
@@ -52649,121 +52546,8 @@ function usedSubtitleColors() {
   ];
 }
 
-// 双语合并工程（启动器勾选「合并双语字幕」生成的单轨工程）没有显式标记：
-// 产物只是把两行文本用换行拼进单条字幕并移除 multi_subtitle（maw/postprocess.py
-// merge_bilingual_project）。因此用启发式检测：无副轨 + 大部分字幕文本含换行。
-function isMergedBilingualProject() {
-  if (getActiveExtensionTrack()) return false;
-  const segments = DATA.segments || [];
-  if (!segments.length) return false;
-  const withNewline = segments.filter(
-    (segment) => typeof segment?.text === 'string' && segment.text.includes('\n'),
-  ).length;
-  return withNewline >= Math.ceil(segments.length * 0.6);
-}
-
 function updateSubtitleExportUi() {
-  const hasColors = usedSubtitleColors().some((color) => color.name !== 'default');
-  if (downloadColorSrtItem) downloadColorSrtItem.hidden = !hasColors;
-  if (downloadGapRemovedColorSrtItem) downloadGapRemovedColorSrtItem.hidden = !hasColors;
-  if (subtitleExportDropdown) subtitleExportDropdown.hidden = false;
-  const hasExtension = multiSubtitleVisible() && Boolean(getActiveExtensionTrack()?.segments?.length);
-  const extSrt = document.getElementById('download-ext-srt');
-  const extAss = document.getElementById('download-ext-ass');
-  if (extSrt) extSrt.hidden = !hasExtension;
-  if (extAss) extAss.hidden = !hasExtension;
-  // 双语合并工程的主轨本身就是双语字幕：主字幕项文案改为「双语字幕（SRT/ASS）」。
-  const merged = isMergedBilingualProject();
-  const mainSrt = document.getElementById('download-full-srt');
-  const mainAss = document.getElementById('download-full-ass');
-  if (mainSrt) mainSrt.textContent = merged ? '双语字幕（SRT）' : '主字幕（SRT）';
-  if (mainAss) mainAss.textContent = merged ? '双语字幕（ASS）' : '主字幕（ASS）';
-  const mainTitle = merged ? '主轨为双语合并字幕，导出即双语字幕' : '导出主字幕轨';
-  if (mainSrt) mainSrt.title = mainTitle;
-  if (mainAss) mainAss.title = mainTitle;
-  if(productionFlatMode()) {
-    for(const node of [extSrt,extAss])if(node)node.hidden=true;
-    mainSrt.textContent='字幕（SRT）';mainAss.textContent='字幕（ASS）';
-    for(const node of [mainSrt,mainAss])node.title='按轨道范围导出启用的字幕';
-    document.getElementById('download-merged-srt').textContent='合并同时显示文本（SRT）';
-  }
-}
-
-async function downloadColorSrts(gapRemoved = false) {
-  if (editingState) finishEdit(true);
-  if (extensionEditingState) finishExtensionEdit(true);
-  commitCuePanelEdit();
-  const unified = EDITOR_SETTINGS.exportColorUnified;
-  const colors = usedSubtitleColors();
-  const removed = gapRemoved ? getRemovedGapRanges() : [];
-  if (!colors.length) {
-    flashHint('没有可导出的彩色字幕', 'invalid');
-    return;
-  }
-  if (gapRemoved && !removed.length) {
-    flashHint('没有可移除的区段；请先在「音频空隙」中生成标记，并检查配音保护', 'invalid');
-    return;
-  }
-  const { segments, overlaySet, overlaySegments } = mergedExportSegments();
-  const firstEnabledIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
-    segments,
-    EDITOR_SETTINGS.exportStartAtZero,
-  );
-  const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
-  const speakerOptions=speakerExportOptions(),sourceSegments=segments,names=speakerSettings().names;
-  const useNames=EDITOR_SETTINGS.exportSpeakerNamesAsSuffix&&speakerSettings().mapping_enabled;
-  const payloads=new Map();
-  const buildPayload = (color) => window.AsrEditorUtils.buildSrtPayload(sourceSegments, {
-    ...speakerOptions,
-    colorName: color.name,
-    timeOffset: 0,
-    alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
-    firstEnabledIndex,
-    colorContextResolver: exportColorContextResolver(overlaySet, overlaySegments),
-    mapTime: gapRemoved
-      ? (timeMs) => window.AsrEditorUtils.mapGapRemovedTime(timeMs, removed)
-      : undefined,
-    ensurePositiveDuration: gapRemoved,
-    formatTime: fmtSrtTime,
-  });
-  for(const color of colors)payloads.set(color.name,buildPayload(color));
-  const suffixes=window.AsrEditorUtils.colorExportSuffixes(colors.map(c=>c.name),{names:useNames?names:null,language:window.MSWE_I18N?.language});
-  let filenameBase = `${FILENAME_BASE}${gapSuffix}`;
-  // 浏览器不允许从一个文件句柄取得其父目录，因此不再请求文件夹权限。
-  // 先让用户选择一个 SRT 文件名，并把该名称（不含 .srt）作为所有颜色文件的前缀。
-  if (unified && window.showSaveFilePicker) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        id: 'maw-color-srt-export-prefix',
-        suggestedName: `${filenameBase}.srt`,
-        types: [{ description: 'SRT 字幕文件（作为导出前缀）', accept: { 'text/plain': ['.srt'] } }],
-      });
-      filenameBase = handle.name.replace(/\.srt$/i, '') || filenameBase;
-    } catch (e) {
-      // 用户取消文件名选择 — 静默退出，不回退
-      if (e && e.name === 'AbortError') return;
-      // 其他错误（如安全限制）：回退到默认文件名前缀。
-    }
-  }
-  for (const color of colors) {
-    const filename = `${filenameBase}_${suffixes[color.name]}.srt`;
-    if (unified) {
-      const blob = new Blob([payloads.get(color.name)], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } else {
-      const saved = await downloadFile(
-        payloads.get(color.name), filename, 'text/plain',
-        { desc: `${color.label}色字幕 SRT`, types: { 'text/plain': ['.srt'] } },
-      );
-      if (!saved) return;
-    }
-  }
-  flashHint(`已按颜色导出 ${colors.length} 份字幕`, 'success');
+  window.MSWSubtitleExport?.refresh();
 }
 
 function gapRemovedExportContext() {
@@ -55166,33 +54950,6 @@ document.addEventListener('keydown', (event) => {
   closeFcp7ExportModal();
 }, true);
 
-function lottieExportAvailable() {
-  return Boolean(SERVER_CONFIG?.canLottieExport && SERVER_CONFIG?.lottieExportUrl);
-}
-
-function updateLottieExportButton() {
-  const button = document.getElementById('download-lottie');
-  if (!button) return;
-  if (!button.dataset.originalTitle) button.dataset.originalTitle = button.title;
-  const disabled = !lottieExportAvailable();
-  button.classList.toggle('sticker-disabled', disabled);
-  button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
-  button.title = disabled
-    ? translatedEditorText('服务器打包模式不可用：请以 server-editor 打开并绑定工程文件后再导出动态字幕')
-    : button.dataset.originalTitle;
-}
-
-function lottieExportBlocked() {
-  if (lottieExportAvailable()) return false;
-  const message = '当前模式不可用：动态字幕 .lottie 导出需要以 server-editor 打开并绑定工程文件';
-  flashHint(window.MSWE_I18N?.translateText?.(message) || message, 'warning');
-  return true;
-}
-
-function closeLottieExportModal() {
-  lottieExportModal?.classList.remove('show');
-}
-
 const DYNAMIC_EXPORT_CUSTOM_SIZE_LIMITS = { min: 16, max: 7680 };
 
 // 打开弹窗时让「合成尺寸」自动匹配工程媒体元数据（schema §1.1 的成对宽高）；
@@ -55231,291 +54988,6 @@ function dynamicExportCanvasSize(select, widthInput, heightInput) {
   return { width, height };
 }
 
-function bindResolutionCustomSizeToggle(select, customRow) {
-  select?.addEventListener('change', () => {
-    if (customRow) customRow.hidden = select.value !== 'custom';
-  });
-}
-
-function openLottieExportModal() {
-  if (lottieExportBlocked()) return;
-  if (editingState) finishEdit(true);
-  if (extensionEditingState) finishExtensionEdit(true);
-  commitCuePanelEdit();
-  const extensionOption = lottieExportTrack?.querySelector('option[value="extension"]');
-  const extensionAvailable = Boolean(getActiveExtensionTrack());
-  if (extensionOption) extensionOption.disabled = !extensionAvailable;
-  if (!extensionAvailable && lottieExportTrack) lottieExportTrack.value = 'main';
-  applyMediaSizeToResolutionModal(
-    lottieExportResolution, lottieExportCustomSize, lottieExportCustomWidth, lottieExportCustomHeight,
-  );
-  lottieExportModal?.classList.add('show');
-  lottieExportTrack?.focus();
-}
-
-function lottieExportCanvasSize() {
-  return dynamicExportCanvasSize(lottieExportResolution, lottieExportCustomWidth, lottieExportCustomHeight);
-}
-
-async function exportLottieDynamicCaptions() {
-  if (lottieExportBlocked()) return;
-  lottieExportConfirm.disabled = true;
-  try {
-    const extension = lottieExportTrack?.value === 'extension';
-    const track = extension ? getActiveExtensionTrack() : null;
-    const sourceSegments = extension ? track?.segments : DATA.segments;
-    if (!Array.isArray(sourceSegments) || !sourceSegments.some((segment) => (
-      !segment?.disabled && String(segment?.text || '').trim()
-    ))) {
-      throw new Error(translatedEditorText(
-        extension ? '当前副字幕轨没有可导出的字幕' : '当前主轨没有可导出的字幕',
-      ));
-    }
-    const gapRemoved = lottieExportGapRemoved?.checked === true;
-    const exportData = buildDynamicCaptionExportData(sourceSegments, gapRemoved);
-    if (!exportData) return;
-    const { segments, durationMs } = exportData;
-    if (!segments.some((segment) => !segment?.disabled && String(segment?.text || '').trim())) {
-      throw new Error(translatedEditorText(
-        extension ? '当前副字幕轨没有可导出的字幕' : '当前主轨没有可导出的字幕',
-      ));
-    }
-    const size = lottieExportCanvasSize();
-    const appearance = extension ? getExtensionSubtitleAppearance() : getSubtitleAppearance();
-    const animation = window.AsrEditorUtils.buildLottieAnimation(segments, {
-      durationMs: Math.round(durationMs),
-      fps: lottieExportFps?.value || '30',
-      renderMode: lottieExportRenderMode?.value || 'text',
-      width: size.width,
-      height: size.height,
-      subtitle: { ...getPreviewGeometry(), ...appearance },
-    });
-    flashHint(translatedEditorText('正在生成动态字幕 .lottie…'));
-    const response = await fetch(new URL(SERVER_CONFIG.lottieExportUrl, window.location.href), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestToken: SERVER_CONFIG.requestToken, animation }),
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || `服务器返回 ${response.status}`);
-    }
-    const blob = await response.blob();
-    closeLottieExportModal();
-    const suffix = extension ? '_extension' : '';
-    const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
-    const saved = await downloadFile(
-      blob,
-      `${FILENAME_BASE}${suffix}${gapSuffix}_dynamic-caption.lottie`,
-      'application/zip+dotlottie',
-      { desc: 'Lottie 动态字幕', types: { 'application/zip+dotlottie': ['.lottie'] } },
-    );
-    if (saved) flashHint(translatedEditorText('动态字幕 .lottie 已生成'), 'success');
-  } catch (error) {
-    flashHint(`${translatedEditorText('动态字幕 .lottie 导出失败')}：${error.message || error}`, 'warning');
-  } finally {
-    lottieExportConfirm.disabled = false;
-  }
-}
-
-document.getElementById('download-lottie')?.addEventListener('click', openLottieExportModal);
-bindResolutionCustomSizeToggle(lottieExportResolution, lottieExportCustomSize);
-lottieExportCancel?.addEventListener('click', closeLottieExportModal);
-lottieExportConfirm?.addEventListener('click', () => { void exportLottieDynamicCaptions(); });
-lottieExportModal?.addEventListener('click', (event) => {
-  if (event.target === lottieExportModal) closeLottieExportModal();
-});
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape' || !lottieExportModal?.classList.contains('show')) return;
-  event.preventDefault();
-  event.stopPropagation();
-  closeLottieExportModal();
-}, true);
-
-function ografExportAvailable() {
-  return Boolean(SERVER_CONFIG?.canOgrafExport && SERVER_CONFIG?.ografExportUrl);
-}
-
-function updateOgrafExportButton() {
-  const button = document.getElementById('download-ograf');
-  if (!button) return;
-  if (!button.dataset.originalTitle) button.dataset.originalTitle = button.title;
-  const disabled = !ografExportAvailable();
-  button.classList.toggle('sticker-disabled', disabled);
-  button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
-  button.title = disabled
-    ? translatedEditorText('服务器打包模式不可用：请以 server-editor 打开并绑定工程文件后再导出动态字幕')
-    : button.dataset.originalTitle;
-}
-
-function ografExportBlocked() {
-  if (ografExportAvailable()) return false;
-  const message = '当前模式不可用：OGraf 动态字幕导出需要以 server-editor 打开并绑定工程文件';
-  flashHint(window.MSWE_I18N?.translateText?.(message) || message, 'warning');
-  return true;
-}
-
-function closeOgrafExportModal() {
-  ografExportModal?.classList.remove('show');
-}
-
-function openOgrafExportModal() {
-  if (ografExportBlocked()) return;
-  if (editingState) finishEdit(true);
-  if (extensionEditingState) finishExtensionEdit(true);
-  commitCuePanelEdit();
-  const extensionOption = ografExportTrack?.querySelector('option[value="extension"]');
-  const extensionAvailable = Boolean(getActiveExtensionTrack());
-  if (extensionOption) extensionOption.disabled = !extensionAvailable;
-  if (!extensionAvailable && ografExportTrack) ografExportTrack.value = 'main';
-  applyMediaSizeToResolutionModal(
-    ografExportResolution, ografExportCustomSize, ografExportCustomWidth, ografExportCustomHeight,
-  );
-  ografExportModal?.classList.add('show');
-  ografExportTrack?.focus();
-}
-
-function ografExportCanvasSize() {
-  return dynamicExportCanvasSize(ografExportResolution, ografExportCustomWidth, ografExportCustomHeight);
-}
-
-async function exportOgrafDynamicCaptions() {
-  if (ografExportBlocked()) return;
-  ografExportConfirm.disabled = true;
-  try {
-    const extension = ografExportTrack?.value === 'extension';
-    const track = extension ? getActiveExtensionTrack() : null;
-    const sourceSegments = extension ? track?.segments : DATA.segments;
-    if (!Array.isArray(sourceSegments) || !sourceSegments.some((segment) => (
-      !segment?.disabled && String(segment?.text || '').trim()
-    ))) {
-      throw new Error(translatedEditorText(
-        extension ? '当前副字幕轨没有可导出的字幕' : '当前主轨没有可导出的字幕',
-      ));
-    }
-    const gapRemoved = ografExportGapRemoved?.checked === true;
-    const exportData = buildDynamicCaptionExportData(sourceSegments, gapRemoved);
-    if (!exportData) return;
-    const { segments, durationMs } = exportData;
-    if (!segments.some((segment) => !segment?.disabled && String(segment?.text || '').trim())) {
-      throw new Error(translatedEditorText(
-        extension ? '当前副字幕轨没有可导出的字幕' : '当前主轨没有可导出的字幕',
-      ));
-    }
-    const size = ografExportCanvasSize();
-    const appearance = extension ? getExtensionSubtitleAppearance() : getSubtitleAppearance();
-    const graphic = window.AsrEditorUtils.buildOgrafGraphic(segments, {
-      durationMs: Math.round(durationMs),
-      fps: ografExportFps?.value || '30',
-      width: size.width,
-      height: size.height,
-      subtitle: { ...getPreviewGeometry(), ...appearance },
-    });
-    flashHint(translatedEditorText('正在生成动态字幕 .ograf.zip…'));
-    const response = await fetch(new URL(SERVER_CONFIG.ografExportUrl, window.location.href), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestToken: SERVER_CONFIG.requestToken, graphic }),
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || `服务器返回 ${response.status}`);
-    }
-    const blob = await response.blob();
-    closeOgrafExportModal();
-    const suffix = extension ? '_extension' : '';
-    const gapSuffix = gapRemoved ? `_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}` : '';
-    const saved = await downloadFile(
-      blob,
-      `${FILENAME_BASE}${suffix}${gapSuffix}_dynamic-caption.ograf.zip`,
-      'application/zip',
-      { desc: 'OGraf 动态字幕', types: { 'application/zip': ['.zip'] } },
-    );
-    if (saved) flashHint(translatedEditorText('动态字幕 .ograf.zip 已生成；请先解压'), 'success');
-  } catch (error) {
-    flashHint(`${translatedEditorText('动态字幕 .ograf.zip 导出失败')}：${error.message || error}`, 'warning');
-  } finally {
-    ografExportConfirm.disabled = false;
-  }
-}
-
-document.getElementById('download-ograf')?.addEventListener('click', openOgrafExportModal);
-bindResolutionCustomSizeToggle(ografExportResolution, ografExportCustomSize);
-ografExportCancel?.addEventListener('click', closeOgrafExportModal);
-ografExportConfirm?.addEventListener('click', () => { void exportOgrafDynamicCaptions(); });
-ografExportModal?.addEventListener('click', (event) => {
-  if (event.target === ografExportModal) closeOgrafExportModal();
-});
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape' || !ografExportModal?.classList.contains('show')) return;
-  event.preventDefault();
-  event.stopPropagation();
-  closeOgrafExportModal();
-}, true);
-
-document.getElementById('download-full-srt')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  if(!fixedCanExport())return;
-  await downloadFile(buildSrt(), `${FILENAME_BASE}.srt`, 'text/plain', {
-    desc: 'SRT 字幕文件', types: { 'text/plain': ['.srt'] }
-  });
-});
-document.getElementById('download-full-ass')?.addEventListener('click', async () => {
-  if(fixedTrackMode()){await fixedDownloadAss();return;}
-  if (editingState) finishEdit(true);
-  await downloadFile(await buildAss(), `${FILENAME_BASE}.ass`, 'text/plain', {
-    desc: 'ASS 字幕文件', types: { 'text/plain': ['.ass'] }
-  });
-});
-document.getElementById('download-ext-srt')?.addEventListener('click', async () => {
-  const track = getActiveExtensionTrack();
-  if (!track?.segments?.length) {
-    flashHint('当前没有副字幕轨；先通过「字幕 → 加载字幕」导入第二条字幕', 'invalid');
-    return;
-  }
-  if (editingState) finishEdit(true);
-  await downloadFile(buildExtensionSrt(track), `${FILENAME_BASE}.extension.srt`, 'text/plain', {
-    desc: '副字幕 SRT 文件', types: { 'text/plain': ['.srt'] },
-  });
-});
-document.getElementById('download-ext-ass')?.addEventListener('click', async () => {
-  const track = getActiveExtensionTrack();
-  if (!track?.segments?.length) {
-    flashHint('当前没有副字幕轨；先通过「字幕 → 加载字幕」导入第二条字幕', 'invalid');
-    return;
-  }
-  if (editingState) finishEdit(true);
-  if(fixedTrackMode()){await fixedDownloadAss('secondary');return;}
-  if(DATA.preview?.project_style?.legacyBurn){
-    const single={...DATA,segments:[],overlay_track:{enabled:false},multi_subtitle:{...DATA.multi_subtitle,enabled:true,tracks:[track]}};
-    await downloadFile(window.MSWProjectStyle.buildLegacyAss(single,{...assExportOptions(),target:'secondary',alignFirstStart:EDITOR_SETTINGS.exportStartAtZero}),`${FILENAME_BASE}.extension.ass`,'text/plain',{desc:'副字幕 ASS 文件',types:{'text/plain':['.ass']}});
-    return;
-  }
-  const firstIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
-    track.segments, EDITOR_SETTINGS.exportStartAtZero,
-  );
-  const options=assExportOptions(getStoredExtensionSubtitleAppearance());
-  if(options.projectStyle)options.projectStyle={...options.projectStyle,main:options.projectStyle.secondary};
-  if(layerMode()) {
-    options.assStyle=options.assExtensionStyle;
-    const single={...DATA,segments:track.segments,multi_subtitle:{enabled:false},subtitle_layers:{...DATA.subtitle_layers,legacy_overlay:{visible:true,cue_ids:[]}}};
-    options.layerMargins=layerAssMargins(options,single,'main');
-  }
-  await downloadFile(window.AsrEditorUtils.buildAssPayload(track.segments, {
-    alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
-    firstEnabledIndex: firstIndex,
-    ...options,
-  }), `${FILENAME_BASE}.extension.ass`, 'text/plain', {
-    desc: '副字幕 ASS 文件', types: { 'text/plain': ['.ass'] },
-  });
-});
-document.getElementById('download-color-srt')?.addEventListener('click', () => downloadColorSrts(false));
-document.getElementById('download-plain-text')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  await downloadFile(window.AsrEditorUtils.buildPlainTextPayload(layerMode() ? DATA.segments.filter(cue => layerCore.visible(DATA,cue)) : DATA.segments), `${FILENAME_BASE}.txt`, 'text/plain', {
-    desc: '纯文本字幕文件', types: { 'text/plain': ['.txt'] }
-  });
-});
 saveProjectButton?.addEventListener('click', () => saveCurrentProject());
 saveProjectAsButton?.addEventListener('click', () => saveProjectAsToFile());
 // Project-level save shortcuts intentionally override the browser page-save
@@ -55597,27 +55069,6 @@ document.getElementById('download-sticker-otio')?.addEventListener('click', () =
     'stickers', buildStickerOtio, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('stickers') || 'stickers'}.otio`, 'OTIO 工程文件'
   );
 });
-document.getElementById('download-gap-removed-srt')?.addEventListener('click', async () => {
-  if (editingState) finishEdit(true);
-  const payload = buildGapRemovedSrt();
-  if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.srt`, 'text/plain', {
-      desc: '去空隙字幕 SRT', types: { 'text/plain': ['.srt'] }
-    });
-  }
-});
-document.getElementById('download-gap-removed-color-srt')?.addEventListener('click', () => downloadColorSrts(true));
-document.getElementById('download-gap-removed-ass')?.addEventListener('click', async () => {
-  if(fixedTrackMode()){await fixedDownloadAss('both',true);return;}
-  if (editingState) finishEdit(true);
-  const payload = await buildGapRemovedAss();
-  if (payload) {
-    await downloadFile(payload, `${FILENAME_BASE}_${window.MSWE_I18N?.exportTag?.('gap-removed') || 'gap-removed'}.ass`, 'text/plain', {
-      desc: '去空隙带样式 ASS 字幕', types: { 'text/plain': ['.ass'] }
-    });
-  }
-});
-
 const OTIO_EXPORT_OPTIONS = {
   srt: 'otioExportIncludeSrt', stickers: 'otioExportIncludeStickers', markers: 'otioExportIncludeMarkers',
 };
@@ -55687,8 +55138,6 @@ document.getElementById('download-sticker-otioz')?.addEventListener('click', asy
 // 初始按服务器模式刷新表情包 OTIOZ 导出按钮的可用性
 updateStickerExportButtons();
 updateTimelineOtiozExportButtons();
-updateLottieExportButton();
-updateOgrafExportButton();
 
 // === 工具栏导出下拉菜单 ===
 const SUBMENU_CLOSE_DELAY_MS = 160;
@@ -56234,8 +55683,6 @@ function detachServerProjectSaving() {
     SERVER_CONFIG.canOgrafExport = false;
   }
   configureServerSaveControls();
-  updateLottieExportButton();
-  updateOgrafExportButton();
   scheduleAutoSave();
 }
 
@@ -62737,7 +62184,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     FILENAME_BASE = PROJECT_NAME;
     const title = document.getElementById('json-name');
     title.textContent = result.filename; title.classList.remove('empty');
-    configureServerSaveControls(); updateLottieExportButton(); updateOgrafExportButton(); scheduleAutoSave();
+    configureServerSaveControls(); scheduleAutoSave();
     if (unchanged) markProjectSaved(result.filename, result.backup, {silent:true});
     else projectImportDirty = true;
     return unchanged;
@@ -68705,6 +68152,162 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     for(const node of body.querySelectorAll(':scope > .msw-processing-fields'))if(!node.children.length)node.remove();
     for(const label of panel.querySelectorAll('.msw-processing-fields > label'))label.classList.add('media-settings-field');
   }
+})(window);
+
+// One export form; options are applied to snapshots, never to stored cues.
+(function (global) {
+  'use strict';
+  const host=global.MSWE.resolve('processing-host'),U=global.AsrEditorUtils;
+  const el=id=>document.getElementById('subtitle-export-'+id),panel=el('panel');
+  const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),
+    anchorButton:document.querySelector('[data-menubar-item="file"] > button'),positionKey:'msw.subtitle.export.position'});
+  let busy=false,trackKey='',legacyScope=null,filenameProject=null;
+  const dynamic=()=>['lottie','ograf'].includes(el('format').value);
+  const scope=()=>fixedTrackMode()?fixedExportTracks:legacyScope;
+  const setScope=value=>{if(fixedTrackMode())fixedExportTracks=value;else legacyScope=value;};
+  function tracks() {
+    if(fixedTrackMode())return DATA.subtitle_tracks.tracks;
+    return [{id:'main',name:'S1',enabled:true},...(DATA.multi_subtitle?.tracks||[]).map((t,i)=>({id:t.id,name:`S${i+2}`,enabled:DATA.multi_subtitle.enabled!==false&&t.enabled!==false}))];
+  }
+  function message(text) {el('message').textContent=text;el('message').hidden=!text;}
+  function selectedIds() {
+    return dynamic()?[el('single-track').value]:tracks().filter(t=>t.enabled&&(!scope()||scope().includes(t.id))).map(t=>t.id);
+  }
+  function refresh() {
+    if(!floating.isOpen()||busy)return;
+    const list=tracks(),key=JSON.stringify(list.map(t=>[t.id,t.name,t.enabled]));
+    if(key!==trackKey) {
+      trackKey=key;el('scope').replaceChildren();
+      const add=(id,name,disabled=false)=>{
+        const label=document.createElement('label');label.className='media-preview-toggle';
+        const input=document.createElement('input');input.type='checkbox';input.dataset.track=id;input.disabled=disabled;
+        input.onchange=()=>{
+          if(id==='all')setScope(input.checked?null:[]);
+          else {const ids=new Set(list.filter(t=>t.enabled&&(!scope()||scope().includes(t.id))).map(t=>t.id));if(input.checked)ids.add(id);else ids.delete(id);setScope([...ids]);}
+          message('');refresh();
+        };
+        label.append(input,document.createTextNode(name));el('scope').append(label);
+      };
+      add('all','全部轨道');for(const t of list)add(t.id,t.name+(t.enabled?'':' · 已禁用'),!t.enabled);
+      const previous=el('single-track').value;el('single-track').replaceChildren(...list.filter(t=>t.enabled).map(t=>new Option(t.name,t.id)));
+      if(list.some(t=>t.enabled&&t.id===previous))el('single-track').value=previous;
+    }
+    const enabled=list.filter(t=>t.enabled),chosen=enabled.filter(t=>!scope()||scope().includes(t.id));
+    for(const input of el('scope').querySelectorAll('input')) {
+      const id=input.dataset.track;input.checked=id==='all'?enabled.length>0&&chosen.length===enabled.length:chosen.some(t=>t.id===id);
+      if(id==='all')input.indeterminate=chosen.length>0&&chosen.length<enabled.length;
+    }
+    const format=el('format').value,isDynamic=dynamic(),split=format==='srt'&&el('mode').value==='speaker';
+    el('scope').hidden=isDynamic;el('single-track-field').hidden=!isDynamic;el('mode-field').hidden=format!=='srt';
+    el('dynamic').hidden=!isDynamic;el('render-field').hidden=format!=='lottie';
+    el('speaker-field').hidden=isDynamic;el('gaps-field').hidden=format==='txt';
+    el('zero-field').hidden=!['srt','ass'].includes(format);
+    el('unified-field').hidden=!split;el('suffix-field').hidden=!split;
+    el('more').hidden=!['srt','ass'].includes(format);
+    el('custom-size').hidden=el('resolution').value!=='custom';
+    const ids=new Set(selectedIds());let count=0;
+    if(fixedTrackMode()) {
+      const index=fixedTrackCore.createIndex(DATA);
+      for(const r of index.records({includeDisabled:false}))if(ids.has(index.trackFor(r)?.id)&&layerCore.visible(DATA,r.cue,r.role)&&r.cue.text?.trim())count++;
+    } else for(const t of layerCore.tracks(DATA))if(ids.has(t.track_id||'main'))count+=t.segments.filter(c=>!c.disabled&&c.text?.trim()&&layerCore.visible(DATA,c,t.role)).length;
+    const capability='can'+format[0].toUpperCase()+format.slice(1)+'Export';
+    const available=format==='ass'?!!SERVER_CONFIG?.processingUrl:!isDynamic||!!(SERVER_CONFIG?.[capability]&&SERVER_CONFIG?.[format+'ExportUrl']);
+    el('summary').textContent=!available?'此格式需要通过启动器打开本机编辑器':`轨道：${ids.size} | 字幕块：${count}`;
+    el('start').disabled=!count||!available||!el('filename').value.trim();
+  }
+  function snapshot(ids) {
+    if(fixedTrackMode()) {
+      const previous=fixedExportTracks;
+      try {fixedExportTracks=ids;return fixedSrtProject();}finally{fixedExportTracks=previous;}
+    }
+    const project=structuredClone(DATA);
+    for(const t of layerCore.tracks(project)) {
+      layerCore.materializeReferences(t.segments);
+      const rows=ids.includes(t.track_id||'main')?t.segments.filter(c=>!c.disabled&&c.text?.trim()&&layerCore.visible(DATA,c,t.role)):[];
+      if(t.role==='main')project.segments=rows;else project.multi_subtitle.tracks.find(track=>track.id===t.track_id).segments=rows;
+    }
+    return project;
+  }
+  function textFiles(project,{format,mode,removeGaps}) {
+    const sources=layerCore.tracks(project),rows=sources.flatMap(t=>t.segments).sort((a,b)=>a.start-b.start||a.end-b.end);
+    const speaker=speakerExportOptions(),removed=removeGaps?getRemovedGapRanges():[];
+    const options={...speaker,alignFirstStart:EDITOR_SETTINGS.exportStartAtZero,formatTime:fmtSrtTime,
+      mapTime:removed.length?ms=>U.mapGapRemovedTime(ms,removed):undefined,ensurePositiveDuration:removed.length>0};
+    // Resolve names against original track/language identities before merging.
+    if(format==='txt')return [{suffix:'',text:rows.map(c=>speaker.speakerLabelsEnabled?speaker.speakerTextResolver(c,rows):c.text).join('\n')}];
+    if(mode==='merged') {
+      if(speaker.speakerLabelsEnabled)for(const t of sources)for(const c of t.segments)c.text=speaker.speakerTextResolver(c,t.segments);
+      return [{suffix:'',text:U.buildSrtPayload(global.MSWSubtitlePresentation.mergedSrtRows(project),{...options,speakerLabelsEnabled:false,speakerLabels:null})}];
+    }
+    if(mode==='speaker') {
+      const colors=[...new Set(rows.map(c=>c.color?.name||'default'))];
+      const suffixes=U.colorExportSuffixes(colors,{names:EDITOR_SETTINGS.exportSpeakerNamesAsSuffix?speakerSettings().names:null,language:global.MSWE_I18N?.language});
+      return colors.map(color=>({suffix:'_'+suffixes[color],text:U.buildSrtPayload(rows.filter(c=>(c.color?.name||'default')===color),options)}));
+    }
+    return [{suffix:'',text:U.buildSrtPayload(rows,options)}];
+  }
+  async function dynamicFile(project,format,ids,removeGaps) {
+    const rows=layerCore.tracks(project).flatMap(t=>t.segments).sort((a,b)=>a.start-b.start);
+    const data=buildDynamicCaptionExportData(rows,removeGaps);if(!data)throw Error('没有可导出的动态字幕');
+    const size=dynamicExportCanvasSize(el('resolution'),el('width'),el('height'));
+    let appearance={...getPreviewGeometry(),...getSubtitleAppearance()};
+    const owner=DATA.subtitle_tracks?.tracks.find(t=>t.id===ids[0]);
+    if(owner) {
+      const style=global.MSWTrackPresentation.styleFor(DATA,owner);
+      appearance={...appearance,font_family:style.fontName,font_size:style.fontSize*960/1920,color:style.primaryColor};
+    }
+    const options={...size,durationMs:Math.max(data.durationMs||0,...data.segments.map(c=>c.end)),fps:el('fps').value,renderMode:el('render-mode').value,subtitle:appearance};
+    const payload=format==='lottie'?{animation:U.buildLottieAnimation(data.segments,options)}:{graphic:U.buildOgrafGraphic(data.segments,options)};
+    const response=await fetch(new URL(SERVER_CONFIG[format+'ExportUrl'],location.href),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestToken:SERVER_CONFIG.requestToken,...payload})});
+    if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||`服务器返回 ${response.status}`);}
+    return response.blob();
+  }
+  async function start() {
+    if(busy||el('start').disabled)return;
+    host.commitEdits();refresh();if(el('start').disabled)return;
+    const generation=host.generation,format=el('format').value,mode=el('mode').value,ids=selectedIds();
+    const removeGaps=format!=='txt'&&el('remove-gaps').checked&&getRemovedGapRanges().length>0;
+    const filename=el('filename').value.trim().replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/\.(srt|ass|txt|lottie|ograf\.zip)$/i,'');
+    const unified=EDITOR_SETTINGS.exportColorUnified,extension=format==='ograf'?'ograf.zip':format;
+    const mime=format==='ograf'?'application/zip':format==='lottie'?'application/zip+dotlottie':'text/plain';
+    busy=true;el('fields').disabled=true;el('start').disabled=true;el('start').textContent='正在导出…';message('');
+    try {
+      let files;
+      if(format==='ass') {
+        // fixedAssDocument captures the project and scope before its first await.
+        if(fixedTrackMode())files=[{text:await fixedAssDocument('both',removeGaps),suffix:''}];
+        else throw Error('请通过启动器重新打开工程，升级轨道后导出 ASS');
+      } else {
+        const project=snapshot(ids);
+        files=dynamic()?[{text:await dynamicFile(project,format,ids,removeGaps),suffix:''}]:textFiles(project,{format,mode,removeGaps});
+      }
+      if(generation!==host.generation)return;
+      let saved=0;
+      for(const file of files.filter(f=>typeof f.text!=='string'||f.text.trim())) {
+        if(generation!==host.generation)return;
+        const result=await downloadFile(file.text,`${filename}${file.suffix}.${extension}`,mime,
+          {desc:'字幕文件',types:{[mime]:['.'+(format==='ograf'?'zip':format)]}},
+          {usePicker:!(format==='srt'&&mode==='speaker'&&unified),detailed:true});
+        if(result.status==='cancelled'){message(saved?`已导出 ${saved} 份，剩余已取消`:'已取消导出');return;}
+        if(result.status==='failed')throw Error('文件保存失败，请检查保存位置后重试');
+        saved++;
+      }
+      if(generation===host.generation)message(saved?`已导出 ${saved} 份文件`:'当前范围没有可导出的字幕');
+    } catch(error){if(generation===host.generation)message(error.message||String(error));}
+    finally {busy=false;el('fields').disabled=false;el('start').textContent='开始导出';refresh();}
+  }
+  function open(format) {
+    host.commitEdits();if(format)el('format').value=format;
+    for(const [id,key] of [['export-speaker-labels','exportSpeakerLabels'],['export-speaker-names-suffix','exportSpeakerNamesAsSuffix'],['export-start-at-zero','exportStartAtZero'],['export-color-unified','exportColorUnified']])document.getElementById(id).checked=EDITOR_SETTINGS[key]===true;
+    if(filenameProject!==host.generation){filenameProject=host.generation;el('filename').value=FILENAME_BASE;}
+    applyMediaSizeToResolutionModal(el('resolution'),el('custom-size'),el('width'),el('height'));
+    message('');floating.open();refresh();
+  }
+  el('btn').addEventListener('click',()=>open());el('close').addEventListener('click',()=>floating.close());el('start').addEventListener('click',()=>void start());
+  panel.addEventListener('input',event=>{if(event.target.type!=='checkbox'){message('');refresh();}});panel.addEventListener('change',refresh);
+  global.addEventListener('msw:subtitles-changed',refresh);
+  global.addEventListener('msw:project-changed',()=>{setScope(null);trackKey='';filenameProject=null;message('');if(floating.isOpen())queueMicrotask(()=>open());});
+  global.MSWSubtitleExport={open,refresh};
 })(window);
 
 // Channel curves share a cue clock, but retain independent values and keyframes.

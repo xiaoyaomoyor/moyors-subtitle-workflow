@@ -88,24 +88,10 @@ __WAVEFORM_CSS__
       <button type="button" class="dropdown-item" id="save-project-as" role="menuitem" title="另存为工程文件"><span>另存为工程</span> <kbd class="menu-kbd" data-mod>Ctrl+Shift+S</kbd></button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
-      <div class="dropdown-submenu" id="subtitle-export-dropdown">
-        <div class="dropdown-item dropdown-submenu-toggle" id="subtitle-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出主/副字幕（SRT/ASS）或按颜色分别导出">导出字幕</div>
-        <div class="dropdown-menu dropdown-submenu-menu" id="subtitle-export-menu" role="menu">
-          <label class="dropdown-setting-toggle"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
-          <label class="dropdown-setting-toggle" title="分别导出时使用人名作为文件名后缀；不会修改字幕正文"><input id="export-speaker-names-suffix" type="checkbox">分文件使用说话人名称</label>
-          <div class="dropdown-item" id="download-merged-srt" role="menuitem" tabindex="0" hidden title="按同时显示的主副字幕合并文本，仅改变导出，不修改工程">合并主副字幕（SRT）</div>
-          <div class="dropdown-item" id="download-full-srt" role="menuitem" tabindex="0" title="导出主字幕轨（SRT）">主字幕（SRT）</div>
-          <div class="dropdown-item" id="download-full-ass" role="menuitem" tabindex="0" title="导出主字幕轨（ASS）">主字幕（ASS）</div>
-          <div class="dropdown-item" id="download-ext-srt" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（SRT）">副字幕（SRT）</div>
-          <div class="dropdown-item" id="download-ext-ass" role="menuitem" tabindex="0" hidden title="导出当前副字幕轨（ASS）">副字幕（ASS）</div>
-          <div class="dropdown-item" id="download-color-srt" role="menuitem" tabindex="0" hidden>按说话人分别导出</div>
-          <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
-            <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用当前空隙移除结果的字幕、时间线或保留区域计划">去空隙版本</div>
+      <button type="button" class="dropdown-item" id="subtitle-export-btn" role="menuitem" title="选择格式和轨道，导出字幕">导出字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
+            <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用空隙移除结果的时间线或保留区域计划">去空隙时间线</div>
             <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">
-              <div class="dropdown-item" id="download-gap-removed-srt" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出字幕；原工程时间不变">字幕 SRT</div>
-              <div class="dropdown-item" id="download-gap-removed-ass" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出带样式的 ASS 字幕；原工程时间不变">带样式的 ASS 字幕</div>
-              <div class="dropdown-item" id="download-gap-removed-color-srt" role="menuitem" tabindex="0" hidden title="按移除静音空隙后的时间轴，为每种已使用颜色分别导出一份字幕">按说话人分别导出</div>
-              <div class="dropdown-separator" role="separator"></div>
               <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-otio-menu" role="menu">
@@ -131,8 +117,8 @@ __WAVEFORM_CSS__
               </div>
             </div>
           </div>
-          <div class="dropdown-submenu" id="extra-export-dropdown">
-            <div class="dropdown-item dropdown-submenu-toggle" id="extra-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出 FCP7/OTIO/Lottie/OGraf 等更多格式">更多导出</div>
+      <div class="dropdown-submenu" id="extra-export-dropdown">
+            <div class="dropdown-item dropdown-submenu-toggle" id="extra-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出剪辑时间线和辅助数据">更多导出</div>
             <div class="dropdown-menu dropdown-submenu-menu" id="extra-export-menu" role="menu">
               <div class="dropdown-item" id="download-fcp7-export" role="menuitem" tabindex="0" title="实验性 Premiere 交接：导出 FCP 7 XML">Premiere FCP 7 XML（实验性）</div>
               <div class="dropdown-separator" role="separator"></div>
@@ -154,25 +140,13 @@ __WAVEFORM_CSS__
               </div>
               <div class="dropdown-separator" role="separator"></div>
               <div class="dropdown-submenu" role="none">
-                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-dynamic-menu">动态图形</div>
-                <div class="dropdown-menu dropdown-submenu-menu" id="extra-dynamic-menu" role="menu">
-                  <div class="dropdown-item" id="download-lottie" role="menuitem" tabindex="0" title="导出逐字高亮动态字幕 .lottie（需要以 server-editor 打开并绑定工程文件）">动态字幕（Lottie）</div>
-                  <div class="dropdown-item" id="download-ograf" role="menuitem" tabindex="0" title="导出符合 OGraf 规范的动态字幕包（需要以 server-editor 打开并绑定工程文件）">动态字幕（OGraf）</div>
-                </div>
-              </div>
-              <div class="dropdown-separator" role="separator"></div>
-              <div class="dropdown-submenu" role="none">
                 <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="extra-data-menu">数据文件</div>
                 <div class="dropdown-menu dropdown-submenu-menu" id="extra-data-menu" role="menu">
-                  <div class="dropdown-item" id="download-plain-text" role="menuitem" tabindex="0" title="导出纯文本 TXT 字幕">纯文本 TXT</div>
                   <div class="dropdown-item" id="download-resolve-json" role="menuitem" tabindex="0" title="导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入">Resolve JSON</div>
                 </div>
               </div>
             </div>
           </div>
-          <div class="dropdown-separator" role="separator"></div>
-        </div>
-      </div>
       <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="导出带配音的视频 MP4">导出视频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-separator"></div>
@@ -1649,22 +1623,6 @@ __WAVEFORM_CSS__
           </div>
         </div>
 
-        <div class="editor-settings-group settings-category" data-settings-category="export">
-          <div class="settings-category-header">导出</div>
-          <div class="editor-settings-sub-group">
-            <span class="editor-settings-title">导出</span>
-            <label class="toggle editor-settings-item" title="只把第一条导出字幕的起点拉到 00:00，保留其结束时间和后续字幕时间码；不改动工程或 OTIO 的时间轴">
-              <input type="checkbox" id="export-start-at-zero"> SRT 首条从 0 开始
-            </label>
-            <div class="editor-settings-field">
-              <label class="toggle editor-settings-item" title="勾选后按颜色导出会先选择一个 SRT 文件名作为前缀，再下载「前缀_颜色.srt」；取消勾选则逐个颜色弹出保存对话框">
-                <input type="checkbox" id="export-color-unified" checked> 彩色字幕统一导出
-              </label>
-              <small class="editor-settings-hint">选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。</small>
-            </div>
-          </div>
-        </div>
-
         <div class="editor-settings-group settings-category" data-settings-category="subtitle-speakers">
           <div class="settings-category-header">说话人色系</div>
           <div class="editor-settings-sub-group" id="speaker-label-settings">
@@ -2304,97 +2262,10 @@ __WAVEFORM_CSS__
 </div>
 
 <!-- Lottie 动态字幕导出；由 server-editor 打包为单个 .lottie 文件。 -->
-<div class="modal-mask" id="lottie-export-modal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lottie-export-title" aria-describedby="lottie-export-description">
-    <h3 id="lottie-export-title">Lottie 动态字幕</h3>
-    <p class="modal-desc" id="lottie-export-description">导出单个 .lottie 文件，可直接拖入 DaVinci Resolve 21 的 Media Pool 或时间线。当前版本使用逐字/逐词高亮，并沿用 MSW 的字幕预览字体、颜色和位置。</p>
-    <label for="lottie-export-track">字幕轨道</label>
-    <select id="lottie-export-track">
-      <option value="main" selected>主轨字幕</option>
-      <option value="extension">副字幕轨</option>
-    </select>
-    <label class="row" for="lottie-export-gap-removed">
-      <input type="checkbox" id="lottie-export-gap-removed"> 去除间隙
-    </label>
-    <p class="modal-hint">勾选后将字幕和字词时间映射到去除静音空隙后的压缩时间线。</p>
-    <label for="lottie-export-resolution">合成尺寸</label>
-    <select id="lottie-export-resolution">
-      <option value="1920x1080" selected>1920 × 1080（横屏）</option>
-      <option value="1080x1920">1080 × 1920（竖屏）</option>
-      <option value="3840x2160">3840 × 2160（4K 横屏）</option>
-      <option value="custom">自定义…</option>
-    </select>
-    <div class="row" id="lottie-export-custom-size" hidden>
-      <input type="number" id="lottie-export-custom-width" min="16" max="7680" step="1" value="1920" aria-label="宽度">
-      <span aria-hidden="true">×</span>
-      <input type="number" id="lottie-export-custom-height" min="16" max="7680" step="1" value="1080" aria-label="高度">
-    </div>
-    <label for="lottie-export-fps">导出帧率</label>
-    <select id="lottie-export-fps">
-      <option value="24">24 fps</option>
-      <option value="25">25 fps</option>
-      <option value="30" selected>30 fps</option>
-      <option value="30000/1001">30000/1001 fps</option>
-      <option value="50">50 fps</option>
-      <option value="60">60 fps</option>
-      <option value="60000/1001">60000/1001 fps</option>
-    </select>
-    <label for="lottie-export-render-mode">文字渲染</label>
-    <select id="lottie-export-render-mode">
-      <option value="text" selected>文本模式（依赖系统字体）</option>
-      <option value="glyph">矢量模式（内置字形，文件更大）</option>
-    </select>
-    <p class="modal-hint">文本模式只记录字体名；矢量模式会把当前字幕实际用到的字形轮廓内置到包里，适合中文和未安装相同字体的机器。</p>
-    <div class="actions">
-      <button type="button" id="lottie-export-cancel">取消</button>
-      <button type="button" id="lottie-export-confirm" class="primary">导出 .lottie</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- OGraf 动态字幕导出；由 server-editor 打包 manifest 与 Web Component sidecar。 -->
-<div class="modal-mask" id="ograf-export-modal">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ograf-export-title" aria-describedby="ograf-export-description">
-    <h3 id="ograf-export-title">OGraf 动态字幕</h3>
-    <p class="modal-desc" id="ograf-export-description">导出符合 OGraf 规范的 .ograf.zip；解压后保持 .ograf.json 与 .mjs 同目录，再把 .ograf.json 拖入 DaVinci Resolve 21。字幕由 Canvas Web Component 渲染。</p>
-    <label for="ograf-export-track">字幕轨道</label>
-    <select id="ograf-export-track">
-      <option value="main" selected>主轨字幕</option>
-      <option value="extension">副字幕轨</option>
-    </select>
-    <label class="row" for="ograf-export-gap-removed">
-      <input type="checkbox" id="ograf-export-gap-removed"> 去除间隙
-    </label>
-    <p class="modal-hint">勾选后将字幕和字词时间映射到去除静音空隙后的压缩时间线。</p>
-    <label for="ograf-export-resolution">合成尺寸</label>
-    <select id="ograf-export-resolution">
-      <option value="1920x1080" selected>1920 × 1080（横屏）</option>
-      <option value="1080x1920">1080 × 1920（竖屏）</option>
-      <option value="3840x2160">3840 × 2160（4K 横屏）</option>
-      <option value="custom">自定义…</option>
-    </select>
-    <div class="row" id="ograf-export-custom-size" hidden>
-      <input type="number" id="ograf-export-custom-width" min="16" max="7680" step="1" value="1920" aria-label="宽度">
-      <span aria-hidden="true">×</span>
-      <input type="number" id="ograf-export-custom-height" min="16" max="7680" step="1" value="1080" aria-label="高度">
-    </div>
-    <label for="ograf-export-fps">导出帧率</label>
-    <select id="ograf-export-fps">
-      <option value="24">24 fps</option>
-      <option value="25">25 fps</option>
-      <option value="30" selected>30 fps</option>
-      <option value="30000/1001">30000/1001 fps</option>
-      <option value="50">50 fps</option>
-      <option value="60">60 fps</option>
-      <option value="60000/1001">60000/1001 fps</option>
-    </select>
-    <p class="modal-hint">这是包含两个文件的压缩包，不是可单独使用的 JSON；解压后不要分离或改名。Canvas 使用 Resolve 所在机器的系统字体回退链，适合验证中文显示。</p>
-    <div class="actions">
-      <button type="button" id="ograf-export-cancel">取消</button>
-      <button type="button" id="ograf-export-confirm" class="primary">导出 .ograf.zip</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- 浏览器无法直接读取工程所在目录的关联媒体时，只通过这个按钮请求一次媒体授权。 -->
 <div class="modal-mask" id="project-media-modal">
@@ -2648,6 +2519,56 @@ __WAVEFORM_CSS__
       <div class="msw-processing-actions audio-actions-footer"><small id="audio-actions-fill-count" class="msw-processing-hint"></small><button id="audio-actions-fill" type="button" disabled>补齐字幕</button></div></section>
     <p id="audio-actions-message" class="msw-processing-message" role="status" aria-live="polite"></p>
     <details id="audio-actions-details" hidden><summary>处理详情</summary><div id="audio-actions-results" data-i18n-skip></div></details>
+  </div>
+</aside>
+
+<aside class="gap-remove-panel msw-processing-panel msw-media-export-panel" id="subtitle-export-panel" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="subtitle-export-title">
+  <header class="gap-remove-panel-header" id="subtitle-export-drag">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">文件</span><h3 id="subtitle-export-title">导出字幕</h3></div>
+    <button type="button" id="subtitle-export-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭字幕导出"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </header>
+  <div class="gap-remove-panel-body">
+    <fieldset id="subtitle-export-fields">
+      <section class="settings-panel-section msw-export-section">
+        <span class="settings-panel-title">导出设置</span>
+        <div class="media-settings-grid">
+          <label class="media-settings-field" data-option-help="SRT：文字与时间；ASS：工程样式、位置与动画；TXT：纯文本。Lottie／OGraf：单轨逐字高亮动态图形，使用独立渲染规则，不包含完整 ASS 效果。">格式<select id="subtitle-export-format"><option value="srt">SRT 字幕</option><option value="ass">ASS 带样式字幕</option><option value="txt">TXT 纯文本</option><option value="lottie">Lottie 动态字幕</option><option value="ograf">OGraf 动态字幕</option></select></label>
+          <label class="media-settings-field">文件名<input id="subtitle-export-filename" type="text" maxlength="160" autocomplete="off" spellcheck="false"></label>
+          <label class="media-settings-field" id="subtitle-export-mode-field" data-option-help="保留各条字幕：按时间输出。合并同时显示文本：把同一时刻的多轨字幕合为一条。按说话人分文件：每位说话人一份，未标记的字幕单独一份。">输出方式<select id="subtitle-export-mode"><option value="original">保留各条字幕</option><option value="merged">合并同时显示文本</option><option value="speaker">按说话人分文件</option></select></label>
+        </div>
+      </section>
+      <section class="settings-panel-section msw-export-section">
+        <span class="settings-panel-title">字幕轨道</span>
+        <div id="subtitle-export-scope" class="subtitle-export-tracks"></div>
+        <div class="media-settings-grid" id="subtitle-export-single-track-field" hidden><label class="media-settings-field">轨道<select id="subtitle-export-single-track"></select></label></div>
+        <div class="subtitle-export-toggles">
+          <label class="media-preview-toggle" id="subtitle-export-speaker-field" data-option-help="使用各轨道语言对应的名称，并遵守说话人表中的显示开关。不会把名称写回字幕正文。"><input id="export-speaker-labels" type="checkbox">导出说话人名称</label>
+          <label class="media-preview-toggle" id="subtitle-export-gaps-field" data-option-help="移除已标记的空隙，并压缩导出时间轴；不会修改工程。固定空隙同样参与处理。"><input id="subtitle-export-remove-gaps" type="checkbox">跳过空隙</label>
+        </div>
+      </section>
+      <section class="settings-panel-section msw-export-section" id="subtitle-export-dynamic" hidden>
+        <span class="settings-panel-title">动态图形</span>
+        <div class="media-settings-grid">
+          <label class="media-settings-field">合成尺寸<select id="subtitle-export-resolution"><option value="1920x1080">1920 × 1080</option><option value="1080x1920">1080 × 1920</option><option value="3840x2160">3840 × 2160</option><option value="custom">自定义</option></select></label>
+          <label class="media-settings-field">帧率<select id="subtitle-export-fps"><option value="24">24 fps</option><option value="25">25 fps</option><option value="30" selected>30 fps</option><option value="30000/1001">29.97 fps</option><option value="50">50 fps</option><option value="60">60 fps</option><option value="60000/1001">59.94 fps</option></select></label>
+          <label class="media-settings-field" id="subtitle-export-render-field">文字渲染<select id="subtitle-export-render-mode"><option value="text">文本（使用系统字体）</option><option value="glyph">矢量（内置字形）</option></select></label>
+        </div>
+        <div class="media-settings-grid" id="subtitle-export-custom-size" hidden>
+          <label class="media-settings-field">宽度<input id="subtitle-export-width" type="number" min="16" max="7680" value="1920"></label>
+          <label class="media-settings-field">高度<input id="subtitle-export-height" type="number" min="16" max="7680" value="1080"></label>
+        </div>
+      </section>
+      <details class="settings-panel-section msw-export-section" id="subtitle-export-more">
+        <summary class="settings-panel-title">更多选项</summary>
+        <div class="subtitle-export-toggles">
+          <label class="media-preview-toggle" id="subtitle-export-zero-field" data-option-help="只将首条导出字幕的起点延长到 00:00，保留结束时间与后续字幕时间。不修改工程。"><input id="export-start-at-zero" type="checkbox">首条字幕从 0 开始</label>
+          <label class="media-preview-toggle" id="subtitle-export-unified-field" data-option-help="使用上方文件名统一下载。取消后，每份文件单独选择保存位置。浏览器可能需要允许下载多个文件。"><input id="export-color-unified" type="checkbox" checked>统一文件名前缀</label>
+          <label class="media-preview-toggle" id="subtitle-export-suffix-field"><input id="export-speaker-names-suffix" type="checkbox">分文件使用说话人名称</label>
+        </div>
+      </details>
+    </fieldset>
+    <p id="subtitle-export-message" class="msw-processing-message" role="status" aria-live="polite" hidden></p>
+    <div class="msw-processing-actions msw-export-footer"><span id="subtitle-export-summary" class="msw-processing-hint"></span><button id="subtitle-export-start" type="button" class="primary">开始导出</button></div>
   </div>
 </aside>
 

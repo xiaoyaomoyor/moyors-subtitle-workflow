@@ -9,6 +9,18 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    'SRT 字幕': 'SRT subtitles',
+    'ASS 带样式字幕': 'ASS styled subtitles',
+    'TXT 纯文本': 'TXT plain text',
+    'Lottie 动态字幕': 'Lottie animated subtitles',
+    'OGraf 动态字幕': 'OGraf animated subtitles',
+    '保留各条字幕': 'Keep individual cues',
+    '合并同时显示文本': 'Merge simultaneous text',
+    '按说话人分文件': 'Separate files by speaker',
+    '统一文件名前缀': 'Use one filename prefix',
+    '首条字幕从 0 开始': 'Start the first cue at zero',
+    '去空隙时间线': 'Timelines with gaps removed',
+    '关闭字幕导出': 'Close subtitle export',
     '说话人方案': 'Speaker schemes', '选择方案': 'Choose a scheme', '对应并应用': 'Match and apply',
     '更新所选说话人方案': 'Update selected speaker scheme', '另存为说话人方案': 'Save as speaker scheme',
     '删除说话人方案': 'Delete speaker scheme', '方案名称': 'Scheme name', '保存方案': 'Save scheme', '删除方案': 'Delete scheme',

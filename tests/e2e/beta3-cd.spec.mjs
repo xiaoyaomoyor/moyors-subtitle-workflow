@@ -119,7 +119,7 @@ test('gap movement and boundary adjustment ignore two-pixel motion and support u
   expect(await read()).not.toEqual(before);await page.evaluate(()=>performUndo());expect(await read()).toEqual(before);
 });
 
-test('color SRT export freezes speaker names and text before the file picker',async({page})=>{
+test('speaker SRT export freezes names and text before the first download',async({page})=>{
   const downloads=[];page.on('download',item=>downloads.push(item));
   await page.evaluate(()=>{
     DATA.segments.push({id:'blue',start:1500,end:2000,text:'Blue text',color:{name:'blue',start:1500,end:2000}});
@@ -127,13 +127,14 @@ test('color SRT export freezes speaker names and text before the file picker',as
     for(const row of DATA.preview.speaker_palette.rows){row.name={red:'Alice',blue:'Bob'}[row.id]||row.name;row.separator=': ';}
     rebuildEditorColorPalette();
     updateEditorSettings({exportSpeakerLabels:true,exportSpeakerNamesAsSuffix:true,exportColorUnified:true,exportStartAtZero:false});
-    window.showSaveFilePicker=async()=>{
+    const click=HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click=function(){
+      click.call(this);
       DATA.segments[0].text='Late change';DATA.preview.speaker_palette.rows[2].name='Changed';
       updateEditorSettings({exportColorUnified:false,exportStartAtZero:true});
-      return {name:'chosen.srt'};
     };
   });
-  await page.evaluate(()=>downloadColorSrts());await expect.poll(()=>downloads.length).toBe(2);
+  await page.evaluate(()=>{MSWSubtitleExport.open('srt');document.getElementById('subtitle-export-filename').value='chosen';document.getElementById('subtitle-export-mode').value='speaker';document.getElementById('subtitle-export-start').click();});await expect.poll(()=>downloads.length).toBe(2);
   const files={};for(const download of downloads){const stream=await download.createReadStream(),chunks=[];for await(const chunk of stream)chunks.push(chunk);files[download.suggestedFilename()]=Buffer.concat(chunks).toString('utf8');}
   expect(files['chosen_Alice.srt']).toContain('Alice: Hello');expect(files['chosen_Bob.srt']).toContain('00:00:01,500');
   expect(files['chosen_Alice.srt']).not.toContain('Late change');

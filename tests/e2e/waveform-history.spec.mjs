@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import { DURATION_MS, addBwfTimeReference, cleanupTempDir, clickMenubarItem, findFreePort, generateProjectJson, generateWav, makeFirstCueWordSplittable, makeTempDir, openHelpPanel, startServer, testSegments, toggleEditorSettings, toggleCueEditorSettings, toggleCueListSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
+import { DURATION_MS, addBwfTimeReference, cleanupTempDir, clickMenubarItem, openMenubarMenu, findFreePort, generateProjectJson, generateWav, makeFirstCueWordSplittable, makeTempDir, openHelpPanel, startServer, testSegments, toggleEditorSettings, toggleCueEditorSettings, toggleCueListSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
@@ -1886,14 +1886,14 @@ test('colored subtitles export per-color SRT files including the uncolored defau
     window.showSaveFilePicker = undefined;
   });
 
-  await expect(page.locator('#subtitle-export-dropdown')).toBeAttached();
+  await expect(page.locator('#subtitle-export-btn')).toBeAttached();
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
-  await expect(page.locator('#download-full-srt')).toBeVisible();
-  await expect(page.locator('#download-color-srt')).toBeVisible();
+  await expect(page.locator('#subtitle-export-format')).toHaveValue('srt');
+  await page.locator('#subtitle-export-mode').selectOption('speaker');
 
   const downloads = [];
   page.on('download', (download) => downloads.push(download));
-  await clickMenubarItem(page, '文件', 'download-color-srt');
+  await page.locator('#subtitle-export-start').click();
   await expect.poll(() => downloads.length).toBe(3);
   expect(downloads.map((download) => download.suggestedFilename())).toEqual([
     'project_红色.srt',
@@ -1906,30 +1906,26 @@ test('colored subtitles export per-color SRT files including the uncolored defau
     return Buffer.concat(chunks).toString('utf8');
   })).toContain('Alpha');
 
-  await clickMenubarItem(page, '文件', 'extra-export-btn');
-  await page.locator('#extra-export-menu > .dropdown-submenu').nth(2)
-    .locator('.dropdown-submenu-toggle').click();
-  await expect(page.locator('#extra-data-menu')).toBeVisible();
-  const textDownload = page.waitForEvent('download');
-  await clickMenubarItem(page, '文件', 'download-plain-text');
+  await page.locator('#subtitle-export-format').selectOption('txt');
+  const textDownload=page.waitForEvent('download');await page.locator('#subtitle-export-start').click();
   expect((await textDownload).suggestedFilename()).toBe('project.txt');
 });
 
 test('subtitle export keeps a stable menu and hides colors without enabled colored subtitles', async ({ page }) => {
   await page.goto(server.url);
   await expect(page.locator('#download-srt')).toHaveCount(0);
-  await expect(page.locator('#subtitle-export-dropdown')).toBeAttached();
+  await expect(page.locator('#subtitle-export-btn')).toBeAttached();
   await clickMenubarItem(page, '文件', 'subtitle-export-btn');
-  await expect(page.locator('#download-full-srt')).toBeVisible();
-  await expect(page.locator('#download-color-srt')).toBeHidden();
+  await expect(page.locator('#subtitle-export-format')).toHaveValue('srt');
+  await expect(page.locator('#subtitle-export-start')).toBeEnabled();
 
   await page.evaluate(() => {
     DATA.segments[0].color = { name: 'red', value: '#e74c3c', start: 0, end: 8000 };
     DATA.segments[0].disabled = true;
     renderAll();
   });
-  await expect(page.locator('#subtitle-export-dropdown')).toBeAttached();
-  await expect(page.locator('#download-color-srt')).toBeHidden();
+  await expect(page.locator('#subtitle-export-btn')).toBeAttached();
+  await expect(page.locator('#subtitle-export-start')).toBeEnabled();
 
   await page.evaluate(() => {
     DATA.gap_remove = {
@@ -1948,15 +1944,12 @@ test('subtitle export keeps a stable menu and hides colors without enabled color
     updateGapRemoveUi();
     renderAll();
   });
-  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
-  await expect(page.locator('#gap-removed-export-dropdown')).toBeVisible();
-  await page.locator('#gap-removed-export-btn').click();
-  await expect(page.locator('#download-gap-removed-color-srt')).toBeHidden();
+  await expect(page.locator('#subtitle-export-remove-gaps')).toBeVisible();
 });
 
 test('nested export menus preserve pointer reachability and keyboard focus', async ({ page }) => {
   await page.goto(server.url);
-  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
+  await openMenubarMenu(page, '文件');
   const exportButton = page.locator('#extra-export-btn');
   const otioToggle = page.locator('#extra-export-menu > .dropdown-submenu').first()
     .locator(':scope > .dropdown-submenu-toggle');
@@ -1990,7 +1983,7 @@ test('nested export menus preserve pointer reachability and keyboard focus', asy
 
 test('nested export menus keep the current submenu while the pointer crosses its aim corridor', async ({ page }) => {
   await page.goto(server.url);
-  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
+  await openMenubarMenu(page, '文件');
   const exportButton = page.locator('#extra-export-btn');
   const otioWrapper = page.locator('#extra-export-menu > .dropdown-submenu').first();
   const dynamicWrapper = page.locator('#extra-export-menu > .dropdown-submenu').nth(1);
@@ -2019,9 +2012,9 @@ test('nested export menus keep the current submenu while the pointer crosses its
   );
   await page.waitForTimeout(40);
   await expect(page.locator('#extra-otio-menu')).toBeVisible({ timeout: 100 });
-  await expect(page.locator('#extra-dynamic-menu')).toBeHidden();
+  await expect(page.locator('#extra-data-menu')).toBeHidden();
   await page.waitForTimeout(180);
-  await expect(page.locator('#extra-dynamic-menu')).toBeVisible();
+  await expect(page.locator('#extra-data-menu')).toBeVisible();
 });
 
 test('sticker Resolve and OTIO exports expand references per enabled subtitle', async ({ page }) => {

@@ -22,13 +22,13 @@ test('file menu separates subtitle, video and audio exports and keeps nested exp
   await expect(page.locator('#video-export-btn')).toBeDisabled();
   await expect(page.locator('#audio-export-btn')).toBeVisible();
   await expect(page.locator('#audio-export-btn')).toBeDisabled();
-  await expect(page.locator('#extra-export-btn')).not.toBeVisible();
+  await expect(page.locator('#extra-export-btn')).toBeVisible();
   await page.keyboard.press('Escape');
   await clickMenubarItem(page, '文件', 'extra-export-btn');
-  await expect(page.locator('#subtitle-export-dropdown #extra-export-menu')).toBeVisible();
+  await expect(page.locator('#extra-export-menu')).toBeVisible();
   await expect(page.locator('#download-fcp7-export')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.locator('#subtitle-export-dropdown #extra-export-menu')).not.toBeVisible();
+  await expect(page.locator('#extra-export-menu')).not.toBeVisible();
 });
 
 test('deep subtitle export menus stay inside a narrow viewport', async ({ page }) => {

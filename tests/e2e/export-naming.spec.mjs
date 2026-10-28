@@ -20,13 +20,17 @@ for (const [language, suffix] of [['zh', '去空隙'], ['en', 'gap-removed']]) {
     await page.addInitScript((lang) => localStorage.setItem('mawe.language', lang), language);
     await page.goto(server.url);
     await page.waitForFunction(() => window.MSWE_I18N && typeof DATA !== 'undefined');
+    await page.evaluate(lang=>MSWE_I18N.applyLanguage(lang),language);
     await page.evaluate(() => {
       window.showSaveFilePicker = undefined;
       DATA.gap_remove = { schema: 'moy.asr.gap_remove.v1', detector: 'audio_gate', skip_playback: true, gaps: [{ start: 1500, end: 2000, removed: true }] };
       updateGapRemoveUi();
     });
     const download = page.waitForEvent('download');
-    await clickMenubarItem(page, '文件', 'download-gap-removed-srt');
+    await clickMenubarItem(page, '文件', 'subtitle-export-btn');
+    await page.locator('#subtitle-export-filename').fill(`project_${suffix}`);
+    await page.locator('#subtitle-export-remove-gaps').check();
+    await page.locator('#subtitle-export-start').click();
     expect((await download).suggestedFilename()).toBe(`project_${suffix}.srt`);
     expect(await page.evaluate(() => DATA.gap_remove.schema)).toBe('moy.asr.gap_remove.v1');
     expect(await page.evaluate(() => window.MSWE_I18N.exportTag('stickers'))).toBe(language === 'zh' ? '表情包' : 'stickers');

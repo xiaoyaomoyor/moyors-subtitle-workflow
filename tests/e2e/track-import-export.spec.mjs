@@ -68,7 +68,7 @@ test('dropping SRT into an empty project still asks for a destination and can be
 test('shared SRT and exact ASS export scope includes right-column third track and excludes disabled',async({page},info)=>{
  const before=await snapshot(page);
  const all=await page.evaluate(()=>buildSrt());expect(all).toContain('Text three');expect(all).toContain('Text two');expect(all).not.toContain('Text off');
- await clickMenubarItem(page,'文件','subtitle-export-btn');await page.locator('#subtitle-export-scope summary').click();
+ await clickMenubarItem(page,'文件','subtitle-export-btn');
  await page.locator('#subtitle-export-scope label').filter({hasText:/^S1$/}).click();
  await expect.poll(()=>page.evaluate(()=>fixedExportTracks)).toEqual(['two','three']);
  await page.locator('#subtitle-export-scope label').filter({hasText:/^S2$/}).click();
