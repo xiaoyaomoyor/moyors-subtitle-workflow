@@ -11,6 +11,39 @@ from maw.speaker import apply_speaker_colors, inherit_speaker_color
 
 
 class SpeakerPaletteTests(unittest.TestCase):
+    def test_language_visibility_preserves_text_and_color_and_obeys_master(self):
+        from maw.msw.speaker_palette import name_visible, prefix
+        p = self.project()
+        row = p['preview']['speaker_palette']['rows'][0]
+        row.update(name='Condi', names={'zh-hans':'康迪'}, mode='text')
+        p['preview']['speaker_labels_visible'] = True
+        self.assertTrue(name_visible(row, 'en'))
+        row['name_visibility'] = {'en':False, '':False}
+        for locale in ('en', 'en-US', ''):
+            self.assertEqual(prefix(p, row, locale), '')
+        self.assertEqual(prefix(p, row, 'zh-CN'), '康迪 / ')
+        self.assertEqual(prefix(p, row, 'fr'), 'Condi / ')
+        row['name_visibility']['en-us'] = True
+        self.assertEqual(prefix(p, row, 'en-US'), 'Condi / ')
+        p['preview']['speaker_labels_visible'] = False
+        self.assertEqual(prefix(p, row, 'zh'), '')
+        p['preview']['speaker_label_export'] = True
+        self.assertEqual(prefix(p, row, 'zh'), '康迪 / ')
+        self.assertEqual(prefix(p, row, 'en'), '')
+        video = dict(width=640, height=360)
+        plan = dict(intervals=[dict(start_ms=0, end_ms=2000, output_start_ms=0)])
+        for locale in ('en', 'zh'):
+            p['subtitles']['tracks'][0]['language'] = locale
+            ass = preview_ass(dict(project=p, video=video))['ass']
+            self.assertEqual(ass, styled_ass(p, plan, 'both', video))
+            self.assertEqual('康迪 / ' in ass, locale == 'zh')
+            self.assertNotIn('Condi / ', ass)
+            self.assertIn('563412', ass)
+        for flags in (None, [], {'zh':False}, {'en':0}, {'en':'false'}, {'invalid':False}):
+            row['name_visibility'] = flags
+            with self.assertRaises(ValueError):
+                validate_palette(p['preview']['speaker_palette'])
+
     def test_localized_names_follow_physical_track_in_preview_and_export(self):
         from maw.msw.speaker_palette import display_name
         p = self.project()

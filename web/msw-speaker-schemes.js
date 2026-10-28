@@ -5,7 +5,7 @@
   const clone=v=>JSON.parse(JSON.stringify(v));
   const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
   const signature=v=>JSON.stringify(canonical(v));
-  const fields=['name','names','color','mode','separator','style','animation'];
+  const fields=['name','names','name_visibility','color','mode','separator','style','animation'];
   const identity=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,160}$/.test(v);
   const describe=row=>Object.fromEntries(fields.filter(k=>row[k]!==undefined).map(k=>[k,clone(row[k])]));
   function validScheme(s){

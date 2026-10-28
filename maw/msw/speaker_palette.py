@@ -27,6 +27,16 @@ def display_name(row, locale=''):
     return next((row.get('names', {}).get(k) for k in keys if row.get('names', {}).get(k)), row['name'])
 
 
+def name_visible(row, locale=''):
+    code = language(locale)
+    keys = [code]
+    if code.startswith(('zh-hans-', 'zh-hant-')):
+        keys.append('-'.join(code.split('-')[:2]))
+    keys.append(code.split('-')[0])
+    flags = (row or {}).get('name_visibility', {})
+    return next((flags[k] for k in keys if type(flags.get(k)) is bool), True)
+
+
 def validate(value):
     if not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] != 1 or not isinstance(value.get('rows'), list) or not 1 <= len(value['rows']) <= 1024:
         raise ValueError('说话人色系必须包含 1–1024 个说话人')
@@ -49,6 +59,11 @@ def validate(value):
                     not k or k != language(k) or not isinstance(v, str) or not v.strip() or len(v) > 64
                     or any(ord(c) < 32 or ord(c) == 127 for c in v) for k, v in names.items()):
                 raise ValueError('说话人多语言名称无效')
+        if 'name_visibility' in row:
+            flags = row['name_visibility']
+            if not isinstance(flags, dict) or len(flags) > 65 or any(
+                    k != language(k) or type(v) is not bool for k, v in flags.items()):
+                raise ValueError('说话人名称显示配置无效')
         for field, limit in [('name', 64), ('separator', 16)]:
             text = row.get(field)
             if not isinstance(text, str) or len(text) > limit or any(ord(c) < 32 or ord(c) == 127 for c in text) or field == 'name' and not text.strip():
@@ -72,7 +87,7 @@ def prefix(project, row, locale=''):
         return ''
     preview = project.get('preview') or {}
     show = preview.get('speaker_label_export', preview.get('speaker_labels_visible'))
-    return display_name(row, locale) + row['separator'] if (show if type(show) is bool else row['mode'] == 'speaker') else ''
+    return display_name(row, locale) + row['separator'] if (show if type(show) is bool else row['mode'] == 'speaker') and name_visible(row, locale) else ''
 
 
 def appearance(style, cue, row):

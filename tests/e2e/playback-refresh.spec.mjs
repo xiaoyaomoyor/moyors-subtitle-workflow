@@ -29,7 +29,8 @@ test('playback refreshes the subtitle preview and playhead without timeupdate', 
       return addEventListener.call(this, type, listener, options);
     };
   });
-  await page.goto(server.url);
+  // This fixture targets the legacy DOM overlay, not the current ASS canvas.
+  await page.goto(server.url+'?subtitle-layers=0&subtitle-tracks=0');
   await page.waitForFunction(() => {
     const media = document.getElementById('player');
     return media.readyState >= 1 && Number.isFinite(media.duration) && media.duration > 0;
@@ -122,7 +123,7 @@ test('JKL direction mode drives the timeline backward and forward', async ({ pag
 
   await toggleMediaSettings(page);
   await expect(page.locator('#jkl-playback-mode')).toHaveValue('direction');
-  await expect(page.locator('#jkl-playback-mode-hint')).toContainText('J 倒放');
+  await expect(page.locator('#jkl-playback-mode-hint')).toContainText('J 逐档减速');
 
   await page.evaluate(() => {
     const media = document.getElementById('player');
@@ -130,17 +131,22 @@ test('JKL direction mode drives the timeline backward and forward', async ({ pag
     media.currentTime = 20;
     media.dispatchEvent(new Event('timeupdate'));
   });
-  await page.keyboard.press('j');
+  for (const rate of ['0.75', '0.5', '-0.5', '-0.75', '-1']) {
+    await page.keyboard.press('j');
+    await expect(page.locator('#media-playback-rate')).toHaveValue(rate);
+  }
+  await page.evaluate(() => { player.currentTime=20; });
   await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeLessThan(19.8);
   await expect(page.locator('#media-playback-rate')).toHaveValue('-1');
   await expect(page.locator('#media-playback-rate option:checked')).toHaveText('-1×');
-  for (const rate of ['-2', '-4', '-8', '-16']) {
+  for (const rate of ['-1.25', '-1.5', '-2', '-2']) {
     await page.keyboard.press('j');
     await expect(page.locator('#media-playback-rate')).toHaveValue(rate);
   }
 
-  const stoppedAt = await page.evaluate(() => document.getElementById('player').currentTime);
   await page.keyboard.press('k');
+  const stoppedAt = await page.evaluate(() => document.getElementById('player').currentTime);
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   await expect(page.locator('#media-playback-rate')).toHaveValue('1');
   await expect.poll(() => page.evaluate(() => document.getElementById('player').paused)).toBe(true);
   await expect.poll(() => page.evaluate((expected) => {
@@ -157,14 +163,16 @@ test('JKL direction mode drives the timeline backward and forward', async ({ pag
   await page.keyboard.press(' ');
   await expect.poll(() => page.evaluate(() => document.getElementById('player').paused)).toBe(true);
   const pausedForwardAt = await page.evaluate(() => document.getElementById('player').currentTime);
-  await page.keyboard.press('j');
-  await expect(page.locator('#media-playback-rate')).toHaveValue('-1');
+  for (const rate of ['0.75', '0.5', '-0.5']) {
+    await page.keyboard.press('j');
+    await expect(page.locator('#media-playback-rate')).toHaveValue(rate);
+  }
   await expect.poll(() => page.evaluate((expected) => {
     return expected - document.getElementById('player').currentTime;
   }, pausedForwardAt)).toBeGreaterThan(0.1);
 
   await page.keyboard.press('l');
-  await expect(page.locator('#media-playback-rate')).toHaveValue('1');
+  await expect(page.locator('#media-playback-rate')).toHaveValue('0.5');
   await expect.poll(() => page.evaluate((expected) => {
     return document.getElementById('player').currentTime - expected;
   }, pausedForwardAt)).toBeGreaterThan(0.1);
@@ -173,6 +181,21 @@ test('JKL direction mode drives the timeline backward and forward', async ({ pag
   await expect(page.locator('#subtitle-preview-settings-panel')).toBeVisible();
   await page.locator('#jkl-playback-mode').selectOption('speed');
   await toggleMediaSettings(page);
-  await page.keyboard.press('j');
-  await expect.poll(() => page.evaluate(() => document.getElementById('player').playbackRate)).toBe(0.5);
+  for (const rate of [0.75, 0.5, 0.5]) {
+    await page.keyboard.press('j');
+    await expect.poll(() => page.evaluate(() => document.getElementById('player').playbackRate)).toBe(rate);
+  }
+  for (const rate of [0.75, 1, 1.25, 1.5, 2, 2]) {
+    await page.keyboard.press('l');
+    await expect(page.locator('#media-playback-rate')).toHaveValue(String(rate));
+  }
+  await page.keyboard.press('k');await expect(page.locator('#media-playback-rate')).toHaveValue('1');
+  await page.locator('#media-playback-rate').selectOption('1.5');
+  await page.locator('#media-playback-rate').blur();
+  await page.keyboard.press('j');await expect(page.locator('#media-playback-rate')).toHaveValue('1.25');
+  // Typing in a field and browser shortcut modifiers must not change playback.
+  await page.locator('#media-playback-rate').focus();
+  await page.keyboard.press('j');await expect(page.locator('#media-playback-rate')).toHaveValue('1.25');
+  await page.locator('#media-playback-rate').blur();
+  await page.keyboard.press('Control+j');await expect(page.locator('#media-playback-rate')).toHaveValue('1.25');
 });

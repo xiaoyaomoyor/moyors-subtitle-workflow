@@ -25,17 +25,27 @@
     keys.push(code.split('-')[0]);
     return keys.map(k=>profile.names?.[k]).find(Boolean)||profile.name;
   }
+  function nameVisible(profile,locale='') {
+    const code=language(locale),keys=[code];
+    if(code.startsWith('zh-hans-'))keys.push('zh-hans');
+    if(code.startsWith('zh-hant-'))keys.push('zh-hant');
+    keys.push(code.split('-')[0]);
+    return keys.map(k=>profile?.name_visibility?.[k]).find(v=>typeof v==='boolean')??true;
+  }
   // Build once per operation. Do not scan a long project's assignments for
   // every rendered cue; identity/ownership, not list columns, decides language.
-  function nameResolver(project) {
+  function nameResolver(project,{visibleOnly=false}={}) {
     const model=project.subtitles||project.subtitle_tracks;
     const tracks=new Map((model?.tracks||[]).map(t=>[t.id,t]));
     const owners=new Map(project.subtitles?project.subtitles.cues.map(c=>[c.id,c.track_id]):(model?.assignments||[]).map(a=>[a.cue_id,a.subtitle_track_id]));
-    return (profile,cue)=>displayName(profile,tracks.get(owners.get(cue?.id))?.language);
+    return (profile,cue)=>{
+      const locale=tracks.get(owners.get(cue?.id))?.language;
+      return visibleOnly&&!nameVisible(profile,locale)?'':displayName(profile,locale);
+    };
   }
   function languageOptions(project) {
     const extra=[...(project.subtitles?.tracks||project.subtitle_tracks?.tracks||[]).map(t=>language(t.language)),
-      ...(project.preview?.speaker_palette?.rows||[]).flatMap(r=>Object.keys(r.names||{}))];
+      ...(project.preview?.speaker_palette?.rows||[]).flatMap(r=>[...Object.keys(r.names||{}),...Object.keys(r.name_visibility||{})])];
     const result=languages.map(r=>r.slice()),known=new Set(result.map(r=>r[0]));
     for(const code of extra)if(code&&!known.has(code)){let label=code;try{label=new Intl.DisplayNames(['zh'],{type:'language'}).of(code)||code;}catch(_){}result.push([code,label]);known.add(code);}
     return result;
@@ -57,6 +67,8 @@
           &&['scheme_id','person_id'].every(k=>typeof r.scheme_ref[k]==='string'&&/^[a-zA-Z0-9_-]{1,160}$/.test(r.scheme_ref[k])))
         &&(r.names===undefined||r.names&&typeof r.names==='object'&&!Array.isArray(r.names)&&Object.keys(r.names).length<=64
           &&Object.entries(r.names).every(([k,v])=>k&&k===language(k)&&typeof v==='string'&&v.trim()&&v.length<=64&&!/[\u0000-\u001f\u007f]/.test(v)))
+        &&(r.name_visibility===undefined||r.name_visibility&&typeof r.name_visibility==='object'&&!Array.isArray(r.name_visibility)&&Object.keys(r.name_visibility).length<=65
+          &&Object.entries(r.name_visibility).every(([k,v])=>k===language(k)&&typeof v==='boolean'))
         &&/^#[\da-f]{6}$/i.test(r.color)&&modes.includes(r.mode)&&typeof r.separator==='string'&&r.separator.length<=16&&!/[\u0000-\u001f\u007f]/.test(r.separator)
         &&(r.style===undefined||cueStyle()?.valid(r.style))&&(r.animation===undefined||motion()?.valid(r.animation))
         &&(r.style_preset===undefined||typeof r.style_preset==='string'&&r.style_preset.length<=160));
@@ -102,7 +114,7 @@
   function prefix(project,profile,locale='') {
     if(!profile)return '';
     const show=project.preview?.speaker_label_export??project.preview?.speaker_labels_visible;
-    return (typeof show==='boolean'?show:profile.mode==='speaker')?displayName(profile,locale)+profile.separator:'';
+    return (typeof show==='boolean'?show:profile.mode==='speaker')&&nameVisible(profile,locale)?displayName(profile,locale)+profile.separator:'';
   }
   function appearance(style,cue,profile) {
     if(!profile)return {...style};
@@ -116,7 +128,7 @@
     if(profile.animation)result.animation=motion().resolve(style.animation,profile.animation);
     return result;
   }
-  const api = { inherit,defaults,modes,languages,language,displayName,nameResolver,languageOptions,row,colorAt,valid,ensure,profile,prefix,appearance };
+  const api = { inherit,defaults,modes,languages,language,displayName,nameVisible,nameResolver,languageOptions,row,colorAt,valid,ensure,profile,prefix,appearance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSpeaker = api;
 })(typeof window !== 'undefined' ? window : globalThis);

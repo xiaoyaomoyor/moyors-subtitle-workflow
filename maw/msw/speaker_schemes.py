@@ -9,7 +9,7 @@ def validate(library):
             or not isinstance(library['schemes'], list) or len(library['schemes']) > 64):
         raise ValueError('说话人方案库无效（最多 64 个方案）')
     ids, names = set(), set()
-    fields = {'id', 'name', 'names', 'color', 'mode', 'separator', 'style', 'animation'}
+    fields = {'id', 'name', 'names', 'name_visibility', 'color', 'mode', 'separator', 'style', 'animation'}
     for scheme in library['schemes']:
         if (not isinstance(scheme, dict) or set(scheme) != {'id', 'name', 'rows'}
                 or not isinstance(scheme['id'], str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,160}', scheme['id'])

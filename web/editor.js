@@ -2403,6 +2403,8 @@ mediaVolume?.addEventListener('input', () => {
   mediaVolume.closest?.('.media-volume-control')?.classList.toggle('muted', Number(mediaVolume.value) <= 0);
 });
 const mediaPlaybackRate = document.getElementById('media-playback-rate');
+// Capture the menu's base choices before reverse playback adds a temporary option.
+const JKL_PLAYBACK_RATE_STEPS = Object.freeze(Array.from(mediaPlaybackRate.options, option => Number(option.value)).filter(rate => Number.isFinite(rate) && rate > 0).sort((a,b) => a-b));
 const mediaFullscreen = document.getElementById('media-fullscreen');
 // 预览层（字幕/表情包）的定位与几何测量都以 stage 为基准，不含顶部媒体工具栏。
 const playerStage = playerWrap?.querySelector('.player-stage') || playerWrap;
@@ -5315,12 +5317,12 @@ document.addEventListener('mawe:languagechange', refreshKeyboardOperationReferen
 
 const JKL_MODE_UI_TEXT = {
   zh: {
-    speed: { help: '倍速 ×0.5/重置/×2', hint: 'J 慢放，K 重置 1×，L 加速。' },
-    direction: { help: '倒放/停止/1×播放', hint: 'J 倒放，L 正放；K 播放／停止并重置为 1×。多次按 J/L 调整速度。' },
+    speed: { help: '逐档减速／重置／加速', hint: 'J 慢放，L 加速，按倍速菜单逐档调整；K 重置 1×。' },
+    direction: { help: '逐档倒放／停止／正放', hint: 'J 逐档减速，越过 0.5× 后倒放；L 反向逐档调整。K 播放／停止并重置为 1×。档位与倍速菜单一致。' },
   },
   en: {
-    speed: { help: 'Speed ×0.5/reset/×2', hint: 'J slows down, K resets to 1×, and L speeds up.' },
-    direction: { help: 'Reverse/stop/1× play', hint: 'J reverses and L plays forward. K toggles playback and resets to 1×. Press J/L repeatedly to adjust the speed.' },
+    speed: { help: 'Slower/reset/faster', hint: 'J steps down and L steps up through the speed menu. K resets to 1×.' },
+    direction: { help: 'Reverse/stop/forward steps', hint: 'J steps down, reversing below 0.5×. L steps in the opposite direction. K toggles playback and resets to 1×. Steps match the speed menu.' },
   },
 };
 function refreshJklPlaybackModeUi() {
@@ -13035,39 +13037,19 @@ document.addEventListener('keyup', (e) => {
 }, true);
 window.addEventListener('blur', () => { interceptedSpace = false; });
 
-// J/K/L 播放控制的两种模式：旧模式是慢速/重置/倍速；新模式是倒放/停止/1×播放。
-// HTML5 playbackRate 多数浏览器钳在 [0.0625, 16]，反向播放由时间轴驱动。
-const PLAYBACK_RATE_MIN = 0.0625;
-const PLAYBACK_RATE_MAX = 16;
-const JKL_PLAYBACK_RATE_STEPS = [1, 2, 4, 8, 16];
+// J/L share the menu's speed steps. Reverse playback is driven by the timeline.
 function fmtRate(r) {
   // 保留必要小数位：0.5/2/4 不带小数；0.25/0.0625 带
   if (Number.isInteger(r)) return r + '×';
   // 去掉尾部 0
   return r.toFixed(4).replace(/0+$/, '').replace(/\.$/, '') + '×';
 }
-function nextJklDirectionRate(current, direction) {
+function nextJklPlaybackRate(current, direction, reverse = false) {
   const rate = Number.isFinite(current) && current !== 0 ? current : 1;
-  const magnitude = Math.abs(rate);
-  let stepIndex = 0;
-  let smallestDistance = Infinity;
-  JKL_PLAYBACK_RATE_STEPS.forEach((step, index) => {
-    const distance = Math.abs(step - magnitude);
-    if (distance < smallestDistance) {
-      smallestDistance = distance;
-      stepIndex = index;
-    }
-  });
-  if (direction < 0) {
-    if (rate < 0) return -JKL_PLAYBACK_RATE_STEPS[Math.min(stepIndex + 1, JKL_PLAYBACK_RATE_STEPS.length - 1)];
-    if (stepIndex === 0) return -1;
-    return JKL_PLAYBACK_RATE_STEPS[stepIndex - 1];
-  }
-  if (rate < 0) {
-    if (stepIndex === 0) return 1;
-    return -JKL_PLAYBACK_RATE_STEPS[stepIndex - 1];
-  }
-  return JKL_PLAYBACK_RATE_STEPS[Math.min(stepIndex + 1, JKL_PLAYBACK_RATE_STEPS.length - 1)];
+  const steps = reverse ? [...JKL_PLAYBACK_RATE_STEPS].reverse().map(value => -value).concat(JKL_PLAYBACK_RATE_STEPS) : JKL_PLAYBACK_RATE_STEPS;
+  return direction < 0
+    ? [...steps].reverse().find(value => value < rate - 1e-6) ?? steps[0]
+    : steps.find(value => value > rate + 1e-6) ?? steps[steps.length - 1];
 }
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'j' && e.key !== 'J' && e.key !== 'k' && e.key !== 'K' && e.key !== 'l' && e.key !== 'L') return;
@@ -13111,7 +13093,7 @@ document.addEventListener('keydown', (e) => {
       flashHint('请先加载媒体，然后才能预览', 'invalid');
       return;
     }
-    jklPlaybackRate = nextJklDirectionRate(jklPlaybackRate, k === 'j' ? -1 : 1);
+    jklPlaybackRate = nextJklPlaybackRate(jklPlaybackRate, k === 'j' ? -1 : 1, true);
     if (jklPlaybackRate < 0) startJklReversePlayback();
     else playJklForward();
     flashHint(`${jklPlaybackRate < 0 ? '倒放' : '正放'}: ${fmtRate(jklPlaybackRate)}`);
@@ -13119,8 +13101,7 @@ document.addEventListener('keydown', (e) => {
   }
   let r = player.playbackRate;
   if (k === 'k') r = 1;
-  else if (k === 'j') r = Math.max(PLAYBACK_RATE_MIN, r * 0.5);
-  else if (k === 'l') r = Math.min(PLAYBACK_RATE_MAX, r * 2);
+  else r = nextJklPlaybackRate(r, k === 'j' ? -1 : 1);
   player.playbackRate = r;
   syncMediaControls();
   flashHint(`倍速: ${fmtRate(r)}`);
@@ -15464,7 +15445,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
     ? MULTI_SUBTITLE_UTILS.effectiveColorName(seg, DATA.segments)
     : null;
   const speakerProfile = window.MSWSpeaker.profile(DATA,seg,DATA.segments[seg?.color_ref?.headIdx]);
-  const speakerLabel = mainVisible && !!window.MSWSpeaker.prefix(DATA,speakerProfile)
+  const speakerLabel = mainVisible && !!window.MSWSpeaker.prefix(DATA,speakerProfile,speakerCueLanguage(seg))
     ? MSWSpeaker.displayName(speakerProfile,speakerCueLanguage(seg))
     : '';
   const speakerLabelVisible = Boolean(speakerLabel && mainColorName && COLOR_BY_NAME[mainColorName]);
@@ -15514,7 +15495,7 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
   const overlayColorContext = getOverlayTrack()?.segments || [];
   const overlayProfile=window.MSWSpeaker.profile(DATA,overlayCue,overlayColorContext[overlayCue?.color_ref?.headIdx]);
   const overlaySpeakerLabel = overlayCueVisible
-    && !!window.MSWSpeaker.prefix(DATA,overlayProfile)
+    && !!window.MSWSpeaker.prefix(DATA,overlayProfile,speakerCueLanguage(overlayCue,'overlay'))
     ? MSWSpeaker.displayName(overlayProfile,speakerCueLanguage(overlayCue,'overlay'))
     : '';
   const overlaySpeakerColorName = overlayCueVisible
@@ -15839,9 +15820,10 @@ function speakerExportOptions() {
     speakerLabels:Object.fromEntries(rows.map(r=>[r.id,r.name])),speakerLabelSeparator:'：',
     speakerSeparators:Object.fromEntries(rows.map(r=>[r.id,r.separator])),
     speakerTextResolver:(cue,context)=>{
-      resolveName||=MSWSpeaker.nameResolver(DATA);
+      resolveName||=MSWSpeaker.nameResolver(DATA,{visibleOnly:true});
       const profile=MSWSpeaker.profile(DATA,cue,context?.[cue.color_ref?.headIdx]);
-      return (profile?resolveName(profile,cue)+profile.separator:'')+String(cue.text||'');
+      const name=profile?resolveName(profile,cue):'';
+      return (name?name+profile.separator:'')+String(cue.text||'');
     }};
 }
 function speakerCueLanguage(cue,role='main',trackId=null) {
@@ -15862,9 +15844,23 @@ function syncSpeakerControls() {
   const create=(entry,index)=>{
     const tr=document.createElement('tr');tr.dataset.speakerId=entry?.id||'all';
     const number=document.createElement('th');number.scope='row';number.textContent=index;tr.append(number);
-    for(const field of ['name','color','mode','separator']) {
+    for(const field of ['name','name_visibility','color','mode','separator']) {
       const td=document.createElement('td');let input;
       if(field==='name'&&!entry){td.textContent='全部说话人';tr.append(td);continue;}
+      if(field==='name_visibility'){
+        input=document.createElement('input');input.type='checkbox';
+        const flags=(entry?[entry]:palette.rows).map(r=>MSWSpeaker.nameVisible(r,speakerNameLanguage));
+        input.checked=flags.every(Boolean);
+        input.indeterminate=!entry&&flags.some(Boolean)&&!flags.every(Boolean);
+        input.setAttribute('aria-label',(entry?entry.name:'全部说话人')+' 显示名称');
+        input.title='仅控制当前语言的名称；预览还需开启“预览说话人”。';
+        input.onchange=()=>{
+          pushPreviewUndo('调整说话人名称显示',snapshotPreviewState());
+          for(const r of entry?[entry]:palette.rows){r.name_visibility||={};r.name_visibility[speakerNameLanguage]=input.checked;}
+          speakerPaletteChanged({appearanceOnly:true});
+        };
+        td.append(input);tr.append(td);continue;
+      }
       if(field==='mode'){
         input=document.createElement('select');if(!entry)input.add(new Option('混合',''));
         window.MSWSpeaker.modes.forEach((value,i)=>input.add(new Option(titles[i],value)));

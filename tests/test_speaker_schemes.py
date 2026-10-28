@@ -9,7 +9,7 @@ from maw.msw.speaker_palette import validate as validate_palette
 
 
 def library():
-    return dict(version=1, schemes=[dict(id='series', name='团录', rows=[dict(id='person-1', name='Erwyn', names={'zh-hans':'艾尔文'}, color='#123456', mode='stroke', separator='：', style={'fontSize':60})])])
+    return dict(version=1, schemes=[dict(id='series', name='团录', rows=[dict(id='person-1', name='Erwyn', names={'zh-hans':'艾尔文'}, name_visibility={'en':False,'zh-hans':True}, color='#123456', mode='stroke', separator='：', style={'fontSize':60})])])
 
 
 class SpeakerSchemeTests(unittest.TestCase):

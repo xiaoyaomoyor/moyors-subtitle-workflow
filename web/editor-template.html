@@ -760,7 +760,7 @@ __WAVEFORM_CSS__
             <option value="direction" selected>倒放和正放</option>
           </select>
         </label>
-        <small id="jkl-playback-mode-hint" data-help-for="jkl-playback-mode" hidden>J 倒放，L 正放；K 播放／停止并重置为 1×。多次按 J/L 调整速度。</small>
+        <small id="jkl-playback-mode-hint" data-help-for="jkl-playback-mode" hidden>J 逐档减速，越过 0.5× 后倒放；L 反向逐档调整。K 播放／停止并重置为 1×。档位与倍速菜单一致。</small>
         <label class="media-settings-field">
           <span class="msw-option-label">每次跳转时长</span>
           <span class="gap-remove-number-control">
@@ -1670,8 +1670,8 @@ __WAVEFORM_CSS__
           <div class="editor-settings-sub-group" id="speaker-label-settings">
             <p class="editor-settings-hint">配置随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。</p>
             <label class="speaker-name-language">名称语言<select id="speaker-name-language" aria-label="名称语言"></select><span class="msw-help-anchor" id="speaker-name-language-help"></span></label>
-            <p hidden data-help-for="speaker-name-language-help">名称按轨道语言显示；留空使用默认名称。轨道语言可在轨道按钮的右键菜单中调整。</p>
-            <div class="speaker-palette-scroll"><table class="speaker-palette-table"><thead><tr><th scope="col">序号</th><th scope="col">说话人名称</th><th scope="col">指定颜色</th><th scope="col">着色模式</th><th scope="col">分隔符</th></tr></thead><tbody id="speaker-palette-rows"></tbody></table></div>
+            <p hidden data-help-for="speaker-name-language-help">显示按轨道语言控制；默认名称的勾选仅用于未指定语言的轨道。留空名称使用默认名称，预览需开启“预览说话人”。</p>
+            <div class="speaker-palette-scroll"><table class="speaker-palette-table"><thead><tr><th scope="col">序号</th><th scope="col">说话人名称</th><th scope="col">显示</th><th scope="col">指定颜色</th><th scope="col">着色模式</th><th scope="col">分隔符</th></tr></thead><tbody id="speaker-palette-rows"></tbody></table></div>
             <button type="button" class="msw-icon-button" id="speaker-palette-add" title="添加说话人" aria-label="添加说话人">＋</button>
           </div>
         </div>

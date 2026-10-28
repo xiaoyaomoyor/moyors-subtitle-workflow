@@ -10,6 +10,29 @@ const context={window:{},TextDecoder,TextEncoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const utils=context.window.AsrEditorUtils;
 
+test('name visibility is per language, defaults on, and obeys preview and export masters',()=>{
+  const row={...speakers.row(0),name:'Condi',names:{'zh-hans':'康迪'},mode:'speaker'};
+  const project={preview:{speaker_palette:{version:1,rows:[row]},speaker_labels_visible:true}};
+  assert.equal(speakers.prefix(project,row,'en'),'Condi：');
+  row.name_visibility={'en':false,'':false};
+  assert.equal(speakers.displayName(row,'en'),'Condi');
+  for(const locale of ['en','en-US',''])assert.equal(speakers.prefix(project,row,locale),'');
+  assert.equal(speakers.prefix(project,row,'zh-CN'),'康迪：');
+  assert.equal(speakers.prefix(project,row,'fr'),'Condi：');
+  row.name_visibility['en-us']=true;
+  assert.equal(speakers.prefix(project,row,'en-US'),'Condi：');
+  project.preview.speaker_labels_visible=false;
+  assert.equal(speakers.prefix(project,row,'zh'),'');
+  project.preview.speaker_label_export=true;
+  assert.equal(speakers.prefix(project,row,'zh'),'康迪：');
+  assert.equal(speakers.prefix(project,row,'en'),'');
+  const flatProject={...project,subtitles:{tracks:[{id:'a',language:'en'},{id:'b',language:'zh'}],cues:[{id:'one',track_id:'a'},{id:'two',track_id:'b'}]}};
+  const resolve=speakers.nameResolver(flatProject,{visibleOnly:true});
+  assert.equal(resolve(row,{id:'one'}),'');assert.equal(resolve(row,{id:'two'}),'康迪');
+  assert.ok(speakers.valid(project.preview.speaker_palette));
+  for(const flags of [[],null,{zh:false},{en:0},{en:'false'},{invalid:false}])assert.equal(speakers.valid({version:1,rows:[{...row,name_visibility:flags}]}),false);
+});
+
 test('localized names resolve region aliases and missing names without modifying the identity',()=>{
   const row={...speakers.row(0),name:'Erwyn',names:{en:'Erwyn','zh-hans':'艾尔文','zh-hant':'艾爾文',pt:'Nome'},mode:'speaker'};
   const project={preview:{speaker_palette:{version:1,rows:[row]}}};

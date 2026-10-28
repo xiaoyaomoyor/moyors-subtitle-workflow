@@ -9,10 +9,11 @@ const palette=()=>({version:1,rows:[{...speakers.row(0),name:'Erwyn',names:{'zh-
 const capture=()=>core.capture(palette(),{id:'series',name:'团录',makeId:ids()});
 
 test('capture is detached and includes full descriptions without project references or preset dependency',()=>{
-  const p=palette();p.rows[0].style_preset='local-style';p.rows[0].private_project_field='ignored';const before=structuredClone(p);
+  const p=palette();p.rows[0].name_visibility={en:false,'zh-hans':true};p.rows[0].style_preset='local-style';p.rows[0].private_project_field='ignored';const before=structuredClone(p);
   const result=core.capture(p,{id:'series',name:'团录',makeId:ids()});
   assert.deepEqual(p,before);assert.notEqual(result.scheme.rows[0].id,p.rows[0].id);
   assert.equal(result.scheme.rows[0].names['zh-hans'],'艾尔文');assert.equal(result.scheme.rows[0].animation.effects.fade.enabled,true);
+  assert.deepEqual(result.scheme.rows[0].name_visibility,{en:false,'zh-hans':true});
   assert.equal(result.scheme.rows[0].style_preset,undefined);assert.equal(result.scheme.rows[0].private_project_field,undefined);
   assert.equal(result.palette.rows[0].id,'yellow');assert.deepEqual(result.palette.rows[0].scheme_ref,{scheme_id:'series',person_id:'person-1'});
   core.validate({version:1,schemes:[result.scheme]});

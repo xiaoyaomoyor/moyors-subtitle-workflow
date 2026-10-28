@@ -23,6 +23,66 @@ test.beforeEach(async({page})=>{
 test.afterEach(async()=>{await server?.stop();});
 async function settings(page){await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.getByRole('button',{name:'说话人色系',exact:true}).click();}
 
+test('language visibility controls names independently, survives reopen and obeys preview master',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.evaluate(()=>{
+    let p=JSON.parse(buildJson());const a=p.subtitles.tracks[0];a.language='en';
+    p=MSWFlatSubtitles.addTrack(p,{...a,id:'chinese',language:'zh',secondary_for:a.id,style:{...a.style,slot:'secondary'}});
+    p.subtitles.cues[1].track_id='chinese';p.subtitles.cues[1].content={start:0,end:3000,text:'你好',items:[]};
+    for(const c of p.subtitles.cues)c.content.color={name:'yellow',start:c.content.start,end:c.content.end};
+    p=MSWFlatSubtitles.bind(p,p.subtitles.cues[0].id,p.subtitles.cues[1].id,'pair');
+    productionCommitProject(p,'visibility fixture');
+    const r=MSWSpeaker.ensure(DATA).rows[0];Object.assign(r,{name:'Condi',names:{en:'Condi','zh-hans':'康迪'},mode:'text',color:'#33aa44'});
+    DATA.preview.speaker_labels_visible=true;speakerPaletteChanged();
+    updateEditorSettings({exportSpeakerLabels:true});player.currentTime=1;
+  });
+  const flags=page.locator('#speaker-palette-rows tr[data-speaker-id="yellow"] input[type=checkbox]');
+  await settings(page);await page.locator('#speaker-name-language').selectOption('en');
+  await expect(flags).toBeChecked();await flags.uncheck();
+  await expect(page.locator('#speaker-palette-rows tr[data-speaker-id="all"] input[type=checkbox]')).toHaveJSProperty('indeterminate',true);
+  await page.locator('#speaker-name-language').selectOption('zh-hans');await expect(flags).toBeChecked();
+  await page.screenshot({path:join(dir,'speaker-name-visibility.png')});
+  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('康迪：')),null,{timeout:20000});
+  const rendered=await page.evaluate(async()=>({srt:buildSrt(),ass:await fixedAssDocument(),texts:MSWSubtitleRenderer.geometry.map(r=>r.text)}));
+  expect(rendered.srt).not.toContain('Condi：');expect(rendered.srt).toContain('康迪：你好');
+  expect(rendered.ass).not.toContain('Condi：');expect(rendered.ass).toContain('康迪：');expect(rendered.ass).toContain('44AA33');
+  expect(rendered.texts.some(t=>t.startsWith('Condi：'))).toBe(false);
+  // The tooltip identifies the speaker even when the on-screen name is hidden.
+  await expect(page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first()).toHaveAttribute('title',/^Condi：Hello/);
+  await page.evaluate(()=>{const input=document.getElementById('style-preview-speakers');input.checked=false;input.dispatchEvent(new Event('change',{bubbles:true}));});
+  await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.length&&MSWSubtitleRenderer.geometry.every(r=>!r.text.includes('康迪：')),null,{timeout:20000});
+  expect(await page.evaluate(()=>buildSrt())).toContain('康迪：你好');
+  await page.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
+  expect(JSON.parse(readFileSync(project)).preview.speaker_palette.rows[0].name_visibility).toEqual({en:false});
+  await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready&&player.readyState>=2);
+  await expect(page.locator('#style-preview-speakers')).not.toBeChecked();
+  await settings(page);await page.locator('#speaker-name-language').selectOption('en');await expect(flags).not.toBeChecked();
+  await flags.check();await page.evaluate(()=>performUndo());await expect(flags).not.toBeChecked();
+  await page.locator('#speaker-name-language').selectOption('zh-hans');
+  await page.locator('#speaker-palette-rows tr[data-speaker-id="all"] input[type=checkbox]').uncheck();
+  await expect(flags).not.toBeChecked();
+  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].name_visibility)).toEqual({en:false,'zh-hans':false});
+  await page.evaluate(()=>performUndo());await expect(flags).toBeChecked();
+  expect(errors).toEqual([]);
+});
+
+test('player settings checkboxes share theme, size and alignment in light and dark',async({page})=>{
+  await page.evaluate(()=>setSubtitlePreviewSettingsPanelOpen(true));
+  for(const theme of ['alice','default']){
+    await page.evaluate(theme=>{updateEditorSettings({themePreset:theme,colors:null});applyThemeAndColors();},theme);
+    const boxes=await page.locator('.media-preview-checks input[type=checkbox]').evaluateAll(nodes=>nodes.filter(n=>n.checkVisibility()).map(n=>{
+      const s=getComputedStyle(n),r=n.getBoundingClientRect();return {width:r.width,height:r.height,accent:s.accentColor,margin:s.margin,flex:s.flexShrink};
+    }));
+    expect(boxes.length).toBeGreaterThanOrEqual(5);
+    for(const box of boxes)expect(box).toEqual({...boxes[0],width:15,height:15,margin:'0px',flex:'0'});
+    expect(boxes[0].accent).not.toBe('auto');
+    await page.locator('#style-preview-speakers').check();await expect(page.locator('#style-preview-speakers')).toBeChecked();
+    await page.locator('#media-settings-modal').screenshot({path:join(dir,`player-checkboxes-${theme}.png`)});
+  }
+});
+
 test('speaker schemes carry names and appearance across projects with explicit mapping, undo and independent snapshots',async({page,browser})=>{
   await page.evaluate(()=>{
     const row=MSWSpeaker.ensure(DATA).rows[0];Object.assign(row,{name:'Erwyn',names:{'zh-hans':'艾尔文'},mode:'stroke',color:'#33aa44',style:{fontSize:60}});
@@ -329,8 +389,8 @@ test('master row, per-speaker separators, native preview, export name choice and
   await settings(page);const master=page.locator('#speaker-palette-rows tr').first();
   await master.locator('select').selectOption('speaker');
   expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows.map(r=>r.mode))).toEqual(Array(5).fill('speaker'));
-  await page.locator('#speaker-palette-rows tr').nth(1).locator('td:nth-child(5) input').fill(' / ');
-  await page.locator('#speaker-palette-rows tr').nth(1).locator('td:nth-child(5) input').press('Tab');
+  await page.getByRole('textbox',{name:'SP1 分隔符',exact:true}).fill(' / ');
+  await page.getByRole('textbox',{name:'SP1 分隔符',exact:true}).press('Tab');
   await page.evaluate(()=>{setEditorSettingsPanelOpen(false);selectOnly(0);assignColor([0],'yellow');seekFromWaveform(.5);});
   await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('SP1 / ')),null,{timeout:45000});
   const result=await page.evaluate(async()=>{
