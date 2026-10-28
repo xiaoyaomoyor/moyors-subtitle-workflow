@@ -89,34 +89,8 @@ __WAVEFORM_CSS__
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">导出</div>
       <button type="button" class="dropdown-item" id="subtitle-export-btn" role="menuitem" title="选择格式和轨道，导出字幕">导出字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-      <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
-            <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用空隙移除结果的时间线或保留区域计划">去空隙时间线</div>
-            <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">
-              <div class="dropdown-submenu" role="none">
-                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
-                <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-otio-menu" role="menu">
-                  <div class="dropdown-separator" role="separator"></div>
-                  <div class="dropdown-label">源媒体导出选项</div>
-                  <label class="dropdown-setting-toggle" title="额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出"><input type="checkbox" data-otio-export-option="srt" checked><span>同时导出 SRT 字幕</span></label>
-                  <label class="dropdown-setting-toggle" title="将表情包作为独立视频轨道加入源媒体时间线；不影响含配音的剪辑工程"><input type="checkbox" data-otio-export-option="stickers" checked><span>时间线包含表情包</span></label>
-                  <label class="dropdown-setting-toggle" title="将主字幕内容写入源媒体片段标记"><input type="checkbox" data-otio-export-option="markers" checked><span>将字幕内容作为标记写入</span></label>
-                  <div class="dropdown-separator" role="separator"></div>
-                  <div class="dropdown-item" id="download-gap-removed-otio" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">源媒体时间线（OTIO）</div>
-                  <div class="dropdown-item" id="download-gap-removed-otioz" role="menuitem" tabindex="0" title="导出源媒体及所选表情包的去空隙 OTIOZ 时间线">源媒体打包工程（OTIOZ）</div>
-                  <div class="dropdown-item" id="download-gap-removed-sticker-otio" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIO；完全落在空隙内的表情包会被丢弃">表情包 OTIO 工程</div>
-                  <div class="dropdown-item" id="download-gap-removed-sticker-otioz" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）；完全落在空隙内的表情包会被丢弃">表情包 OTIOZ 打包工程</div>
-                </div>
-              </div>
-              <div class="dropdown-separator" role="separator"></div>
-              <div class="dropdown-submenu" role="none">
-                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-data-menu">数据文件</div>
-                <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-data-menu" role="menu">
-                  <div class="dropdown-item" id="download-gap-removed-ffconcat" role="menuitem" tabindex="0" title="导出 FFmpeg concat demuxer 可读取的保留区间；流复制的切点精度受关键帧和编码包限制">FFconcat 文件</div>
-                  <div class="dropdown-item" id="download-gap-removed-regions-json" role="menuitem" tabindex="0" title="以毫秒为单位导出原媒体中的全部保留区域，供自定义脚本或工具读取">保留区域 JSON</div>
-                </div>
-              </div>
-            </div>
-          </div>
+      <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="导出带配音的视频 MP4">导出视频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
       <div class="dropdown-submenu" id="extra-export-dropdown">
             <div class="dropdown-item dropdown-submenu-toggle" id="extra-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出剪辑时间线和辅助数据">更多导出</div>
             <div class="dropdown-menu dropdown-submenu-menu" id="extra-export-menu" role="menu">
@@ -147,8 +121,34 @@ __WAVEFORM_CSS__
               </div>
             </div>
           </div>
-      <button type="button" class="dropdown-item" id="video-export-btn" role="menuitem" disabled title="导出带配音的视频 MP4">导出视频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-      <button type="button" class="dropdown-item" id="audio-export-btn" role="menuitem" disabled title="导出配音轨或原声混音 WAV">导出音频<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <div class="dropdown-submenu" id="gap-removed-export-dropdown" hidden>
+            <div class="dropdown-item dropdown-submenu-toggle" id="gap-removed-export-btn" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" title="导出应用空隙移除结果的时间线或保留区域计划">去空隙时间线</div>
+            <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-export-menu" role="menu">
+              <div class="dropdown-submenu" role="none">
+                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-otio-menu">OpenTimelineIO</div>
+                <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-otio-menu" role="menu">
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-label">源媒体导出选项</div>
+                  <label class="dropdown-setting-toggle" title="额外保存一份独立 SRT 文件，不写入 OTIOZ 包内；仅用于源媒体导出"><input type="checkbox" data-otio-export-option="srt" checked><span>同时导出 SRT 字幕</span></label>
+                  <label class="dropdown-setting-toggle" title="将表情包作为独立视频轨道加入源媒体时间线；不影响含配音的剪辑工程"><input type="checkbox" data-otio-export-option="stickers" checked><span>时间线包含表情包</span></label>
+                  <label class="dropdown-setting-toggle" title="将主字幕内容写入源媒体片段标记"><input type="checkbox" data-otio-export-option="markers" checked><span>将字幕内容作为标记写入</span></label>
+                  <div class="dropdown-separator" role="separator"></div>
+                  <div class="dropdown-item" id="download-gap-removed-otio" role="menuitem" tabindex="0" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">源媒体时间线（OTIO）</div>
+                  <div class="dropdown-item" id="download-gap-removed-otioz" role="menuitem" tabindex="0" title="导出源媒体及所选表情包的去空隙 OTIOZ 时间线">源媒体打包工程（OTIOZ）</div>
+                  <div class="dropdown-item" id="download-gap-removed-sticker-otio" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIO；完全落在空隙内的表情包会被丢弃">表情包 OTIO 工程</div>
+                  <div class="dropdown-item" id="download-gap-removed-sticker-otioz" role="menuitem" tabindex="0" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIOZ 打包工程（服务器打包图片进 zip，需校验表情包根目录）；完全落在空隙内的表情包会被丢弃">表情包 OTIOZ 打包工程</div>
+                </div>
+              </div>
+              <div class="dropdown-separator" role="separator"></div>
+              <div class="dropdown-submenu" role="none">
+                <div class="dropdown-item dropdown-submenu-toggle" role="menuitem" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-controls="gap-removed-data-menu">数据文件</div>
+                <div class="dropdown-menu dropdown-submenu-menu" id="gap-removed-data-menu" role="menu">
+                  <div class="dropdown-item" id="download-gap-removed-ffconcat" role="menuitem" tabindex="0" title="导出 FFmpeg concat demuxer 可读取的保留区间；流复制的切点精度受关键帧和编码包限制">FFconcat 文件</div>
+                  <div class="dropdown-item" id="download-gap-removed-regions-json" role="menuitem" tabindex="0" title="以毫秒为单位导出原媒体中的全部保留区域，供自定义脚本或工具读取">保留区域 JSON</div>
+                </div>
+              </div>
+            </div>
+          </div>
       <div class="dropdown-separator"></div>
       <button type="button" class="dropdown-item" id="exit-editor" role="menuitem" hidden title="停止本地编辑器服务器并关闭本页">退出编辑器</button>
     </div>
