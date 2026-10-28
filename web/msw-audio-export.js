@@ -27,7 +27,7 @@
     const available = Boolean(host.config?.processingUrl), pageId = global.MSWProject.id('export-page');
     const projectId = () => global.MSWProject.ensure(host.data).project_id;
     const token = () => `${pageId}.${host.generation}`;
-    let context = null, busy = null, pending = null, timer = null, polling = false, jobs = [], rendered = '', contextRequest = 0;
+    let context = null, busy = null, pending = null, timer = null, polling = false, jobs = [], rendered = '', contextRequest = 0, jobsRevision = 0;
     const terminal = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
     const monitorSnapshot = () => ({mode:timeline?'none':el('audio-export-monitor').value,volume:host.player.volume,muted:host.player.muted,
       source_gain_db:global.MSWE.resolve('audio-timeline')?.sourceGainDb()||0});
@@ -286,10 +286,11 @@
           });
         }
         ui.job=job;const active=!terminal.has(job.status);
-        ui.number.textContent='#'+String(jobs.length-index).padStart(2,'0');
+        ui.number.textContent='#'+String(job.sequence||jobs.length-index).padStart(2,'0');
         ui.title.textContent=job.download_name||t(job.options?.preview_sample?'五秒样片':job.mode==='mix'?'原声 + 配音混音':'配音轨（仅音频贴片）');ui.title.title=ui.title.textContent;
         const percent=job.status==='succeeded'?100:Math.max(0,Math.min(100,Math.round(job.progress||0)));
         ui.phase.textContent=t(active&&job.status==='running'?stages[job.stage]||labels.running:labels[job.status]||job.status)+(active||job.status==='succeeded'?` · ${percent}%`:'');
+        if(job.status==='succeeded'&&job.download_available===false)ui.phase.textContent+=' · '+t('临时文件已清理');
         ui.spinner.hidden=!active;ui.estimate.hidden=!active;
         if(active){
           let estimate=t('剩余时长：正在估算');
@@ -304,7 +305,7 @@
           ui.estimate.textContent='';
           for(const attr of ['role','aria-label','aria-valuemin','aria-valuemax','aria-valuenow','aria-valuetext'])ui.status.removeAttribute(attr);
         }
-        ui.cancel.hidden=!active;ui.cancel.disabled=job.status==='cancel_requested';ui.download.hidden=job.status!=='succeeded';
+        ui.cancel.hidden=!active;ui.cancel.disabled=job.status==='cancel_requested';ui.download.hidden=job.status!=='succeeded'||job.download_available===false;
         global.MSWHelp?.refresh(ui.info);
         if(job.error&&!ui.error){
           ui.error=document.createElement('button');ui.error.type='button';ui.error.className='msw-export-icon';ui.error.setAttribute('aria-label',t('错误详情'));
@@ -349,7 +350,8 @@
           if (result.clipped) note.textContent += ` · ${t('部分声音超限，建议开启峰值保护重新导出')}`;
           if (timeline && result.external_media) note.textContent += ` · ${t('原视频仍引用本机文件')}`;
           card.append(note);
-          actions.append(action('下载 WAV', job, async () => {
+          if(job.download_available===false)note.textContent+=' · '+t('临时文件已清理');
+          else actions.append(action('下载 WAV', job, async () => {
             const data = await request(`audio-exports/${job.id}/download`, { project_id: job.project_id });
             const link = document.createElement('a'); link.href = data.url;
             link.download = job.download_name || (timeline ? 'msw-timeline.otioz' : job.mode === 'mix' ? 'msw-mix.wav' : 'msw-voice.wav');
@@ -373,10 +375,10 @@
     async function poll() {
       if (!available || polling) { if (available) schedule(); return; }
       if(video&&floating.isOpen()&&el('audio-export-range').value==='playhead')update();
-      const id = projectId(), generation = host.generation; polling = true;
+      const id = projectId(), generation = host.generation, revision = jobsRevision; polling = true;
       try {
         const data = await request(`audio-exports?project_id=${encodeURIComponent(id)}`);
-        if (generation !== host.generation || id !== projectId()) return;
+        if (generation !== host.generation || id !== projectId() || revision !== jobsRevision) return;
         const filtered = data.jobs.filter(j => (j.format || 'wav') === format);
         const completed = filtered.some(j => j.status === 'succeeded' && jobs.some(old => old.id === j.id && !terminal.has(old.status)));
         const failed = filtered.find(j => ['failed','interrupted'].includes(j.status) && jobs.some(old => old.id === j.id && !terminal.has(old.status)));
@@ -405,6 +407,7 @@
         const result = await request('audio-exports', pending);
         if (generation !== host.generation || busy !== ticket) return;
         pending = null;
+        ++jobsRevision;
         jobs = [result.job, ...jobs.filter(j => j.id !== result.job.id)]; renderJobs();
         message(video?'':'音频导出已开始；可继续编辑，关闭面板不会取消任务'); schedule(0);
       } catch (error) {
@@ -493,7 +496,7 @@
     body.prepend(common,subtitles,advanced);
     grid(common,['mode','range']);common.append(get('custom'));grid(common,['tail','encoding']);
     common.append(get('hardware-field'),get('encoder-status'),get('remove-gaps').closest('label'));
-    subtitles.append(get('subtitle-fields'),get('track-scope'));
+    subtitles.append(get('subtitle-fields'),get('track-scope'),get('speaker-wrap'));
     grid(advanced,['monitor','rate']);advanced.append(get('source'));grid(advanced,['voice-gain']);advanced.append(get('peak').closest('label'));
     const footer=get('start').parentElement;footer.classList.add('msw-export-footer');footer.prepend(get('summary'));
     // All controls keep their IDs and listeners; discard only empty layout wrappers.

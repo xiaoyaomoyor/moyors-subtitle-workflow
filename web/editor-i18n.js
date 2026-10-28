@@ -9,6 +9,8 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '临时文件已清理': 'Temporary file removed',
+    '以开始时的内容导出，关闭面板不会取消。记录按工程保留；临时成品受缓存容量限制，请下载需要长期保存的文件。清理缓存不删除记录或已下载文件。': 'Export uses the starting snapshot and continues after closing the panel. History stays with the project; temporary files are cache-limited. Download results to keep them. Cache cleanup preserves history and downloaded files.',
     '查找并编辑': 'Find and edit', '关闭查找并编辑': 'Close find and edit',
     '指定轨道': 'Specific tracks', '搜索轨道': 'Search tracks', '使用当前选择': 'Use current selection',
     '匹配设置': 'Match options', '查找字幕文字…': 'Find subtitle text…', '查找字幕文字': 'Find subtitle text',

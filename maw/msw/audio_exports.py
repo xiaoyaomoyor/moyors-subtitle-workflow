@@ -29,6 +29,7 @@ from maw.msw.render_project import normalize as normalize_project
 from maw.msw.subtitle_export import mapped_subtitles
 
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
+OUTPUT_CACHE_BYTES = 2 * 1024**3
 
 
 def video_summary(project, settings, plan):
@@ -74,14 +75,16 @@ class AudioExports:
         self.db = sqlite3.connect(self.root / "jobs.sqlite3", check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project_id TEXT, request_key TEXT, fingerprint TEXT, payload TEXT, UNIQUE(project_id, request_key))")
+        self.db.execute("CREATE TABLE IF NOT EXISTS export_sequences (project_id TEXT, format TEXT, value INTEGER NOT NULL, PRIMARY KEY(project_id, format))")
         self.db.commit()
         self.events, self.downloads = {}, {}
         self.preview_guard = threading.BoundedSemaphore(1)
         self.pending = queue.Queue()
         self.closed = False
         self.close_complete = threading.Event()
-        for (body,) in self.db.execute("SELECT payload FROM jobs").fetchall():
+        for (body,) in self.db.execute("SELECT payload FROM jobs ORDER BY rowid").fetchall():
             job = json.loads(body)
+            self.write(job)  # Backfill stable per-project/per-format numbering.
             if job["status"] not in TERMINAL:
                 job.update(status="interrupted", error="编辑器服务已重启，请重新导出")
                 self.write(job)
@@ -131,6 +134,15 @@ class AudioExports:
         if job['status'] in TERMINAL:
             job.setdefault('finished_at', job['updated_at'])
         with self.db:
+            previous = self.db.execute("SELECT payload FROM jobs WHERE id=?", (job['id'],)).fetchone()
+            sequence = json.loads(previous[0]).get('sequence') if previous else None
+            kind = job.get('format', 'wav')
+            if type(sequence) is not int or sequence < 1:
+                row = self.db.execute("SELECT value FROM export_sequences WHERE project_id=? AND format=?", (job['project_id'], kind)).fetchone()
+                sequence = (row[0] if row else 0) + 1
+            job['sequence'] = sequence
+            self.db.execute("INSERT INTO export_sequences VALUES (?,?,?) ON CONFLICT(project_id,format) DO UPDATE SET value=MAX(value,excluded.value)",
+                            (job['project_id'], kind, sequence))
             self.db.execute("INSERT INTO jobs VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
                             (job["id"], job["project_id"], job["request_key"], job["fingerprint"], json.dumps(job, ensure_ascii=False)))
 
@@ -188,9 +200,10 @@ class AudioExports:
         finally:
             self.preview_guard.release()
 
-    @staticmethod
-    def public(job):
-        return {key: value for key, value in job.items() if key not in {"fingerprint", "request_key"}}
+    def public(self, job):
+        result = {key: value for key, value in job.items() if key not in {"fingerprint", "request_key"}}
+        result['download_available'] = job['status'] == 'succeeded' and not job.get('artifact_removed_at') and self.artifact(job).is_file()
+        return result
 
     def get(self, job_id, project_id):
         row = self.db.execute("SELECT payload FROM jobs WHERE id=? AND project_id=?", (job_id, project_id)).fetchone()
@@ -289,8 +302,8 @@ class AudioExports:
             return self.public(job)
 
     def prune(self):
-        # Only generated output files belonging to retained job records; never
-        # source media or project assets. Keep the newest result even above 2 GB.
+        # Evict temporary artifacts, never history. Keep the newest result even
+        # above 2 GB; downloaded files and project assets are outside this root.
         rows = self.db.execute("SELECT payload FROM jobs ORDER BY rowid DESC").fetchall()
         protected = {entry[1] for entry in self.downloads.values() if entry[0] > time.monotonic()}
         used, kept = 0, 0
@@ -299,14 +312,16 @@ class AudioExports:
             if job["status"] not in TERMINAL or job["id"] in protected:
                 continue
             path = self.artifact(job)
-            size = path.stat().st_size if path.is_file() else 0
-            if kept >= 19 or (kept > 0 and used + size > 2 * 1024**3):
+            if not path.is_file():
+                continue
+            size = path.stat().st_size
+            if kept >= 19 or (kept > 0 and used + size > OUTPUT_CACHE_BYTES):
                 try:
                     path.unlink(missing_ok=True)
                 except OSError:
                     continue  # A download may still own the file on Windows.
-                with self.db:
-                    self.db.execute("DELETE FROM jobs WHERE id=?", (job["id"],))
+                job['artifact_removed_at'] = time.time()
+                self.write(job)
             else:
                 kept, used = kept + 1, used + size
 

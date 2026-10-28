@@ -191,6 +191,48 @@ class AudioExportApiTests(unittest.TestCase):
         with stream:
             self.assertEqual(stream.read(),self.media.read_bytes())
 
+    def test_cache_eviction_keeps_history_and_stable_sequences_across_restart(self):
+        first = self.submit()
+        self.wait(first['id'])
+        second = self.submit({**self.payload, 'request_key': 'second'})
+        self.wait(second['id'])
+        self.assertEqual([j['sequence'] for j in self.manager.list('p')], [2, 1])
+        with self.manager.lock, patch('maw.msw.audio_exports.OUTPUT_CACHE_BYTES', 1):
+            self.manager.prune()
+        jobs = self.manager.list('p')
+        self.assertEqual([j['id'] for j in jobs], [second['id'], first['id']])
+        self.assertTrue(jobs[0]['download_available'])
+        self.assertFalse(jobs[1]['download_available'])
+        self.assertIn('artifact_removed_at', jobs[1])
+        self.assertEqual(self.submit()['id'], first['id'])  # An HTTP retry never creates a new export.
+        self.manager.close()
+        self.assertTrue(self.manager.close_complete.wait(5))
+        self.manager = AudioExports(self.api, renderer=self.manager.renderer)
+        self.api._exports = self.manager
+        self.tool_patch.stop()
+        self.tool_patch = patch.object(self.manager, 'tools', return_value=FfmpegTools(Path('test-ffmpeg'), Path('test-ffprobe')))
+        self.tool_patch.start()
+        third = self.submit({**self.payload, 'request_key': 'third'})
+        self.wait(third['id'])
+        self.assertEqual([j['sequence'] for j in self.manager.list('p')], [3, 2, 1])
+
+    def test_old_history_receives_sequences_in_creation_order(self):
+        first = self.submit()
+        self.wait(first['id'])
+        second = self.submit({**self.payload, 'request_key': 'second'})
+        self.wait(second['id'])
+        with self.manager.lock, self.manager.db:
+            self.manager.db.execute('DELETE FROM export_sequences')
+            for job in self.manager.list('p'):
+                stored = self.manager.get(job['id'], 'p')
+                stored.pop('sequence')
+                self.manager.db.execute('UPDATE jobs SET payload=? WHERE id=?', (json.dumps(stored), job['id']))
+        self.manager.close()
+        self.assertTrue(self.manager.close_complete.wait(5))
+        self.manager = AudioExports(self.api)
+        self.api._exports = self.manager
+        self.assertEqual([j['sequence'] for j in self.manager.list('p')], [2, 1])
+
     def test_reject_untrusted_media_binding_properties_and_client_graph(self):
         for changes in [{'binding':'stale'}, {'plan_schema':'new-version'}]:
             self.assertEqual(self.call('audio-exports',{**self.payload,**changes})[0],400)

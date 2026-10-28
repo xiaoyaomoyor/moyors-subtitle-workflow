@@ -39,8 +39,10 @@ async function open(page) {
 }
 async function finish(page) {
   const projectName = await page.evaluate(()=>PROJECT_NAME);
+  const submitted=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().endsWith('/audio-exports'));
   await page.locator('#video-export-start').click();
-  const card = page.locator('#video-export-jobs .msw-processing-job').first();
+  const id=(await (await submitted).json()).job.id;
+  const card = page.locator(`#video-export-jobs .msw-processing-job[data-job-id="${id}"]`);
   await expect(card.getByRole('button', {name: '下载 MP4', exact: true})).toBeVisible({timeout: 30000});
   const ready = page.waitForEvent('download'); await card.getByRole('button', {name: '下载 MP4', exact: true}).click();
   const file = await ready, output = join(dir, 'result.mp4');
@@ -161,6 +163,11 @@ test('subtitle preset selection is direct and keeps export fields in two columns
   await open(page);
   await expect(page.locator('#video-export-style-choice')).toBeHidden();
   await page.locator('#video-export-burn-subtitles').selectOption('both');
+  await expect(page.locator('#video-export-subtitles #video-export-speaker-wrap')).toBeVisible();
+  expect(await page.locator('#video-export-speaker-wrap').evaluate(label=>{
+    const input=label.querySelector('input'),a=input.getBoundingClientRect(),b=label.getBoundingClientRect();
+    return getComputedStyle(label).display==='flex'&&a.width<25&&Math.abs(a.y+a.height/2-b.y-b.height/2)<3;
+  })).toBe(true);
   const choice=page.locator('#video-export-style-source');
   await expect(choice).toHaveValue('project');
   await expect(choice.locator('option')).toHaveText(['跟随工程样式','默认白字','大字清晰','高对比底框','双语紧凑']);
@@ -181,6 +188,43 @@ test('subtitle preset selection is direct and keeps export fields in two columns
   const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/audio-exports'));
   await finish(page);expect((await submitted).postDataJSON().project.preview.project_style.main.fontSize).toBe(72);
   await page.locator('#video-export-burn-subtitles').selectOption('none');await expect(page.locator('#video-export-style-choice')).toBeHidden();
+});
+
+test('two real exports retain distinct downloads and stable numbers despite a stale poll and reload',async({page})=>{
+  await open(page);const first=await finish(page);
+  const firstBytes=readFileSync(join(dir,'result.mp4'));
+  await expect(first.card).toContainText('#01');
+  let intercepted=false,releasePoll;
+  const gate=new Promise(resolve=>{releasePoll=resolve;});
+  await page.route('**/audio-exports?*',async route=>{
+    if(intercepted)return route.continue();
+    intercepted=true;const response=await route.fetch();await gate;await route.fulfill({response});
+  });
+  await expect.poll(()=>intercepted).toBe(true);
+  await page.locator('#video-export-range').selectOption('custom');
+  await page.locator('#video-export-end-time').fill('00:02.000');
+  const submitted=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().endsWith('/audio-exports'));
+  const finishing=finish(page);await submitted;
+  await expect(page.locator('#video-export-jobs .msw-video-job').first()).toContainText('#02');releasePoll();
+  const second=await finishing;
+  await expect(page.locator('#video-export-jobs .msw-video-job')).toHaveCount(2);
+  await expect(first.card).toContainText('#01');await expect(second.card).toContainText('#02');
+  expect(Number(second.info.format.duration)).toBeCloseTo(2,1);
+  expect(readFileSync(join(dir,'result.mp4')).equals(firstBytes)).toBe(false);
+  const ready=page.waitForEvent('download');await first.card.getByRole('button',{name:'下载 MP4',exact:true}).click();
+  await (await ready).saveAs(join(dir,'first-again.mp4'));expect(readFileSync(join(dir,'first-again.mp4')).equals(firstBytes)).toBe(true);
+  await page.reload();await expect(page.locator('#editor-loading')).not.toBeVisible();await open(page);
+  await expect(page.locator('#video-export-jobs .msw-video-job')).toHaveCount(2);
+  await expect(page.locator('#video-export-jobs .msw-video-job').first()).toContainText('#02');
+});
+
+test('cache-expired exports keep their number and details without a broken download',async({page})=>{
+  const base={created_at:Date.now()/1000,format:'mp4',mode:'mix',status:'succeeded',progress:100,project_id:'video-project',options:{burn_subtitles:'both'}};
+  const jobs=[{...base,id:'new',sequence:9,download_available:true},{...base,id:'old',sequence:3,download_available:false}];
+  await page.route('**/audio-exports?*',route=>route.fulfill({json:{ok:true,jobs}}));await open(page);
+  const old=page.locator('.msw-video-job[data-job-id="old"]');await expect(old).toContainText('#03');
+  await expect(old).toContainText('临时文件已清理');await expect(old.getByRole('button',{name:'下载 MP4',exact:true})).toBeHidden();
+  await expect(old.getByRole('button',{name:'导出详情',exact:true})).toBeVisible();await expect(page.locator('.msw-video-job[data-job-id="new"]')).toContainText('#09');
 });
 
 test('native audio tail is explained only in help and default export aligns to video',async({page})=>{
