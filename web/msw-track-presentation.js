@@ -53,6 +53,10 @@
       for (const row of rows) {
         const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
         row.style = cueStyle.apply(own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'], row.cue);
+        const slot=core.flatView(project)?owner.flat_style_slot||'main':row.role==='main'?'main':'secondary';
+        row.marginBase=own.pairLayout?.marginBase?.[slot]??row.style.marginV;
+        const vertical=Math.floor((row.style.alignment-1)/3);
+        row.marginShift=(row.style.marginV-row.marginBase)*(vertical===2?1:vertical===0?-1:0);
         if(project.preview?.speaker_palette){const storage=row.role==='main'?project.segments:project.multi_subtitle?.tracks.find(t=>t.id===row.track_id)?.segments||[];
           row.style=global.MSWSpeaker.appearance(row.style,row.cue,global.MSWSpeaker.profile(project,row.cue,storage[row.cue.color_ref?.headIdx]));}
         if(background.enabled(row.style))row.style.borderStyle=1;
@@ -71,8 +75,8 @@
       const horizontal = (alignment-1)%3, vertical = Math.floor((alignment-1)/3);
       group.x = group.position ? group.position.x*width-group.width/2
         : horizontal===0 ? lowerStyle.marginL||0 : horizontal===2 ? width-(lowerStyle.marginR||0)-group.width : (width-group.width)/2;
-      group.y = group.position ? group.position.y*1080 : vertical===2 ? lowerStyle.marginV||0
-        : vertical===1 ? (1080-group.height)/2 : 1080-(lowerStyle.marginV||0)-group.height;
+      group.y = group.position ? group.position.y*1080 : vertical===2 ? rows.at(-1).marginBase
+        : vertical===1 ? (1080-group.height)/2 : 1080-rows.at(-1).marginBase-group.height;
       groups.push(group);
     };
     for (const binding of project.multi_subtitle?.bindings || []) if ((binding.track_id ?? languageId) === languageId) {
@@ -109,6 +113,7 @@
     for (const group of ordered) for (const row of group.rows) {
       const align = ((Number(row.style.alignment)||2)-1)%3;
       const entry={...row, key:core.key(row), group, x:group.x+(align===0?0:align===2?group.width-row.size.width:(group.width-row.size.width)/2),y:group.y+row.localY,width:row.size.width,height:row.size.height};
+      if(!group.position)entry.y+=row.marginShift;
       const p=row.cue.subtitle_position;
       if(p?.alignment) {
         entry.position={...p};entry.style={...entry.style,alignment:p.alignment};

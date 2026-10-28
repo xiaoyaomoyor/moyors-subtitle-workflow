@@ -641,6 +641,10 @@
       if(mapped && !(field==='fontSize'&&(v<8||v>200)) && !(field==='outline'&&v>12)) {style.legacyBurn[role] ||= {};style.legacyBurn[role][mapped]=v;}
       else {delete style.legacyBurn;message('已转换为工程 ASS 样式，请在播放器确认背景与位置。');}
     }
+    if(field==='marginV'&&fixedTrackMode()){
+      const edited=S.editMargin(style,role,v);
+      if(!edited.name.endsWith(' · 已修改'))edited.name+=' · 已修改';change(edited);return;
+    }
     if(field){style[role][field]=v;if(field==='backgroundRadius'&&v>0&&style[role].backgroundShape==='rect')style[role].backgroundShape='rounded';}else{
       const [g,k]=animation.split('.');style.animations[g][k]=v;
       if(k==='enabled'&&v){

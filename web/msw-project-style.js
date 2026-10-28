@@ -4,10 +4,12 @@
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 18;
+  const layoutVersion = 19;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
-    return {order:raw.order,gap:raw.gap};
+    const base=raw.marginBase;
+    if(base!==undefined&&(!base||Array.isArray(base)||Object.keys(base).some(k=>!['main','secondary'].includes(k))||!['main','secondary'].every(k=>Number.isFinite(base[k])&&base[k]>=0&&base[k]<=9999)))throw Error('主副字幕边距基准无效');
+    return {order:raw.order,gap:raw.gap,...(base!==undefined?{marginBase:{...base}}:{})};
   }
   function normalizeWrapping(raw={}) {
     const wrapMode=raw.wrapMode===undefined?'auto':raw.wrapMode,charsPerLine=raw.charsPerLine===undefined?20:raw.charsPerLine;
@@ -159,6 +161,14 @@
     if(style.legacyBurn)for(const role of ['main','secondary']){style.legacyBurn[role] ||= {};style.legacyBurn[role].y=1-style[role].marginV/1080;}
     return normalize(style);
   }
+  function editMargin(raw,role,value) {
+    const style=normalize(raw),pair=pairSettings(style);
+    // Freeze automatic packing once; subsequent manual changes move only the
+    // edited role after packing, without changing the partner or pair gap.
+    pair.marginBase ||= {main:style.main.marginV,secondary:style.secondary.marginV};
+    style[role].marginV=value;style.pairLayout=pair;
+    return normalize(style);
+  }
   function swapAppearance(raw) {
     const style=normalize(raw),position=['id','name','alignment','marginL','marginR','marginV','encoding','animation'];
     const before=clone(style);
@@ -209,5 +219,5 @@
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,characters,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,characters,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,editMargin,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);

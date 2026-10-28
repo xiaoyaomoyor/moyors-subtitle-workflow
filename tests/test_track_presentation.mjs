@@ -10,6 +10,29 @@ const context={window:{},TextEncoder,TextDecoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js','msw-subtitle-background.js','msw-subtitle-gradient.js','msw-project-style.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 globalThis.MSWProjectStyle=context.window.MSWProjectStyle;
 const S=globalThis.MSWProjectStyle;
+
+test('manual vertical margins move only the edited role after two-group packing, in either order',()=>{
+  for(const order of ['secondary-above','main-above'])for(const slot of ['main','secondary']){
+    const p=flat.migrate({segments:[{id:'a',start:0,end:3000,text:'a'}],multi_subtitle:{enabled:true,tracks:[{id:'zh',segments:[{id:'b',start:0,end:3000,text:'b'}]}],bindings:[{track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b']}]}});
+    const [m,s]=p.subtitles.tracks;s.secondary_for=m.id;
+    const style=S.arrangePair(S.defaults(),{order,gap:12});
+    p.subtitles.tracks.forEach(t=>t.style={...t.style,mode:'snapshot',value:structuredClone(style)});
+    p.subtitles.tracks.push({...structuredClone(m),id:'m2'},{...structuredClone(s),id:'s2',secondary_for:'m2'});
+    p.subtitles.cues.push({id:'a2',track_id:'m2',content:{start:0,end:3000,text:'a2'}},{id:'b2',track_id:'s2',content:{start:0,end:3000,text:'b2'}});
+    p.subtitles.bindings.push({id:'pair2',source_id:'b2',target_id:'a2',start_offset_ms:0,end_offset_ms:0});flat.normalizeGroups(p);
+    const positions=project=>Object.fromEntries(P.layout(production.fromProject(project),{measure:()=>({width:300,height:50})}).entries.map(r=>[r.cue.text,r.y]));
+    const before=positions(p),target=slot==='main'?'a2':'b2';
+    const edited=S.editMargin(style,slot,style[slot].marginV-20);
+    for(const t of p.subtitles.tracks.slice(2))t.style.value=structuredClone(edited);
+    const after=positions(p);
+    for(const id of Object.keys(before))assert.equal(after[id]-before[id],id===target?20:0);
+    assert.equal(edited.pairLayout.order,order);assert.equal(edited.pairLayout.gap,12);
+    const again=S.editMargin(edited,slot,style[slot].marginV-30);
+    for(const t of p.subtitles.tracks.slice(2))t.style.value=structuredClone(again);
+    assert.equal(positions(p)[target]-before[target],30);
+    assert.equal(S.arrangePair(again,{order,gap:0}).pairLayout.marginBase,undefined);
+  }
+});
 test('group order belongs to physical tracks, independent of binding direction and list columns',()=>{
   const native=flat.migrate({segments:[{id:'source',start:1000,end:2000,text:'Source'}],multi_subtitle:{enabled:true,
     tracks:[{id:'zh',segments:[{id:'translation',start:1100,end:2100,text:'Translation'}]}],

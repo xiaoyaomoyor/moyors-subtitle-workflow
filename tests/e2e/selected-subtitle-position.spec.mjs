@@ -24,6 +24,43 @@ async function idle(page){await expect.poll(()=>page.evaluate(()=>!MSWSubtitleRe
 const events=page=>page.evaluate(async()=>await MSWSubtitleRenderer.renderer.renderer.getEvents());
 const pos=text=>text.match(/\\pos\(([^,]+),([^)]*)\)/).slice(1).map(Number);
 
+test('S2 manual vertical margin moves its main only, preserving reversed pair layout and S1',async({page})=>{
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),[m,s]=p.subtitles.tracks;
+    s.secondary_for=m.id;
+    const style=MSWProjectStyle.arrangePair(MSWProjectStyle.defaults(),{order:'secondary-above',gap:12});
+    for(const t of p.subtitles.tracks)t.style={...t.style,mode:'snapshot',value:structuredClone(style)};
+    p.subtitles.tracks.push({...structuredClone(m),id:'s2-main',display_number:undefined},{...structuredClone(s),id:'s2-sub',secondary_for:'s2-main',display_number:undefined});
+    p.subtitles.cues.push({id:'second-main',track_id:'s2-main',content:{start:0,end:6000,text:'Second main'}},{id:'second-sub',track_id:'s2-sub',content:{start:0,end:6000,text:'Second sub'}});
+    p.subtitles.bindings.push({id:'second-pair',source_id:'second-sub',target_id:'second-main',start_offset_ms:0,end_offset_ms:0});
+    MSWFlatSubtitles.normalizeGroups(p);productionCommitProject(p,'fixture');
+    MSWSubtitleStyle.editTrack('s2-main');
+  });
+  await page.locator('#style-more').evaluate(el=>el.open=true);await idle(page);
+  const readPositions=async()=>Object.fromEntries((await events(page)).filter(e=>e.Text.includes('\\pos')).map(e=>[e.Text.replace(/\{[^}]*\}/g,''),pos(e.Text)[1]]));
+  const before=await readPositions(),savedBefore=await snap(page),input=page.locator('#style-field-marginV');
+  const margin=Number(await input.inputValue());await input.fill(String(margin-20));await input.blur();await idle(page);
+  await expect(page.locator('#style-pair-order')).toHaveValue('secondary-above');
+  const after=await readPositions();
+  for(const key of Object.keys(before))expect(after[key]-before[key]).toBeCloseTo(key==='Second main'?20:0,3);
+  expect((await snap(page)).subtitles.cues).toEqual(savedBefore.subtitles.cues);
+  expect((await snap(page)).subtitles.bindings).toEqual(savedBefore.subtitles.bindings);
+  // Portable layout follows the same delta, independent of its font metrics.
+  const portable=await page.evaluate(before=>{
+    const coords=p=>Object.fromEntries(MSWTrackPresentation.layout(MSWProductionProject.fromProject(p),{measure:()=>({width:300,height:50})}).entries.map(r=>[r.cue.text,r.y]));
+    const a=coords(before),b=coords(JSON.parse(buildJson()));return Object.fromEntries(Object.keys(a).map(k=>[k,b[k]-a[k]]));
+  },savedBefore);
+  for(const [key,delta] of Object.entries(portable))expect(delta).toBeCloseTo(key==='Second main'?20:0,3);
+  await page.evaluate(()=>performUndo());await idle(page);expect(await readPositions()).toEqual(before);
+  await page.evaluate(()=>performRedo());await idle(page);expect(await readPositions()).toEqual(after);
+  await page.locator('#style-secondary').click();await expect(page.locator('#style-field-marginV')).toHaveValue(String(savedBefore.subtitles.tracks[3].style.value.secondary.marginV));
+  const secondaryMargin=Number(await input.inputValue());await input.fill(String(secondaryMargin-10));await input.blur();await idle(page);
+  const both=await readPositions();for(const key of Object.keys(after))expect(both[key]-after[key]).toBeCloseTo(key==='Second sub'?10:0,3);
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+  await page.reload();await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');await idle(page);
+  expect(await readPositions()).toEqual(both);
+});
+
 test('manually added reverse-bound subtitles retain group order in preview, save and reopen',async({page},info)=>{
   await page.evaluate(()=>{
     let p=JSON.parse(buildJson());
@@ -39,15 +76,20 @@ test('manually added reverse-bound subtitles retain group order in preview, save
   await page.locator('.multi-cue-column.extension').filter({hasText:'信任'}).locator('.time').click();
   await page.locator('.multi-cue-column.main').filter({hasText:'TRUST'}).locator('.time').click({modifiers:['Control']});
   await page.keyboard.press('g');await idle(page);
-  const saved=await snap(page),binding=saved.subtitles.bindings.find(b=>b.source_id==='manual-translation');
-  expect(binding.target_id).toBe('manual-source');
+  const bound=await snap(page),binding=bound.subtitles.bindings.find(b=>[b.source_id,b.target_id].includes('manual-translation'));
+  expect([binding.source_id,binding.target_id].sort()).toEqual(['manual-source','manual-translation']);
   const check=async()=>{
     await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');await idle(page);
     const rows=await events(page),source=rows.find(e=>e.Text.endsWith('TRUST')),translation=rows.find(e=>e.Text.endsWith('信任'));
     expect(source).toBeTruthy();expect(translation).toBeTruthy();
     expect(pos(translation.Text)[1]).toBeLessThan(pos(source.Text)[1]);
   };
-  await check();await page.screenshot({path:info.outputPath('manual-bound-order.png')});
+  await check();
+  // Current UI normalizes group binding direction. Explicitly exercise the
+  // reverse direction saved by older projects as well.
+  await page.evaluate(()=>{const p=JSON.parse(buildJson()),b=p.subtitles.bindings.find(b=>[b.source_id,b.target_id].includes('manual-translation'));
+    b.source_id='manual-translation';b.target_id='manual-source';b.start_offset_ms=b.end_offset_ms=0;productionCommitProject(p,'reverse fixture');});
+  const saved=await snap(page);await idle(page);await check();await page.screenshot({path:info.outputPath('manual-bound-order.png')});
   expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
   await page.reload();await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status),{timeout:30000}).toBe('libass');await idle(page);
   await check();expect((await snap(page)).subtitles.bindings).toEqual(saved.subtitles.bindings);

@@ -1885,7 +1885,10 @@
       && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
       && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))
     && (value.pairLayout === undefined || value.pairLayout && ['main-above', 'secondary-above'].includes(value.pairLayout.order)
-      && Number.isInteger(value.pairLayout.gap) && value.pairLayout.gap >= -240 && value.pairLayout.gap <= 240);
+      && Number.isInteger(value.pairLayout.gap) && value.pairLayout.gap >= -240 && value.pairLayout.gap <= 240
+      && (value.pairLayout.marginBase===undefined || value.pairLayout.marginBase && !Array.isArray(value.pairLayout.marginBase)
+        && Object.keys(value.pairLayout.marginBase).length===2
+        && ['main','secondary'].every(k=>Number.isFinite(value.pairLayout.marginBase[k])&&value.pairLayout.marginBase[k]>=0&&value.pairLayout.marginBase[k]<=9999)));
   const styleValid = style => style && ['inherit', 'snapshot'].includes(style.mode)
     && Object.keys(style).every(k => ['mode', 'value', 'selection', 'custom'].includes(k))
     && (style.mode === 'inherit' ? style.value === undefined : snapshotValid(style.value))

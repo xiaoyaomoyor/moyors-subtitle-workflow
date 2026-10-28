@@ -66,6 +66,11 @@ def _snapshot_valid(value):
         if (not isinstance(pair, dict) or pair.get("order") not in ("main-above", "secondary-above")
                 or type(pair.get("gap")) is not int or not -240 <= pair["gap"] <= 240):
             return False
+        if 'marginBase' in pair:
+            base = pair['marginBase']
+            if (not isinstance(base, dict) or set(base) != {'main', 'secondary'}
+                    or any(type(v) not in (int, float) or not 0 <= v <= 9999 for v in base.values())):
+                return False
     return True
 
 

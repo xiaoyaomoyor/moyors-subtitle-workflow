@@ -41,6 +41,10 @@ function fixedStyleValue(custom=false) {
   if(!group)return own(fixedStyleTarget()||{style:{mode:'inherit'}});
   const style=S.normalize(own(group.main));style.main=structuredClone(own(group.main)[group.main.flat_style_slot||'main']);
   if(group.secondary)style.secondary=structuredClone(own(group.secondary)[group.secondary.flat_style_slot||'main']);
+  if(style.pairLayout?.marginBase){
+    const base=t=>{const value=own(t),slot=t.flat_style_slot||'main';return value.pairLayout?.marginBase?.[slot]??value[slot].marginV;};
+    style.pairLayout.marginBase={main:base(group.main),secondary:group.secondary?base(group.secondary):style.secondary.marginV};
+  }
   return style;
 }
 function fixedCommitStyle(style, selection) {
@@ -50,7 +54,10 @@ function fixedCommitStyle(style, selection) {
   const members=group?[[group.main,'main'],...(group.secondary?[[group.secondary,'secondary']]:[])]:[[track,null]];
   const tracks=members.map(([member,role])=>{
     const mapped=window.MSWProjectStyle.forKind(value,fixedTrackCore.styleKind(member));
-    if(role)mapped[member.flat_style_slot||'main']=structuredClone(mapped[role]);
+    if(role){
+      mapped[member.flat_style_slot||'main']=structuredClone(mapped[role]);
+      if(mapped.pairLayout?.marginBase)mapped.pairLayout.marginBase[member.flat_style_slot||'main']=mapped.pairLayout.marginBase[role];
+    }
     const custom=selection==='current'?mapped:member.style.custom||window.MSWTrackPresentation.styleFor(DATA,member);
     return {id:member.id,style:selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value:mapped,selection,custom}};
   });

@@ -172,6 +172,10 @@ def layout(project, width=1920):
         for row in members:
             own_style = resolve_style(index.tracks[row['subtitle_track_id']]) if flat else style
             row['style'] = cue_style.apply(own_style['main' if row['role']=='main' else 'secondary'], row['cue'])
+            slot = 'main' if row['role']=='main' else 'secondary'
+            row['marginBase'] = own_style.get('pairLayout', {}).get('marginBase', {}).get(slot, row['style']['marginV'])
+            vertical = (row['style']['alignment']-1)//3
+            row['marginShift'] = (row['style']['marginV']-row['marginBase'])*(1 if vertical==2 else -1 if vertical==0 else 0)
             if background.enabled(row['style']):
                 row['style']['borderStyle'] = 1
             row['animations'] = own_style['animations']
@@ -208,8 +212,8 @@ def layout(project, width=1920):
         lower = members[-1]['style'];horizontal = (lower['alignment']-1)%3;vertical = (lower['alignment']-1)//3
         group['x'] = (group['position']['x']*width-group['width']/2 if group['position'] else
                       lower['marginL'] if horizontal==0 else width-lower['marginR']-group['width'] if horizontal==2 else (width-group['width'])/2)
-        group['y'] = (group['position']['y']*1080 if group['position'] else lower['marginV'] if vertical==2 else
-                      (1080-group['height'])/2 if vertical==1 else 1080-lower['marginV']-group['height'])
+        group['y'] = (group['position']['y']*1080 if group['position'] else members[-1]['marginBase'] if vertical==2 else
+                      (1080-group['height'])/2 if vertical==1 else 1080-members[-1]['marginBase']-group['height'])
         groups.append(group)
     if flat:
         by_cue = {r['cue_id']:r for r in rows}
@@ -265,7 +269,7 @@ def layout(project, width=1920):
             entry = dict(r,key=key(r),groupId=g['id'],rank=g['rank'],kind=g['kind'],
                 anchor=None if g['position'] else (g['rows'][-1]['style']['alignment']-1)//3,
                 x=g['x']+(0 if align==0 else g['width']-r['size']['width'] if align==2 else (g['width']-r['size']['width'])/2),
-                y=g['y']+r['localY'],width=r['size']['width'],height=r['size']['height'])
+                y=g['y']+r['localY']+(r['marginShift'] if not g['position'] else 0),width=r['size']['width'],height=r['size']['height'])
             p = r['cue'].get('subtitle_position')
             if p and 'alignment' in p:
                 # Keep the inherited pair's geometry for unselected partners.

@@ -19018,10 +19018,12 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 18;
+  const layoutVersion = 19;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
-    return {order:raw.order,gap:raw.gap};
+    const base=raw.marginBase;
+    if(base!==undefined&&(!base||Array.isArray(base)||Object.keys(base).some(k=>!['main','secondary'].includes(k))||!['main','secondary'].every(k=>Number.isFinite(base[k])&&base[k]>=0&&base[k]<=9999)))throw Error('主副字幕边距基准无效');
+    return {order:raw.order,gap:raw.gap,...(base!==undefined?{marginBase:{...base}}:{})};
   }
   function normalizeWrapping(raw={}) {
     const wrapMode=raw.wrapMode===undefined?'auto':raw.wrapMode,charsPerLine=raw.charsPerLine===undefined?20:raw.charsPerLine;
@@ -19173,6 +19175,14 @@ export default MawDynamicCaptions;
     if(style.legacyBurn)for(const role of ['main','secondary']){style.legacyBurn[role] ||= {};style.legacyBurn[role].y=1-style[role].marginV/1080;}
     return normalize(style);
   }
+  function editMargin(raw,role,value) {
+    const style=normalize(raw),pair=pairSettings(style);
+    // Freeze automatic packing once; subsequent manual changes move only the
+    // edited role after packing, without changing the partner or pair gap.
+    pair.marginBase ||= {main:style.main.marginV,secondary:style.secondary.marginV};
+    style[role].marginV=value;style.pairLayout=pair;
+    return normalize(style);
+  }
   function swapAppearance(raw) {
     const style=normalize(raw),position=['id','name','alignment','marginL','marginR','marginV','encoding','animation'];
     const before=clone(style);
@@ -19223,7 +19233,7 @@ export default MawDynamicCaptions;
     }
     return lines.join('\n')+'\n';
   }
-  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,characters,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,swapAppearance,buildLegacyAss});
+  global.MSWProjectStyle=Object.freeze({schema,layoutVersion,clone,normalize,forKind,presetSnapshot,normalizeWrapping,characters,wrapText,wrapCues,renderProject,defaults,fromLibrary,toLibrary,fromBurn,migrate,presets,apply,applyPreset,capture,restore,edit,pairSettings,arrangePair,editMargin,swapAppearance,buildLegacyAss});
 })(typeof window==='undefined'?globalThis:window);
 
 // Partial per-cue appearance. Position and track animation remain independent.
@@ -19616,7 +19626,10 @@ export default MawDynamicCaptions;
       && (value[k].wrapMode === undefined || ['auto', 'characters'].includes(value[k].wrapMode))
       && (value[k].charsPerLine === undefined || Number.isInteger(value[k].charsPerLine) && value[k].charsPerLine >= 1 && value[k].charsPerLine <= 200))
     && (value.pairLayout === undefined || value.pairLayout && ['main-above', 'secondary-above'].includes(value.pairLayout.order)
-      && Number.isInteger(value.pairLayout.gap) && value.pairLayout.gap >= -240 && value.pairLayout.gap <= 240);
+      && Number.isInteger(value.pairLayout.gap) && value.pairLayout.gap >= -240 && value.pairLayout.gap <= 240
+      && (value.pairLayout.marginBase===undefined || value.pairLayout.marginBase && !Array.isArray(value.pairLayout.marginBase)
+        && Object.keys(value.pairLayout.marginBase).length===2
+        && ['main','secondary'].every(k=>Number.isFinite(value.pairLayout.marginBase[k])&&value.pairLayout.marginBase[k]>=0&&value.pairLayout.marginBase[k]<=9999)));
   const styleValid = style => style && ['inherit', 'snapshot'].includes(style.mode)
     && Object.keys(style).every(k => ['mode', 'value', 'selection', 'custom'].includes(k))
     && (style.mode === 'inherit' ? style.value === undefined : snapshotValid(style.value))
@@ -21558,6 +21571,10 @@ export default MawDynamicCaptions;
       for (const row of rows) {
         const owner=tracks.find(t=>t.id===row.subtitle_track_id),own=core.flatView(project)?resolveStyle(owner):style;
         row.style = cueStyle.apply(own[core.flatView(project)?owner.flat_style_slot||'main':row.role === 'main' ? 'main' : 'secondary'], row.cue);
+        const slot=core.flatView(project)?owner.flat_style_slot||'main':row.role==='main'?'main':'secondary';
+        row.marginBase=own.pairLayout?.marginBase?.[slot]??row.style.marginV;
+        const vertical=Math.floor((row.style.alignment-1)/3);
+        row.marginShift=(row.style.marginV-row.marginBase)*(vertical===2?1:vertical===0?-1:0);
         if(project.preview?.speaker_palette){const storage=row.role==='main'?project.segments:project.multi_subtitle?.tracks.find(t=>t.id===row.track_id)?.segments||[];
           row.style=global.MSWSpeaker.appearance(row.style,row.cue,global.MSWSpeaker.profile(project,row.cue,storage[row.cue.color_ref?.headIdx]));}
         if(background.enabled(row.style))row.style.borderStyle=1;
@@ -21576,8 +21593,8 @@ export default MawDynamicCaptions;
       const horizontal = (alignment-1)%3, vertical = Math.floor((alignment-1)/3);
       group.x = group.position ? group.position.x*width-group.width/2
         : horizontal===0 ? lowerStyle.marginL||0 : horizontal===2 ? width-(lowerStyle.marginR||0)-group.width : (width-group.width)/2;
-      group.y = group.position ? group.position.y*1080 : vertical===2 ? lowerStyle.marginV||0
-        : vertical===1 ? (1080-group.height)/2 : 1080-(lowerStyle.marginV||0)-group.height;
+      group.y = group.position ? group.position.y*1080 : vertical===2 ? rows.at(-1).marginBase
+        : vertical===1 ? (1080-group.height)/2 : 1080-rows.at(-1).marginBase-group.height;
       groups.push(group);
     };
     for (const binding of project.multi_subtitle?.bindings || []) if ((binding.track_id ?? languageId) === languageId) {
@@ -21614,6 +21631,7 @@ export default MawDynamicCaptions;
     for (const group of ordered) for (const row of group.rows) {
       const align = ((Number(row.style.alignment)||2)-1)%3;
       const entry={...row, key:core.key(row), group, x:group.x+(align===0?0:align===2?group.width-row.size.width:(group.width-row.size.width)/2),y:group.y+row.localY,width:row.size.width,height:row.size.height};
+      if(!group.position)entry.y+=row.marginShift;
       const p=row.cue.subtitle_position;
       if(p?.alignment) {
         entry.position={...p};entry.style={...entry.style,alignment:p.alignment};
@@ -36088,6 +36106,10 @@ function fixedStyleValue(custom=false) {
   if(!group)return own(fixedStyleTarget()||{style:{mode:'inherit'}});
   const style=S.normalize(own(group.main));style.main=structuredClone(own(group.main)[group.main.flat_style_slot||'main']);
   if(group.secondary)style.secondary=structuredClone(own(group.secondary)[group.secondary.flat_style_slot||'main']);
+  if(style.pairLayout?.marginBase){
+    const base=t=>{const value=own(t),slot=t.flat_style_slot||'main';return value.pairLayout?.marginBase?.[slot]??value[slot].marginV;};
+    style.pairLayout.marginBase={main:base(group.main),secondary:group.secondary?base(group.secondary):style.secondary.marginV};
+  }
   return style;
 }
 function fixedCommitStyle(style, selection) {
@@ -36097,7 +36119,10 @@ function fixedCommitStyle(style, selection) {
   const members=group?[[group.main,'main'],...(group.secondary?[[group.secondary,'secondary']]:[])]:[[track,null]];
   const tracks=members.map(([member,role])=>{
     const mapped=window.MSWProjectStyle.forKind(value,fixedTrackCore.styleKind(member));
-    if(role)mapped[member.flat_style_slot||'main']=structuredClone(mapped[role]);
+    if(role){
+      mapped[member.flat_style_slot||'main']=structuredClone(mapped[role]);
+      if(mapped.pairLayout?.marginBase)mapped.pairLayout.marginBase[member.flat_style_slot||'main']=mapped.pairLayout.marginBase[role];
+    }
     const custom=selection==='current'?mapped:member.style.custom||window.MSWTrackPresentation.styleFor(DATA,member);
     return {id:member.id,style:selection==='inherit'?{mode:'inherit',custom}:{mode:'snapshot',value:mapped,selection,custom}};
   });
@@ -69815,6 +69840,10 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       const mapped={fontName:'font_family',fontSize:'font_size',primaryColor:'color',outlineColor:'outline_color',outline:'outline',backColor:'background_color'}[field];
       if(mapped && !(field==='fontSize'&&(v<8||v>200)) && !(field==='outline'&&v>12)) {style.legacyBurn[role] ||= {};style.legacyBurn[role][mapped]=v;}
       else {delete style.legacyBurn;message('已转换为工程 ASS 样式，请在播放器确认背景与位置。');}
+    }
+    if(field==='marginV'&&fixedTrackMode()){
+      const edited=S.editMargin(style,role,v);
+      if(!edited.name.endsWith(' · 已修改'))edited.name+=' · 已修改';change(edited);return;
     }
     if(field){style[role][field]=v;if(field==='backgroundRadius'&&v>0&&style[role].backgroundShape==='rect')style[role].backgroundShape='rounded';}else{
       const [g,k]=animation.split('.');style.animations[g][k]=v;

@@ -55,6 +55,12 @@ def normalize_project_style(raw):
                 or type(pair.get('gap')) is not int or not -240 <= pair['gap'] <= 240):
             raise ValueError('主副字幕排列设置无效')
         result['pairLayout'] = dict(order=pair['order'], gap=pair['gap'])
+        if 'marginBase' in pair:
+            base = pair['marginBase']
+            if (not isinstance(base, dict) or set(base) != {'main', 'secondary'}
+                    or any(type(v) not in (int, float) or not 0 <= v <= 9999 for v in base.values())):
+                raise ValueError('主副字幕边距基准无效')
+            result['pairLayout']['marginBase'] = dict(base)
     return result
 
 
