@@ -10,6 +10,7 @@ DEFINITIONS = dict(
     transform=dict(enabled=False, unit='percent', start=0, end=25, fromX=0, fromY=0, toX=0, toY=0,
                    fromScale=85, toScale=100, fromRotation=0, toRotation=0, fromOpacity=100, toOpacity=100, easing='smooth'),
     slide=dict(enabled=False, unit='percent', start=0, **{'in':15, 'out':15}, end=100, direction='right', distance=120),
+    wave=dict(enabled=False, unit='percent', start=0, end=100, amplitude=12, period=40, periodUnit='percent', wavelength=8, direction='right'),
     curves=dict(enabled=False, unit='percent', channels={}))
 CHANNELS = dict(x=(-4096,4096), y=(-4096,4096), scale=(1,1000), rotation=(-360,360), opacity=(0,100))
 
@@ -55,7 +56,7 @@ def valid(raw):
             if key in ('enabled','custom'):
                 ok = type(value) is bool
             elif key == 'direction':
-                ok = value in ('left','right','up','down')
+                ok = value in (('left','right') if name == 'wave' else ('left','right','up','down'))
             elif key in ('unit','periodUnit'):
                 ok = value in ('percent', 'ms')
             elif key == 'easing':
@@ -68,8 +69,9 @@ def valid(raw):
                 ok = valid(dict(schema=SCHEMA,effects=dict(blink=value)))
             else:
                 low, high = ((0, 100 if effect['unit'] == 'percent' else 60000) if key in (*timings(name),'start','end', *(('in','out') if name=='slide' else ()))
+                             else (0,120) if key == 'amplitude' else (2,64) if key == 'wavelength'
                              else (0,4096) if key == 'distance'
-                             else ((1,100) if effect.get('periodUnit') == 'percent' else (80,60000)) if key == 'period' else (0, 100) if key.endswith('Opacity') or key == 'opacity'
+                             else (((5 if name=='wave' else 1),100) if effect.get('periodUnit') == 'percent' else ((200 if name=='wave' else 80),60000)) if key == 'period' else (0, 100) if key.endswith('Opacity') or key == 'opacity'
                              else (1, 1000) if key.endswith('Scale') else (-360, 360) if key.endswith('Rotation') else (-4096, 4096))
                 ok = type(value) in (int, float) and math.isfinite(value) and low <= value <= high
             if not ok:
@@ -99,7 +101,7 @@ def resolve(base=None, override=None):
 def active(raw):
     if 'mode' not in raw:
         return raw
-    return {**raw, 'effects':{key:effect if ((key=='curves' or key=='typewriter' and effect.get('custom')) if raw['mode']=='custom' else key!='curves') else {**effect,'enabled':False}
+    return {**raw, 'effects':{key:effect if ((key in ('curves','wave') or key=='typewriter' and effect.get('custom')) if raw['mode']=='custom' else key!='curves') else {**effect,'enabled':False}
                              for key,effect in raw['effects'].items()}}
 
 
@@ -212,12 +214,28 @@ def sample(raw, elapsed, duration, count=0):
     return state
 
 
+def wave_offset(effect, elapsed, duration, index):
+    """Screen-space vertical offset. Character phase restarts on each line."""
+    if not effect or not effect['enabled'] or not effect['amplitude']:
+        return 0
+    e = clock_effect(effect, duration)
+    start, end = (ms(e, key, duration) for key in ('start', 'end'))
+    if elapsed <= start or elapsed >= end:
+        return 0
+    period = e['period']*(duration/100 if e['periodUnit']=='percent' else 1)
+    ramp = min(period/4, (end-start)/2)
+    p = clamp(min(elapsed-start, end-elapsed)/max(ramp, 1e-9))
+    return e['amplitude']*p*p*(3-2*p)*math.sin(2*math.pi*(index/e['wavelength']+(1 if e['direction']=='left' else -1)*(elapsed-start)/period))
+
+
 def boundaries(raw, duration, count):
     """Critical times plus bounded smooth interpolation; never a wall-clock timer."""
     raw = runtime(active(raw), duration)
     cuts = {0, duration}
     for name, effect in raw['effects'].items():
         if not effect['enabled']:
+            continue
+        if name == 'wave' and not effect['amplitude']:
             continue
         if name == 'curves':
             ratio = duration/100 if effect['unit'] == 'percent' else 1
@@ -245,6 +263,11 @@ def boundaries(raw, duration, count):
         a, b = ms(effect, 'start', duration), ms(effect, 'end', duration)
         cuts.update((a, b))
         step = effect['period']*(duration/100 if effect.get('periodUnit')=='percent' else 1)/2 if name == 'blink' else (b-a)/max(1, count) if name == 'typewriter' else 40
+        if name == 'wave':
+            period = effect['period']*(duration/100 if effect['periodUnit']=='percent' else 1)
+            step = max(10, min(40, period/16))
+            ramp = min(period/4, (b-a)/2)
+            cuts.update((a+ramp, b-ramp))
         end = min(b, duration)
         if name == 'transform' and effect['easing'] == 'linear':
             continue
@@ -273,6 +296,7 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
         from copy import deepcopy
         raw = deepcopy(raw)
         raw['effects']['typewriter']['enabled'] = False
+        raw['effects']['wave']['enabled'] = False
     units = _characters(text)
     from maw.msw.subtitle_fonts import font_tags
     fonts = font_tags(units, style)
@@ -284,6 +308,13 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
         if not unit.isspace():
             color_index+=1
     cuts = [lo] + [t for t in boundaries(raw, duration, count) if lo < t < hi] + [hi]
+    wave = runtime(active(raw), duration)['effects'].get('wave')
+    waving = wave and wave['enabled'] and wave['amplitude'] > 0
+    if waving:
+        wave_start, wave_end = (ms(wave, key, duration) for key in ('start', 'end'))
+        segments = sum(b > wave_start and a < wave_end for a, b in zip(cuts, cuts[1:]))
+        if segments and (count > 128 or segments*count > 16000):
+            raise ValueError('文字波动生成片段过多，请缩短波动区间、拆分长句或减小使用范围（每条最多 128 字／16000 片段）')
     def number(v):
         return f'{v:.4f}'.rstrip('0').rstrip('.') or '0'
     def alpha(v):
@@ -302,15 +333,53 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
         # Blink is discontinuous; evaluate both limits inside this fragment.
         left, right = sample(raw, a+1e-6, duration, count), sample(raw, b-1e-6, duration, count)
         span = b-a
-        movement = any(abs(left[k]-right[k]) > 1e-6 for k in ('x', 'y'))
-        xy = [x+left['x'], y+left['y'], x+right['x'], y+right['y']]
-        position = ('\\move('+','.join(number(v) for v in [*xy, 0, span])+')' if movement
-                    else '\\pos('+','.join(number(v) for v in xy[:2])+')')
-        tags = (background.tags(style) if drawing is not None else '')+rf'\an{alignment}\q2'+position+props(left)
-        if props(left) != props(right):
-            tags += r'\t(0,'+number(span)+',1,'+props(right)+')'
+        def tags_at(dy_left=0, dy_right=0):
+            xy = [x+left['x'], y+left['y']+dy_left, x+right['x'], y+right['y']+dy_right]
+            movement = abs(xy[0]-xy[2]) > 1e-6 or abs(xy[1]-xy[3]) > 1e-6
+            position = ('\\move('+','.join(number(v) for v in [*xy, 0, span])+')' if movement
+                        else '\\pos('+','.join(number(v) for v in xy[:2])+')')
+            tags = (background.tags(style) if drawing is not None else '')+rf'\an{alignment}\q2'+position+props(left)
+            if props(left) != props(right):
+                tags += r'\t(0,'+number(span)+',1,'+props(right)+')'
+            return tags
+        tags = tags_at()
         if drawing is not None:
             yield a, b, tags, drawing
+            continue
+        if waving and a < wave_end and b > wave_start:
+            # Keep the complete shaped line in every event, masking everything
+            # except one grapheme. No guessed advances or lost spaces/kerning.
+            # Alpha overrides must cancel the event's fade on the hidden text.
+            invisible = r'{\alpha&HFF&\t(0,'+number(span)+r',1,\alpha&HFF&)}'
+            visible = r'{\alpha&H'+alpha(left['opacity'])+r'&\t(0,'+number(span)+r',1,\alpha&H'+alpha(right['opacity'])+'&)}'
+            tokens, targets, seen, phase, prefix_count = [], [], 0, 0, 0
+            current_color = speaker_color if speaker_prefix and speaker_color else style['primaryColor']
+            for j, unit in enumerate(units):
+                if speaker_color and speaker_prefix and prefix_count >= len(speaker_prefix):
+                    current_color = style['primaryColor']
+                tokens.append((color_tags[j] or color_tag(current_color))+fonts[j]+ass_text(unit))
+                if not unit.isspace():
+                    seen += 1
+                    if seen <= mid['revealed']:
+                        targets.append((j, phase))
+                    phase += 1
+                if unit == '\n':
+                    phase = 0
+                else:
+                    prefix_count += len(unit)
+            # Opaque ASS boxes stay as one unbroken background. Custom drawn
+            # backgrounds already have their own independent stream.
+            box = style['borderStyle'] == 3
+            if box:
+                yield a, b, tags+r'\1a&HFF&\2a&HFF&\t(0,'+number(span)+r',1,\1a&HFF&\2a&HFF&)', ''.join(tokens)
+                visible = (r'{\alpha&H'+alpha(left['opacity'])+r'&\3a&HFF&\4a&HFF&\t(0,'+number(span)
+                           +r',1,\alpha&H'+alpha(right['opacity'])+r'&\3a&HFF&\4a&HFF&)}')
+            for j, phase in targets:
+                body = invisible+''.join(tokens[:j])+visible+tokens[j]+invisible+''.join(tokens[j+1:])
+                wave_tags = tags_at(wave_offset(wave, a, duration, phase), wave_offset(wave, b, duration, phase))
+                if box:
+                    wave_tags += r'\bord0\shad0'
+                yield a, b, wave_tags, body
             continue
         parts, seen, prefix_count, hidden = [], 0, 0, False
         if speaker_color and speaker_prefix and not use_gradient:

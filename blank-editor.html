@@ -5591,7 +5591,16 @@
 
 /* Animation: compact presets and a distinct, channel-based custom editor. */
 #subtitle-motion-controls [hidden] { display:none !important; }
-#subtitle-properties .msw-motion-custom { margin-left:auto; }
+#subtitle-properties .msw-motion-custom { margin-left:0; }
+.msw-motion-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:10px; }
+.msw-motion-toolbar #motion-inherit { margin-left:auto; }
+.msw-motion-group-label { flex:0 0 100%; color:var(--text-secondary); font-size:12px; margin-bottom:2px; }
+#motion-special-presets { border-top:1px solid var(--border-subtle); padding-top:10px; margin-top:12px; }
+.msw-wave-length { display:inline-flex; align-items:center; gap:4px; }
+#subtitle-properties #motion-wave-wavelength { width:42px; min-width:0; padding:3px 5px; }
+#motion-wave .msw-motion-heading { justify-content:flex-start; gap:6px; }
+#motion-wave .msw-motion-heading > select { min-width:68px; max-width:80px; }
+#motion-wave-reset { margin-left:auto; }
 .msw-motion-effect { margin-top:8px; padding-top:6px; }
 .msw-motion-heading { margin-bottom:0; }
 .msw-motion-heading > span::before { content:none; }
@@ -5609,7 +5618,6 @@
 .msw-curve-pulse > div { margin-top:6px; gap:12px; }
 #subtitle-properties .msw-curve-pulse input { width:78px; min-width:0; }
 .curve-pulse-line { opacity:.5; stroke-dasharray:3 2; }
-#motion-custom-typewriter { margin-bottom:8px; }
 .motion-range-hit { fill:transparent; stroke:none; }
 .motion-range-node { cursor:ew-resize; }
 .motion-range-node .motion-range-handle { fill:var(--accent); stroke:var(--bg-panel); stroke-width:1.5; pointer-events:none; }
@@ -18523,11 +18531,13 @@ export default MawDynamicCaptions;
     blink:{enabled:false,unit:'percent',start:0,end:100,period:600,opacity:0},
     transform:{enabled:false,unit:'percent',start:0,end:25,fromX:0,fromY:0,toX:0,toY:0,fromScale:85,toScale:100,fromRotation:0,toRotation:0,fromOpacity:100,toOpacity:100,easing:'smooth'},
     slide:{enabled:false,unit:'percent',start:0,in:15,out:15,end:100,direction:'right',distance:120},
+    wave:{enabled:false,unit:'percent',start:0,end:100,amplitude:12,period:40,periodUnit:'percent',wavelength:8,direction:'right'},
     curves:{enabled:false,unit:'percent',channels:{}}
   };
   const channels={x:{label:'横向位移 (px)',min:-4096,max:4096,initial:0},y:{label:'纵向位移 (px)',min:-4096,max:4096,initial:0},
     scale:{label:'缩放 (%)',min:1,max:1000,initial:100},rotation:{label:'旋转 (°)',min:-360,max:360,initial:0},opacity:{label:'不透明度 (%)',min:0,max:100,initial:100}};
   const names=Object.keys(definitions),clone=v=>JSON.parse(JSON.stringify(v));
+  const specialNames=['typewriter','wave'];
   const object=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
   const timings=name=>name==='curves'?[]:name==='fade'?['in','out']:['start','end'];
   const anchor=p=>p.anchor||'start';
@@ -18553,14 +18563,14 @@ export default MawDynamicCaptions;
       if(name==='fade'&&Object.hasOwn(e,'start')!==Object.hasOwn(e,'end'))return false;
       for(const [k,v] of Object.entries(e)){
         if(k==='enabled'||k==='custom'){if(typeof v!=='boolean')return false;}
-        else if(k==='direction'){if(!['left','right','up','down'].includes(v))return false;}
+        else if(k==='direction'){if(!(name==='wave'?['left','right']:['left','right','up','down']).includes(v))return false;}
         else if(k==='unit'||k==='periodUnit'){if(!['percent','ms'].includes(v))return false;}
         else if(k==='easing'){if(!['linear','ease-in','ease-out','smooth'].includes(v))return false;}
         else if(k==='channels'){if(!validChannels(v,e.unit))return false;}
         else if(k==='endAnchor'){if(!['start','end'].includes(v)||!Object.hasOwn(e,'end'))return false;}
         else if(k==='pulse'){if(!valid({schema,effects:{blink:v}}))return false;}
         else{
-          const bounds=[...timings(name),'start','end',...(name==='slide'?['in','out']:[])].includes(k)?[0,e.unit==='percent'?100:60000]:k==='distance'?[0,4096]:k==='period'?(e.periodUnit==='percent'?[1,100]:[80,60000]):k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
+          const bounds=[...timings(name),'start','end',...(name==='slide'?['in','out']:[])].includes(k)?[0,e.unit==='percent'?100:60000]:k==='amplitude'?[0,120]:k==='wavelength'?[2,64]:k==='distance'?[0,4096]:k==='period'?(e.periodUnit==='percent'?[name==='wave'?5:1,100]:[name==='wave'?200:80,60000]):k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
           if(typeof v!=='number'||!Number.isFinite(v)||v<bounds[0]||v>bounds[1])return false;
         }
       }
@@ -18575,7 +18585,7 @@ export default MawDynamicCaptions;
   function active(raw){
     if(!raw.mode)return raw;
     return {...raw,effects:Object.fromEntries(Object.entries(raw.effects).map(([key,e])=>[key,
-      (raw.mode==='custom'?(key==='curves'||key==='typewriter'&&e.custom):key!=='curves')?e:{...e,enabled:false}]))};
+      (raw.mode==='custom'?(key==='curves'||key==='wave'||key==='typewriter'&&e.custom):key!=='curves')?e:{...e,enabled:false}]))};
   }
   const authoringMode=raw=>raw.mode||(raw.effects.curves?.enabled&&Object.keys(raw.effects.curves.channels).length?'custom':'presets');
   // Snap within legal bounds, never across a neighbouring keyframe. If a very
@@ -18731,7 +18741,7 @@ export default MawDynamicCaptions;
     if(action.type==='mode'){
       patch.mode=action.value;
       if(action.value==='custom'){
-        if(names.some(n=>n!=='curves'&&a.effects[n].enabled))patch.effects.curves=curvesFromPresets(a,duration);
+        if(names.some(n=>n!=='curves'&&!specialNames.includes(n)&&a.effects[n].enabled))patch.effects.curves=curvesFromPresets(a,duration);
         else if(Object.keys(a.effects.curves.channels).length)patch.effects.curves={...a.effects.curves,enabled:true};
         patch.effects.typewriter={...a.effects.typewriter,custom:a.effects.typewriter.enabled};
       }
@@ -18772,7 +18782,8 @@ export default MawDynamicCaptions;
       if(action.type==='toggle')e.enabled=action.value;
       if(action.type==='values')Object.assign(e,action.value);
       if(name==='transform'&&action.type==='values'&&Object.hasOwn(action.value,'toScale'))e.fromScale=100;
-      patch.effects[name]=e;patch.mode='presets';
+      if(name==='typewriter'&&authoringMode(a)==='custom')e.custom=e.enabled;
+      patch.effects[name]=e;patch.mode=specialNames.includes(name)?authoringMode(a):'presets';
     }
     if(!valid(patch))throw Error('动画参数无效：时间不能交叉，数值须在允许范围内');
     return patch;
@@ -18832,15 +18843,15 @@ export default MawDynamicCaptions;
     }else if(unit==='ms'){
       for(const key of ['start','end','in','out'])if(Object.hasOwn(n,key))n[key]*=duration/100;
       if(name==='fade'&&!Object.hasOwn(n,'start'))Object.assign(n,{start:0,end:duration});
-      if(['fade','slide','blink'].includes(name)){n.end=duration-n.end;n.endAnchor='end';}else n.endAnchor='start';
+      if(['fade','slide','blink','wave'].includes(name)){n.end=duration-n.end;n.endAnchor='end';}else n.endAnchor='start';
     }else{
       const timed=clockEffect(n,duration);
       for(const key of ['start','end','in','out'])if(Object.hasOwn(timed,key))n[key]=timed[key]*100/duration;
       delete n.endAnchor;
     }
-    if(name==='blink'){
+    if(name==='blink'||name==='wave'){
       const period=n.period*(n.periodUnit==='percent'?duration/100:1);
-      n.period=unit==='ms'?clamp(period,80,60000):clamp(period*100/duration,1,100);n.periodUnit=unit;
+      n.period=unit==='ms'?clamp(period,name==='wave'?200:80,60000):clamp(period*100/duration,name==='wave'?5:1,100);n.periodUnit=unit;
     }
     n.unit=unit;return n;
   }
@@ -18942,9 +18953,10 @@ export default MawDynamicCaptions;
     return state;
   }
   function envelope(row,width){
-    const motion=row.motion?active(row.motion):null,t=motion?.effects.transform,c=motion?.effects.curves,slide=motion?.effects.slide;if(!t?.enabled&&!c?.enabled&&!slide?.enabled)return row;
+    const motion=row.motion?active(row.motion):null,t=motion?.effects.transform,c=motion?.effects.curves,slide=motion?.effects.slide,wave=motion?.effects.wave;if(!t?.enabled&&!c?.enabled&&!slide?.enabled&&!wave?.enabled)return row;
     const values=(key,suffix)=>c?.enabled&&c.channels[key]?c.channels[key].map(p=>p.value):t?.enabled?[t['from'+suffix],t['to'+suffix]]:[channels[key].initial];
     const scales=values('scale','Scale'),dx=values('x','X'),dy=values('y','Y'),rotations=values('rotation','Rotation');
+    if(wave?.enabled)dy.push(Math.min(...dy)-wave.amplitude,Math.max(...dy)+wave.amplitude);
     if(slide?.enabled){const key=['left','right'].includes(slide.direction)?'x':'y';if(!(c?.enabled&&c.channels[key])){const v=key==='x'?dx:dy;v.push(Math.min(...v)-slide.distance,Math.max(...v)+slide.distance);}}
     const ax=row.position.x*width,ay=row.position.y*1080,s=Math.max(...scales)/100;
     const corners=[[row.x-ax,row.y-ay],[row.x+row.width-ax,row.y-ay],[row.x-ax,row.y+row.height-ay],[row.x+row.width-ax,row.y+row.height-ay]];
@@ -18960,7 +18972,15 @@ export default MawDynamicCaptions;
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
   }
-  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets,timingMode,clockEffect,pointExtent,resolvePoints,sortPoints,anchor,effectUnit,authorState};
+  function waveOffset(effect,elapsed,duration,index){
+    if(!effect?.enabled||!effect.amplitude)return 0;
+    const e=clockEffect(effect,duration),start=ms(e,'start',duration),end=ms(e,'end',duration);
+    if(elapsed<=start||elapsed>=end)return 0;
+    const period=e.period*(e.periodUnit==='percent'?duration/100:1),ramp=Math.min(period/4,(end-start)/2);
+    const strength=ease(clamp(Math.min(elapsed-start,end-elapsed)/Math.max(ramp,1e-9)),'smooth');
+    return e.amplitude*strength*Math.sin(2*Math.PI*(index/e.wavelength+(e.direction==='left'?1:-1)*(elapsed-start)/period));
+  }
+  const api={schema,names,specialNames,waveOffset,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets,timingMode,clockEffect,pointExtent,resolvePoints,sortPoints,anchor,effectUnit,authorState};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);
 
@@ -19018,7 +19038,7 @@ export default MawDynamicCaptions;
   const U = global.AsrEditorUtils;
   const clone = value => JSON.parse(JSON.stringify(value));
   const schema = 'msw.subtitle-style.v1';
-  const layoutVersion = 19;
+  const layoutVersion = 20;
   function normalizePair(raw) {
     if(!raw||!['main-above','secondary-above'].includes(raw.order)||!Number.isInteger(raw.gap)||raw.gap< -240||raw.gap>240)throw Error('主副字幕排列设置无效');
     const base=raw.marginBase;
@@ -36265,12 +36285,18 @@ function fixedRefreshSubtitlePreview(tMs) {
     const gradient=window.MSWSubtitleGradient.enabled(style);
     const mixedFonts=window.AsrEditorUtils.ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k]);
     if(motion||gradient||mixedFonts){
-      text.replaceChildren();let seen=0,prefix=0;
+      text.replaceChildren();let seen=0,prefix=0,phase=0;
+      const wave=entry.motion?.effects.wave;
       const units=window.MSWProjectStyle.characters(size.text),count=units.filter(u=>u.trim()).length;
       for(const unit of units){
         if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
         if(mixedFonts)span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));
         if(motion&&seen>motion.revealed)span.style.visibility='hidden';
+        if(wave?.enabled&&unit.trim()){
+          span.style.position='relative';span.style.top=window.MSWSubtitleAnimation.waveOffset(wave,tMs-entry.cue.start,entry.cue.end-entry.cue.start,phase)+'px';
+          phase++;
+        }
+        if(unit==='\n')phase=0;
         if(gradient)span.style.color=window.MSWSubtitleGradient.color(style,seen-1,count);
         else if(prefix<size.prefix.length)span.style.color=speaker.style.color;
         text.append(span);if(unit!=='\n')prefix+=unit.length;
@@ -68906,16 +68932,19 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
 (function(global){
   'use strict';
   const A=global.MSWSubtitleAnimation,clone=v=>JSON.parse(JSON.stringify(v));
-  const labels={fade:'淡入淡出',typewriter:'打字机',blink:'闪烁',transform:'舒展',slide:'滑入滑出'};
+  const labels={fade:'淡入淡出',slide:'滑入滑出',blink:'闪烁',transform:'舒展',typewriter:'打字机',wave:'波动'};
   const resetIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg>';
   const inheritIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v11h13M14 11l4 4-4 4M9 4h11M9 8h11"/></svg>';
   const readout=v=>Math.round(v*10)/10;
   const parameters=(name,e)=>name==='blink'?
     [{key:'period',title:'循环间隔',min:e.periodUnit==='ms'?80:1,max:e.periodUnit==='ms'?Math.max(2000,e.period):100,lane:0,scale:e.periodUnit==='ms'?1000:1},{key:'opacity',title:'最低不透明度',min:0,max:100,lane:1}]:
+    name==='wave'?[{key:'amplitude',title:'振幅',min:0,max:Math.max(60,e.amplitude),lane:0},{key:'period',title:'循环周期',min:e.periodUnit==='ms'?200:5,max:e.periodUnit==='ms'?Math.max(3000,e.period):100,lane:1,scale:e.periodUnit==='ms'?1000:1}]:
     name==='transform'?[{key:'toScale',title:'缩放强度',min:1,max:Math.max(200,e.toScale),lane:0}]:name==='slide'?[{key:'distance',title:'滑动距离',min:0,max:Math.max(480,e.distance),lane:0}]:[];
   function create(root,{context,commit,message}){
-    root.innerHTML=`<div class="msw-motion-presets" data-option-help="拖动手柄调整时间，拖动色块移动区间。Ctrl／Ctrl+Shift：比例吸附 1%／5%，固定时长吸附 0.010／0.050 秒。退场从结尾计算，短字幕自动缩短入退场。关闭效果保留参数。"></div>
-      <div id="motion-preset-controls"></div><div id="motion-curve-editor" hidden></div>`;
+    root.innerHTML=`<div class="msw-motion-toolbar" data-option-help="拖动手柄调时间，拖动色块移区间。Ctrl／Ctrl+Shift：吸附 1%／5% 或 0.010／0.050 秒。关闭效果保留参数。"></div>
+      <div id="motion-basic-presets" class="msw-motion-presets"><span class="msw-motion-group-label">基础变换</span></div>
+      <div id="motion-preset-controls"></div><div id="motion-curve-editor" hidden></div>
+      <div id="motion-special-presets" class="msw-motion-presets"><span class="msw-motion-group-label">特殊效果</span></div><div id="motion-special-controls"></div>`;
     const $=id=>root.querySelector('#'+id),bar=root.firstElementChild;
     let signature='',drag=null,states={},custom=false;
     const reference=()=>context().items[0]?.duration||1000;
@@ -68932,18 +68961,19 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       const d=drag;drag=null;states[d.name]=d.original;draw(d.name);
     }
     for(const [name,label] of Object.entries(labels)){
+      const special=A.specialNames.includes(name);
       const b=document.createElement('button');b.type='button';b.id='motion-preset-'+name;b.className='msw-motion-preset';
       b.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg><span>'+label+'</span>';
-      b.onclick=()=>{cancel();apply(name,{type:'toggle',value:b.classList.contains('is-mixed')||b.getAttribute('aria-pressed')!=='true'});};bar.append(b);
+      b.onclick=()=>{cancel();apply(name,{type:'toggle',value:b.classList.contains('is-mixed')||b.getAttribute('aria-pressed')!=='true'});};$(special?'motion-special-presets':'motion-basic-presets').append(b);
       const section=document.createElement('section');section.id='motion-'+name;section.className='msw-motion-effect';section.hidden=true;
-      section.innerHTML=`<div class="msw-motion-heading"><span>${label}</span>${name==='slide'?'<select id="motion-slide-direction" aria-label="滑动方向"><option value="right">向右</option><option value="left">向左</option><option value="down">向下</option><option value="up">向上</option></select>':''}<button type="button" class="msw-style-icon" id="motion-${name}-reset" title="恢复${label}默认值" aria-label="恢复${label}默认值">${resetIcon}</button></div>
+      section.innerHTML=`<div class="msw-motion-heading"><span${name==='wave'?' data-option-help="文字逐字上下起伏；波长是一轮波形包含的字数。背景保持整体。长句使用波动会增加渲染开销。"':''}>${label}</span>${['slide','wave'].includes(name)?`<select id="motion-${name}-direction" aria-label="${name==='wave'?'波动':'滑动'}方向"><option value="right">向右</option><option value="left">向左</option>${name==='slide'?'<option value="down">向下</option><option value="up">向上</option>':''}</select>`:''}${name==='wave'?'<label class="msw-wave-length">波长 <input id="motion-wave-wavelength" type="number" min="2" max="64" step="1" aria-label="波长（字）"> 字</label>':''}<button type="button" class="msw-style-icon" id="motion-${name}-reset" title="恢复${label}默认值" aria-label="恢复${label}默认值">${resetIcon}</button></div>
         <svg id="motion-${name}-graph" class="msw-motion-range-graph" preserveAspectRatio="none" role="group" aria-label="${label}时间区间"></svg>`;
-      $('motion-preset-controls').append(section);
+      $(special?'motion-special-controls':'motion-preset-controls').append(section);
       $('motion-'+name+'-reset').onclick=()=>apply(name,{type:'reset'});
       const graph=$('motion-'+name+'-graph');
       function valueAt(e){const r=graph.getBoundingClientRect();return (e.clientX-r.left-26)/Math.max(1,r.width-52)*states[name]._extent;}
       graph.onpointerdown=e=>{
-        if(e.button!==0||context().blocked||custom)return;
+        if(e.button!==0||context().blocked||custom&&!special)return;
         const node=e.target.closest('[data-edge],[data-band],[data-parameter]');if(!node)return;
         e.preventDefault();e.stopPropagation();
         drag={name,id:e.pointerId,original:clone(states[name]),start:valueAt(e),edge:node.dataset.edge,band:node.dataset.band,
@@ -68970,7 +69000,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       graph.onpointercancel=cancel;graph.onlostpointercapture=cancel;
       graph.onkeydown=e=>{
         const node=e.target.closest('[data-edge],[data-parameter]');
-        if(!node||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)||context().blocked||custom)return;
+        if(!node||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)||context().blocked||custom&&!special)return;
         e.preventDefault();e.stopPropagation();
         const parameter=parameters(name,states[name]).find(p=>p.key===node.dataset.parameter),edge=node.dataset.edge;
         const current=parameter?states[name][parameter.key]:A.presetTimes(name,states[name])[Number(edge)],min=parameter?.min??0,max=parameter?.max??states[name]._extent,scale=parameter?.scale||(parameter?1:states[name].unit==='ms'?1000:1);
@@ -68983,11 +69013,11 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       new ResizeObserver(()=>{if(states[name]&&!drag)draw(name);}).observe(graph);
     }
     $('motion-slide-direction').onchange=e=>apply('slide',{type:'values',value:{direction:e.target.value}});
-    const mode=document.createElement('button');mode.id='motion-custom';mode.type='button';mode.className='msw-motion-preset msw-motion-custom';mode.textContent='自定义';bar.append(mode);
+    $('motion-wave-direction').onchange=e=>apply('wave',{type:'values',value:{direction:e.target.value}});
+    $('motion-wave-wavelength').onchange=e=>apply('wave',{type:'values',value:{wavelength:Number(e.target.value)}});
+    const mode=document.createElement('button');mode.id='motion-custom';mode.type='button';mode.className='msw-motion-preset msw-motion-custom';mode.textContent='自定义';$('motion-basic-presets').append(mode);
     const inherit=document.createElement('button');inherit.id='motion-inherit';inherit.type='button';inherit.className='msw-style-icon';inherit.title=inherit.ariaLabel='恢复轨道动画';inherit.innerHTML=inheritIcon;bar.append(inherit);
     const curves=global.MSWAnimationCurvesUI.create($('motion-curve-editor'),{context,commit,message});
-    const reveal=document.createElement('button');reveal.id='motion-custom-typewriter';reveal.type='button';reveal.className='msw-motion-preset';reveal.textContent='打字机 ×';reveal.title='关闭保留的打字机效果';$('motion-curve-editor').prepend(reveal);
-    reveal.onclick=()=>apply('typewriter',{type:'custom-typewriter',value:false});
     mode.onclick=()=>{cancel();curves.cancel();apply('all',{type:'mode',value:custom?'presets':'custom'});};
     inherit.onclick=()=>{try{commit('all','reset');message('');}catch(e){message(e.message,true);}sync();};
     function draw(name){
@@ -69005,7 +69035,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
           <title>${titles[i]} ${timeLabel(v,i)}</title></g>
           <text x="${x(v)}" y="${i%2&&(pair||x(v)-x(p[i-1])<100)?79:65}" text-anchor="${v/e._extent<.15?'start':v/e._extent>.85?'end':'middle'}">${timeLabel(v,i)}</text>`).join('')+
         scalar.map(({key,title,min,max,lane},i)=>{
-          const px=x(e[key]/max*e._extent),y=lane?32:24,summary=key==='toScale'?`缩放 100% → ${readout(e[key])}%`:key==='distance'?`距离 ${readout(e[key])} px`:key==='period'&&e.periodUnit==='ms'?`间隔 ${(e[key]/1000).toFixed(3)} s`:`${lane?'不透明':'间隔'} ${readout(e[key])}%`;
+          const px=x(e[key]/max*e._extent),y=lane?32:24,summary=key==='toScale'?`缩放 100% → ${readout(e[key])}%`:key==='distance'?`距离 ${readout(e[key])} px`:key==='amplitude'?`振幅 ${readout(e[key])} px`:key==='period'?`${name==='wave'?'周期':'间隔'} ${e.periodUnit==='ms'?(e[key]/1000).toFixed(3)+' s':readout(e[key])+'%'}`:`不透明 ${readout(e[key])}%`;
           return `<g id="motion-${name}-${key}" class="motion-parameter-node" data-parameter="${key}" tabindex="${tab}" role="slider" aria-disabled="${off}" aria-label="${title}" aria-valuemin="${min}" aria-valuemax="${max}" aria-valuenow="${readout(e[key])}" aria-valuetext="${summary}">
             <path class="motion-parameter-stem" d="M${px} 18V38"/>
             <path class="motion-parameter-symbol" transform="translate(${px} ${y})" d="${lane?'M0-4L4 0L0 4L-4 0Z':'M-3-3H3V3H-3Z'}"/>
@@ -69023,15 +69053,16 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       const first=c.items[0]?.value||A.defaults();custom=A.authoringMode(first)==='custom';
       mode.setAttribute('aria-pressed',String(custom));mode.disabled=c.blocked;
       $('motion-preset-controls').hidden=custom;$('motion-curve-editor').hidden=!custom;
-      reveal.hidden=!custom||!first.effects.typewriter.enabled||!first.effects.typewriter.custom;reveal.disabled=c.blocked;
       timing.value=A.timingMode(first);timing.disabled=c.blocked;
       $('motion-slide-direction').value=first.effects.slide.direction;
+      $('motion-wave-direction').value=first.effects.wave.direction;
+      $('motion-wave-wavelength').value=first.effects.wave.wavelength;
       inherit.hidden=!c.cue;inherit.disabled=c.blocked||!c.items.some(i=>i.override);
       inherit.title=inherit.ariaLabel=c.inheritLabel||'恢复轨道动画';
       for(const name of Object.keys(labels)){
-        const button=$('motion-preset-'+name),enabled=first.effects[name].enabled;
-        button.setAttribute('aria-pressed',String(enabled));button.disabled=c.blocked||custom;
-        const mixed=c.items.some(i=>i.value.effects[name].enabled!==enabled);
+        const special=A.specialNames.includes(name),button=$('motion-preset-'+name),enabled=(special?A.active(first):first).effects[name].enabled;
+        button.setAttribute('aria-pressed',String(enabled));button.disabled=c.blocked||custom&&!special;
+        const mixed=c.items.some(i=>(special?A.active(i.value):i.value).effects[name].enabled!==enabled);
         button.classList.toggle('is-mixed',mixed);button.title=mixed?'所选字幕有多个值，点击统一开启':labels[name];
         try{states[name]=A.effectUnit(A.authorState(first,name,reference()),name,timing.value,reference());}
         catch(_){states[name]={...A.presetDefault(name),enabled};}

@@ -5,6 +5,43 @@ import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import production from '../web/msw-production-project.js';
 
+test('special effects remain editable in custom mode without replacing curves or resetting parameters',()=>{
+  let a=A.defaults();
+  const apply=(name,action)=>a=A.resolve(a,A.authorPatch(a,name,action,2000));
+  apply('fade',{type:'toggle',value:true});apply('typewriter',{type:'toggle',value:true});apply('wave',{type:'toggle',value:true});
+  apply('wave',{type:'values',value:{amplitude:24,wavelength:6}});
+  apply('all',{type:'mode',value:'custom'});
+  const curves=structuredClone(a.effects.curves);
+  assert.equal(A.active(a).effects.typewriter.enabled,true);assert.equal(A.active(a).effects.wave.enabled,true);
+  for(const name of A.specialNames){
+    apply(name,{type:'toggle',value:false});assert.equal(A.active(a).effects[name].enabled,false);
+    apply(name,{type:'toggle',value:true});assert.equal(A.active(a).effects[name].enabled,true);
+    assert.equal(a.mode,'custom');assert.deepEqual(a.effects.curves,curves);
+  }
+  assert.equal(a.effects.wave.amplitude,24);
+  apply('all',{type:'timing',value:'ms',referenceDuration:2000});
+  assert.deepEqual(a.effects.wave,{enabled:true,unit:'ms',start:0,end:0,endAnchor:'end',amplitude:24,wavelength:6,period:800,periodUnit:'ms',direction:'right'});
+  for(const d of [2000,7000])assert.equal(A.waveOffset(a.effects.wave,400,d,0),A.waveOffset(a.effects.wave,400,2000,0));
+  apply('wave',{type:'reset'});assert.equal(a.effects.wave.amplitude,12);assert.equal(a.effects.wave.enabled,true);assert.equal(a.mode,'custom');
+  const p=production.toProject({segments:[{start:0,end:2000,text:'Wave'}]}),id=p.subtitles.cues[0].id;
+  assert.deepEqual(edit.updateAnimation(p,[{id,animation:a}]).subtitles.cues[0].content.subtitle_animation.effects.wave,a.effects.wave);
+});
+
+test('wave clamps endpoints smoothly, reverses spatial motion, and rejects invalid parameters',()=>{
+  const a=A.defaults();a.effects.wave.enabled=true;const w=a.effects.wave;
+  for(const time of [-1,0,2000,3000])assert.equal(A.waveOffset(w,time,2000,2),0);
+  assert.ok(Math.abs(A.waveOffset(w,.001,2000,2))<.001);
+  assert.ok(Math.abs(A.waveOffset(w,400,2000,2)+12)<1e-8);
+  assert.ok(Math.abs(A.waveOffset(w,200,2000,0)+12)<1e-8);
+  assert.ok(Math.abs(A.waveOffset({...w,direction:'left'},200,2000,0)-12)<1e-8);
+  for(const [key,value] of [['amplitude',-1],['amplitude',121],['period',0],['period',Infinity],['wavelength',1],['direction','up'],['periodUnit','seconds']]){
+    const raw=structuredClone(a);raw.effects.wave[key]=value;assert.equal(A.valid(raw),false,key);
+  }
+  const row={x:100,y:800,width:200,height:60,position:{x:.5,y:.8},motion:a};
+  assert.equal(A.envelope(row,1920).height,row.height+24);
+  const old={schema:A.schema,effects:{}};assert.equal(A.normalize(old).effects.wave.enabled,false);
+});
+
 test('fixed-time snapping uses 10 and 50 ms grids without changing scalar or percentage snapping',()=>{
   const ctrl={ctrlKey:true},coarse={ctrlKey:true,shiftKey:true};
   assert.equal(A.snapValue(.326,ctrl,0,10,.001,.01),.33);

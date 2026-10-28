@@ -1048,11 +1048,13 @@
     blink:{enabled:false,unit:'percent',start:0,end:100,period:600,opacity:0},
     transform:{enabled:false,unit:'percent',start:0,end:25,fromX:0,fromY:0,toX:0,toY:0,fromScale:85,toScale:100,fromRotation:0,toRotation:0,fromOpacity:100,toOpacity:100,easing:'smooth'},
     slide:{enabled:false,unit:'percent',start:0,in:15,out:15,end:100,direction:'right',distance:120},
+    wave:{enabled:false,unit:'percent',start:0,end:100,amplitude:12,period:40,periodUnit:'percent',wavelength:8,direction:'right'},
     curves:{enabled:false,unit:'percent',channels:{}}
   };
   const channels={x:{label:'横向位移 (px)',min:-4096,max:4096,initial:0},y:{label:'纵向位移 (px)',min:-4096,max:4096,initial:0},
     scale:{label:'缩放 (%)',min:1,max:1000,initial:100},rotation:{label:'旋转 (°)',min:-360,max:360,initial:0},opacity:{label:'不透明度 (%)',min:0,max:100,initial:100}};
   const names=Object.keys(definitions),clone=v=>JSON.parse(JSON.stringify(v));
+  const specialNames=['typewriter','wave'];
   const object=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
   const timings=name=>name==='curves'?[]:name==='fade'?['in','out']:['start','end'];
   const anchor=p=>p.anchor||'start';
@@ -1078,14 +1080,14 @@
       if(name==='fade'&&Object.hasOwn(e,'start')!==Object.hasOwn(e,'end'))return false;
       for(const [k,v] of Object.entries(e)){
         if(k==='enabled'||k==='custom'){if(typeof v!=='boolean')return false;}
-        else if(k==='direction'){if(!['left','right','up','down'].includes(v))return false;}
+        else if(k==='direction'){if(!(name==='wave'?['left','right']:['left','right','up','down']).includes(v))return false;}
         else if(k==='unit'||k==='periodUnit'){if(!['percent','ms'].includes(v))return false;}
         else if(k==='easing'){if(!['linear','ease-in','ease-out','smooth'].includes(v))return false;}
         else if(k==='channels'){if(!validChannels(v,e.unit))return false;}
         else if(k==='endAnchor'){if(!['start','end'].includes(v)||!Object.hasOwn(e,'end'))return false;}
         else if(k==='pulse'){if(!valid({schema,effects:{blink:v}}))return false;}
         else{
-          const bounds=[...timings(name),'start','end',...(name==='slide'?['in','out']:[])].includes(k)?[0,e.unit==='percent'?100:60000]:k==='distance'?[0,4096]:k==='period'?(e.periodUnit==='percent'?[1,100]:[80,60000]):k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
+          const bounds=[...timings(name),'start','end',...(name==='slide'?['in','out']:[])].includes(k)?[0,e.unit==='percent'?100:60000]:k==='amplitude'?[0,120]:k==='wavelength'?[2,64]:k==='distance'?[0,4096]:k==='period'?(e.periodUnit==='percent'?[name==='wave'?5:1,100]:[name==='wave'?200:80,60000]):k.endsWith('Opacity')||k==='opacity'?[0,100]:k.endsWith('Scale')?[1,1000]:k.endsWith('Rotation')?[-360,360]:[-4096,4096];
           if(typeof v!=='number'||!Number.isFinite(v)||v<bounds[0]||v>bounds[1])return false;
         }
       }
@@ -1100,7 +1102,7 @@
   function active(raw){
     if(!raw.mode)return raw;
     return {...raw,effects:Object.fromEntries(Object.entries(raw.effects).map(([key,e])=>[key,
-      (raw.mode==='custom'?(key==='curves'||key==='typewriter'&&e.custom):key!=='curves')?e:{...e,enabled:false}]))};
+      (raw.mode==='custom'?(key==='curves'||key==='wave'||key==='typewriter'&&e.custom):key!=='curves')?e:{...e,enabled:false}]))};
   }
   const authoringMode=raw=>raw.mode||(raw.effects.curves?.enabled&&Object.keys(raw.effects.curves.channels).length?'custom':'presets');
   // Snap within legal bounds, never across a neighbouring keyframe. If a very
@@ -1256,7 +1258,7 @@
     if(action.type==='mode'){
       patch.mode=action.value;
       if(action.value==='custom'){
-        if(names.some(n=>n!=='curves'&&a.effects[n].enabled))patch.effects.curves=curvesFromPresets(a,duration);
+        if(names.some(n=>n!=='curves'&&!specialNames.includes(n)&&a.effects[n].enabled))patch.effects.curves=curvesFromPresets(a,duration);
         else if(Object.keys(a.effects.curves.channels).length)patch.effects.curves={...a.effects.curves,enabled:true};
         patch.effects.typewriter={...a.effects.typewriter,custom:a.effects.typewriter.enabled};
       }
@@ -1297,7 +1299,8 @@
       if(action.type==='toggle')e.enabled=action.value;
       if(action.type==='values')Object.assign(e,action.value);
       if(name==='transform'&&action.type==='values'&&Object.hasOwn(action.value,'toScale'))e.fromScale=100;
-      patch.effects[name]=e;patch.mode='presets';
+      if(name==='typewriter'&&authoringMode(a)==='custom')e.custom=e.enabled;
+      patch.effects[name]=e;patch.mode=specialNames.includes(name)?authoringMode(a):'presets';
     }
     if(!valid(patch))throw Error('动画参数无效：时间不能交叉，数值须在允许范围内');
     return patch;
@@ -1357,15 +1360,15 @@
     }else if(unit==='ms'){
       for(const key of ['start','end','in','out'])if(Object.hasOwn(n,key))n[key]*=duration/100;
       if(name==='fade'&&!Object.hasOwn(n,'start'))Object.assign(n,{start:0,end:duration});
-      if(['fade','slide','blink'].includes(name)){n.end=duration-n.end;n.endAnchor='end';}else n.endAnchor='start';
+      if(['fade','slide','blink','wave'].includes(name)){n.end=duration-n.end;n.endAnchor='end';}else n.endAnchor='start';
     }else{
       const timed=clockEffect(n,duration);
       for(const key of ['start','end','in','out'])if(Object.hasOwn(timed,key))n[key]=timed[key]*100/duration;
       delete n.endAnchor;
     }
-    if(name==='blink'){
+    if(name==='blink'||name==='wave'){
       const period=n.period*(n.periodUnit==='percent'?duration/100:1);
-      n.period=unit==='ms'?clamp(period,80,60000):clamp(period*100/duration,1,100);n.periodUnit=unit;
+      n.period=unit==='ms'?clamp(period,name==='wave'?200:80,60000):clamp(period*100/duration,name==='wave'?5:1,100);n.periodUnit=unit;
     }
     n.unit=unit;return n;
   }
@@ -1467,9 +1470,10 @@
     return state;
   }
   function envelope(row,width){
-    const motion=row.motion?active(row.motion):null,t=motion?.effects.transform,c=motion?.effects.curves,slide=motion?.effects.slide;if(!t?.enabled&&!c?.enabled&&!slide?.enabled)return row;
+    const motion=row.motion?active(row.motion):null,t=motion?.effects.transform,c=motion?.effects.curves,slide=motion?.effects.slide,wave=motion?.effects.wave;if(!t?.enabled&&!c?.enabled&&!slide?.enabled&&!wave?.enabled)return row;
     const values=(key,suffix)=>c?.enabled&&c.channels[key]?c.channels[key].map(p=>p.value):t?.enabled?[t['from'+suffix],t['to'+suffix]]:[channels[key].initial];
     const scales=values('scale','Scale'),dx=values('x','X'),dy=values('y','Y'),rotations=values('rotation','Rotation');
+    if(wave?.enabled)dy.push(Math.min(...dy)-wave.amplitude,Math.max(...dy)+wave.amplitude);
     if(slide?.enabled){const key=['left','right'].includes(slide.direction)?'x':'y';if(!(c?.enabled&&c.channels[key])){const v=key==='x'?dx:dy;v.push(Math.min(...v)-slide.distance,Math.max(...v)+slide.distance);}}
     const ax=row.position.x*width,ay=row.position.y*1080,s=Math.max(...scales)/100;
     const corners=[[row.x-ax,row.y-ay],[row.x+row.width-ax,row.y-ay],[row.x-ax,row.y+row.height-ay],[row.x+row.width-ax,row.y+row.height-ay]];
@@ -1485,7 +1489,15 @@
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
   }
-  const api={schema,names,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets,timingMode,clockEffect,pointExtent,resolvePoints,sortPoints,anchor,effectUnit,authorState};
+  function waveOffset(effect,elapsed,duration,index){
+    if(!effect?.enabled||!effect.amplitude)return 0;
+    const e=clockEffect(effect,duration),start=ms(e,'start',duration),end=ms(e,'end',duration);
+    if(elapsed<=start||elapsed>=end)return 0;
+    const period=e.period*(e.periodUnit==='percent'?duration/100:1),ramp=Math.min(period/4,(end-start)/2);
+    const strength=ease(clamp(Math.min(elapsed-start,end-elapsed)/Math.max(ramp,1e-9)),'smooth');
+    return e.amplitude*strength*Math.sin(2*Math.PI*(index/e.wavelength+(e.direction==='left'?1:-1)*(elapsed-start)/period));
+  }
+  const api={schema,names,specialNames,waveOffset,timings,valid,normalize,defaults,resolve,ms,sample,envelope,delayAssTags,channels,curveValue,convertUnit,editablePoints,editChannel,presetPatch,active,authoringMode,presetDefault,presetState,authorPatch,snapValue,presetTimes,dragPreset,curvesFromPresets,timingMode,clockEffect,pointExtent,resolvePoints,sortPoints,anchor,effectUnit,authorState};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWSubtitleAnimation=api;
 })(typeof globalThis==='undefined'?window:globalThis);
 

@@ -5394,7 +5394,16 @@
 
 /* Animation: compact presets and a distinct, channel-based custom editor. */
 #subtitle-motion-controls [hidden] { display:none !important; }
-#subtitle-properties .msw-motion-custom { margin-left:auto; }
+#subtitle-properties .msw-motion-custom { margin-left:0; }
+.msw-motion-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:10px; }
+.msw-motion-toolbar #motion-inherit { margin-left:auto; }
+.msw-motion-group-label { flex:0 0 100%; color:var(--text-secondary); font-size:12px; margin-bottom:2px; }
+#motion-special-presets { border-top:1px solid var(--border-subtle); padding-top:10px; margin-top:12px; }
+.msw-wave-length { display:inline-flex; align-items:center; gap:4px; }
+#subtitle-properties #motion-wave-wavelength { width:42px; min-width:0; padding:3px 5px; }
+#motion-wave .msw-motion-heading { justify-content:flex-start; gap:6px; }
+#motion-wave .msw-motion-heading > select { min-width:68px; max-width:80px; }
+#motion-wave-reset { margin-left:auto; }
 .msw-motion-effect { margin-top:8px; padding-top:6px; }
 .msw-motion-heading { margin-bottom:0; }
 .msw-motion-heading > span::before { content:none; }
@@ -5412,7 +5421,6 @@
 .msw-curve-pulse > div { margin-top:6px; gap:12px; }
 #subtitle-properties .msw-curve-pulse input { width:78px; min-width:0; }
 .curve-pulse-line { opacity:.5; stroke-dasharray:3 2; }
-#motion-custom-typewriter { margin-bottom:8px; }
 .motion-range-hit { fill:transparent; stroke:none; }
 .motion-range-node { cursor:ew-resize; }
 .motion-range-node .motion-range-handle { fill:var(--accent); stroke:var(--bg-panel); stroke-width:1.5; pointer-events:none; }

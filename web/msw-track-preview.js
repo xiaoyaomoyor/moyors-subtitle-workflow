@@ -200,12 +200,18 @@ function fixedRefreshSubtitlePreview(tMs) {
     const gradient=window.MSWSubtitleGradient.enabled(style);
     const mixedFonts=window.AsrEditorUtils.ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k]);
     if(motion||gradient||mixedFonts){
-      text.replaceChildren();let seen=0,prefix=0;
+      text.replaceChildren();let seen=0,prefix=0,phase=0;
+      const wave=entry.motion?.effects.wave;
       const units=window.MSWProjectStyle.characters(size.text),count=units.filter(u=>u.trim()).length;
       for(const unit of units){
         if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
         if(mixedFonts)span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));
         if(motion&&seen>motion.revealed)span.style.visibility='hidden';
+        if(wave?.enabled&&unit.trim()){
+          span.style.position='relative';span.style.top=window.MSWSubtitleAnimation.waveOffset(wave,tMs-entry.cue.start,entry.cue.end-entry.cue.start,phase)+'px';
+          phase++;
+        }
+        if(unit==='\n')phase=0;
         if(gradient)span.style.color=window.MSWSubtitleGradient.color(style,seen-1,count);
         else if(prefix<size.prefix.length)span.style.color=speaker.style.color;
         text.append(span);if(unit!=='\n')prefix+=unit.length;

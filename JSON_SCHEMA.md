@@ -39,11 +39,12 @@ v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对
 | `blink` | `enabled:false, unit:"percent", start:0, end:100, period:600, opacity:0` |
 | `transform` | `enabled:false, unit:"percent", start:0, end:25, fromX:0, fromY:0, toX:0, toY:0, fromScale:85, toScale:100, fromRotation:0, toRotation:0, fromOpacity:100, toOpacity:100, easing:"smooth"` |
 | `slide` | `enabled:false, unit:"percent", start:0, in:15, out:15, end:100, direction:"right", distance:120` |
+| `wave` | `enabled:false, unit:"percent", start:0, end:100, amplitude:12, period:40, periodUnit:"percent", wavelength:8, direction:"right"` |
 | `curves` | `enabled:false, unit:"percent", channels:{}` |
 
 `enabled` 为布尔值，`unit` 为 `percent/ms`。时间数值范围为 0–100% 或 0–60000ms；界面秒数与存储毫秒换算。可选顶层 `timing` 同样只接受 `percent/ms`，用于动画区统一时间方式；实际渲染仍读取各效果自己的单位。切换方式以首条参考字幕换算所选对象，得到可统一编辑的时间值；未选择对象、锁定或越界时不写入。只是查看不迁移旧数据。
 
-数值预设可增加 `endAnchor:"start"|"end"`：start 总是距字幕起点的偏移；endAnchor=end 时 end 是距字幕终点的偏移，endAnchor=start 或省略时 end 是起点后的绝对时间。fade 可额外同时包含 start/end；不包含时保持从起点淡入、终点淡出的旧语义。新固定时长 fade/slide/blink 默认使用终点锚定；typewriter/transform 默认使用起点锚定。没有终点锚定时要求 end>start，fade/slide 的 in+out 不超过 end-start。
+数值预设可增加 `endAnchor:"start"|"end"`：start 总是距字幕起点的偏移；endAnchor=end 时 end 是距字幕终点的偏移，endAnchor=start 或省略时 end 是起点后的绝对时间。fade 可额外同时包含 start/end；不包含时保持从起点淡入、终点淡出的旧语义。新固定时长 fade/slide/blink/wave 默认使用终点锚定；typewriter/transform 默认使用起点锚定。没有终点锚定时要求 end>start，fade/slide 的 in+out 不超过 end-start。
 
 fade/slide 四个点为 start、start+in、D−end−out、D−end（终点锚定时），D 为本条字幕时长。起点偏移、入场时长、终点偏移、退场时长之和超过 D 时，运行时统一乘以 D/总和；中间停留缩为零。起点锚定范围超过短字幕时，同样等比缩短到字幕内。仅计算结果改变，工程与预设保存值不变。无 endAnchor 的旧效果保持原读取语义。淡入淡出范围外透明；滑入滑出从相反方向进入、沿指定方向离开，使用平滑进出。
 
@@ -55,7 +56,9 @@ fade/slide 四个点为 start、start+in、D−end−out、D−end（终点锚�
 
 可选 `curves.pulse` 保存一个完整 blink 参数对象，作为自定义曲线的循环闪烁调制。它保留周期、强度、起终点规则，避免用首条字幕的有限关键帧烘焙后，长字幕丢失后续循环。自定义界面显示可展开的“循环闪烁”，可改周期／最低不透明度或移除；不额外启用预设模式中的 blink。
 
-`mode` 为 presets/custom；单条可只覆盖模式，省略时继承轨道，两层均省略保留旧组合渲染。presets 运行五个预设；custom 运行 curves 和显式 `custom:true` 的 typewriter。固定时长预设转自定义保留起终点锚定、固定周期及打字机，换用更短／更长的字幕仍按相同规则求值。比例模式沿用参考时长采样，最多每通道 32 点。旧复杂变换与滑入滑出重合、或透明度变换与淡入淡出重合而不能无损转为固定曲线时拒绝转换并保留原值，不静默改变画面。
+`mode` 为 presets/custom，仅控制基础变换（fade/slide/blink/transform 与 curves）的切换。单条可只覆盖模式，省略时继承轨道，两层均省略保留旧组合渲染。特殊效果 typewriter/wave 的控件在两种模式下均可编辑，不改变当前基础模式；wave 在两种模式都生效，typewriter 沿用旧 custom 标志以保持旧工程外观，新编辑或转换会同步它。关闭特殊效果保留参数；不将特殊效果烘焙为基础曲线。固定时长预设转自定义保留起终点锚定、固定周期及特殊效果，换用更短／更长的字幕仍按相同规则求值。比例模式沿用参考时长采样，最多每通道 32 点。旧复杂变换与滑入滑出重合、或透明度变换与淡入淡出重合而不能无损转为固定曲线时拒绝转换并保留原值，不静默改变画面。
+
+wave 按可见字素计算正弦纵向位移：amplitude 为 1080 高画布的 0–120px 振幅，wavelength 为一轮波形的 2–64 个字素，direction 为 left/right。periodUnit 必填，周期范围 5–100% 或 200–60000ms；固定周期不随字幕长度改变。空格保留但不计相位，显式换行重置相位。时段首尾以较小的「四分之一周期／半个区间」平滑归零；时段外回到原位置，原时间参数不变。整句 ASS 排版通过透明遮罩逐字移动，保留字号、空格、字体与换行；独立背景保持整体，基础位移、旋转、缩放、透明度继续叠加。按 40ms 与周期/16 中的较小值采样，间隔不小于 10ms，受 ASS 厘秒精度约束。每条启用波动的字幕限 128 个可见字素、16000 个片段；超出时明确拒绝，避免默默丢失效果或产生无界输出。
 
 返回预设保留原参数，关闭效果只改 enabled；恢复默认重置对应预设，保留当前时间方式及开关；恢复轨道动画删除整个单条覆盖。批量滑条拖动仅统一时间字段，强度等其他参数分别保留；自定义按当前通道更新，其他通道保留。松手一次提交，Esc 取消，选择变化或锁定取消未提交拖动。播放头设帧按每条起点计算，须位于所有目标字幕内，创建／更新起点锚定帧。图表选中通道、悬停与参考范围不保存到工程。
 

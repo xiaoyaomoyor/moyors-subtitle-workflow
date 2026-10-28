@@ -21,6 +21,78 @@ test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await s
 async function idle(page){await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled),{timeout:30000}).toBe(true);}
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 
+test('basic and special groups keep independent controls, shared timing, undo and saved multi-cue effects',async({page},info)=>{
+  await page.evaluate(()=>addToSelection(1));
+  await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await expect(page.locator('#motion-basic-presets button')).toHaveCount(5);
+  await expect(page.locator('#motion-special-presets button')).toHaveCount(2);
+  await page.locator('#motion-preset-fade').click();
+  await page.locator('#motion-preset-wave').click();
+  await page.locator('#motion-wave-wavelength').fill('6');await page.locator('#motion-wave-wavelength').blur();
+  await page.locator('#motion-wave-direction').selectOption('left');
+  await rangeValue(page,'#motion-wave-amplitude',24);await idle(page);
+  await page.locator('#motion-timing').selectOption('ms');await page.locator('#motion-custom').click();await idle(page);
+  await expect(page.locator('#motion-preset-fade')).toBeDisabled();
+  await expect(page.locator('#motion-preset-wave')).toBeEnabled();
+  await expect(page.locator('#motion-wave-graph')).toBeVisible();
+  const before=await snap(page);
+  await page.locator('#motion-preset-typewriter').click();await idle(page);
+  await expect(page.locator('#motion-custom')).toHaveAttribute('aria-pressed','true');
+  await page.evaluate(()=>performUndo());await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.locator('#motion-preset-wave').click();await page.locator('#motion-preset-wave').click();await idle(page);
+  const saved=await snap(page);
+  for(const cue of saved.subtitles.cues.filter(c=>c.content.subtitle_animation)){
+    expect(cue.content.subtitle_animation).toMatchObject({mode:'custom',timing:'ms',effects:{wave:{enabled:true,amplitude:24,wavelength:6,direction:'left',period:1000,periodUnit:'ms',endAnchor:'end'}}});
+  }
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);await page.reload();await idle(page);
+  expect((await snap(page)).subtitles).toEqual(saved.subtitles);
+  await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await page.locator('#motion-custom').click();
+  await page.evaluate(()=>Object.assign(document.getElementById('subtitle-properties').style,{position:'fixed',top:'20px',left:'10px',width:'320px',height:'760px',zIndex:'60'}));
+  await page.locator('#motion-special-presets').scrollIntoViewIfNeeded();
+  for(const theme of ['dark','light']){
+    await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    expect(await page.locator('#subtitle-properties-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+    await page.locator('#subtitle-properties').screenshot({path:info.outputPath(`animation-groups-${theme}.png`)});
+  }
+  await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks[0].locked=true;productionCommitProject(p,'lock',[p.subtitles.cues[0].id]);});
+  await expect(page.locator('#motion-preset-wave')).toBeDisabled();
+  await expect(page.locator('#motion-wave-graph')).toHaveAttribute('aria-disabled','true');
+});
+
+test('wave moves individual letters without layout jumps and matches ASS burn after seeking',async({page},info)=>{
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),cue=p.subtitles.cues[0];p.subtitles.cues=[cue];p.subtitles.bindings=[];
+    cue.content.text='WAVE WAVE';cue.content.subtitle_style={fontName:'Arial',fontSize:96,primaryColor:'#ff0000',outline:0};
+    const a=MSWSubtitleAnimation.defaults();a.effects.wave={...a.effects.wave,enabled:true,amplitude:48,period:1000,periodUnit:'ms'};
+    cue.content.subtitle_animation=a;productionCommitProject(p,'wave pixels',[cue.id]);player.currentTime=.4;
+    waveformEditor.activateModuleTab('panel');
+  });await idle(page);
+  const payload=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),target:'both',video:{width:640,height:360}}));
+  writeFileSync(join(folder,'wave.ass'),payload.ass);
+  const canvas=page.locator('.JASSUB'),box=await canvas.boundingBox(),shots=[];
+  for(const [i,time] of [0.4,0.72,0.4].entries()){
+    await page.evaluate(async t=>{player.currentTime=t;await new Promise(resolve=>player.addEventListener('seeked',resolve,{once:true}));await MSWSubtitleRenderer.repaint();},time);
+    const preview=join(folder,`wave-preview-${i}.png`),burn=join(folder,`wave-burn-${i}.png`);
+    await canvas.screenshot({path:preview});
+    execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-i','video.mp4','-ss',String(time),'-vf',`ass=wave.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',burn],{cwd:folder,windowsHide:true});shots.push(preview,burn);
+  }
+  const points=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON,['-c',`from PIL import Image
+import json,sys
+def metrics(path):
+ im=Image.open(path).convert('RGB')
+ pts=[(x,y) for y in range(im.height) for x in range(im.width) if (lambda c:c[0]>80 and c[0]>c[1]*2 and c[0]>c[2]*2)(im.getpixel((x,y)))]
+ lo=min(x for x,y in pts);hi=max(x for x,y in pts)
+ bands=[[y for x,y in pts if lo+(hi-lo)*i/8<=x<=lo+(hi-lo)*(i+1)/8] for i in range(8)]
+ return [lo,hi,min(y for x,y in pts),max(y for x,y in pts),*[sum(b)/len(b) if b else 0 for b in bands]]
+print(json.dumps([metrics(p) for p in sys.argv[1:]]))`,...shots],{encoding:'utf8',windowsHide:true}));
+  expect(points[0]).toEqual(points[4]);
+  expect(points[0].slice(0,2)).toEqual(points[2].slice(0,2));
+  expect(Math.max(...points[0].slice(4).map((v,i)=>Math.abs(v-points[2][i+4])))).toBeGreaterThan(4);
+  for(let i=0;i<points.length;i+=2)for(let j=0;j<points[i].length;j++)expect(Math.abs(points[i][j]-points[i+1][j])).toBeLessThan(3);
+  await page.screenshot({path:info.outputPath('wave-video.png')});
+});
+
 test('fixed-time preset and curve gestures snap to decimal seconds while values retain integer grids',async({page})=>{
   await page.locator('#style-animation').evaluate(el=>el.open=true);
   await page.locator('#motion-timing').selectOption('ms');
@@ -112,12 +184,13 @@ test('fixed fades use equal seconds on different cue lengths; slide and stretch 
   expect(before.effects.transform).toMatchObject({fromScale:100,toScale:115});
   await page.screenshot({path:info.outputPath('preset-blocks.png')});
   await page.locator('#motion-custom').click();await idle(page);
-  await expect(page.locator('#motion-custom-typewriter')).toBeVisible();
+  await expect(page.locator('#motion-special-presets #motion-preset-typewriter')).toBeEnabled();
+  await expect(page.locator('#motion-preset-typewriter')).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('#curve-pulse')).toBeVisible();
   const after=(await snap(page)).subtitles.cues[0].content.subtitle_animation;
   const difference=await page.evaluate(({before,after})=>{const A=MSWSubtitleAnimation,a=A.normalize(before),b=A.normalize(after);let max=0;for(let time=0;time<=2500;time+=31)for(const key of ['opacity','x','y','scale','revealed'])max=Math.max(max,Math.abs(A.sample(a,time,2500,12)[key]-A.sample(b,time,2500,12)[key]));return max;},{before,after});
   expect(difference).toBeLessThan(.002);
-  await page.locator('#motion-custom-typewriter').click();await idle(page);
+  await page.locator('#motion-preset-typewriter').click();await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.typewriter.custom).toBe(false);
 });
 
@@ -170,7 +243,7 @@ test('preset toggles preserve parameters, interval dragging is atomic, and custo
   await page.locator('#motion-preset-typewriter').click();await page.locator('#motion-preset-typewriter').click();await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.typewriter).toMatchObject(shifted);
   await page.locator('#motion-custom').click();await idle(page);await frame(page,0,70);
-  await expect(page.locator('#motion-preset-typewriter')).toBeDisabled();
+  await expect(page.locator('#motion-preset-typewriter')).toBeEnabled();
   expect(await page.evaluate(()=>{const a=MSWSubtitleAnimation.resolve(undefined,JSON.parse(buildJson()).subtitles.cues[0].content.subtitle_animation);return MSWSubtitleAnimation.sample(a,0,2500,10);})).toMatchObject({opacity:.7,revealed:0});
   await page.locator('#motion-custom').click();await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_animation.effects.typewriter).toMatchObject(shifted);
@@ -324,7 +397,7 @@ print(json.dumps([bounds(p) for p in sys.argv[1:]]))`,...shots],{encoding:'utf8'
 
 test('combined effects render the same source state after trimming and removing a gap',async({page})=>{
   await page.locator('#style-animation').evaluate(el=>el.open=true);
-  for(const name of ['fade','typewriter','blink','transform'])await effect(page,name,'enabled',true);
+  for(const name of ['fade','typewriter','blink','transform','wave'])await effect(page,name,'enabled',true);
   await effect(page,'blink','opacity',40);await effect(page,'transform','end',100);await effect(page,'transform','fromX',-80);await effect(page,'transform','toRotation',12);
   await page.evaluate(()=>{
     const p=JSON.parse(buildJson()),c=p.subtitles.cues[0].content;
