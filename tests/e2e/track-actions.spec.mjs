@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {join} from 'node:path';
 import {disableOnboarding,findFreePort,generateBlankEditor,generateWaveformPayload,makeTempDir,startStaticServer} from './helpers.mjs';
 let server;
-test.beforeAll(async()=>{const dir=makeTempDir('track-actions');server=await startStaticServer(generateBlankEditor(join(dir,'editor.html')),await findFreePort());});
+test.beforeAll(async()=>{const dir=makeTempDir('track-actions');process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'app-data');server=await startStaticServer(generateBlankEditor(join(dir,'editor.html')),await findFreePort());});
 test.afterAll(async()=>server?.stop());
 const fixture=()=>({segments:[{id:'a',start:1000,end:3000,text:'Hello',items:[]},{id:'c',start:4000,end:5000,text:'World',items:[]}],
   multi_subtitle:{schema:'moy.asr.multi_subtitle.v1',enabled:true,display_mode:'both',tracks:[{id:'zh',role:'extension',segments:[{id:'b',start:1000,end:3000,text:'你好',items:[]},{id:'d',start:4000,end:5000,text:'世界',items:[]}]}],
@@ -62,14 +62,15 @@ test('main and secondary menus share layout and a closed extended-actions flyout
 });
 
 test('secondary color, replacement and sticker commands keep main text untouched and undo',async({page})=>{
-  await page.locator('.waveform-cue-block[data-track="extension"]').first().click({button:'right'});
-  await page.locator('#ctxmenu span[title]').first().click();
-  let p=await snap(page);expect(p.subtitles.cues.find(c=>c.content.text==='你好').content.color).toBeTruthy();
-  expect(p.subtitles.cues.find(c=>c.content.text==='Hello').content.color).toBeFalsy();
+  await page.locator('.waveform-cue-block[data-track="extension"]').nth(1).click({button:'right'});
+  await page.getByRole('menuitem',{name:'标记字幕',exact:true}).hover();
+  await page.locator('.speaker-mark-swatches button').first().click();
+  let p=await snap(page);expect(p.subtitles.cues.find(c=>c.content.text==='世界').content.color).toBeTruthy();
+  expect(p.subtitles.cues.find(c=>c.content.text==='World').content.color).toBeFalsy();
   await page.evaluate(()=>performUndo());
   await page.evaluate(()=>{clearSelection({silent:true});selectedExtensionIdxs.add(0);selectedExtensionIdxs.add(1);showExtensionContextMenu(400,250,0,2000);});
-  await item(page,'批量替换选中字幕…').click();
-  await page.locator('#find-input').fill('好');await page.locator('#replace-input').fill('们');await page.locator('#replace-confirm').click();
+  await item(page,'查找并编辑选中字幕…').click();
+  await page.locator('#find-edit-query').fill('好');await page.locator('#find-edit-replacement').fill('们');await expect(page.locator('#find-edit-replace-all')).toBeEnabled();await page.locator('#find-edit-replace-all').click();
   p=await snap(page);expect(p.subtitles.cues.some(c=>c.content.text==='你们')).toBe(true);expect(p.subtitles.cues.some(c=>c.content.text==='Hello')).toBe(true);
   await page.evaluate(()=>performUndo());
   await page.evaluate(()=>{STICKERS.push({name:'test-sticker',filename:'test.png'});openStickerPicker([0],false,{extension:getActiveExtensionTrack()});assignSticker(STICKERS.at(-1));});

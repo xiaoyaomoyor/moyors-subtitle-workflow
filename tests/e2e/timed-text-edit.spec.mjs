@@ -3,7 +3,6 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanupTempDir,
-  clickBatchOperation,
   findFreePort,
   generateWav,
   generateWaveformPayload,
@@ -16,6 +15,7 @@ let server;
 
 test.beforeAll(async () => {
   tempDir = makeTempDir('timed-text-edit');
+  process.env.MAW_ENV_FILE=join(tempDir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(tempDir,'app-data');
   const mediaPath = join(tempDir, 'synthetic.wav');
   const projectPath = join(tempDir, 'timed-text.json');
   generateWav(mediaPath, 3);
@@ -52,132 +52,29 @@ test.afterAll(async () => {
   cleanupTempDir(tempDir);
 });
 
-test('keeps unchanged text inert without a redundant toast', async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('moy.asr.editor.onboarding.v1', 'completed');
-  });
-  await page.goto(server.url);
-
-  await clickBatchOperation(page, 'timed-text-edit-btn');
-  await expect(page.locator('#timed-text-edit-apply')).toBeDisabled();
-  await expect(page.locator('#timed-text-edit-modal')).toHaveClass(/show/);
-  await expect(page.locator('#hint-stack .hint-card.hint-invalid')).toHaveCount(0);
+test.beforeEach(async({page})=>{await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.onboarding.v1','completed'));await page.goto(server.url);await page.evaluate(()=>MSWFindEdit.open({view:'edit'}));});
+test('keeps unchanged text inert without a redundant toast',async({page})=>{
+ await expect(page.locator('#find-tools-apply')).toBeDisabled();await expect(page.locator('#find-edit-panel')).toBeVisible();
+ await expect(page.locator('#hint-stack .hint-card.hint-invalid')).toHaveCount(0);
 });
-
-test('previews text changes and applies the reported item-timing mapping', async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('moy.asr.editor.onboarding.v1', 'completed');
-  });
-  await page.goto(server.url);
-
-  await clickBatchOperation(page, 'timed-text-edit-btn');
-  await expect(page.locator('#timed-text-edit-modal')).toHaveClass(/show/);
-  await expect(page.locator('#timed-text-edit-source-info')).toContainText('S1');
-  await expect(page.locator('#timed-text-edit-track-control')).toBeVisible();
-  await expect(page.locator('#timed-text-edit-show-disabled')).not.toBeChecked();
-  await expect(page.locator('#timed-text-edit-rows textarea')).toHaveCount(2);
-
-  await page.locator('#timed-text-edit-view [data-view="single"]').click();
-  await expect(page.locator('#timed-text-edit-single-textarea')).toBeVisible();
-  await expect(page.locator('#timed-text-edit-single-textarea')).toHaveValue('就是这颗\nabc');
-  const timedTextThreshold = page.locator('#timed-text-edit-charcount-threshold');
-  await expect(timedTextThreshold).toBeVisible();
-  await expect(timedTextThreshold).toHaveValue(''); // No initial character-count filter.
-  await timedTextThreshold.fill('20');
-  await expect(page.locator('#charcount-threshold')).toHaveValue('20');
-  await expect.poll(() => page.locator('#timed-text-edit-single-editor').evaluate(
-    (element) => getComputedStyle(element).getPropertyValue('--timed-text-edit-line-width').trim(),
-  )).toBe('20em');
-  // 模拟切换视图前浏览器尚未派发 input 的最后一次 DOM 更新。
-  await page.locator('#timed-text-edit-single-textarea').evaluate((element) => {
-    element.value = '就是那颗\nabc';
-  });
-  await page.locator('#timed-text-edit-view [data-view="rows"]').click();
-  await expect(page.locator('#timed-text-edit-rows')).toBeVisible();
-  await expect(page.locator('#timed-text-edit-rows textarea').nth(0)).toHaveValue('就是那颗');
-
-  const rows = page.locator('#timed-text-edit-rows textarea');
-  await rows.nth(0).fill('就是那颗');
-  await rows.nth(1).fill('abXc');
-
-  await expect(page.locator('#timed-text-edit-report-summary')).toContainText('2 条');
-  await expect(page.locator('#timed-text-edit-report-mapping')).toContainText('修改后完整映射');
-  await expect(page.locator('#timed-text-edit-report-mapping')).toContainText('部分保留');
-  await expect(page.locator('#timed-text-edit-change-list')).toContainText('就是那颗');
-  await expect(page.locator('#timed-text-edit-change-list')).toContainText('abXc');
-  await expect(page.locator('#timed-text-edit-apply')).toBeEnabled();
-
-  await page.locator('#timed-text-edit-report-mapping .timed-text-edit-stat-filter').filter({ hasText: '1 条' }).nth(1).click();
-  await expect(page.locator('#timed-text-edit-rows .timed-text-edit-row').nth(0)).toBeHidden();
-  await expect(page.locator('#timed-text-edit-rows .timed-text-edit-row').nth(1)).toBeVisible();
-  await page.locator('#timed-text-edit-show-all').click();
-  await expect(page.locator('#timed-text-edit-rows .timed-text-edit-row').nth(0)).toBeVisible();
-
-  page.once('dialog', async (dialog) => {
-    expect(dialog.message()).toContain('未应用');
-    await dialog.dismiss();
-  });
-  await page.locator('#timed-text-edit-cancel').click();
-  await expect(page.locator('#timed-text-edit-modal')).toHaveClass(/show/);
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('#timed-text-edit-cancel').click();
-  await expect(page.locator('#timed-text-edit-modal')).not.toHaveClass(/show/);
-
-  await clickBatchOperation(page, 'timed-text-edit-btn');
-
-  const reopenedRows = page.locator('#timed-text-edit-rows textarea');
-  await reopenedRows.nth(0).fill('就是那颗');
-  await reopenedRows.nth(1).fill('abXc');
-  await page.locator('#timed-text-edit-apply').click();
-  await expect(page.locator('#timed-text-edit-modal')).not.toHaveClass(/show/);
-  await expect(page.locator('#cues-container .cue[data-idx="0"] .multi-cue-column').first()).toHaveClass(/dirty/);
-  const state = await page.evaluate(() => ({
-    texts: DATA.segments.map((segment) => segment.text),
-    items: DATA.segments.map((segment) => segment.items?.map(({start,end,text}) => ({start,end,text}))),
-    ranges: DATA.segments.map((segment) => [segment.start, segment.end]),
-    dirty: DATA.segments.map((segment) => Boolean(segment._dirty)),
-  }));
-  expect(state.texts).toEqual(['就是那颗', 'abXc', 'disabled']);
-  expect(state.ranges).toEqual([[0, 1000], [1200, 2200], [2300, 2800]]);
-  expect(state.dirty).toEqual([true, true, false]);
-  expect(state.items[0]).toEqual([
-    { start: 0, end: 400, text: '就是' },
-    { start: 400, end: 1000, text: '那颗' },
-  ]);
-  expect(state.items[1]).toEqual([
-    { start: 1200, end: 1500, text: 'a' },
-    { start: 1500, end: 1800, text: 'bX' },
-    { start: 1800, end: 2200, text: 'c' },
-  ]);
+test('continuous text retains drafts and applies the original item-timing mapping',async({page})=>{
+ const rows=page.locator('#find-tools-rows textarea');await expect(rows).toHaveCount(3);
+ await rows.nth(0).fill('就是那颗');await rows.nth(1).fill('abXc');
+ await expect(page.locator('#find-tools-status')).toContainText('修改 2 条');await page.locator('#find-edit-close').click();
+ await page.evaluate(()=>MSWFindEdit.open({view:'edit'}));await expect(rows.nth(0)).toHaveValue('就是那颗');await expect(rows.nth(1)).toHaveValue('abXc');
+ await page.locator('#find-tools-apply').click();
+ const state=await page.evaluate(()=>({texts:DATA.segments.map(c=>c.text),items:DATA.segments.map(c=>c.items?.map(({start,end,text})=>({start,end,text}))),ranges:DATA.segments.map(c=>[c.start,c.end]),dirty:DATA.segments.map(c=>!!c._dirty)}));
+ expect(state.texts).toEqual(['就是那颗','abXc','disabled']);expect(state.ranges).toEqual([[0,1000],[1200,2200],[2300,2800]]);expect(state.dirty).toEqual([true,true,false]);
+ expect(state.items[0]).toEqual([{start:0,end:400,text:'就是'},{start:400,end:1000,text:'那颗'}]);
+ expect(state.items[1]).toEqual([{start:1200,end:1500,text:'a'},{start:1500,end:1800,text:'bX'},{start:1800,end:2200,text:'c'}]);
 });
-
-test('shows disabled subtitles on demand without replacing hidden cues', async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('moy.asr.editor.onboarding.v1', 'completed');
-  });
-  await page.goto(server.url);
-  await clickBatchOperation(page, 'timed-text-edit-btn');
-
-  const showDisabled = page.locator('#timed-text-edit-show-disabled');
-  const rows = page.locator('#timed-text-edit-rows textarea');
-  await expect(showDisabled).not.toBeChecked();
-  await expect(rows).toHaveCount(2);
-
-  await showDisabled.check();
-  await expect(rows).toHaveCount(3);
-  await expect(page.locator('#timed-text-edit-rows .timed-text-edit-row').nth(2))
-    .toHaveClass(/disabled/);
-
-  await showDisabled.uncheck();
-  await expect(rows).toHaveCount(2);
-  await rows.nth(0).fill('就是那颗！');
-  await page.locator('#timed-text-edit-apply').click();
-  await expect(page.locator('#timed-text-edit-modal')).not.toHaveClass(/show/);
-
-  const state = await page.evaluate(() => ({
-    texts: DATA.segments.map((segment) => segment.text),
-    disabled: DATA.segments.map((segment) => Boolean(segment.disabled)),
-  }));
-  expect(state.texts).toEqual(['就是那颗！', 'abc', 'disabled']);
-  expect(state.disabled).toEqual([false, false, true]);
+test('shows disabled subtitles without changing their state or untouched text',async({page})=>{
+ const rows=page.locator('#find-tools-rows textarea');await expect(rows).toHaveCount(3);await expect(page.locator('.find-tools-row-status').nth(2)).toHaveText('已禁用');
+ await rows.nth(0).fill('就是那颗！');await page.locator('#find-tools-apply').click();
+ const state=await page.evaluate(()=>({texts:DATA.segments.map(c=>c.text),disabled:DATA.segments.map(c=>!!c.disabled)}));expect(state.texts).toEqual(['就是那颗！','abc','disabled']);expect(state.disabled).toEqual([false,false,true]);
+});
+test('whole text report matches published word timing',async({page})=>{
+ await page.locator('#find-continuous-whole').click();await page.locator('#find-whole-text').fill('就是那颗\nabXc\ndisabled');await page.locator('#find-whole-details summary').click();
+ await expect(page.locator('#find-whole-report')).toContainText('部分保留');await expect(page.locator('#find-tools-apply')).toBeEnabled();await page.locator('#find-tools-apply').click();
+ expect(await page.evaluate(()=>DATA.segments.map(c=>c.text))).toEqual(['就是那颗','abXc','disabled']);
 });

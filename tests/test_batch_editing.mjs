@@ -91,6 +91,25 @@ test('stale text draft never overwrites a later marker or timing change',()=>{
  assert.throws(()=>batch.draft(p,track,snapshot,firstIds(p),utils.applyTimedTextEdit(source,texts),report),/编辑期间/);
 });
 
+test('whole draft permits unrelated changes but cannot merge over a newly inserted excluded cue',()=>{
+ const p=fixture();p.subtitles.bindings=[];const ids=firstIds(p),track=p.subtitles.tracks[0].id,snapshot=structuredClone(batch.trackCues(p,track));
+ const source=batch.textSources(snapshot.slice(0,2),p),texts=['Alpha Bravo Alpha Bravo'];
+ const report=utils.buildTimedTextEditReport(source,texts),segments=utils.applyTimedTextEdit(source,texts);
+ edit.cue(p,ids[2]).content.text='Other edit';edit.cue(p,ids[2]).content.items=[];
+ assert.equal(edit.cue(batch.draft(p,track,snapshot,ids.slice(0,2),segments,report).project,ids[2]).content.text,'Other edit');
+ p.subtitles.cues.push({id:'inserted',track_id:track,content:{start:2100,end:2200,text:'New',items:[]}});
+ assert.throws(()=>batch.draft(p,track,snapshot,ids.slice(0,2),segments,report),/范围外/);
+});
+test('whole split converts marker references to stable IDs and preserves external followers',()=>{
+ const p=fixture();p.subtitles.bindings=[];const ids=firstIds(p),head=edit.cue(p,ids[0]).content;
+ head.color={name:'red',start:1000,end:4000};head.sticker={name:'icon',start:1000,end:4000};head.speaker='2';
+ edit.cue(p,ids[1]).content.color_ref={cue_id:ids[0]};
+ const result=draft(p,['Alpha','Bravo'],[ids[0]])();core.validate(result.project);
+ const tail=edit.cue(result.project,result.ids[1]).content;
+ assert.deepEqual(tail.color_ref,{cue_id:ids[0]});assert.deepEqual(tail.sticker_ref,{cue_id:ids[0]});assert.equal(tail.speaker,'2');
+ assert.deepEqual(edit.cue(result.project,ids[1]).content.color_ref,{cue_id:ids[0]});
+});
+
 test('pure text cannot transfer a bound boundary or merge across excluded rows',()=>{
  const p=fixture(),ids=firstIds(p);
  const track=p.subtitles.tracks[0].id,snapshot=batch.trackCues(p,track),source=batch.textSources(snapshot,p);

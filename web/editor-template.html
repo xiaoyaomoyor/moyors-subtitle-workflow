@@ -207,9 +207,6 @@ __WAVEFORM_CSS__
         <div class="dropdown-menu dropdown-submenu-menu" id="batch-operations-submenu" role="menu">
           <button type="button" class="dropdown-item" id="clear-empty-cues" role="menuitem" title="选择轨道与范围，按字符数或关键词清理字幕">清理字幕<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="find-edit-open" role="menuitem"><span>查找并编辑</span><kbd class="menu-kbd" data-mod>Ctrl+F</kbd></button>
-          <button type="button" class="dropdown-item" id="replace-btn" role="menuitem">批量替换<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-          <button type="button" class="dropdown-item" id="timed-text-edit-btn" role="menuitem" title="集中编辑字幕文本，并预览拆分、合并和字词时间码映射结果">纯文本编辑<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
-          <button type="button" class="dropdown-item" id="text-process-btn" role="menuitem">文本处理<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
           <button type="button" class="dropdown-item" id="subtitle-translate-btn" role="menuitem" title="翻译选中的主字幕；未选择时翻译全部主字幕">字幕翻译<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
         </div>
       </div>
@@ -1260,9 +1257,8 @@ __WAVEFORM_CSS__
         <div class="help-category">
           <span><kbd data-mod>Ctrl+F</kbd> 查找字幕并定位到波形，支持全部轨道、指定轨道和所选字幕</span>
           <span>查找面板可预览并替换文字；点击结果右侧铅笔编辑，<kbd data-mod>Ctrl+Enter</kbd> 应用，<kbd>Esc</kbd> 取消本条草稿</span>
-          <span><kbd>批量替换</kbd> 查找并批量替换字幕文本</span>
-          <span><kbd>纯文本编辑</kbd> 集中编辑字幕文本，可预览拆分、合并和字词时间码映射</span>
-          <span><kbd>文本处理</kbd> 批量修剪空白、首字母大写、添加前缀/后缀或去除 Markdown 符号</span>
+          <span><kbd>文字整理</kbd> 在查找并编辑中修剪空白、首字母大写、添加前后缀或去除 Markdown 标记</span>
+          <span><kbd>连续编辑</kbd> 按轨道逐条校对，多行保留为同条字幕；单轨整体编辑可调整未绑定字幕的行结构</span>
         </div>
       </section>
       <section class="help-subgroup">
@@ -2622,22 +2618,48 @@ __WAVEFORM_CSS__
     <div class="find-edit-scope-row">
       <label class="find-edit-scope-label">范围<select id="find-edit-scope"><option value="all">全部轨道</option><option value="tracks">指定轨道</option><option value="selected">所选字幕</option></select></label>
       <span id="find-edit-selection" hidden><span id="find-edit-selected-count">0</span><span> 条</span><button type="button" id="find-edit-use-selection" class="find-icon" title="使用当前选择" aria-label="使用当前选择"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6"/></svg></button></span>
-      <details class="find-edit-options"><summary>匹配设置</summary><div><label class="media-preview-toggle"><input id="find-edit-case" type="checkbox">区分大小写</label><label class="media-preview-toggle"><input id="find-edit-regex" type="checkbox">正则表达式</label></div></details>
+      <details class="find-edit-options" data-find-search><summary>匹配设置</summary><div><label class="media-preview-toggle"><input id="find-edit-case" type="checkbox">区分大小写</label><label class="media-preview-toggle"><input id="find-edit-regex" type="checkbox">正则表达式</label></div></details>
     </div>
     <div id="find-edit-tracks" hidden aria-label="搜索轨道"></div>
-    <div class="find-edit-query-row">
+    <div id="find-edit-views" class="find-view-switch" role="group" aria-label="文字工具"><button type="button" data-find-view="search" aria-pressed="true">查找替换</button><button type="button" data-find-view="tidy" aria-pressed="false">文字整理</button><button type="button" data-find-view="edit" aria-pressed="false">连续编辑</button></div>
+    <div class="find-edit-query-row" data-find-search>
       <div class="find-query-input"><input type="text" id="find-edit-query" placeholder="查找字幕文字…" aria-label="查找字幕文字" autocomplete="off" spellcheck="false"><button type="button" id="find-edit-clear" class="find-icon" title="清空查找" aria-label="清空查找"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
       <button type="button" id="find-edit-prev" class="find-icon" title="上一处（Shift+Enter）" aria-label="上一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
       <button type="button" id="find-edit-next" class="find-icon" title="下一处（Enter）" aria-label="下一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
     </div>
-    <details id="find-edit-replace" class="find-replace"><summary>替换</summary>
+    <details id="find-edit-replace" class="find-replace" data-find-search><summary>替换</summary>
       <div class="find-replace-controls"><textarea id="find-edit-replacement" rows="1" placeholder="替换为…（留空删除匹配文字）" aria-label="替换为" spellcheck="false"></textarea><button type="button" id="find-edit-replace-current" disabled>替换当前</button><button type="button" id="find-edit-replace-all" disabled>替换全部</button></div>
       <p id="find-edit-plan" class="msw-processing-hint" role="status"></p>
     </details>
-    <div class="find-edit-summary" id="find-edit-count" role="status" aria-live="polite">0 条字幕 · 0 处匹配</div>
+    <div class="find-edit-summary" id="find-edit-count" data-find-search role="status" aria-live="polite">0 条字幕 · 0 处匹配</div>
     <p id="find-edit-message" class="msw-processing-hint" role="status" hidden></p>
   </div>
   <div id="find-edit-results" tabindex="0" aria-label="查找结果" aria-busy="false"><p id="find-edit-empty">输入文字开始查找</p><div id="find-edit-rows" data-i18n-skip></div></div>
+  <section id="find-tools" hidden>
+    <div id="find-tidy-options" class="find-tools-controls">
+      <div class="find-tidy-checks" data-option-help="依次去除 Markdown、修剪空白、首字母大写、添加前缀和后缀。只改范围内正文，不修改绑定伙伴。">
+        <label class="media-preview-toggle"><input id="find-tidy-trim" type="checkbox">修剪前后空白</label>
+        <label class="media-preview-toggle"><input id="find-tidy-capitalize" type="checkbox">首字母大写</label>
+        <label class="media-preview-toggle"><input id="find-tidy-markdown" type="checkbox">去除 Markdown 标记</label>
+        <label class="media-preview-toggle"><input id="find-tidy-prefix" type="checkbox">添加前缀</label>
+        <label class="media-preview-toggle"><input id="find-tidy-suffix" type="checkbox">添加后缀</label>
+      </div>
+      <input id="find-tidy-prefix-text" type="text" placeholder="插入到字幕开头" aria-label="前缀" hidden>
+      <input id="find-tidy-suffix-text" type="text" placeholder="插入到字幕结尾" aria-label="后缀" hidden>
+      <label class="media-preview-toggle"><input id="find-tidy-matched" type="checkbox">仅匹配结果<span id="find-tidy-query" class="find-edit-summary" data-i18n-skip></span></label>
+    </div>
+    <div id="find-continuous-options" class="find-tools-controls" hidden>
+      <div class="find-view-switch" role="group" aria-label="编辑视图"><button id="find-continuous-rows" type="button" aria-pressed="true">逐条编辑</button><button id="find-continuous-whole" type="button" aria-pressed="false">整体编辑</button></div>
+      <label id="find-continuous-filter" class="find-edit-scope-label" data-option-help="只筛选列表显示，不改变已编辑草稿的应用范围。忽略空白，标点计入。">字数 ≥<input id="find-continuous-threshold" type="number" min="0" step="1" placeholder="不限" aria-label="显示字数阈值"></label>
+      <p id="find-continuous-hint" class="msw-processing-hint"></p>
+    </div>
+    <div id="find-tools-list" tabindex="0" aria-label="文字编辑列表"><div id="find-tools-rows" data-i18n-skip></div></div>
+    <div id="find-whole-editor" hidden>
+      <textarea id="find-whole-text" rows="6" aria-label="整体字幕正文" spellcheck="false"></textarea>
+      <details id="find-whole-details"><summary>修改详情</summary><div id="find-whole-report" data-i18n-skip></div></details>
+    </div>
+    <div class="find-tools-footer"><p id="find-tools-status" class="msw-processing-hint" role="status"></p><div class="find-editor-actions"><button type="button" id="find-tools-discard">放弃修改</button><button type="button" id="find-tools-apply" class="primary" disabled>应用处理</button></div></div>
+  </section>
   <button type="button" id="find-edit-drafts" hidden></button>
   <section id="find-edit-editor" hidden>
     <div class="find-editor-heading"><strong id="find-edit-edit-title"></strong><span id="find-edit-edit-status" role="status"></span></div>
@@ -2645,160 +2667,6 @@ __WAVEFORM_CSS__
     <div class="find-editor-actions"><button type="button" id="find-edit-discard">取消编辑</button><button type="button" id="find-edit-apply" class="primary">应用修改</button><span class="find-edit-summary">Ctrl+Enter 应用 · Esc 取消</span></div>
   </section>
 </aside>
-
-<!-- 批量替换 modal -->
-<div class="modal-mask" id="replace-modal">
-  <div class="modal batch-text-modal" role="dialog" aria-modal="true" aria-labelledby="replace-modal-title">
-    <h3 id="replace-modal-title">批量替换</h3>
-    <p hidden data-help-for="replace-modal-title">只替换作用轨道的文字，保留字幕和绑定，不修改伙伴文字。空文字仍保留为空字幕。范围包含禁用、隐藏和折叠内容；所选字幕为空时不会扩大到整轨。</p>
-    <div class="batch-scope-fields" data-flat-settings hidden>
-      <label>作用轨道<select id="replace-track"></select></label>
-      <label>作用范围<select id="replace-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
-    </div>
-    <div id="replace-scope-info" data-legacy-settings>范围：全部字幕</div>
-    <label class="modal-check-row" for="replace-selected-only" data-legacy-settings>
-      <input type="checkbox" id="replace-selected-only" disabled>
-      <span>仅处理选中的字幕</span>
-      <span id="replace-selected-only-hint" class="modal-hint batch-selected-only-hint" hidden>需要先选中至少1条字幕才可启用</span>
-    </label>
-    <label>查找</label>
-    <input type="text" id="find-input" placeholder="要查找的内容" autocomplete="off">
-    <label>替换为</label>
-    <input type="text" id="replace-input" placeholder="替换后的内容" autocomplete="off">
-    <div class="row">
-      <label style="margin:0"><input type="checkbox" id="case-sensitive"> 区分大小写</label>
-      <label style="margin:0"><input type="checkbox" id="use-regex"> 正则表达式</label>
-    </div>
-    <div class="preview" id="replace-preview">输入查找内容查看预览</div>
-    <div class="actions">
-      <button id="replace-cancel">取消</button>
-      <button id="replace-confirm" class="primary">替换全部</button>
-    </div>
-  </div>
-</div>
-
-<!-- 常用文本处理 modal：保持字幕行和时间范围结构，只批量变更文本。 -->
-<div class="modal-mask" id="text-process-modal">
-  <div class="modal text-process-modal batch-text-modal" role="dialog" aria-modal="true"
-       aria-labelledby="text-process-title" aria-describedby="text-process-description">
-    <h3 id="text-process-title">文本处理</h3>
-    <p hidden id="text-process-description" data-help-for="text-process-title">
-      只修改作用轨道的文字，不修改绑定伙伴。字幕行不会被删除，处理为空时保留空行；尽量保留可复用字词时间码。范围包含禁用、隐藏和折叠内容。
-    </p>
-    <div class="batch-scope-fields" data-flat-settings hidden>
-      <label>作用轨道<select id="text-process-track"></select></label>
-      <label>作用范围<select id="text-process-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
-    </div>
-    <div id="text-process-scope-info" class="text-process-scope-info" data-legacy-settings>范围：全部字幕</div>
-    <label class="modal-check-row" for="text-process-selected-only" data-legacy-settings>
-      <input type="checkbox" id="text-process-selected-only" disabled>
-      <span>仅处理选中的字幕</span>
-      <span id="text-process-selected-only-hint" class="modal-hint batch-selected-only-hint" hidden>需要先选中至少1条字幕才可启用</span>
-    </label>
-    <div class="text-process-operations" aria-label="文本处理操作">
-      <label class="text-process-operation" for="text-process-trim">
-        <input type="checkbox" id="text-process-trim">
-        <span>修剪前后空白</span>
-      </label>
-      <label class="text-process-operation" for="text-process-capitalize" data-option-help="只将第一个字母改为大写，不改动其余字母。">
-        <input type="checkbox" id="text-process-capitalize">
-        <span class="msw-option-label">首字母大写</span>
-      </label>
-      <label class="text-process-operation text-process-operation-input" for="text-process-prefix">
-        <input type="checkbox" id="text-process-prefix">
-        <span>添加前缀</span>
-        <input type="text" id="text-process-prefix-input" placeholder="插入到字幕开头" disabled>
-      </label>
-      <label class="text-process-operation text-process-operation-input" for="text-process-suffix">
-        <input type="checkbox" id="text-process-suffix">
-        <span>添加后缀</span>
-        <input type="text" id="text-process-suffix-input" placeholder="插入到字幕结尾" disabled>
-      </label>
-      <label class="text-process-operation" for="text-process-strip-markdown" data-option-help="移除常见 Markdown 标记，保留文字内容。">
-        <input type="checkbox" id="text-process-strip-markdown">
-        <span class="msw-option-label">去除 Markdown 标记</span>
-      </label>
-    </div>
-    <div class="preview text-process-preview" id="text-process-preview">选择操作后查看预览</div>
-    <div class="actions">
-      <button type="button" id="text-process-cancel">取消</button>
-      <button type="button" id="text-process-confirm" class="primary" disabled>应用处理</button>
-    </div>
-  </div>
-</div>
-
-<!-- 支持调整字幕行结构并预览字词时间码映射的纯文本编辑 MVP。 -->
-<div class="modal-mask" id="timed-text-edit-modal">
-  <div class="modal timed-text-edit-modal" role="dialog" aria-modal="true"
-       aria-labelledby="timed-text-edit-title" aria-describedby="timed-text-edit-description">
-    <div class="timed-text-edit-header">
-      <div>
-        <h3 id="timed-text-edit-title">纯文本编辑</h3>
-        <p hidden id="timed-text-edit-description" data-help-for="timed-text-edit-title">
-           集中修改指定轨道与范围的文字，尽量复用字词时间码。未绑定字幕可调整行数；已绑定字幕只改文字，拆分／合并请使用联动操作。应用前会检查工程是否变化，可一次撤销。
-        </p>
-      </div>
-      <button type="button" id="timed-text-edit-close" class="timed-text-edit-close"
-              title="关闭（Esc）" aria-label="关闭纯文本编辑"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-    </div>
-    <div class="timed-text-edit-toolbar">
-      <div class="timed-text-edit-track-control" id="timed-text-edit-track-control">
-        <label for="timed-text-edit-track">作用轨道</label>
-        <select id="timed-text-edit-track">
-          <option value="main">主字幕</option>
-          <option value="extension">副字幕</option>
-        </select>
-      </div>
-      <label class="timed-text-edit-track-control" data-flat-settings hidden>作用范围<select id="timed-text-edit-scope"><option value="selected">所选字幕</option><option value="all">整条轨道</option></select></label>
-      <div class="timed-text-edit-view-control">
-        <span>编辑视图</span>
-        <div id="timed-text-edit-view" class="timed-text-edit-view-switch" role="group" aria-label="编辑视图">
-          <button type="button" data-view="rows" aria-pressed="true">逐条编辑</button>
-          <button type="button" data-view="single" aria-pressed="false">整体编辑</button>
-        </div>
-      </div>
-      <div class="timed-text-edit-charcount-control" id="timed-text-edit-charcount-control" hidden>
-        <label for="timed-text-edit-charcount-threshold">字数阈值</label>
-        <input id="timed-text-edit-charcount-threshold" type="number" min="1" max="200" step="1" value="16">
-      </div>
-      <label class="timed-text-edit-show-disabled-control" for="timed-text-edit-show-disabled">
-        <input type="checkbox" id="timed-text-edit-show-disabled">
-        显示已禁用字幕
-      </label>
-      <span class="timed-text-edit-source-info" id="timed-text-edit-source-info"></span>
-    </div>
-    <div class="timed-text-edit-layout">
-      <section class="timed-text-edit-input-panel" aria-labelledby="timed-text-edit-input-title">
-        <div class="timed-text-edit-section-heading">
-          <strong id="timed-text-edit-input-title">字幕文本</strong>
-          <p hidden data-help-for="timed-text-edit-input-title">每一行对应一条字幕。⌚️ 表示有效字词时间码覆盖率，♻️ 表示原始时间码复用率；修改影响中的数字可筛选对应字幕。</p>
-        </div>
-        <div class="timed-text-edit-rows" id="timed-text-edit-rows"></div>
-        <div id="timed-text-edit-single-editor" class="timed-text-edit-single-editor" hidden>
-          <textarea id="timed-text-edit-single-textarea" class="timed-text-edit-single-textarea"
-                    aria-label="单文本框编辑" spellcheck="false" wrap="off"></textarea>
-          <span id="timed-text-edit-single-guide" class="timed-text-edit-single-guide" aria-hidden="true"></span>
-        </div>
-        <div id="timed-text-edit-single-hint" class="timed-text-edit-single-hint" hidden></div>
-      </section>
-      <aside class="timed-text-edit-report" aria-labelledby="timed-text-edit-report-title">
-        <h4 id="timed-text-edit-report-title">修改影响</h4>
-        <div class="timed-text-edit-report-summary" id="timed-text-edit-report-summary"></div>
-        <div class="timed-text-edit-report-mapping" id="timed-text-edit-report-mapping"></div>
-        <button type="button" id="timed-text-edit-show-all" class="timed-text-edit-show-all" hidden>显示全部</button>
-        <div class="timed-text-edit-report-hint" id="timed-text-edit-report-hint"></div>
-        <details class="timed-text-edit-change-list" id="timed-text-edit-change-details">
-          <summary>查看修改内容</summary>
-          <div id="timed-text-edit-change-list"></div>
-        </details>
-      </aside>
-    </div>
-    <div class="actions">
-      <button type="button" id="timed-text-edit-cancel">取消</button>
-      <button type="button" id="timed-text-edit-apply" class="primary" disabled>应用修改</button>
-    </div>
-  </div>
-</div>
 
 <!-- 表情包选择 modal -->
 <div class="modal-mask" id="sticker-modal">

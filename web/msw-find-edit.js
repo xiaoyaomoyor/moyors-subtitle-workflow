@@ -5,6 +5,7 @@
   const el = id => document.getElementById('find-edit-' + id), panel = el('panel');
   const viewport = el('results'), canvas = el('rows');
   let rowHeight = 70, ready = false, publishedVersion = -1, editKey = null, drafts = new Map(), operationNotice = '';
+  let mode = 'search', textTools = null, scopeCache = null, draftCursor = '';
   const t = text => global.MSWE_I18N?.translateText(text) || text;
   let records = new Map(), references = new Map(), cuesById = new Map(), tracks = [], trackSignature = '';
   let result = { rows: [], count: 0 }, matchMap = new Map(), selected = [], trackIds = new Set();
@@ -53,7 +54,7 @@
     el('tracks').replaceChildren(...tracks.map(track => {
       const label = document.createElement('label'); label.className = 'media-preview-toggle';
       const input = document.createElement('input'); input.type = 'checkbox'; input.value = track.id; input.checked = trackIds.has(track.id);
-      input.addEventListener('change', () => { if (input.checked) trackIds.add(track.id); else trackIds.delete(track.id); scheduleQuery(); });
+      input.addEventListener('change', () => { if (input.checked) trackIds.add(track.id); else trackIds.delete(track.id); textTools?.scopeChanged(); scheduleQuery(); textTools?.refresh(); });
       label.append(input, document.createTextNode(track.name)); return label;
     }));
   }
@@ -85,7 +86,7 @@
     // Literal matching is bounded. Never execute arbitrary regex on the UI thread.
     publish(plainEngine.search(query));
   }
-  function message(text) { el('message').textContent = t(text); el('message').hidden = !text; }
+  function message(text) { el('message').textContent = t(text); el('message').hidden = !text || mode !== 'search'; }
   function publish(next) {
     const oldIndex = result.rows.findIndex(row => row.key === activeKey);
     result = next; publishedVersion = queryVersion; ready = !next.error && !next.limited; viewport.setAttribute('aria-busy', 'false');
@@ -101,7 +102,7 @@
     el('prev').disabled = el('next').disabled = !next.count;
     rowHeight = el('replace').open ? 100 : 70;
     canvas.style.height = `${next.rows.length * rowHeight}px`;
-    syncActions(); syncDraftStatus(); renderRows(); paintWaveform();
+    syncActions(); syncDraftStatus(); renderRows(); paintWaveform(); textTools?.refresh();
   }
   function runQuery() {
     if (!floating.isOpen()) return;
@@ -113,7 +114,7 @@
     timeout = setTimeout(() => { if (version === queryVersion && workerBusy) { stopWorker(); publish({ rows: [], count: 0, error: 'timeout' }); } }, 1500);
   }
   function scheduleQuery({ resetScroll = true } = {}) {
-    ready = false; syncActions();
+    ready = false; syncActions(); textTools?.invalidate();
     clearTimeout(queryTimer); ++queryVersion;
     if (workerBusy) stopWorker();
     if (resetScroll) {
@@ -128,9 +129,9 @@
   }
   function changed() {
     if (!floating.isOpen()) return;
-    ready = false; syncActions();
+    ready = false; syncActions(); textTools?.invalidate();
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => { if (readIndex()) scheduleQuery({ resetScroll: false }); else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); } syncDraftStatus(); }, 180);
+    syncTimer = setTimeout(() => { if (readIndex()) scheduleQuery({ resetScroll: false }); else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); textTools?.refresh(); } syncDraftStatus(); }, 180);
   }
   function highlight(node, text, matches, active = -1) {
     node.replaceChildren(); let cursor = 0;
@@ -141,7 +142,7 @@
     node.append(document.createTextNode(text.slice(cursor)));
   }
   function renderRows() {
-    if (!floating.isOpen()) return;
+    if (!floating.isOpen() || mode !== 'search') return;
     cancelAnimationFrame(renderFrame);
     const first = Math.max(0, Math.floor(viewport.scrollTop / rowHeight) - 3);
     const last = Math.min(result.rows.length, first + Math.ceil(viewport.clientHeight / rowHeight) + 7);
@@ -297,16 +298,22 @@
   }
   function editOne(key) {
     readIndex(); const row = records.get(key); if (!row && !drafts.has(key)) return;
-    if (!drafts.has(key)) drafts.set(key, { key, before: row.text, after: row.text, title: `${row.trackName}_${row.number}` });
+    draftFor(key); if (mode !== 'search') setMode('search');
     editKey = key; el('editor').hidden = false;
     el('text').value = drafts.get(key).after; el('edit-title').textContent = drafts.get(key).title;
     syncDraftStatus(); el('text').focus();
   }
-  function hasDraft() { return [...drafts.values()].some(d => d.before !== d.after); }
+  function draftFor(key) {
+    const row=records.get(key), old=drafts.get(key);
+    if (!old || old.before===old.after && row && old.before!==row.text) drafts.set(key,{key,before:row.text,after:row.text,title:`${row.trackName}_${row.number}`});
+    return drafts.get(key);
+  }
+  function hasDraft() { return [...drafts.values()].some(d => d.before !== d.after) || !!textTools?.hasDraft(); }
   function syncDraftStatus() {
     const dirty = [...drafts.values()].filter(d => d.before !== d.after);
-    el('drafts').hidden = !dirty.length;
-    el('drafts').textContent = global.MSWE_I18N?.language === 'en' ? `${dirty.length} unapplied drafts` : `${dirty.length} 条未应用修改`;
+    const count=dirty.length+(textTools?.pendingCount()||0);
+    el('drafts').hidden = !count;
+    el('drafts').textContent = global.MSWE_I18N?.language === 'en' ? `${count} unapplied drafts` : `${count} 条未应用修改`;
     const draft = drafts.get(editKey), row = records.get(editKey);
     if (!draft) return;
     const conflict = !row || row.text !== draft.before;
@@ -329,29 +336,68 @@
     navigate(result.rows[index].key, occurrence);
   }
   function scopeChanged() {
+    textTools?.scopeChanged();
     const scope = el('scope').value;
     el('tracks').hidden = scope !== 'tracks'; el('selection').hidden = scope !== 'selected';
     if (scope === 'selected') selected = batchSelectedIds();
-    el('selected-count').textContent = String(selected.length); scheduleQuery();
+    el('selected-count').textContent = String(selected.length); scheduleQuery(); textTools?.refresh();
   }
-  function open() {
+  function scopedRows() {
+    const scope=el('scope').value, signature=scope==='tracks'?[...trackIds].join('\n'):scope;
+    if(scopeCache?.records===records&&scopeCache.signature===signature&&scopeCache.selected===selected)return scopeCache.rows;
+    const ids=new Set(selected),rows=[...records.values()].filter(r=>scope==='all'||scope==='tracks'&&trackIds.has(r.trackId)||scope==='selected'&&ids.has(r.id))
+      .sort((a,b)=>a.start-b.start||a.order-b.order||a.number-b.number);
+    scopeCache={records,signature,selected,rows};return rows;
+  }
+  function scopeTracks() {
+    return el('scope').value==='all'?tracks.map(r=>r.id):el('scope').value==='tracks'?[...trackIds]:[...new Set(scopedRows().map(r=>r.trackId))];
+  }
+  function setMode(next) {
+    mode=next;
+    panel.querySelectorAll('[data-find-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.findView===mode)));
+    panel.querySelectorAll('[data-find-search]').forEach(node=>node.hidden=mode!=='search');
+    viewport.hidden=mode!=='search';el('editor').hidden=mode!=='search'||!editKey;
+    el('message').hidden=mode!=='search'||!el('message').textContent;
+    textTools.setMode(mode);renderRows();
+  }
+  function setSelectionScope(ids) {
+    textTools?.scopeChanged();
+    selected=[...ids];el('scope').value='selected';el('tracks').hidden=true;el('selection').hidden=false;
+    el('selected-count').textContent=String(selected.length);scheduleQuery();textTools?.refresh();
+  }
+  function open({view, ids, replace:showReplace=false}={}) {
     const wasOpen = floating.isOpen(); floating.open();
     readIndex(); if (!wasOpen) scheduleQuery({ resetScroll: false });
-    el('query').focus(); el('query').select();
+    if(ids)setSelectionScope(ids);
+    if(view)setMode(view);else textTools.refresh();
+    if(showReplace)el('replace').open=true;
+    if(mode==='search'){el('query').focus();el('query').select();}
   }
   function onClose() {
     clearTimeout(queryTimer); clearTimeout(syncTimer); ++queryVersion; stopWorker(); matchMap.clear(); paintWaveform();
+    textTools?.close();
     // A disabled result revealed for navigation returns to the user's normal visibility.
     waveformEditor?.refreshCueOverlay?.();
   }
-  el('open').addEventListener('click', open); el('close').addEventListener('click', () => floating.close());
+  textTools=global.MSWFindTextTools({t,formatTime,scope:scopedRows,scopeTracks,records:()=>records,drafts:()=>drafts,draft:draftFor,commit,navigate,
+    isOpen:()=>floating.isOpen(),setMode,selectIds:setSelectionScope,draftsChanged:syncDraftStatus,
+    query:()=>({text:el('query').value,ready,keys:new Set(result.rows.map(r=>r.key))}),
+    refresh:()=>{readIndex();scheduleQuery({resetScroll:false});}});
+  el('views').addEventListener('click',event=>{const button=event.target.closest('[data-find-view]');if(button)setMode(button.dataset.findView);});
+  el('open').addEventListener('click', () => open()); el('close').addEventListener('click', () => floating.close());
   el('replace').addEventListener('toggle', () => scheduleQuery({ resetScroll: false }));
   el('replacement').addEventListener('input', event => { operationNotice = ''; if (!event.isComposing) scheduleQuery({ resetScroll: false }); });
   el('replacement').addEventListener('compositionend', () => scheduleQuery({ resetScroll: false }));
   el('replace-current').addEventListener('click', () => replace(false)); el('replace-all').addEventListener('click', () => replace(true));
   el('text').addEventListener('input', () => { const d = drafts.get(editKey); if (d) { d.after = el('text').value; syncDraftStatus(); } });
   el('apply').addEventListener('click', applyDraft); el('discard').addEventListener('click', discard);
-  el('drafts').addEventListener('click', () => { const keys = [...drafts.keys()].filter(k => drafts.get(k).before !== drafts.get(k).after); editOne(keys[(keys.indexOf(editKey) + 1) % keys.length]); });
+  el('drafts').addEventListener('click', () => {
+    const choices=[...[...drafts.keys()].filter(k=>drafts.get(k).before!==drafts.get(k).after).map(key=>({id:'cue:'+key,key})),
+      ...textTools.pendingKeys().map(key=>({id:'whole:'+key,key,whole:true}))];
+    if(!choices.length)return;
+    const next=choices[(choices.findIndex(c=>c.id===draftCursor)+1)%choices.length];draftCursor=next.id;
+    if(next.whole)textTools.resumeWhole(next.key);else editOne(next.key);
+  });
   el('query').addEventListener('input', event => { if (!event.isComposing) scheduleQuery(); });
   el('query').addEventListener('compositionend', () => scheduleQuery());
   el('query').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); step(event.shiftKey ? -1 : 1); } });
@@ -377,7 +423,7 @@
       if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.stopImmediatePropagation(); applyDraft(); return; }
     }
     if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
-      event.preventDefault(); event.stopImmediatePropagation(); open();
+      event.preventDefault(); event.stopImmediatePropagation(); open({view:'search'});
     } else if (event.key === 'Escape' && floating.isOpen() && !document.querySelector('#msw-option-help:not([hidden])')) {
       const front = [...document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show')].sort((a, b) => +getComputedStyle(b).zIndex - +getComputedStyle(a).zIndex)[0];
       if (front === panel) { event.preventDefault(); event.stopImmediatePropagation(); floating.close(); }
@@ -388,7 +434,7 @@
     stopWorker(); ++queryVersion; clearTimeout(queryTimer); clearTimeout(syncTimer);
     records.clear(); references.clear(); plainEngine = core.createEngine(); trackSignature = ''; activeKey = null;
     selected = []; el('scope').value = 'all'; el('query').value = ''; el('tracks').hidden = el('selection').hidden = true;
-    drafts.clear(); editKey = null; el('editor').hidden = true; el('replacement').value = ''; ready = false; syncDraftStatus();
+    drafts.clear();scopeCache=null;draftCursor='';textTools.reset();mode='search';setMode('search');editKey = null; el('editor').hidden = true; el('replacement').value = ''; ready = false; syncDraftStatus();
     if (floating.isOpen()) { readIndex(); publish({ rows: [], count: 0 }); }
   });
   global.MSWFindEdit = Object.freeze({ open, close: () => floating.close(), changed, decorateBlock, keepVisible, capture, restore, hasDraft });

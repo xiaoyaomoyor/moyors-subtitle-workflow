@@ -74,7 +74,8 @@
   });}
   function draft(p,trackId,snapshot,sourceIds,segments,report,{makeId}={}) {
     core.validate(p);
-    if(JSON.stringify(trackCues(p,trackId))!==JSON.stringify(snapshot))fail('本轨字幕在编辑期间发生了变化，请重新载入后再应用');
+    const sourceSet=new Set(sourceIds),currentTrack=trackCues(p,trackId);
+    if(JSON.stringify(currentTrack.filter(c=>sourceSet.has(c.id)))!==JSON.stringify(snapshot.filter(c=>sourceSet.has(c.id))))fail('目标字幕在编辑期间发生了变化，请重新载入后再应用');
     const source=new Set(sourceIds),nextIds=new Set(segments.map(c=>c.id)),affected=new Set(sourceIds.filter(id=>!nextIds.has(id)));
     for(const i of report.structure?.affectedSourceIndexes||[])affected.add(sourceIds[i]);
     for(const segment of segments){const original=edit.cue(p,segment.id);
@@ -82,7 +83,7 @@
     if(p.subtitles.bindings.some(b=>affected.has(b.source_id)||affected.has(b.target_id)))fail('此修改会改变已绑定字幕的行结构；请使用联动切分／合并或先手动解绑');
     // Selected/non-disabled rows separated by excluded rows must never merge
     // through those rows, even if the resulting timing could fit by chance.
-    const indexes=new Map(snapshot.map((c,i)=>[c.id,i]));
+    const indexes=new Map(currentTrack.map((c,i)=>[c.id,i]));
     for(const out of report.structure?.outputMeta||[]){const positions=(out.sourceIndexes||[]).map(i=>indexes.get(sourceIds[i])).sort((a,b)=>a-b);
       if(positions.some((value,i)=>i&&value!==positions[i-1]+1))fail('不能跨过范围外字幕合并；请扩大选区或分别处理');}
     edit.editable(p,[...source]);let next=copy(p);const used=new Set(p.subtitles.cues.map(c=>c.id));let serial=0;
@@ -104,6 +105,16 @@
       else {content._dirty=true;edit.frame(next,content);published.push({...copy(original),id,content});}
       if(p.subtitle_view?.secondary_cue_ids?.includes(original.id))right.add(id);
     });
+    // The word mapper emits array-relative marker references. Publish stable
+    // cue IDs before validation; indexes are never persisted in v4 projects.
+    for(const row of published)for(const field of ['color','sticker']){
+      const ref=row.content[field+'_ref'];
+      if(ref&&Object.hasOwn(ref,'headIdx')){
+        const head=published[ref.headIdx];
+        if(!head?.content[field])fail('无法确定字幕标记来源；未应用修改');
+        row.content[field+'_ref']={cue_id:head.id};delete row.content[field];
+      }
+    }
     for(const id of removed)right.delete(id);
     next.subtitles.cues=next.subtitles.cues.filter(c=>!source.has(c.id)).concat(published);
     next.subtitle_view={...next.subtitle_view,secondary_cue_ids:[...right]};

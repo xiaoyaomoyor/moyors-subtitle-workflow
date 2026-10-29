@@ -80,14 +80,14 @@ test('tool window drags, resizes, fits light narrow layout and respects existing
  expect((await panel.boundingBox()).x).not.toBe(box.x);
  expect(await panel.evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);await page.screenshot({path:info.outputPath('find-light.png')});
  await panel.evaluate(n=>{n.style.width='350px';n.style.height='340px';});await expect(panel).toBeInViewport();await page.screenshot({path:info.outputPath('find-compact.png')});
- await page.locator('#find-edit-close').click();await clickBatchOperation(page,'replace-btn');await page.keyboard.press('Control+f');await expect(panel).not.toBeVisible();await expect(page.locator('#replace-modal')).toBeVisible();
+ await page.locator('#find-edit-close').click();await page.evaluate(()=>document.getElementById('sticker-modal').classList.add('show'));await page.keyboard.press('Control+f');await expect(panel).not.toBeVisible();await expect(page.locator('#sticker-modal')).toBeVisible();
 });
 test('6000-cue search virtualizes results and a runaway regex can be cancelled without freezing the page',async({page})=>{
  // Search loads 6000 real cues; high-density waveform decoding is covered separately.
  await page.evaluate(waveform=>{applyCanonicalProject({segments:Array.from({length:6000},(_,i)=>({id:'large'+i,start:i*2000,end:i*2000+1500,text:'Alpha subtitle '+i,items:[]})),waveform},'large.mosp');},generateWaveformPayload(12000000,1));
  const start=Date.now();await search(page);await count(page,'6000 条字幕 · 6000 处匹配');console.log('6000-cue query including panel open (ms):',Date.now()-start);
  expect(await page.locator('.find-result').count()).toBeLessThan(30);
- await page.locator('#find-edit-results').evaluate(n=>{n.scrollTop=70*5990;});await expect(page.locator('.find-result').last()).toContainText('5999');
+ await page.locator('#find-edit-results').evaluate(n=>{n.scrollTop=n.scrollHeight;});await expect(page.locator('.find-result').last()).toContainText('5999');
  await page.evaluate(()=>{DATA.segments[0].text='a'.repeat(200)+'!';waveformEditor.refreshCueLabel(0);});
  await page.locator('.find-edit-options summary').click();await page.locator('#find-edit-regex').check();await page.locator('#find-edit-query').fill('(a+)+$');
  // Locator assertions build a full accessibility snapshot on a retry, which blocks
