@@ -202,6 +202,7 @@
     return { setMode,refresh,hasDraft:()=>[...wholeDrafts.values()].some(wholeDirty),pendingCount:()=>[...wholeDrafts.values()].filter(wholeDirty).length,resumeWhole,
       pendingKeys:()=>[...wholeDrafts.values()].filter(wholeDirty).map(d=>d.key),
       invalidate(){el('tools-apply').disabled=true;},
+      sourceChanged(){notice='';},
       scopeChanged(){resumedWhole=null;notice='';},
       reset(){clearTimeout(timer);wholeDrafts.clear();whole=null;resumedWhole=null;view='rows';notice='';scopeKey='';}, close(){clearTimeout(timer);} };
   };

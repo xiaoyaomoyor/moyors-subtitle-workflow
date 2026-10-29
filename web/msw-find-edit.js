@@ -131,7 +131,7 @@
     if (!floating.isOpen()) return;
     ready = false; syncActions(); textTools?.invalidate();
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => { if (readIndex()) scheduleQuery({ resetScroll: false }); else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); textTools?.refresh(); } syncDraftStatus(); }, 180);
+    syncTimer = setTimeout(() => { if (readIndex()) { textTools?.sourceChanged(); scheduleQuery({ resetScroll: false }); } else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); textTools?.refresh(); } syncDraftStatus(); }, 180);
   }
   function highlight(node, text, matches, active = -1) {
     node.replaceChildren(); let cursor = 0;
@@ -267,7 +267,8 @@
       fixedLastContentKey = fixedContentKey(); fixedHistoryCheckpoint = editorHistory.checkpoint();
     }
     fixedPreviewInvalidate(); projectImportDirty = true;
-    renderAll({ changedCueIds: new Set(record.cues.map(c => c.id)), validated: true });
+    refreshCueTextRows(new Set(record.cues.map(c => c.id)));
+    container.querySelectorAll('.cue.selected').forEach(node => node.classList.remove('selected'));
     restoreEditorSelection(record.view); updateUndoRedoButtons(); scheduleAutoSaveFlush({ validated: true });
     changed(); return true;
   }
@@ -417,7 +418,7 @@
   }).observe(panel);
   document.addEventListener('keydown', event => {
     const modal = document.querySelector('.modal-mask.show, dialog[open]');
-    if (event.isComposing || modal || event.defaultPrevented) return;
+    if (event.isComposing || modal || event.defaultPrevented || event.key === 'Escape' && document.querySelector('#ctxmenu.show')) return;
     if (floating.isOpen() && el('editor').contains(event.target)) {
       if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); discard(); return; }
       if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.stopImmediatePropagation(); applyDraft(); return; }

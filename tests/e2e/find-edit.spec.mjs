@@ -195,3 +195,26 @@ test('drafts survive scope changes and unrelated edits, and light narrow actions
  await page.locator('#find-edit-text').press('Control+Enter');expect((await snapshot(page)).subtitles.cues.some(c=>c.content.text==='独立修改\nSecond line')).toBe(true);
  expect(await page.evaluate(()=>MSWFindEdit.hasDraft())).toBe(false);
 });
+
+test('body edits reuse cards, refresh counts and filters, preserve literal UI words and undo',async({page})=>{
+ await page.evaluate(()=>{window.keptCard=document.querySelector('.multi-cue-column.main');window.originalCount=keptCard.querySelector('.charcount').textContent;});
+ await replacement(page,'Alpha alpha 0','主字幕\n取消');await page.locator('#find-edit-replace-all').click();await count(page,'0 条字幕 · 0 处匹配');
+ expect(await page.evaluate(()=>keptCard.isConnected)).toBe(true);
+ await page.evaluate(()=>MSWE_I18N.applyLanguage('en',false));
+ await expect(page.locator('.multi-cue-column.main .text').first()).toHaveText('主字幕取消');
+ expect(await page.evaluate(()=>keptCard.querySelector('.charcount').textContent)).not.toBe(await page.evaluate(()=>originalCount));
+ expect(await page.evaluate(()=>keptCard.classList.contains('dirty'))).toBe(true);
+ await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>keptCard.isConnected)).toBe(true);
+ await expect(page.locator('.multi-cue-column.main .text').first()).toHaveText('Alpha alpha 0');
+ await page.evaluate(()=>{MSWE_I18N.applyLanguage('zh',false);searchEl.value='Alpha alpha 0';applySearch(searchEl.value);});
+ await replacement(page,'Alpha alpha 0','');await page.locator('#find-edit-replace-all').click();await count(page,'0 条字幕 · 0 处匹配');
+ expect(await page.evaluate(()=>keptCard.closest('.cue').classList.contains('hidden'))).toBe(true);
+ await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>keptCard.closest('.cue').classList.contains('hidden'))).toBe(false);
+});
+
+test('Escape closes a waveform context menu before the find panel',async({page})=>{
+ await search(page);await count(page,'7 条字幕 · 10 处匹配');
+ await page.evaluate(()=>showContextMenu(800,300,0));await page.locator('#ctxmenu').hover();
+ await page.keyboard.press('Escape');await expect(page.locator('#ctxmenu')).not.toBeVisible();await expect(page.locator('#find-edit-panel')).toBeVisible();
+ await page.keyboard.press('Escape');await expect(page.locator('#find-edit-panel')).not.toBeVisible();
+});

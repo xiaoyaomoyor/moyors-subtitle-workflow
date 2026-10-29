@@ -1,6 +1,6 @@
 # 查找并编辑：整合方案与施工阶段
 
-2026-10-28 制定。第一阶段“搜索与定位”、第二阶段“替换与单条编辑”和第三阶段“整合文字工具”已实施，施工与验证见 [第一阶段记录](TEST_FEEDBACK_FIND_EDIT_STAGE1_20261028.md)、[第二阶段记录](TEST_FEEDBACK_FIND_EDIT_STAGE2_20261029.md)及[第三阶段记录](TEST_FEEDBACK_FIND_EDIT_STAGE3_20261029.md)。第四阶段长工程专项仍待实施。
+2026-10-28 制定。四个阶段已实施，施工与验证见 [第一阶段记录](TEST_FEEDBACK_FIND_EDIT_STAGE1_20261028.md)、[第二阶段记录](TEST_FEEDBACK_FIND_EDIT_STAGE2_20261029.md)、[第三阶段记录](TEST_FEEDBACK_FIND_EDIT_STAGE3_20261029.md)及[第四阶段长工程验收](TEST_FEEDBACK_FIND_EDIT_STAGE4_20261029.md)。长工程使用隔离副本，验收边界与额外旧测试套件的现存失败见第四阶段记录。
 
 ## 1. 定位与入口
 

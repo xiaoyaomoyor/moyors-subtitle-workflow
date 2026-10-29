@@ -3251,13 +3251,18 @@
 
   function translateTree(root) {
     if (!root) return;
+    // Subtitle bodies and result lists are user content. Prune their entire
+    // subtree instead of traversing every newly added word during text edits.
+    if ((root.nodeType === Node.ELEMENT_NODE ? root : root.parentElement)?.closest?.('[data-i18n-skip]')) return;
     if (root.nodeType === Node.TEXT_NODE) {
       translateTextNode(root);
       return;
     }
     if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_NODE) return;
     if (root.nodeType === Node.ELEMENT_NODE) translateAttributes(root);
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+      acceptNode: node => node.nodeType === Node.ELEMENT_NODE && node.hasAttribute('data-i18n-skip') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+    });
     let node;
     while ((node = walker.nextNode())) {
       if (node.nodeType === Node.TEXT_NODE) translateTextNode(node);

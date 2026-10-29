@@ -112,3 +112,10 @@ test('pending drafts cycles through per-cue and whole-text edits',async({page})=
  await expect(page.locator('#find-edit-drafts')).toHaveText('2 条未应用修改');await page.locator('#find-edit-drafts').click();await expect(page.locator('#find-edit-text')).toHaveValue('Different draft');
  await page.locator('#find-edit-drafts').click();await expect(page.locator('#find-whole-text')).toHaveValue('Alpha\nBravo');
 });
+
+test('undo and later track locking replace the previous success notice with the current plan',async({page})=>{
+ await page.evaluate(()=>MSWFindEdit.open({view:'tidy',ids:['third-0']}));await page.locator('#find-tidy-prefix').check();await page.locator('#find-tidy-prefix-text').fill('Note: ');
+ await expect(page.locator('#find-tools-apply')).toBeEnabled();await page.locator('#find-tools-apply').click();await expect(page.locator('#find-tools-status')).toContainText('已修改 1 条');
+ await page.evaluate(()=>performUndo());await expect(page.locator('#find-tools-status')).toHaveText('修改 1 条 · 跳过 0 条锁定字幕');
+ await page.evaluate(()=>fixedUpdateTrack('third',{locked:true}));await expect(page.locator('#find-tools-status')).toHaveText('修改 0 条 · 跳过 1 条锁定字幕');await expect(page.locator('#find-tools-apply')).toBeDisabled();
+});

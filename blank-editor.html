@@ -26424,13 +26424,18 @@ export default MawDynamicCaptions;
 
   function translateTree(root) {
     if (!root) return;
+    // Subtitle bodies and result lists are user content. Prune their entire
+    // subtree instead of traversing every newly added word during text edits.
+    if ((root.nodeType === Node.ELEMENT_NODE ? root : root.parentElement)?.closest?.('[data-i18n-skip]')) return;
     if (root.nodeType === Node.TEXT_NODE) {
       translateTextNode(root);
       return;
     }
     if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_NODE) return;
     if (root.nodeType === Node.ELEMENT_NODE) translateAttributes(root);
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+      acceptNode: node => node.nodeType === Node.ELEMENT_NODE && node.hasAttribute('data-i18n-skip') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+    });
     let node;
     while ((node = walker.nextNode())) {
       if (node.nodeType === Node.TEXT_NODE) translateTextNode(node);
@@ -42349,7 +42354,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
     setPosition(rect.left, rect.top, { persist: true });
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !isOpen() || editingState) return;
+    if (event.key !== 'Escape' || !isOpen() || editingState || event.defaultPrevented || ctxmenu.classList.contains('show')) return;
     event.preventDefault();
     close();
   });
@@ -44375,6 +44380,7 @@ function escapeHtml(s) {
 }
 
 function setTextHtml(el, text, query) {
+  el.dataset.i18nSkip = '';
   if (!query) {
     el.innerHTML = '';
     text.split('\n').forEach((line, i) => {
@@ -44705,6 +44711,32 @@ function refreshCueColorRows(changedIds = null) {
       : null;
     if (segment && (!changedIds || changedIds.has(segment.id))) updateCueColorPresentation(el, colorBar, segment);
   });
+}
+
+// Body-only transactions preserve card identity, bindings, times and handlers.
+// Rebuilding every changed bilingual card makes a whole-project replacement
+// quadratic in its bindings and queues thousands of UI translation walks.
+function refreshCueTextRows(changedIds) {
+  const anchor = captureCueListRenderAnchor(), extension = getActiveExtensionTrack();
+  container.querySelectorAll(':scope > .cue:not(.multi-dual-cue), .multi-cue-column').forEach(node => {
+    const secondary = node.dataset.extIdx != null && node.dataset.idx == null;
+    const overlay = node.dataset.overlayIdx != null;
+    const index = Number(overlay ? node.dataset.overlayIdx : secondary ? node.dataset.extIdx : node.dataset.idx ?? node.dataset.mainIdx);
+    const cue = (overlay ? getOverlayTrack()?.segments : secondary ? extension?.segments : DATA.segments)?.[index];
+    if (!cue || !changedIds.has(cue.id)) return;
+    const text = node.querySelector('.text');
+    if (text) setTextHtml(text, cue.text || '', searchEl.value);
+    applyCharCount(node.querySelector('.charcount'), cue.text || '', secondary ? getExtensionSubtitleSplitMode(extension, cue) : getMainSubtitleSplitMode(cue));
+    node.classList.toggle('dirty', !!cue._dirty);
+  });
+  // Text can cross the active text/length filters or become empty.
+  applySearch(searchEl.value, {refreshText:false, preserveCueListScroll:false});
+  waveformEditor?.refreshCueOverlay?.();
+  renderCurrentCuePanel();
+  queueCleanupPreview(); queueAutoMergePreview(); queueSubtitleTimePreview();
+  updateSubtitleExportUi();
+  refreshSubtitlePreview();
+  restoreCueListRenderAnchor(anchor);
 }
 
 function refreshCueStickerRows() {
@@ -58108,6 +58140,8 @@ document.addEventListener('contextmenu', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ctxmenu.classList.contains('show')) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
     ctxmenu.classList.remove('show');
   }
 });
@@ -66922,6 +66956,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     return { setMode,refresh,hasDraft:()=>[...wholeDrafts.values()].some(wholeDirty),pendingCount:()=>[...wholeDrafts.values()].filter(wholeDirty).length,resumeWhole,
       pendingKeys:()=>[...wholeDrafts.values()].filter(wholeDirty).map(d=>d.key),
       invalidate(){el('tools-apply').disabled=true;},
+      sourceChanged(){notice='';},
       scopeChanged(){resumedWhole=null;notice='';},
       reset(){clearTimeout(timer);wholeDrafts.clear();whole=null;resumedWhole=null;view='rows';notice='';scopeKey='';}, close(){clearTimeout(timer);} };
   };
@@ -67060,7 +67095,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     if (!floating.isOpen()) return;
     ready = false; syncActions(); textTools?.invalidate();
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => { if (readIndex()) scheduleQuery({ resetScroll: false }); else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); textTools?.refresh(); } syncDraftStatus(); }, 180);
+    syncTimer = setTimeout(() => { if (readIndex()) { textTools?.sourceChanged(); scheduleQuery({ resetScroll: false }); } else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); textTools?.refresh(); } syncDraftStatus(); }, 180);
   }
   function highlight(node, text, matches, active = -1) {
     node.replaceChildren(); let cursor = 0;
@@ -67196,7 +67231,8 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       fixedLastContentKey = fixedContentKey(); fixedHistoryCheckpoint = editorHistory.checkpoint();
     }
     fixedPreviewInvalidate(); projectImportDirty = true;
-    renderAll({ changedCueIds: new Set(record.cues.map(c => c.id)), validated: true });
+    refreshCueTextRows(new Set(record.cues.map(c => c.id)));
+    container.querySelectorAll('.cue.selected').forEach(node => node.classList.remove('selected'));
     restoreEditorSelection(record.view); updateUndoRedoButtons(); scheduleAutoSaveFlush({ validated: true });
     changed(); return true;
   }
@@ -67346,7 +67382,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   }).observe(panel);
   document.addEventListener('keydown', event => {
     const modal = document.querySelector('.modal-mask.show, dialog[open]');
-    if (event.isComposing || modal || event.defaultPrevented) return;
+    if (event.isComposing || modal || event.defaultPrevented || event.key === 'Escape' && document.querySelector('#ctxmenu.show')) return;
     if (floating.isOpen() && el('editor').contains(event.target)) {
       if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); discard(); return; }
       if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.stopImmediatePropagation(); applyDraft(); return; }

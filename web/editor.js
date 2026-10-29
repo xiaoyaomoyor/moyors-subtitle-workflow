@@ -5944,7 +5944,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
     setPosition(rect.left, rect.top, { persist: true });
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !isOpen() || editingState) return;
+    if (event.key !== 'Escape' || !isOpen() || editingState || event.defaultPrevented || ctxmenu.classList.contains('show')) return;
     event.preventDefault();
     close();
   });
@@ -7970,6 +7970,7 @@ function escapeHtml(s) {
 }
 
 function setTextHtml(el, text, query) {
+  el.dataset.i18nSkip = '';
   if (!query) {
     el.innerHTML = '';
     text.split('\n').forEach((line, i) => {
@@ -8300,6 +8301,32 @@ function refreshCueColorRows(changedIds = null) {
       : null;
     if (segment && (!changedIds || changedIds.has(segment.id))) updateCueColorPresentation(el, colorBar, segment);
   });
+}
+
+// Body-only transactions preserve card identity, bindings, times and handlers.
+// Rebuilding every changed bilingual card makes a whole-project replacement
+// quadratic in its bindings and queues thousands of UI translation walks.
+function refreshCueTextRows(changedIds) {
+  const anchor = captureCueListRenderAnchor(), extension = getActiveExtensionTrack();
+  container.querySelectorAll(':scope > .cue:not(.multi-dual-cue), .multi-cue-column').forEach(node => {
+    const secondary = node.dataset.extIdx != null && node.dataset.idx == null;
+    const overlay = node.dataset.overlayIdx != null;
+    const index = Number(overlay ? node.dataset.overlayIdx : secondary ? node.dataset.extIdx : node.dataset.idx ?? node.dataset.mainIdx);
+    const cue = (overlay ? getOverlayTrack()?.segments : secondary ? extension?.segments : DATA.segments)?.[index];
+    if (!cue || !changedIds.has(cue.id)) return;
+    const text = node.querySelector('.text');
+    if (text) setTextHtml(text, cue.text || '', searchEl.value);
+    applyCharCount(node.querySelector('.charcount'), cue.text || '', secondary ? getExtensionSubtitleSplitMode(extension, cue) : getMainSubtitleSplitMode(cue));
+    node.classList.toggle('dirty', !!cue._dirty);
+  });
+  // Text can cross the active text/length filters or become empty.
+  applySearch(searchEl.value, {refreshText:false, preserveCueListScroll:false});
+  waveformEditor?.refreshCueOverlay?.();
+  renderCurrentCuePanel();
+  queueCleanupPreview(); queueAutoMergePreview(); queueSubtitleTimePreview();
+  updateSubtitleExportUi();
+  refreshSubtitlePreview();
+  restoreCueListRenderAnchor(anchor);
 }
 
 function refreshCueStickerRows() {
@@ -21703,6 +21730,8 @@ document.addEventListener('contextmenu', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ctxmenu.classList.contains('show')) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
     ctxmenu.classList.remove('show');
   }
 });
