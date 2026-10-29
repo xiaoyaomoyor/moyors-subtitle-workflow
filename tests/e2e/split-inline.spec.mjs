@@ -3,15 +3,23 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { disableOnboarding, enableSplitMoreActions, findFreePort, generateWav, generateWaveformPayload, makeTempDir, startServer, openMenubarMenu } from './helpers.mjs';
 
-let server;
+let server, environment;
 test.beforeAll(async () => {
   const folder = makeTempDir('split-inline');
+  environment = {MAW_ENV_FILE: process.env.MAW_ENV_FILE, MSW_APP_DATA_ROOT: process.env.MSW_APP_DATA_ROOT};
+  process.env.MAW_ENV_FILE = join(folder, 'isolated.env');
+  process.env.MSW_APP_DATA_ROOT = join(folder, 'app-data');
   const media = join(folder, 'synthetic.wav'), project = join(folder, 'project.mosp');
   generateWav(media, 8);
   writeFileSync(project, JSON.stringify({ media, segments: [], waveform: generateWaveformPayload(8000) }));
   server = await startServer(project, media, await findFreePort());
 });
-test.afterAll(async () => { await server?.stop(); });
+test.afterAll(async () => {
+  await server?.stop();
+  for (const [key, value] of Object.entries(environment || {})) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
+});
 test.beforeEach(async ({ page }) => {
   await disableOnboarding(page);
   await page.addInitScript(() => {
@@ -19,6 +27,14 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto(server.url);
   await expect.poll(() => page.evaluate(() => Boolean(window.MSWProjectStyle))).toBe(true);
+  await page.evaluate(async () => {
+    await MSWConfig.ready;
+    MSWE_I18N.applyLanguage('zh');
+    updateEditorSettings({autoSaveProject: false, cueEditorSplitMoreActions: false, cueEditorSplitAutoClose: true});
+    document.getElementById('cue-editor-split-more-actions').checked = false;
+    document.getElementById('cue-editor-split-auto-close').checked = true;
+    await MSWConfig.flush();
+  });
 });
 
 async function fixture(page, options = {}) {
@@ -728,6 +744,7 @@ test('split settings default safely, update the open footer and persist after re
   await expect(panel(page)).toBeVisible();
   expect(await page.evaluate(() => [pendingLinkedSplit.cutMs, pendingLinkedSplit.mainOffset, pendingLinkedSplit.offset])).toEqual(offsets);
   await expect(panel(page).locator('.actions button:visible')).toHaveText(['取消', '保留两侧原文', '仅切 S1主_1 并解绑', '确认切分']);
+  await page.evaluate(() => MSWConfig.flush());
   await page.reload();
   await openCueEditorSettings(page);
   await expect(page.locator('#cue-editor-split-more-actions')).toBeChecked();

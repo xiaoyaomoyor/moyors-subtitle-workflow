@@ -47677,6 +47677,27 @@ function splitGroupsAtCutPoints(cutSet, headField, refField, segments = DATA.seg
 }
 
 // === 删除 ===
+// Both display columns must promote surviving marker heads before removing
+// rows, then remap every remaining reference against the same old indices.
+function removeSegmentsWithGroupReferences(segments, indices) {
+  const removed = new Set(indices);
+  for (const field of ['color', 'sticker']) {
+    splitGroupsAtCutPoints(removed, field, field + '_ref', segments, { affectedOnly: true });
+  }
+  const remaining = [], nextIndex = new Map();
+  segments.forEach((segment, index) => {
+    if (!removed.has(index)) { nextIndex.set(index, remaining.length); remaining.push(segment); }
+  });
+  for (const segment of remaining) for (const field of ['color_ref', 'sticker_ref']) {
+    const ref = segment[field];
+    if (!ref) continue;
+    if (removed.has(ref.headIdx)) segment[field] = null;
+    else if (nextIndex.has(ref.headIdx)) ref.headIdx = nextIndex.get(ref.headIdx);
+  }
+  segments.length = 0;
+  for (const segment of remaining) segments.push(segment);
+}
+
 // 删除一组 idx，并智能维持 head/ref 链（"组拆分"语义）：
 //   核心规则：被删的任一 idx 都会把它所属的 group 拆成"前段"和"后段"
 //     - 前段（idx < 被删 idx 且原本同组）：保留原 head；head 的 .end 收缩到
@@ -47724,45 +47745,11 @@ function deleteSegments(idxs, { recordHistory = true } = {}) {
       ? [...pairedExtensionIndices].map((index) => extensionTrack?.segments[index]?.id)
       : [],
   );
-  const removeSet = new Set(sorted);
-
-  // ---- 用通用 helper 做组拆分（同时清掉被删 idx 的 head/ref 字段）----
-  splitGroupsAtCutPoints(removeSet, 'sticker', 'sticker_ref');
-  splitGroupsAtCutPoints(removeSet, 'color',   'color_ref');
-
-  // ---- 兜底：清"指向被删 idx 但没被规划"的残余 ref（理论上 splitGroups 已处理）----
-  DATA.segments.forEach((s, i) => {
-    if (removeSet.has(i)) return;
-    if (s.sticker_ref && removeSet.has(s.sticker_ref.headIdx)) {
-      s.sticker_ref = null;
-    }
-    if (s.color_ref && removeSet.has(s.color_ref.headIdx)) {
-      s.color_ref = null;
-    }
-  });
-
-  // ---- 倒序 splice 实际删除 ----
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    DATA.segments.splice(sorted[i], 1);
-  }
-
-  // ---- 修正剩余 *_ref.headIdx：减去"前面被删的数量"----
-  function shiftHeadIdx(ref) {
-    let shift = 0;
-    for (const r of sorted) { if (r < ref.headIdx) shift++; else break; }
-    if (shift) ref.headIdx -= shift;
-  }
-  DATA.segments.forEach(s => {
-    if (s.sticker_ref) shiftHeadIdx(s.sticker_ref);
-    if (s.color_ref)   shiftHeadIdx(s.color_ref);
-  });
+  removeSegmentsWithGroupReferences(DATA.segments, sorted);
   if (extensionTrack && pairedExtensionIndices.size) {
-    [...pairedExtensionIndices].sort((a, b) => b - a).forEach((index) => extensionTrack.segments.splice(index, 1));
+    removeSegmentsWithGroupReferences(extensionTrack.segments, pairedExtensionIndices);
   }
   if (pairedExtensionIndices.size) markMultiSubtitleDirty();
-  // 同样修正"刚被晋升为新 head 的段中"指向它的 ref：
-  // splitGroups 写入的 refField.headIdx 是删除前的 idx，需要同样位移
-  // 上面 shiftHeadIdx 已经覆盖（它扫所有 segments 的所有 ref）
   clearSelection({ silent: true });
   cueListPlaybackKey = null;
   renderAll();
@@ -47814,7 +47801,7 @@ function deleteExtensionSegments(indices, track = getActiveExtensionTrack(), { r
   if (!remainingIndices.length) return;
 
   removeBindingsForSegmentIds([], [...unboundIds]);
-  remainingIndices.reverse().forEach((index) => track.segments.splice(index, 1));
+  removeSegmentsWithGroupReferences(track.segments, remainingIndices);
   markMultiSubtitleDirty();
   selectedExtensionIdxs.clear();
   renderAll();
