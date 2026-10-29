@@ -2021,6 +2021,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-text')return window.MSWFindEdit.capture(sourceRecord,label);
   if(kind==='subtitle-insertion')return productionInsertionRecord(sourceRecord.patch,!sourceRecord.present,label);
   if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
   if(kind==='subtitle-appearance')return snapshotFixedAppearance(sourceRecord,label);
@@ -2114,6 +2115,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-text')return window.MSWFindEdit.restore(record);
   if(record.kind==='subtitle-insertion')return productionApplyInsertion(record);
   if(record.kind==='subtitle-timing')return fixedApplyTimingHistory(record);
   if(record.kind==='subtitle-appearance')return fixedCommitAppearance(record,record.label,{restore:true});
@@ -17524,7 +17526,7 @@ function hasUnsavedProjectChanges() {
     || (DATA.multi_subtitle?.tracks || []).some((track) => track.segments?.some((segment) => segment._dirty));
   const overlayDirty = Boolean(DATA.overlay_track?._dirty)
     || DATA.overlay_track?.segments?.some((segment) => segment._dirty);
-  return inlineEditHasUncommittedText() || projectImportDirty || gapRemoveDirty || previewGeometryDirty
+  return window.MSWFindEdit?.hasDraft() || inlineEditHasUncommittedText() || projectImportDirty || gapRemoveDirty || previewGeometryDirty
     || DATA.segments.some((segment) => segment._dirty)
     || multiDirty || overlayDirty;
 }

@@ -112,3 +112,86 @@ test('restricted environments retain literal search without running regex on the
  await page.locator('.find-edit-options summary').click();await page.locator('#find-edit-regex').check();await expect(page.locator('#find-edit-message')).toContainText('无法安全运行正则');
  await page.locator('#find-edit-regex').uncheck();await count(page,'7 条字幕 · 10 处匹配');
 });
+
+async function replacement(page,query,value) {
+ await search(page,query);await page.locator('#find-edit-replace').evaluate(n=>{n.open=true;});
+ await page.locator('#find-edit-replacement').fill(value);
+ await expect(page.locator('#find-edit-replace-all')).toBeEnabled();
+}
+const snapshot=page=>page.evaluate(()=>JSON.parse(buildJson()));
+test('replacement previews all tracks, skips locks, and commits one local undo record',async({page},info)=>{
+ await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks.find(t=>t.id==='third').locked=true;applyCanonicalProject(p,'locked.mosp');});
+ const before=await snapshot(page),history=await page.evaluate(()=>editorHistory.undoLength());
+ await replacement(page,'alpha','Beta');await expect(page.locator('#find-edit-plan')).toHaveText('修改 6 条 · 跳过 1 条锁定字幕');
+ expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
+ await expect(page.locator('.find-result-after').first()).toHaveText('替换后：Beta Beta 0');
+ await page.locator('#find-edit-panel').screenshot({path:info.outputPath('replacement-preview.png')});
+ await page.locator('#find-edit-replace-all').click();await count(page,'1 条字幕 · 1 处匹配');
+ const after=await snapshot(page);expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
+ expect(after.subtitles.cues.find(c=>c.id==='c0')).toEqual(before.subtitles.cues.find(c=>c.id==='c0'));
+ expect(after.subtitles.cues.filter(c=>c.content.text.includes('Beta'))).toHaveLength(6);
+ expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+1);
+ expect(await page.evaluate(()=>snapshotCurrentForKind('subtitle-text','test',{cues:[{id:findTestIds.a0}]}).cues.length)).toBe(1);
+ await page.locator('#find-edit-close').click();await page.keyboard.press('Control+z');expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
+ await page.keyboard.press('Control+Shift+z');expect((await snapshot(page)).subtitles).toEqual(after.subtitles);
+});
+test('current replacement affects only one occurrence and never rewrites the bound translation',async({page})=>{
+ const before=await snapshot(page);await replacement(page,'alpha','');
+ await page.locator('.find-result').first().click();await page.locator('#find-edit-replace-current').click();
+ await count(page,'7 条字幕 · 9 处匹配');const after=await snapshot(page),id=await page.evaluate(()=>findTestIds.a0);
+ expect(after.subtitles.cues.find(c=>c.id===id).content.text).toBe(' alpha 0');
+ expect(after.subtitles.cues.filter(c=>c.id!==id)).toEqual(before.subtitles.cues.filter(c=>c.id!==id));
+ await page.locator('#find-edit-query').fill(' alpha 0');await expect(page.locator('#find-edit-replace-current')).toBeEnabled();
+  await page.locator('#find-edit-replace-current').click();await count(page,'1 条字幕 · 1 处匹配');
+ expect((await snapshot(page)).subtitles.cues.find(c=>c.id===id).content.text).toBe('');
+ expect((await snapshot(page)).subtitles.cues.length).toBe(before.subtitles.cues.length);
+});
+test('direct edit preserves multiline drafts, rejects conflicts and applies without changing timing or bindings',async({page},info)=>{
+ await search(page,'Alpha alpha 0');await count(page,'1 条字幕 · 1 处匹配');await page.locator('.find-edit-one').click();
+ await page.locator('#find-edit-text').fill('New English\n新的字幕');await expect(page.locator('#find-edit-edit-status')).toHaveText('未应用');
+ await page.locator('#find-edit-close').click();await page.keyboard.press('Control+f');await expect(page.locator('#find-edit-text')).toHaveValue('New English\n新的字幕');
+ await page.evaluate(()=>{const c=DATA.segments.find(c=>c.id===findTestIds.a0);c.text='外部修改';MSWFindEdit.changed();});
+ await expect(page.locator('#find-edit-edit-status')).toHaveText('原文已改变，草稿已保留');await expect(page.locator('#find-edit-apply')).toBeDisabled();
+ await page.locator('#find-edit-text').press('Escape');await expect(page.locator('#find-edit-editor')).toBeHidden();await expect(page.locator('#find-edit-panel')).toBeVisible();
+ await page.locator('#find-edit-query').fill('外部修改');await count(page,'1 条字幕 · 1 处匹配');await page.locator('.find-edit-one').click();
+ const before=await snapshot(page);await page.locator('#find-edit-text').fill('New English\n新的字幕');
+ await page.locator('#find-edit-panel').screenshot({path:info.outputPath('single-edit.png')});
+ await page.locator('#find-edit-text').press('Control+Enter');await expect(page.locator('#find-edit-editor')).toBeHidden();
+ const after=await snapshot(page),id=await page.evaluate(()=>findTestIds.a0),c=after.subtitles.cues.find(c=>c.id===id);
+ expect(c.content.text).toBe('New English\n新的字幕');expect([c.content.start,c.content.end]).toEqual([1000,2800]);
+ expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);expect(after.subtitles.cues.filter(c=>c.id!==id)).toEqual(before.subtitles.cues.filter(c=>c.id!==id));
+ await page.evaluate(p=>applyCanonicalProject(p,'reopen.mosp'),after);expect((await snapshot(page)).subtitles).toEqual(after.subtitles);
+});
+test('regex captures replace safely, fixed selection excludes partners, and unchanged replacements stay disabled',async({page})=>{
+ await page.evaluate(()=>{clearSelection({silent:true});selectedIdxs.add(DATA.segments.findIndex(c=>c.id===findTestIds.a0));});
+ await search(page,'Alpha alpha (\\d)');await page.locator('#find-edit-scope').selectOption('selected');await page.locator('.find-edit-options summary').click();await page.locator('#find-edit-regex').check();
+ await page.locator('#find-edit-replace').evaluate(n=>{n.open=true;});await page.locator('#find-edit-replacement').fill('$&');await count(page,'1 条字幕 · 1 处匹配');await expect(page.locator('#find-edit-replace-all')).toBeDisabled();
+ await page.locator('#find-edit-replacement').fill('编号 $1\nline');await expect(page.locator('#find-edit-replace-all')).toBeEnabled();
+ await page.locator('#find-edit-replace-all').click();await count(page,'0 条字幕 · 0 处匹配');
+ expect((await snapshot(page)).subtitles.cues.filter(c=>c.content.text==='编号 0\nline')).toHaveLength(1);
+});
+
+test('a stale replacement refuses the entire transaction and refreshes its preview',async({page})=>{
+ await replacement(page,'alpha','Beta');const history=await page.evaluate(()=>editorHistory.undoLength());
+ await page.evaluate(()=>{DATA.segments.find(c=>c.id===findTestIds.a0).text='Modified elsewhere';});
+ const before=await snapshot(page);await page.locator('#find-edit-replace-all').click();
+ await expect(page.locator('#find-edit-message')).toHaveText('目标字幕已改变，请重新检查后再应用');
+ expect((await snapshot(page)).subtitles).toEqual(before.subtitles);expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history);
+ await expect(page.locator('#find-edit-plan')).toHaveText('修改 6 条 · 跳过 0 条锁定字幕');
+});
+
+test('drafts survive scope changes and unrelated edits, and light narrow actions stay accessible',async({page},info)=>{
+ await page.setViewportSize({width:540,height:650});await page.evaluate(()=>{updateEditorSettings({theme:'light',themePreset:'alice',colors:{}});applyThemeAndColors();});
+ await replacement(page,'Alpha alpha 0','Replacement');await page.locator('.find-edit-one').first().click();await page.locator('#find-edit-text').fill('独立修改\nSecond line');
+ await page.locator('#find-edit-query').fill('隐藏');await count(page,'1 条字幕 · 1 处匹配');
+ await page.evaluate(()=>{DATA.segments.find(c=>c.id==='c0').text+=' unrelated';MSWFindEdit.changed();});
+ await expect(page.locator('#find-edit-apply')).toBeEnabled();await expect(page.locator('#find-edit-text')).toHaveValue('独立修改\nSecond line');
+ const panel=page.locator('#find-edit-panel');await panel.evaluate(n=>{n.style.width='350px';n.style.height='560px';});
+ await expect(page.locator('#find-edit-apply')).toBeInViewport();expect(await panel.evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
+ expect(await page.locator('#find-edit-apply').evaluate(n=>getComputedStyle(n).borderRadius)).not.toBe('0px');
+ await expect(page.locator('.find-result')).toHaveCount(1);await expect(page.locator('.find-result')).toBeInViewport();
+ expect(await panel.evaluate(n=>document.getElementById('find-edit-apply').getBoundingClientRect().bottom<=n.getBoundingClientRect().bottom)).toBe(true);
+ await panel.screenshot({path:info.outputPath('find-edit-light-narrow.png')});
+ await page.locator('#find-edit-text').press('Control+Enter');expect((await snapshot(page)).subtitles.cues.some(c=>c.content.text==='独立修改\nSecond line')).toBe(true);
+ expect(await page.evaluate(()=>MSWFindEdit.hasDraft())).toBe(false);
+});

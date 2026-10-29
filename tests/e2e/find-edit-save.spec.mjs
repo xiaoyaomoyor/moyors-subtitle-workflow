@@ -1,0 +1,42 @@
+import {test,expect} from '@playwright/test';
+import {writeFileSync,readFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {join} from 'node:path';
+import {disableOnboarding,findFreePort,generateWaveformPayload,makeTempDir,startServer} from './helpers.mjs';
+test('text replacement and single edit survive server save/reopen and exact ASS preview',async({page},info)=>{
+ test.setTimeout(90000);
+ test.skip(!process.env.MSW_TEST_FFMPEG,'Synthetic preview video requires FFmpeg');
+ const dir=makeTempDir('find-edit-save'),video=join(dir,'video.mp4'),path=join(dir,'project.mosp');
+ process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'app-data');
+ process.env.FFMPEG_PATH=process.env.MSW_TEST_FFMPEG;
+ execFileSync(join(process.env.MSW_TEST_FFMPEG,process.platform==='win32'?'ffmpeg.exe':'ffmpeg'),['-v','error','-f','lavfi','-i','color=c=darkblue:s=640x360:r=25:d=3','-c:v','libx264','-pix_fmt','yuv420p',video],{windowsHide:true});
+ writeFileSync(path,JSON.stringify({media:video,segments:[{id:'a',start:100,end:2500,text:'Alpha Bravo',items:[{text:'Alpha',start:100,end:1000},{text:' Bravo',start:1000,end:2500}],speaker:'0',color:{name:'red',value:'#ee1111',start:100,end:2500}}],multi_subtitle:{enabled:true,tracks:[{id:'zh',segments:[{id:'b',start:100,end:2500,text:'保留译文',items:[]}]}],bindings:[{id:'pair',track_id:'zh',main_segment_ids:['a'],extension_segment_ids:['b']}]},waveform:generateWaveformPayload(3000)}));
+ const server=await startServer(path,video,await findFreePort()),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ try {
+  await disableOnboarding(page);await page.goto(server.url);await expect(page.locator('#editor-loading')).toBeHidden();
+  await page.evaluate(()=>updateEditorSettings({autoSaveProject:false}));
+  const before=await page.evaluate(()=>JSON.parse(buildJson()));
+  await page.keyboard.press('Control+f');await page.locator('#find-edit-query').fill('Alpha');await page.locator('#find-edit-replace').evaluate(n=>n.open=true);
+  await page.locator('#find-edit-replacement').fill('Hello');await expect(page.locator('#find-edit-replace-all')).toBeEnabled();await page.locator('#find-edit-replace-all').click();
+  await expect(page.locator('#find-edit-count')).toHaveText('0 条字幕 · 0 处匹配');
+  const replaced=await page.evaluate(()=>JSON.parse(buildJson()));
+  const a=replaced.subtitles.cues.find(c=>c.content.text==='Hello Bravo'),old=before.subtitles.cues.find(c=>c.id===a.id);
+  expect(a.content.items.at(-1)).toEqual(old.content.items.at(-1));expect(a.content.color).toEqual(old.content.color);expect(a.content.speaker).toBe(old.content.speaker);
+  await page.locator('#find-edit-query').fill('Hello');await expect(page.locator('.find-edit-one')).toHaveCount(1);await page.locator('.find-edit-one').click();
+  await page.locator('#find-edit-text').fill('Hello\nNew line');await page.locator('#find-edit-text').press('Control+Enter');
+  await expect(page.locator('#find-edit-editor')).toBeHidden();
+  const after=await page.evaluate(()=>JSON.parse(buildJson()));expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
+  await page.evaluate(()=>performUndo());expect((await page.evaluate(()=>JSON.parse(buildJson()))).subtitles).toEqual(replaced.subtitles);
+  await page.evaluate(()=>performRedo());expect((await page.evaluate(()=>JSON.parse(buildJson()))).subtitles).toEqual(after.subtitles);
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+  expect(JSON.parse(readFileSync(path,'utf8')).subtitles).toEqual(after.subtitles);
+  await page.reload();await expect(page.locator('#editor-loading')).toBeHidden();
+  expect((await page.evaluate(()=>JSON.parse(buildJson()))).subtitles).toEqual(after.subtitles);
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleStyle.ready)).toBe(true);
+  const preview=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),target:'both',video:{width:640,height:360}}));
+  expect(preview.ass).toContain('Hello');expect(preview.ass).toContain('New line');expect(preview.ass).toContain('保留译文');expect(preview.ass).not.toContain('Alpha');
+  await page.evaluate(()=>{overlayToggle.checked=true;extensionOverlayToggle.checked=true;player.currentTime=1;MSWSubtitleRenderer.invalidate();});
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending),{timeout:30000}).toBe(true);
+  await page.screenshot({path:info.outputPath('find-edit-saved-preview.png')});expect(errors).toEqual([]);
+ } finally {await page.close({runBeforeUnload:false});await server.stop();}
+});

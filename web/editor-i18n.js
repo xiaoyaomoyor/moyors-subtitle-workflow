@@ -9,6 +9,17 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '替换当前': 'Replace current', '替换全部': 'Replace all', '替换后': 'After', '原文': 'Before',
+    '查找面板可预览并替换文字；点击结果右侧铅笔编辑，': 'Preview and replace text in the find panel; use the result pencil to edit,',
+    '应用，': 'to apply,', '取消本条草稿': 'to discard this draft',
+    '替换为…（留空删除匹配文字）': 'Replace with… (empty removes matched text)',
+    '编辑此条字幕': 'Edit this subtitle', '编辑字幕正文': 'Edit subtitle text', '（空文本）': '(Empty text)',
+    'Ctrl+Enter 应用 · Esc 取消': 'Ctrl+Enter to apply · Esc to cancel', '取消编辑': 'Cancel edit',
+    '原文已改变，草稿已保留': 'Source changed; draft retained',
+    '替换结果过大，请缩小范围': 'Replacement is too large. Narrow the scope.',
+    '目标字幕已改变，请重新检查后再应用': 'Target subtitles changed. Review them before applying.',
+    '请先应用或取消目标字幕的未应用修改': 'Apply or discard the target subtitle draft first.',
+    '请先完成当前切分或拖动': 'Finish the current split or drag first.',
     '临时文件已清理': 'Temporary file removed',
     '以开始时的内容导出，关闭面板不会取消。记录按工程保留；临时成品受缓存容量限制，请下载需要长期保存的文件。清理缓存不删除记录或已下载文件。': 'Export uses the starting snapshot and continues after closing the panel. History stays with the project; temporary files are cache-limited. Download results to keep them. Cache cleanup preserves history and downloaded files.',
     '查找并编辑': 'Find and edit', '关闭查找并编辑': 'Close find and edit',

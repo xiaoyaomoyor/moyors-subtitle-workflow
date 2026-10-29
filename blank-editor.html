@@ -3667,8 +3667,21 @@
   #find-edit-message { margin: 0; }
   #find-edit-results { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; position: relative; scrollbar-gutter: stable; }
   #find-edit-rows { position: relative; }
+  .msw-find-panel .find-replace { margin: 0; padding: 0; border: 0; }
+  .find-replace-controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding-top: 8px; }
+  .msw-find-panel .find-replace-controls textarea { flex: 1 1 170px; min-height: 32px; resize: vertical; max-height: 80px; }
+  .find-replace-controls button, .find-editor-actions button { padding: 6px 9px; font-size: 12px; white-space: nowrap; }
+  #find-edit-plan { margin: 5px 0 0; font-size: 12px; }
+  .msw-find-panel .find-edit-one { position: absolute; right: 10px; z-index: 1; }
+  .find-result-after { color: var(--accent); }
+  #find-edit-editor { flex: 0 0 auto; min-height: 0; max-height: 48%; overflow: auto; padding: 10px 14px; border-top: 1px solid var(--border-subtle); }
+  .find-editor-heading, .find-editor-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; margin-bottom: 6px; }
+  .find-editor-heading span { color: var(--text-secondary); }
+  .find-editor-actions { margin: 6px 0 0; }
+  #find-edit-text { display: block; min-height: 60px; max-height: 170px; resize: vertical; }
+  #find-edit-drafts { flex: 0 0 auto; padding: 5px 14px; border: 0; text-align: left; color: var(--accent); background: transparent; font-size: 12px; }
   #find-edit-empty { color: var(--text-secondary); text-align: center; padding: 20px 10px; font-size: 13px; }
-  .msw-find-panel .find-result { position: absolute; left: 0; width: 100%; height: 70px; padding: 9px 14px; display: flex; flex-direction: column; gap: 6px; text-align: left; border: none; border-bottom: 1px solid var(--border-subtle); border-radius: 0; background: transparent; color: var(--text-primary); cursor: pointer; box-sizing: border-box; font: inherit; }
+  .msw-find-panel .find-result { position: absolute; left: 0; width: 100%; height: 70px; padding: 9px 45px 9px 14px; display: flex; flex-direction: column; gap: 6px; text-align: left; border: none; border-bottom: 1px solid var(--border-subtle); border-radius: 0; background: transparent; color: var(--text-primary); cursor: pointer; box-sizing: border-box; font: inherit; }
   .msw-find-panel .find-result:hover, .msw-find-panel .find-result[aria-current="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
   .msw-find-panel .find-result:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
   .find-result-meta { display: flex; gap: 10px; align-items: center; font-size: 11px; color: var(--text-secondary); white-space: nowrap; width: 100%; }
@@ -3696,11 +3709,11 @@
   #tts-yukkuri-speed { accent-color: var(--accent); padding-inline: 0; cursor: pointer; }
   #tts-yukkuri-progress { width: 100%; height: 6px; accent-color: var(--accent); }
   .msw-processing-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; margin-top: 10px; }
-  :is(.msw-processing-actions, .msw-voice-picker-footer, .audio-volume-control) button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--btn-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; }
-  :is(.msw-processing-actions, .msw-voice-picker-footer, .audio-volume-control) button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
-  :is(.msw-processing-actions, .msw-voice-picker-footer, .audio-volume-control) button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-  :is(.msw-processing-actions, .msw-voice-picker-footer) button.primary { background: var(--accent); color: var(--text-on-accent, #fff); }
-  :is(.msw-processing-actions, .msw-voice-picker-footer, .audio-volume-control) button:disabled { opacity: .5; cursor: not-allowed; }
+  :is(.msw-processing-actions, .msw-voice-picker-footer, .audio-volume-control, .find-replace-controls, .find-editor-actions) button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--btn-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; }
+  :is(.msw-processing-actions, .msw-voice-picker-footer, .audio-volume-control, .find-replace-controls, .find-editor-actions) button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+  :is(.msw-processing-actions, .msw-voice-picker-footer, .audio-volume-control, .find-replace-controls, .find-editor-actions) button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  :is(.msw-processing-actions, .msw-voice-picker-footer, .find-editor-actions) button.primary { background: var(--accent); color: var(--text-on-accent, #fff); }
+  :is(.msw-processing-actions, .msw-voice-picker-footer, .audio-volume-control, .find-replace-controls, .find-editor-actions) button:disabled { opacity: .5; cursor: not-allowed; }
   .msw-processing-job { border-top: 1px solid var(--border-subtle); padding-block: 12px; font-size: 12px; }
   :is(#msw-asr-jobs,#translation-jobs) { display:flex; flex-direction:column; max-height:340px; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
   .msw-result-batch { border-bottom:1px solid var(--border-subtle); font-size:12px; min-width:0; }
@@ -8232,6 +8245,7 @@
         <h5 class="help-subtitle">字幕列表</h5>
         <div class="help-category">
           <span><kbd data-mod>Ctrl+F</kbd> 查找字幕并定位到波形，支持全部轨道、指定轨道和所选字幕</span>
+          <span>查找面板可预览并替换文字；点击结果右侧铅笔编辑，<kbd data-mod>Ctrl+Enter</kbd> 应用，<kbd>Esc</kbd> 取消本条草稿</span>
           <span><kbd>批量替换</kbd> 查找并批量替换字幕文本</span>
           <span><kbd>纯文本编辑</kbd> 集中编辑字幕文本，可预览拆分、合并和字词时间码映射</span>
           <span><kbd>文本处理</kbd> 批量修剪空白、首字母大写、添加前缀/后缀或去除 Markdown 符号</span>
@@ -9602,10 +9616,20 @@
       <button type="button" id="find-edit-prev" class="find-icon" title="上一处（Shift+Enter）" aria-label="上一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
       <button type="button" id="find-edit-next" class="find-icon" title="下一处（Enter）" aria-label="下一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
     </div>
+    <details id="find-edit-replace" class="find-replace"><summary>替换</summary>
+      <div class="find-replace-controls"><textarea id="find-edit-replacement" rows="1" placeholder="替换为…（留空删除匹配文字）" aria-label="替换为" spellcheck="false"></textarea><button type="button" id="find-edit-replace-current" disabled>替换当前</button><button type="button" id="find-edit-replace-all" disabled>替换全部</button></div>
+      <p id="find-edit-plan" class="msw-processing-hint" role="status"></p>
+    </details>
     <div class="find-edit-summary" id="find-edit-count" role="status" aria-live="polite">0 条字幕 · 0 处匹配</div>
     <p id="find-edit-message" class="msw-processing-hint" role="status" hidden></p>
   </div>
   <div id="find-edit-results" tabindex="0" aria-label="查找结果" aria-busy="false"><p id="find-edit-empty">输入文字开始查找</p><div id="find-edit-rows" data-i18n-skip></div></div>
+  <button type="button" id="find-edit-drafts" hidden></button>
+  <section id="find-edit-editor" hidden>
+    <div class="find-editor-heading"><strong id="find-edit-edit-title"></strong><span id="find-edit-edit-status" role="status"></span></div>
+    <textarea id="find-edit-text" rows="3" aria-label="编辑字幕正文" spellcheck="false"></textarea>
+    <div class="find-editor-actions"><button type="button" id="find-edit-discard">取消编辑</button><button type="button" id="find-edit-apply" class="primary">应用修改</button><span class="find-edit-summary">Ctrl+Enter 应用 · Esc 取消</span></div>
+  </section>
 </aside>
 
 <!-- 批量替换 modal -->
@@ -20755,17 +20779,31 @@ export default MawDynamicCaptions;
       for (const key of removed) records.delete(key);
       for (const row of rows) records.set(row.key, row);
     }
-    function search({ query = '', caseSensitive = false, regex = false, scope = 'all', tracks = [], selected = [], limit = 50000 } = {}) {
+    function search({ query = '', caseSensitive = false, regex = false, scope = 'all', tracks = [], selected = [], limit = 50000, replacement = null } = {}) {
       if (!query) return { rows: [], count: 0, limited: false };
       let pattern;
       try { pattern = new RegExp(regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'gu' : 'giu'); }
       catch (_) { return { rows: [], count: 0, error: 'invalid-regex' }; }
       const trackSet = new Set(tracks), ids = new Set(selected), rows = [];
-      let count = 0, limited = false, zeroWidth = false;
+      let count = 0, limited = false, zeroWidth = false, outputSize = 0;
+      function substitute(match, text) {
+        if (!regex) return replacement;
+        return replacement.replace(/\$(\$|&|`|'|\d{1,2}|<[^>]+>)/g, (token, key) => {
+          if (key === '$') return '$';
+          if (key === '&') return match[0];
+          if (key === '`') return text.slice(0, match.index);
+          if (key === "'") return text.slice(match.index + match[0].length);
+          if (key[0] === '<') return match.groups ? match.groups[key.slice(1, -1)] ?? '' : token;
+          const n = Number(key);
+          if (n > 0 && n < match.length) return match[n] ?? '';
+          const first = Number(key[0]);
+          return key.length === 2 && first > 0 && first < match.length ? (match[first] ?? '') + key[1] : token;
+        });
+      }
       for (const row of records.values()) {
         if (scope === 'tracks' && !trackSet.has(row.trackId) || scope === 'selected' && !ids.has(row.id)) continue;
         pattern.lastIndex = 0;
-        const matches = [];
+        const matches = [], replacements = [];
         let match;
         while ((match = pattern.exec(row.text)) !== null) {
           // A point has no visible text to mark. Never spin on empty matches.
@@ -20775,9 +20813,24 @@ export default MawDynamicCaptions;
             continue;
           }
           matches.push([match.index, match.index + match[0].length]);
+          if (replacement !== null) {
+            const value = substitute(match, row.text);
+            outputSize += value.length;
+            if (outputSize > 8 * 1024 * 1024) return { rows: [], count: 0, error: 'replacement-too-large' };
+            replacements.push(value);
+          }
           if (++count >= limit) { limited = true; break; }
         }
-        if (matches.length) rows.push({ key: row.key, matches });
+        if (matches.length) {
+          const hit = { key: row.key, matches };
+          if (replacement !== null) {
+            let at = 0, parts = [];
+            matches.forEach(([a, b], i) => { parts.push(row.text.slice(at, a), replacements[i]); at = b; });
+            parts.push(row.text.slice(at));
+            Object.assign(hit, { before: row.text, after: parts.join(''), replacements });
+          }
+          rows.push(hit);
+        }
         if (limited) break;
       }
       rows.sort((a, b) => {
@@ -20788,10 +20841,21 @@ export default MawDynamicCaptions;
     }
     return { update, search };
   }
+  function planChanges(changes, current) {
+    const edits = [], conflicts = []; let locked = 0;
+    for (const change of changes) {
+      const row = current.get(change.key);
+      if (!row || row.text !== change.before) { conflicts.push(change.key); continue; }
+      if (change.before === change.after) continue;
+      if (row.locked) { ++locked; continue; }
+      edits.push({ ...change, id: row.id });
+    }
+    return { edits, conflicts, locked };
+  }
   function workerSource() {
     return `const engine=(${createEngine.toString()})();onmessage=({data})=>{if(data.type==='update')engine.update(data.patch);else postMessage({version:data.version,result:engine.search(data.query)});};`;
   }
-  const api = { createEngine, workerSource };
+  const api = { createEngine, workerSource, planChanges };
   if (typeof module !== 'undefined') module.exports = api;
   global.MSWFindCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
@@ -23448,6 +23512,17 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '替换当前': 'Replace current', '替换全部': 'Replace all', '替换后': 'After', '原文': 'Before',
+    '查找面板可预览并替换文字；点击结果右侧铅笔编辑，': 'Preview and replace text in the find panel; use the result pencil to edit,',
+    '应用，': 'to apply,', '取消本条草稿': 'to discard this draft',
+    '替换为…（留空删除匹配文字）': 'Replace with… (empty removes matched text)',
+    '编辑此条字幕': 'Edit this subtitle', '编辑字幕正文': 'Edit subtitle text', '（空文本）': '(Empty text)',
+    'Ctrl+Enter 应用 · Esc 取消': 'Ctrl+Enter to apply · Esc to cancel', '取消编辑': 'Cancel edit',
+    '原文已改变，草稿已保留': 'Source changed; draft retained',
+    '替换结果过大，请缩小范围': 'Replacement is too large. Narrow the scope.',
+    '目标字幕已改变，请重新检查后再应用': 'Target subtitles changed. Review them before applying.',
+    '请先应用或取消目标字幕的未应用修改': 'Apply or discard the target subtitle draft first.',
+    '请先完成当前切分或拖动': 'Finish the current split or drag first.',
     '临时文件已清理': 'Temporary file removed',
     '以开始时的内容导出，关闭面板不会取消。记录按工程保留；临时成品受缓存容量限制，请下载需要长期保存的文件。清理缓存不删除记录或已下载文件。': 'Export uses the starting snapshot and continues after closing the panel. History stays with the project; temporary files are cache-limited. Download results to keep them. Cache cleanup preserves history and downloaded files.',
     '查找并编辑': 'Find and edit', '关闭查找并编辑': 'Close find and edit',
@@ -38662,6 +38737,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-text')return window.MSWFindEdit.capture(sourceRecord,label);
   if(kind==='subtitle-insertion')return productionInsertionRecord(sourceRecord.patch,!sourceRecord.present,label);
   if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
   if(kind==='subtitle-appearance')return snapshotFixedAppearance(sourceRecord,label);
@@ -38755,6 +38831,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-text')return window.MSWFindEdit.restore(record);
   if(record.kind==='subtitle-insertion')return productionApplyInsertion(record);
   if(record.kind==='subtitle-timing')return fixedApplyTimingHistory(record);
   if(record.kind==='subtitle-appearance')return fixedCommitAppearance(record,record.label,{restore:true});
@@ -54165,7 +54242,7 @@ function hasUnsavedProjectChanges() {
     || (DATA.multi_subtitle?.tracks || []).some((track) => track.segments?.some((segment) => segment._dirty));
   const overlayDirty = Boolean(DATA.overlay_track?._dirty)
     || DATA.overlay_track?.segments?.some((segment) => segment._dirty);
-  return inlineEditHasUncommittedText() || projectImportDirty || gapRemoveDirty || previewGeometryDirty
+  return window.MSWFindEdit?.hasDraft() || inlineEditHasUncommittedText() || projectImportDirty || gapRemoveDirty || previewGeometryDirty
     || DATA.segments.some((segment) => segment._dirty)
     || multiDirty || overlayDirty;
 }
@@ -68443,12 +68520,13 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   global.MSWSubtitleExport={open,refresh};
 })(window);
 
-// Stage one: read-only search and explicit navigation; editing tools remain separate.
+// Search, replacement previews and cue-local text transactions.
 (function (global) {
   'use strict';
   const core = global.MSWFindCore, host = global.MSWE.resolve('processing-host');
   const el = id => document.getElementById('find-edit-' + id), panel = el('panel');
-  const viewport = el('results'), canvas = el('rows'), rowHeight = 70;
+  const viewport = el('results'), canvas = el('rows');
+  let rowHeight = 70, ready = false, publishedVersion = -1, editKey = null, drafts = new Map(), operationNotice = '';
   const t = text => global.MSWE_I18N?.translateText(text) || text;
   let records = new Map(), references = new Map(), cuesById = new Map(), tracks = [], trackSignature = '';
   let result = { rows: [], count: 0 }, matchMap = new Map(), selected = [], trackIds = new Set();
@@ -68503,7 +68581,8 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   }
   function options() {
     return { query: el('query').value, caseSensitive: el('case').checked, regex: el('regex').checked,
-      scope: el('scope').value, tracks: [...trackIds], selected };
+      scope: el('scope').value, tracks: [...trackIds], selected,
+      replacement: el('replace').open ? el('replacement').value : null };
   }
   function stopWorker() { clearTimeout(timeout); worker?.terminate(); worker = null; workerBusy = false; }
   function ensureWorker() {
@@ -68530,19 +68609,21 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   }
   function message(text) { el('message').textContent = t(text); el('message').hidden = !text; }
   function publish(next) {
-    result = next; viewport.setAttribute('aria-busy', 'false');
+    const oldIndex = result.rows.findIndex(row => row.key === activeKey);
+    result = next; publishedVersion = queryVersion; ready = !next.error && !next.limited; viewport.setAttribute('aria-busy', 'false');
     matchMap = new Map(next.rows.map(row => [records.get(row.key)?.id, row]));
-    if (!next.rows.some(row => row.key === activeKey)) { activeKey = null; activeMatch = 0; }
+    if (!next.rows.some(row => row.key === activeKey)) { activeKey = oldIndex >= 0 ? next.rows[Math.min(oldIndex, next.rows.length - 1)]?.key || null : null; activeMatch = 0; }
     else activeMatch = Math.min(activeMatch, matchMap.get(records.get(activeKey)?.id)?.matches.length - 1 || 0);
     el('count').textContent = global.MSWE_I18N?.language === 'en'
       ? `${next.rows.length} cues · ${next.count} matches` : `${next.rows.length} 条字幕 · ${next.count} 处匹配`;
-    const notices = { 'invalid-regex': '正则表达式无效', 'worker-unavailable': '此环境无法安全运行正则，请使用普通文字查找', 'timeout': '查询耗时过长，请简化正则表达式' };
-    message(notices[next.error] || (next.limited ? '匹配过多，仅显示前 50000 处，请缩小范围' : next.zeroWidth ? '已忽略不包含文字的零宽匹配' : ''));
+    const notices = { 'invalid-regex': '正则表达式无效', 'worker-unavailable': '此环境无法安全运行正则，请使用普通文字查找', 'timeout': '查询耗时过长，请简化正则表达式', 'replacement-too-large': '替换结果过大，请缩小范围' };
+    message(notices[next.error] || (next.limited ? '匹配过多，仅显示前 50000 处，请缩小范围' : next.zeroWidth ? '已忽略不包含文字的零宽匹配' : operationNotice));
     el('empty').textContent = t(!el('query').value ? '输入文字开始查找' : '没有匹配的字幕');
     el('empty').hidden = !!next.rows.length || !!next.error;
     el('prev').disabled = el('next').disabled = !next.count;
+    rowHeight = el('replace').open ? 100 : 70;
     canvas.style.height = `${next.rows.length * rowHeight}px`;
-    renderRows(); paintWaveform();
+    syncActions(); syncDraftStatus(); renderRows(); paintWaveform();
   }
   function runQuery() {
     if (!floating.isOpen()) return;
@@ -68554,9 +68635,11 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     timeout = setTimeout(() => { if (version === queryVersion && workerBusy) { stopWorker(); publish({ rows: [], count: 0, error: 'timeout' }); } }, 1500);
   }
   function scheduleQuery({ resetScroll = true } = {}) {
+    ready = false; syncActions();
     clearTimeout(queryTimer); ++queryVersion;
     if (workerBusy) stopWorker();
     if (resetScroll) {
+      operationNotice = '';
       viewport.scrollTop = 0; activeKey = null; activeMatch = 0;
       result = { rows: [], count: 0 }; canvas.replaceChildren(); canvas.style.height = '0px';
       el('prev').disabled = el('next').disabled = true; el('empty').hidden = true; message('');
@@ -68567,8 +68650,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   }
   function changed() {
     if (!floating.isOpen()) return;
+    ready = false; syncActions();
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => { if (readIndex()) scheduleQuery({ resetScroll: false }); }, 180);
+    syncTimer = setTimeout(() => { if (readIndex()) scheduleQuery({ resetScroll: false }); else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); } syncDraftStatus(); }, 180);
   }
   function highlight(node, text, matches, active = -1) {
     node.replaceChildren(); let cursor = 0;
@@ -68587,7 +68671,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     for (let i = first; i < last; i++) {
       const hit = result.rows[i], row = records.get(hit.key); if (!row) continue;
       const button = document.createElement('button'); button.type = 'button'; button.className = 'find-result'; button.dataset.key = hit.key;
-      button.style.top = `${i * rowHeight}px`; button.setAttribute('aria-current', hit.key === activeKey ? 'true' : 'false');
+      button.style.top = `${i * rowHeight}px`; button.style.height = `${rowHeight}px`; button.setAttribute('aria-current', hit.key === activeKey ? 'true' : 'false');
       button.setAttribute('aria-label', `${row.trackName}_${row.number} ${formatTime(row.start)} ${row.text}`);
       const meta = document.createElement('span'); meta.className = 'find-result-meta';
       const name = document.createElement('strong'); name.textContent = `${row.trackName}_${row.number}`;
@@ -68600,7 +68684,18 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       const snippet = row.text.slice(start, end);
       const ranges = hit.matches.map(([a, b]) => [Math.max(a, start) - start, Math.min(b, end) - start]).filter(([a, b]) => b > a);
       highlight(text, snippet, ranges); if (start) text.prepend('…'); if (end < row.text.length) text.append('…');
-      button.append(meta, text); fragment.append(button);
+      button.append(meta, text);
+      if (hit.after !== undefined) {
+        text.prepend(t('原文') + '：');
+        const after = document.createElement('span'); after.className = 'find-result-text find-result-after';
+        after.textContent = t('替换后') + '：' + (hit.after || t('（空文本）')); after.title = hit.after;
+        button.append(after);
+      }
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'find-icon find-edit-one';
+      edit.dataset.editKey = hit.key; edit.style.top = `${i * rowHeight + 8}px`;
+      edit.title = edit.ariaLabel = t('编辑此条字幕');
+      edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l5-1L21 7l-5-5L4 14z"/></svg>';
+      fragment.append(button, edit);
     }
     canvas.replaceChildren(fragment);
   }
@@ -68634,7 +68729,8 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   function keepVisible(cue) { return floating.isOpen() && cue?.id === records.get(activeKey)?.id; }
   function navigate(key, occurrence = 0) {
     // Resolve by ID again: indexes may have changed since the last query.
-    readIndex(); let ref = references.get(key); const row = records.get(key);
+    if (readIndex()) scheduleQuery({ resetScroll: false });
+    let ref = references.get(key); const row = records.get(key);
     if (!ref || !row) { scheduleQuery({ resetScroll: false }); return; }
     activeKey = key; activeMatch = occurrence;
     if (fixedTrackMode()) {
@@ -68658,7 +68754,93 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     waveformEditor?.revealTime(row.start, true);
     const i = result.rows.findIndex(hit => hit.key === key), top = i * rowHeight;
     if (top < viewport.scrollTop || top + rowHeight > viewport.scrollTop + viewport.clientHeight) viewport.scrollTop = top;
-    renderRows(); paintWaveform();
+    syncActions(); renderRows(); paintWaveform();
+  }
+  function currentChange() {
+    const hit = result.rows.find(row => row.key === activeKey) || result.rows[0];
+    if (!hit?.replacements) return null;
+    const i = hit.key === activeKey ? activeMatch : 0, [a, b] = hit.matches[i];
+    return { key: hit.key, before: hit.before, after: hit.before.slice(0, a) + hit.replacements[i] + hit.before.slice(b) };
+  }
+  function syncActions() {
+    const plan = core.planChanges(result.rows.filter(r => r.after !== undefined), records);
+    const current = currentChange(), now = current && core.planChanges([current], records);
+    el('replace-current').disabled = !ready || !now?.edits.length;
+    el('replace-all').disabled = !ready || !plan.edits.length;
+    el('plan').textContent = ready && el('replace').open
+      ? (global.MSWE_I18N?.language === 'en' ? `Change ${plan.edits.length} cues · Skip ${plan.locked} locked` : `修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`) : '';
+  }
+  function capture(record, label = record.label) {
+    const ids = new Set(record.cues.map(c => c.id));
+    return { kind: 'subtitle-text', label, view: snapshotEditorSelection(), cues: sources().flatMap(s => s.segments.filter(c => ids.has(c.id)).map(c =>
+      ({ id: c.id, fields: structuredClone({ text: c.text, items: c.items, _dirty: c._dirty }) }))) };
+  }
+  function applyFields(cue, fields) {
+    for (const key of ['text', 'items', '_dirty']) { if (fields[key] === undefined) delete cue[key]; else cue[key] = structuredClone(fields[key]); }
+  }
+  function restore(record) {
+    const live = new Map(sources().flatMap(s => s.segments.map(c => [c.id, c])));
+    if (record.cues.some(c => !live.has(c.id))) return false;
+    for (const c of record.cues) applyFields(live.get(c.id), c.fields);
+    if (fixedTrackMode() && fixedLastContent) {
+      const patch = new Map(record.cues.map(c => [c.id, c.fields]));
+      for (const s of layerCore.tracks(fixedLastContent)) for (const c of s.segments) if (patch.has(c.id)) applyFields(c, patch.get(c.id));
+      fixedLastContentKey = fixedContentKey(); fixedHistoryCheckpoint = editorHistory.checkpoint();
+    }
+    fixedPreviewInvalidate(); projectImportDirty = true;
+    renderAll({ changedCueIds: new Set(record.cues.map(c => c.id)), validated: true });
+    restoreEditorSelection(record.view); updateUndoRedoButtons(); scheduleAutoSaveFlush({ validated: true });
+    changed(); return true;
+  }
+  function commit(changes, label) {
+    if (pendingLinkedSplit || waveformEditor?.drag) throw Error('请先完成当前切分或拖动');
+    commitProcessingEdits();
+    if (!fixedAcceptEdit()) throw Error('字幕编辑未通过轨道校验');
+    readIndex(); const plan = core.planChanges(changes, records);
+    if (plan.conflicts.length) throw Error('目标字幕已改变，请重新检查后再应用');
+    if (!plan.edits.length) return plan;
+    // Map only the changed text. Preserve times, IDs, speaker/style and bindings.
+    const patch = { label, view: snapshotEditorSelection(), cues: plan.edits.map(change => {
+      const cue = references.get(change.key).cue;
+      const mapped = change.after ? AsrEditorUtils.applyTimedTextEdit([cue], [change.after])?.[0] : null;
+      return { id: cue.id, fields: { text: change.after, items: mapped?.items || [], _dirty: true } };
+    }) };
+    editorHistory.push(capture(patch)); restore(patch); return plan;
+  }
+  function replace(all) {
+    if (!ready) return;
+    try {
+      const changes = all ? result.rows.filter(r => r.after !== undefined) : [currentChange()].filter(Boolean);
+      if (changes.some(c => drafts.has(c.key) && drafts.get(c.key).after !== drafts.get(c.key).before)) throw Error('请先应用或取消目标字幕的未应用修改');
+      const plan = commit(changes, all ? '替换全部' : '替换当前');
+      operationNotice = global.MSWE_I18N?.language === 'en' ? `Changed ${plan.edits.length} cues · Skipped ${plan.locked} locked` : `已修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`;
+      readIndex(); scheduleQuery({ resetScroll: false });
+    } catch (error) { operationNotice = error.message; message(operationNotice); readIndex(); scheduleQuery({ resetScroll: false }); syncDraftStatus(); }
+  }
+  function editOne(key) {
+    readIndex(); const row = records.get(key); if (!row && !drafts.has(key)) return;
+    if (!drafts.has(key)) drafts.set(key, { key, before: row.text, after: row.text, title: `${row.trackName}_${row.number}` });
+    editKey = key; el('editor').hidden = false;
+    el('text').value = drafts.get(key).after; el('edit-title').textContent = drafts.get(key).title;
+    syncDraftStatus(); el('text').focus();
+  }
+  function hasDraft() { return [...drafts.values()].some(d => d.before !== d.after); }
+  function syncDraftStatus() {
+    const dirty = [...drafts.values()].filter(d => d.before !== d.after);
+    el('drafts').hidden = !dirty.length;
+    el('drafts').textContent = global.MSWE_I18N?.language === 'en' ? `${dirty.length} unapplied drafts` : `${dirty.length} 条未应用修改`;
+    const draft = drafts.get(editKey), row = records.get(editKey);
+    if (!draft) return;
+    const conflict = !row || row.text !== draft.before;
+    el('edit-status').textContent = t(conflict ? '原文已改变，草稿已保留' : row.locked ? '已锁定' : draft.before !== draft.after ? '未应用' : '');
+    el('apply').disabled = conflict || row?.locked || draft.before === draft.after;
+    el('text').readOnly = !!row?.locked;
+  }
+  function discard() { drafts.delete(editKey); editKey = null; el('editor').hidden = true; syncDraftStatus(); }
+  function applyDraft() {
+    const draft = drafts.get(editKey); if (!draft || el('apply').disabled) return;
+    try { const plan = commit([draft], '编辑查找结果'); if (plan.locked) throw Error('已锁定'); discard(); }
+    catch (error) { el('edit-status').textContent = t(error.message); }
   }
   function step(direction) {
     if (!result.count) return;
@@ -68685,6 +68867,13 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     waveformEditor?.refreshCueOverlay?.();
   }
   el('open').addEventListener('click', open); el('close').addEventListener('click', () => floating.close());
+  el('replace').addEventListener('toggle', () => scheduleQuery({ resetScroll: false }));
+  el('replacement').addEventListener('input', event => { operationNotice = ''; if (!event.isComposing) scheduleQuery({ resetScroll: false }); });
+  el('replacement').addEventListener('compositionend', () => scheduleQuery({ resetScroll: false }));
+  el('replace-current').addEventListener('click', () => replace(false)); el('replace-all').addEventListener('click', () => replace(true));
+  el('text').addEventListener('input', () => { const d = drafts.get(editKey); if (d) { d.after = el('text').value; syncDraftStatus(); } });
+  el('apply').addEventListener('click', applyDraft); el('discard').addEventListener('click', discard);
+  el('drafts').addEventListener('click', () => { const keys = [...drafts.keys()].filter(k => drafts.get(k).before !== drafts.get(k).after); editOne(keys[(keys.indexOf(editKey) + 1) % keys.length]); });
   el('query').addEventListener('input', event => { if (!event.isComposing) scheduleQuery(); });
   el('query').addEventListener('compositionend', () => scheduleQuery());
   el('query').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); step(event.shiftKey ? -1 : 1); } });
@@ -68693,7 +68882,8 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   el('scope').addEventListener('change', scopeChanged); el('use-selection').addEventListener('click', scopeChanged);
   for (const id of ['case', 'regex']) el(id).addEventListener('change', () => scheduleQuery());
   viewport.addEventListener('scroll', () => { cancelAnimationFrame(renderFrame); renderFrame = requestAnimationFrame(renderRows); });
-  canvas.addEventListener('click', event => { const button = event.target.closest('[data-key]'); if (button) navigate(button.dataset.key); });
+  canvas.addEventListener('click', event => { const edit = event.target.closest('[data-edit-key]'); if (edit) { editOne(edit.dataset.editKey); return; } const button = event.target.closest('[data-key]'); if (button) navigate(button.dataset.key); });
+  canvas.addEventListener('dblclick', event => { const button = event.target.closest('[data-key]'); if (button) editOne(button.dataset.key); });
   const observer = new ResizeObserver(() => { if (floating.isOpen()) renderRows(); }); observer.observe(viewport);
   new ResizeObserver(() => {
     if (!floating.isOpen()) return;
@@ -68704,6 +68894,10 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   document.addEventListener('keydown', event => {
     const modal = document.querySelector('.modal-mask.show, dialog[open]');
     if (event.isComposing || modal || event.defaultPrevented) return;
+    if (floating.isOpen() && el('editor').contains(event.target)) {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); discard(); return; }
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.stopImmediatePropagation(); applyDraft(); return; }
+    }
     if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
       event.preventDefault(); event.stopImmediatePropagation(); open();
     } else if (event.key === 'Escape' && floating.isOpen() && !document.querySelector('#msw-option-help:not([hidden])')) {
@@ -68716,9 +68910,10 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     stopWorker(); ++queryVersion; clearTimeout(queryTimer); clearTimeout(syncTimer);
     records.clear(); references.clear(); plainEngine = core.createEngine(); trackSignature = ''; activeKey = null;
     selected = []; el('scope').value = 'all'; el('query').value = ''; el('tracks').hidden = el('selection').hidden = true;
+    drafts.clear(); editKey = null; el('editor').hidden = true; el('replacement').value = ''; ready = false; syncDraftStatus();
     if (floating.isOpen()) { readIndex(); publish({ rows: [], count: 0 }); }
   });
-  global.MSWFindEdit = Object.freeze({ open, close: () => floating.close(), changed, decorateBlock, keepVisible });
+  global.MSWFindEdit = Object.freeze({ open, close: () => floating.close(), changed, decorateBlock, keepVisible, capture, restore, hasDraft });
 })(window);
 
 // Channel curves share a cue clock, but retain independent values and keyframes.

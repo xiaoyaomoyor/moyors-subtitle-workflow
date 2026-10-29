@@ -1259,6 +1259,7 @@ __WAVEFORM_CSS__
         <h5 class="help-subtitle">字幕列表</h5>
         <div class="help-category">
           <span><kbd data-mod>Ctrl+F</kbd> 查找字幕并定位到波形，支持全部轨道、指定轨道和所选字幕</span>
+          <span>查找面板可预览并替换文字；点击结果右侧铅笔编辑，<kbd data-mod>Ctrl+Enter</kbd> 应用，<kbd>Esc</kbd> 取消本条草稿</span>
           <span><kbd>批量替换</kbd> 查找并批量替换字幕文本</span>
           <span><kbd>纯文本编辑</kbd> 集中编辑字幕文本，可预览拆分、合并和字词时间码映射</span>
           <span><kbd>文本处理</kbd> 批量修剪空白、首字母大写、添加前缀/后缀或去除 Markdown 符号</span>
@@ -2629,10 +2630,20 @@ __WAVEFORM_CSS__
       <button type="button" id="find-edit-prev" class="find-icon" title="上一处（Shift+Enter）" aria-label="上一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
       <button type="button" id="find-edit-next" class="find-icon" title="下一处（Enter）" aria-label="下一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
     </div>
+    <details id="find-edit-replace" class="find-replace"><summary>替换</summary>
+      <div class="find-replace-controls"><textarea id="find-edit-replacement" rows="1" placeholder="替换为…（留空删除匹配文字）" aria-label="替换为" spellcheck="false"></textarea><button type="button" id="find-edit-replace-current" disabled>替换当前</button><button type="button" id="find-edit-replace-all" disabled>替换全部</button></div>
+      <p id="find-edit-plan" class="msw-processing-hint" role="status"></p>
+    </details>
     <div class="find-edit-summary" id="find-edit-count" role="status" aria-live="polite">0 条字幕 · 0 处匹配</div>
     <p id="find-edit-message" class="msw-processing-hint" role="status" hidden></p>
   </div>
   <div id="find-edit-results" tabindex="0" aria-label="查找结果" aria-busy="false"><p id="find-edit-empty">输入文字开始查找</p><div id="find-edit-rows" data-i18n-skip></div></div>
+  <button type="button" id="find-edit-drafts" hidden></button>
+  <section id="find-edit-editor" hidden>
+    <div class="find-editor-heading"><strong id="find-edit-edit-title"></strong><span id="find-edit-edit-status" role="status"></span></div>
+    <textarea id="find-edit-text" rows="3" aria-label="编辑字幕正文" spellcheck="false"></textarea>
+    <div class="find-editor-actions"><button type="button" id="find-edit-discard">取消编辑</button><button type="button" id="find-edit-apply" class="primary">应用修改</button><span class="find-edit-summary">Ctrl+Enter 应用 · Esc 取消</span></div>
+  </section>
 </aside>
 
 <!-- 批量替换 modal -->
