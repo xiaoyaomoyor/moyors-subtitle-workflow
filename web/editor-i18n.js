@@ -9,6 +9,17 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '仅所选字幕': 'Selected cues only', '来源已删除': 'Source deleted', '应用后：': 'After applying: ',
+    '目标字幕已改变，草稿已保留': 'Target text changed; your draft is preserved.',
+    '按文字模式查找，例如 foo|bar 匹配两者之一。替换可用 $1 引用括号中的内容；不熟悉时保持关闭。': 'Find by pattern: foo|bar matches either word. Use $1 in replacements for the first captured group. Leave off for ordinary text searches.',
+    '勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。': 'Only checked results are applied. Keep cue separators in grouped text; body text can span multiple lines. Use split or merge to change cue structure. Click a cue number to locate it.',
+    '全部轨道': 'All tracks', '全部说话人': 'All speakers', '未指定说话人': 'Unassigned speaker', '筛选结果': 'Filtered results',
+    '编辑形式': 'Editing view', '整段 · 按轨道': 'Grouped · Track', '整段 · 按说话人': 'Grouped · Speaker',
+    '选中全部筛选': 'Select all results', '应用编辑': 'Apply edits', '放弃此条草稿': 'Discard this draft',
+    '筛选字幕文字…': 'Filter subtitle text…', '替换为…（留空删除）': 'Replace with… (empty deletes)',
+    '请保留字幕分隔行；增删字幕请使用切分或合并': 'Keep cue separators. Use split or merge to add or remove cues.',
+    '筛选后逐条或按轨道、说话人整段校对；勾选结果后统一应用，保留时间与绑定': 'Edit individual cues or groups by track/speaker, then apply to checked results. Timing and bindings remain intact.',
+
     '范围': 'Scope', '文字工具': 'Text tools', '查找替换': 'Find and replace', '文字整理': 'Text cleanup', '连续编辑': 'Continuous editing',
     '仅匹配结果': 'Only matching results', '尚未查找': 'No search yet', '添加后缀': 'Add suffix',
     '请先完成有效查找，或取消仅匹配结果': 'Complete a valid search, or turn off matching results only.',
@@ -2837,6 +2848,14 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const unifiedPlan=/^(已)?修改 (\d+) 条 · 跳过 (\d+) 条锁定字幕$/.exec(text);
+    if(unifiedPlan)return `${unifiedPlan[1]?'Changed':'Change'} ${unifiedPlan[2]} cues · Skip ${unifiedPlan[3]} locked`;
+    const unifiedCount=/^(\d+) 条 · 已选 (\d+)$/.exec(text);
+    if(unifiedCount)return `${unifiedCount[1]} cues · ${unifiedCount[2]} selected`;
+    const unifiedDraft=/^(\d+) 条未应用$/.exec(text);
+    if(unifiedDraft)return `${unifiedDraft[1]} unapplied`;
+    const unifiedChanges=/^(\d+) 条字幕将更新$/.exec(text);
+    if(unifiedChanges)return `${unifiedChanges[1]} cues will change`;
     const gapReference = /^参考轨道 · (.+)$/.exec(text);
     if (gapReference) return `Reference tracks · ${translateText(gapReference[1], lang)}`;
     const splitTrack=/^仅切 (S\d+(?:主|副)?_\d+) 并解绑$/.exec(text);

@@ -76,52 +76,55 @@ test('empty selected time scope never widens and collisions or locks do not part
  await offset(page,100);expect((await snapshot(page)).subtitles.bindings[0].start_offset_ms).toBe(-50);
 });
 async function openText(page,view,trackId) {
- await page.evaluate(view=>MSWFindEdit.open({view,replace:view==='search'}),view);
- await page.locator('#find-edit-scope').selectOption('tracks');
+ await page.evaluate(()=>MSWFindEdit.open());
+ if(view==='search')await page.locator('#find-edit-replace-enabled').check();
+ await page.locator('#find-edit-all-tracks').uncheck();
  for(const input of await page.locator('#find-edit-tracks input').all())await input.setChecked(await input.inputValue()===trackId);
+ await expect(page.locator('#find-edit-count')).toContainText(/^(2 条|2 cues)/);
+ await expect(page.locator('#find-edit-results')).toHaveAttribute('aria-busy','false');
 }
 test('batch replacement changes only the explicit track, retains word timing and binding',async({page},info)=>{
  const before=await snapshot(page);await openText(page,'search','third');
  await page.locator('#find-edit-query').fill('Bravo');await page.locator('#find-edit-replacement').fill('bravo');
- await expect(page.locator('#find-edit-plan')).toContainText('修改 2 条');await page.screenshot({path:info.outputPath('replace-tools.png')});
- await page.locator('#find-edit-replace-all').click();const after=await snapshot(page);
+ await expect(page.locator('#find-edit-message')).toContainText('修改 2 条');await page.screenshot({path:info.outputPath('replace-tools.png')});
+ await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();const after=await snapshot(page);
  expect(contents(after,'third').map(c=>c.content.text)).toEqual(['Alpha bravo','Alpha bravo']);expect(contents(after,'third').every(c=>c.content.items.length>0)).toBe(true);
  expect(after.subtitles.cues.filter(c=>c.track_id!=='third')).toEqual(before.subtitles.cues.filter(c=>c.track_id!=='third'));
  await page.locator('#find-edit-close').click();await page.keyboard.press('Control+z');expect(contents(await snapshot(page),'third')).toEqual(contents(before,'third'));
 });
 test('replacement selected IDs survive display changes, invalid regex and empty track scope are inert',async({page})=>{
  await page.evaluate(()=>MSWFindEdit.open({view:'search',ids:['third-1'],replace:true}));
- await page.locator('.find-edit-options summary').click();await page.locator('#find-edit-query').fill('[');await page.locator('#find-edit-regex').check();await expect(page.locator('#find-edit-replace-all')).toBeDisabled();
+ await page.locator('#find-edit-replace-enabled').check();await page.locator('#find-edit-query').fill('[');await page.locator('#find-edit-regex').check();await expect(page.locator('#find-edit-apply')).toBeDisabled();
  await page.locator('#find-edit-regex').uncheck();await page.locator('#find-edit-query').fill('Alpha');await page.locator('#find-edit-replacement').fill('Beta');
- await expect(page.locator('#find-edit-replace-all')).toBeEnabled();await page.locator('#find-edit-replace-all').click();expect(contents(await snapshot(page),'third').map(c=>c.content.text)).toEqual(['Alpha Bravo','Beta Bravo']);
- await page.locator('#find-edit-scope').selectOption('tracks');for(const input of await page.locator('#find-edit-tracks input').all())await input.uncheck();
- await expect(page.locator('#find-edit-count')).toHaveText('0 条字幕 · 0 处匹配');await expect(page.locator('#find-edit-replace-all')).toBeDisabled();
+ await expect(page.locator('#find-edit-apply')).toBeEnabled();await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();expect(contents(await snapshot(page),'third').map(c=>c.content.text)).toEqual(['Alpha Bravo','Beta Bravo']);
+ await page.locator('#find-edit-all-tracks').uncheck();for(const input of await page.locator('#find-edit-tracks input').all())await input.uncheck();
+ await expect(page.locator('#find-edit-count')).toHaveText('0 条 · 已选 0');await expect(page.locator('#find-edit-apply')).toBeDisabled();
 });
 test('text processing has track scope, no partner text edits and one undo',async({page},info)=>{
  const before=await snapshot(page);await openText(page,'tidy',before.subtitles.tracks[0].id);
  await page.locator('#find-tidy-prefix').check();await page.locator('#find-tidy-prefix-text').fill('注：');
- await expect(page.locator('#find-tools-status')).toContainText('修改 2 条');await page.screenshot({path:info.outputPath('text-tools.png')});
- await page.locator('#find-tools-apply').click();const after=await snapshot(page);
+ await expect(page.locator('#find-edit-message')).toContainText('修改 2 条');await page.screenshot({path:info.outputPath('text-tools.png')});
+ await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();const after=await snapshot(page);
  expect(contents(after,after.subtitles.tracks[0].id).every(c=>c.content.text.startsWith('注：'))).toBe(true);
  expect(contents(after,after.subtitles.tracks[1].id)).toEqual(contents(before,before.subtitles.tracks[1].id));expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
  await page.evaluate(()=>performUndo());expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
 });
 test('whole text keeps bound structure, allows wording edits and blocks stale drafts',async({page})=>{
- const before=await snapshot(page);await openText(page,'edit',before.subtitles.tracks[0].id);await page.locator('#find-continuous-whole').click();
- await page.locator('#find-whole-text').fill('Alpha\nBravo\nAlpha Bravo');
- await expect(page.locator('#find-tools-status')).toContainText('联动切分');await expect(page.locator('#find-tools-apply')).toBeDisabled();
- expect((await snapshot(page)).subtitles.bindings).toEqual(before.subtitles.bindings);await page.locator('#find-tools-discard').click();
- await page.locator('#find-whole-text').fill('alpha Bravo\nAlpha Bravo');await expect(page.locator('#find-tools-apply')).toBeEnabled();
- await page.locator('#find-tools-apply').click();expect((await snapshot(page)).subtitles.bindings).toEqual(before.subtitles.bindings);
- await page.locator('#find-whole-text').fill('different\nAlpha Bravo');
- await page.evaluate(()=>{const cue=DATA.segments.find(c=>c.text==='alpha Bravo');cue.color={name:'red',start:cue.start,end:cue.end};MSWFindEdit.changed();});
- await expect(page.locator('#find-tools-status')).toContainText('目标字幕已改变');await expect(page.locator('#find-tools-apply')).toBeDisabled();
+ const before=await snapshot(page);await openText(page,'edit',before.subtitles.tracks[0].id);await page.locator('#find-edit-group').selectOption('track');
+ await page.locator('#find-edit-rows textarea').fill('Alpha\nBravo\nAlpha Bravo');
+ await expect(page.locator('#find-edit-message')).toContainText('字幕分隔行');await expect(page.locator('#find-edit-apply')).toBeDisabled();
+ expect((await snapshot(page)).subtitles.bindings).toEqual(before.subtitles.bindings);await page.locator('[data-reset]:visible').click();
+ const group=page.locator('#find-edit-rows textarea');await group.fill((await group.inputValue()).replace('Alpha Bravo','alpha Bravo'));await expect(page.locator('#find-edit-apply')).toBeEnabled();
+ await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();expect((await snapshot(page)).subtitles.bindings).toEqual(before.subtitles.bindings);
+ await group.fill((await group.inputValue()).replace('alpha Bravo','different'));
+ await page.evaluate(()=>{const cue=DATA.segments.find(c=>c.text==='alpha Bravo');cue.text='External change';MSWFindEdit.changed();});
+ await expect(page.locator('#find-edit-message')).toContainText('目标字幕已改变');await expect(page.locator('#find-edit-apply')).toBeDisabled();
 });
 test('whole text edits selected independent rows, roundtrips JSON and restores in one undo',async({page},info)=>{
- const before=await snapshot(page);await page.evaluate(()=>MSWFindEdit.open({view:'edit',ids:['third-0']}));await page.locator('#find-continuous-whole').click();
- await page.locator('#find-whole-text').fill('Alpha\nBravo');await expect(page.locator('#find-tools-apply')).toBeEnabled();
- await page.screenshot({path:info.outputPath('whole-text-tools.png')});await page.locator('#find-tools-apply').click();
- const after=await snapshot(page);expect(contents(after,'third')).toHaveLength(3);expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
+ const before=await snapshot(page);await page.evaluate(()=>MSWFindEdit.open({view:'edit',ids:['third-0']}));await page.locator('#find-edit-group').selectOption('track');
+ const group=page.locator('#find-edit-rows textarea');await group.fill((await group.inputValue()).replace('Alpha Bravo','Alpha\nBravo'));await expect(page.locator('#find-edit-apply')).toBeEnabled();
+ await page.screenshot({path:info.outputPath('whole-text-tools.png')});await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();
+ const after=await snapshot(page);expect(contents(after,'third')).toHaveLength(2);expect(contents(after,'third')[0].content.text).toBe('Alpha\nBravo');expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
  await page.evaluate(()=>performUndo());expect(contents(await snapshot(page),'third')).toEqual(contents(before,'third'));
  await page.evaluate(p=>applyCanonicalProject(p,'reopen.mosp'),after);expect((await snapshot(page)).subtitles).toEqual(after.subtitles);
 });
@@ -138,7 +141,7 @@ test('light compact layouts and English labels keep scoped controls',async({page
  await page.evaluate(()=>{updateEditorSettings({theme:'light',themePreset:'alice',colors:{}});applyThemeAndColors();MSWE_I18N.applyLanguage('en');});
  await page.setViewportSize({width:900,height:600});await openText(page,'tidy','third');
  await page.locator('#find-tidy-prefix').check();await page.locator('#find-tidy-prefix-text').fill('Note: ');
- await expect(page.locator('#find-tools-status')).toHaveText('Change 2 cues · Skip 0 locked');
+ await expect(page.locator('#find-edit-message')).toHaveText('Change 2 cues · Skip 0 locked');
  const text=await page.locator('#find-edit-panel').evaluate(el=>{const clone=el.cloneNode(true);clone.querySelectorAll('select,[hidden],#find-tools-rows,#find-edit-rows,#find-edit-tracks').forEach(e=>e.remove());return clone.textContent;});
  expect(text).not.toMatch(/[\u3400-\u9fff]/u);
  const bounds=await page.locator('#find-edit-panel').boundingBox();expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(900);expect(bounds.y+bounds.height).toBeLessThanOrEqual(600);
@@ -146,11 +149,12 @@ test('light compact layouts and English labels keep scoped controls',async({page
  await page.evaluate(()=>openSubtitleCleanup());await expect(page.locator('#subtitle-cleanup-status')).toHaveText('No subtitles to remove in this scope');
 });
 test('closing before the debounced report retains drafts without a dialog',async({page})=>{
- await openText(page,'edit','third');await page.locator('#find-continuous-whole').click();
+ await openText(page,'edit','third');await page.locator('#find-edit-group').selectOption('track');
+ await expect(page.locator('#find-edit-rows textarea')).toBeVisible();
  let prompted=false;page.on('dialog',async dialog=>{prompted=true;await dialog.dismiss();});
- await page.evaluate(()=>{const input=document.getElementById('find-whole-text');input.value='Unapplied words';input.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('find-edit-close').click();});
+ await page.evaluate(()=>{const input=document.querySelector('#find-edit-rows textarea');input.value='Unapplied words';input.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('find-edit-close').click();});
  expect(prompted).toBe(false);await expect(page.locator('#find-edit-panel')).not.toBeVisible();
- await page.evaluate(()=>MSWFindEdit.open({view:'edit'}));await expect(page.locator('#find-whole-text')).toHaveValue('Unapplied words');
+ await page.evaluate(()=>MSWFindEdit.open({view:'edit'}));await expect(page.locator('#find-edit-rows textarea')).toHaveValue('Unapplied words');
 });
 
 test('cleanup selected scope follows selection changes while its floating panel stays open',async({page})=>{

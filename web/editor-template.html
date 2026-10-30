@@ -1258,7 +1258,7 @@ __WAVEFORM_CSS__
           <span><kbd data-mod>Ctrl+F</kbd> 查找字幕并定位到波形，支持全部轨道、指定轨道和所选字幕</span>
           <span>查找面板可预览并替换文字；点击结果右侧铅笔编辑，<kbd data-mod>Ctrl+Enter</kbd> 应用，<kbd>Esc</kbd> 取消本条草稿</span>
           <span><kbd>文字整理</kbd> 在查找并编辑中修剪空白、首字母大写、添加前后缀或去除 Markdown 标记</span>
-          <span><kbd>连续编辑</kbd> 按轨道逐条校对，多行保留为同条字幕；单轨整体编辑可调整未绑定字幕的行结构</span>
+          <span><kbd>连续编辑</kbd> 筛选后逐条或按轨道、说话人整段校对；勾选结果后统一应用，保留时间与绑定</span>
         </div>
       </section>
       <section class="help-subgroup">
@@ -2614,58 +2614,36 @@ __WAVEFORM_CSS__
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕</span><h3 id="find-edit-title">查找并编辑</h3></div>
     <button type="button" id="find-edit-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭查找并编辑"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
-  <div class="find-edit-tools">
-    <div class="find-edit-scope-row">
-      <label class="find-edit-scope-label">范围<select id="find-edit-scope"><option value="all">全部轨道</option><option value="tracks">指定轨道</option><option value="selected">所选字幕</option></select></label>
-      <span id="find-edit-selection" hidden><span id="find-edit-selected-count">0</span><span> 条</span><button type="button" id="find-edit-use-selection" class="find-icon" title="使用当前选择" aria-label="使用当前选择"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6"/></svg></button></span>
-      <details class="find-edit-options" data-find-search><summary>匹配设置</summary><div><label class="media-preview-toggle"><input id="find-edit-case" type="checkbox">区分大小写</label><label class="media-preview-toggle"><input id="find-edit-regex" type="checkbox">正则表达式</label></div></details>
-    </div>
-    <div id="find-edit-tracks" hidden aria-label="搜索轨道"></div>
-    <div id="find-edit-views" class="find-view-switch" role="group" aria-label="文字工具"><button type="button" data-find-view="search" aria-pressed="true">查找替换</button><button type="button" data-find-view="tidy" aria-pressed="false">文字整理</button><button type="button" data-find-view="edit" aria-pressed="false">连续编辑</button></div>
-    <div class="find-edit-query-row" data-find-search>
-      <div class="find-query-input"><input type="text" id="find-edit-query" placeholder="查找字幕文字…" aria-label="查找字幕文字" autocomplete="off" spellcheck="false"><button type="button" id="find-edit-clear" class="find-icon" title="清空查找" aria-label="清空查找"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
-      <button type="button" id="find-edit-prev" class="find-icon" title="上一处（Shift+Enter）" aria-label="上一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
-      <button type="button" id="find-edit-next" class="find-icon" title="下一处（Enter）" aria-label="下一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
-    </div>
-    <details id="find-edit-replace" class="find-replace" data-find-search><summary>替换</summary>
-      <div class="find-replace-controls"><textarea id="find-edit-replacement" rows="1" placeholder="替换为…（留空删除匹配文字）" aria-label="替换为" spellcheck="false"></textarea><button type="button" id="find-edit-replace-current" disabled>替换当前</button><button type="button" id="find-edit-replace-all" disabled>替换全部</button></div>
-      <p id="find-edit-plan" class="msw-processing-hint" role="status"></p>
+  <div class="find-unified-body">
+    <details class="find-section" id="find-edit-filters" open><summary>筛选</summary>
+      <div class="find-checks">
+        <label class="media-preview-toggle"><input id="find-edit-only-selected" type="checkbox">仅所选字幕</label>
+        <label class="media-preview-toggle"><input id="find-edit-all-tracks" type="checkbox" checked>全部轨道</label>
+        <label class="media-preview-toggle"><input id="find-edit-all-speakers" type="checkbox" checked>全部说话人</label>
+        <label class="media-preview-toggle"><input id="find-edit-case" type="checkbox">区分大小写</label>
+        <label class="media-preview-toggle"><input id="find-edit-regex" type="checkbox">正则表达式</label>
+        <span data-option-help="按文字模式查找，例如 foo|bar 匹配两者之一。替换可用 $1 引用括号中的内容；不熟悉时保持关闭。"></span>
+      </div>
+      <div id="find-edit-tracks" class="find-checks" hidden aria-label="筛选轨道"></div>
+      <div id="find-edit-speakers" class="find-checks" hidden aria-label="筛选说话人"></div>
     </details>
-    <div class="find-edit-summary" id="find-edit-count" data-find-search role="status" aria-live="polite">0 条字幕 · 0 处匹配</div>
-    <p id="find-edit-message" class="msw-processing-hint" role="status" hidden></p>
-  </div>
-  <div id="find-edit-results" tabindex="0" aria-label="查找结果" aria-busy="false"><p id="find-edit-empty">输入文字开始查找</p><div id="find-edit-rows" data-i18n-skip></div></div>
-  <section id="find-tools" hidden>
-    <div id="find-tidy-options" class="find-tools-controls">
-      <div class="find-tidy-checks" data-option-help="依次去除 Markdown、修剪空白、首字母大写、添加前缀和后缀。只改范围内正文，不修改绑定伙伴。">
+    <details class="find-section find-results-section" id="find-edit-result-section" open><summary>筛选结果 <span id="find-edit-count" role="status"></span></summary>
+      <div class="find-results-toolbar"><label>编辑形式<select id="find-edit-group"><option value="rows">逐条编辑</option><option value="track">整段 · 按轨道</option><option value="speaker">整段 · 按说话人</option></select></label><span data-option-help="勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。"></span><button id="find-edit-drafts" type="button" hidden></button></div>
+      <div id="find-edit-results" tabindex="0" aria-label="筛选结果" aria-busy="false"><p id="find-edit-empty">当前范围没有字幕</p><div id="find-edit-rows" data-i18n-skip></div></div>
+    </details>
+    <details class="find-section" id="find-edit-operations" open><summary>操作</summary>
+      <div id="find-tidy-options" class="find-checks">
         <label class="media-preview-toggle"><input id="find-tidy-trim" type="checkbox">修剪前后空白</label>
         <label class="media-preview-toggle"><input id="find-tidy-capitalize" type="checkbox">首字母大写</label>
         <label class="media-preview-toggle"><input id="find-tidy-markdown" type="checkbox">去除 Markdown 标记</label>
         <label class="media-preview-toggle"><input id="find-tidy-prefix" type="checkbox">添加前缀</label>
         <label class="media-preview-toggle"><input id="find-tidy-suffix" type="checkbox">添加后缀</label>
       </div>
-      <input id="find-tidy-prefix-text" type="text" placeholder="插入到字幕开头" aria-label="前缀" hidden>
-      <input id="find-tidy-suffix-text" type="text" placeholder="插入到字幕结尾" aria-label="后缀" hidden>
-      <label class="media-preview-toggle"><input id="find-tidy-matched" type="checkbox">仅匹配结果<span id="find-tidy-query" class="find-edit-summary" data-i18n-skip></span></label>
-    </div>
-    <div id="find-continuous-options" class="find-tools-controls" hidden>
-      <div class="find-view-switch" role="group" aria-label="编辑视图"><button id="find-continuous-rows" type="button" aria-pressed="true">逐条编辑</button><button id="find-continuous-whole" type="button" aria-pressed="false">整体编辑</button></div>
-      <label id="find-continuous-filter" class="find-edit-scope-label" data-option-help="只筛选列表显示，不改变已编辑草稿的应用范围。忽略空白，标点计入。">字数 ≥<input id="find-continuous-threshold" type="number" min="0" step="1" placeholder="不限" aria-label="显示字数阈值"></label>
-      <p id="find-continuous-hint" class="msw-processing-hint"></p>
-    </div>
-    <div id="find-tools-list" tabindex="0" aria-label="文字编辑列表"><div id="find-tools-rows" data-i18n-skip></div></div>
-    <div id="find-whole-editor" hidden>
-      <textarea id="find-whole-text" rows="6" aria-label="整体字幕正文" spellcheck="false"></textarea>
-      <details id="find-whole-details"><summary>修改详情</summary><div id="find-whole-report" data-i18n-skip></div></details>
-    </div>
-    <div class="find-tools-footer"><p id="find-tools-status" class="msw-processing-hint" role="status"></p><div class="find-editor-actions"><button type="button" id="find-tools-discard">放弃修改</button><button type="button" id="find-tools-apply" class="primary" disabled>应用处理</button></div></div>
-  </section>
-  <button type="button" id="find-edit-drafts" hidden></button>
-  <section id="find-edit-editor" hidden>
-    <div class="find-editor-heading"><strong id="find-edit-edit-title"></strong><span id="find-edit-edit-status" role="status"></span></div>
-    <textarea id="find-edit-text" rows="3" aria-label="编辑字幕正文" spellcheck="false"></textarea>
-    <div class="find-editor-actions"><button type="button" id="find-edit-discard">取消编辑</button><button type="button" id="find-edit-apply" class="primary">应用修改</button><span class="find-edit-summary">Ctrl+Enter 应用 · Esc 取消</span></div>
-  </section>
+      <div class="find-affixes"><input id="find-tidy-prefix-text" placeholder="插入到字幕开头" aria-label="前缀" hidden><input id="find-tidy-suffix-text" placeholder="插入到字幕结尾" aria-label="后缀" hidden></div>
+      <div class="find-replace-line"><label>查找<input type="text" id="find-edit-query" placeholder="筛选字幕文字…" aria-label="查找字幕文字" spellcheck="false"></label><span aria-hidden="true">→</span><label><span class="media-preview-toggle"><input type="checkbox" id="find-edit-replace-enabled">替换</span><input type="text" id="find-edit-replacement" placeholder="替换为…（留空删除）" aria-label="替换为" disabled></label></div>
+    </details>
+  </div>
+  <footer class="find-unified-footer"><p id="find-edit-message" role="status"></p><div class="find-footer-actions"><button type="button" id="find-edit-select-all">选中全部筛选</button><button type="button" id="find-edit-apply" class="primary" disabled>应用编辑</button></div></footer>
 </aside>
 
 <!-- 表情包选择 modal -->

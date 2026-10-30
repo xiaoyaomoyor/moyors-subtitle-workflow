@@ -21552,7 +21552,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null, track = null) {
     // 组 1：合并与批量文本操作
     addItem('累加状态合并', 'C', () => merge(targetIdxs));
     addItem('共有状态合并', `${modKeyLabel()}+Shift+C`, () => merge(targetIdxs, 'common'));
-    addItem('查找并编辑选中字幕…', '', () => window.MSWFindEdit.open({view:'search',replace:true,ids:targetIdxs.map(i=>(track?.segments||DATA.segments)[i]?.id).filter(Boolean)}));
+    addItem('查找并编辑选中字幕…', '', () => window.MSWFindEdit.open({ids:targetIdxs.map(i=>(track?.segments||DATA.segments)[i]?.id).filter(Boolean)}));
     addSep();
     // 组 2：外观（表情包与颜色）；「拓展表情包时长」仅在范围内已有表情包时显示
     const hasStickerInRange = targetIdxs.some(i =>

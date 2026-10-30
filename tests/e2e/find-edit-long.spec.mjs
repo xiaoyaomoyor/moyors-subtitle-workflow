@@ -50,30 +50,30 @@ test('real long project: search, editing, undo, responsiveness and round trip',a
   metrics[name]=await page.evaluate(start=>({elapsed:performance.now()-start,longTasks:longSamples.filter(e=>e.start>=start).map(e=>e.ms)}),start);
   writeFileSync(join(root,'metrics.json'),JSON.stringify(metrics,null,2));console.log(name,JSON.stringify(metrics[name]));};
  const countFor=text=>before.subtitles.cues.reduce((n,c)=>n+Number(c.content.text.toLowerCase().includes(text.toLowerCase())),0);
- const query=async(text)=>{await page.locator('#find-edit-query').fill(text);await page.waitForFunction(n=>document.getElementById('find-edit-count').textContent.startsWith(n+' 条字幕'),countFor(text));};
+ const query=async(text)=>{await page.locator('#find-edit-query').fill(text);await page.waitForFunction(n=>document.getElementById('find-edit-count').textContent.startsWith(n+' 条 ·'),countFor(text));};
  await measure('firstSearch',async()=>{await page.keyboard.press('Control+f');await query('the');});
  for(const text of ['you','我','the'])await measure('search_'+text,()=>query(text));
- await measure('rapidSearch',async()=>{await page.locator('#find-edit-query').fill('the');await page.locator('#find-edit-query').fill('MSW_missing_82716');await page.waitForFunction(()=>document.getElementById('find-edit-count').textContent==='0 条字幕 · 0 处匹配');});
+ await measure('rapidSearch',async()=>{await page.locator('#find-edit-query').fill('the');await page.locator('#find-edit-query').fill('MSW_missing_82716');await page.waitForFunction(()=>document.getElementById('find-edit-count').textContent==='0 条 · 已选 0');});
  expect(await page.locator('.msw-search-hit').count()).toBe(0);
- await query('the');expect(await page.locator('.find-result').count()).toBeLessThan(30);
+ await query('the');expect(await page.locator('.find-unified-row').count()).toBeLessThan(30);
  await page.locator('#find-edit-panel').evaluate(n=>{n.style.left='10px';n.style.top='100px';n.style.width='470px';n.style.height='620px';});
- await page.locator('.find-result').first().click();await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:60000});
- await page.locator('.find-edit-one').first().click();const originalText=await page.locator('#find-edit-text').inputValue();
- await page.locator('#find-edit-text').fill(originalText+' [checked]');
+ await page.locator('[data-locate]').first().click();await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:60000});
+ const originalText=await page.locator('#find-edit-rows textarea').first().inputValue();
+ await page.locator('#find-edit-rows textarea').first().fill(originalText+' [checked]');
  const history=await page.evaluate(()=>editorHistory.undoLength());
- await measure('singleEdit',async()=>{await page.locator('#find-edit-apply').click();await page.waitForFunction(()=>document.getElementById('find-edit-editor').hidden);});
+ await measure('singleEdit',async()=>{await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();await expect(page.locator('#find-edit-message')).toContainText('已修改');});
  expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+1);
  const single=await snapshot(page);expect(unchangedFields(single)).toEqual(unchangedFields(before));expect(single.subtitles.bindings).toEqual(before.subtitles.bindings);
  await measure('previewSettled',async()=>{await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(c=>c.text.includes('[checked]')),null,{timeout:60000});});
  await measure('singleUndo',()=>page.evaluate(()=>performUndo()));expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
 
  // Replace the complete text of every non-empty cue once, preserving original text.
- await page.locator('.find-edit-options summary').click();await page.locator('#find-edit-regex').check();
- await page.locator('#find-edit-query').fill('[\\s\\S]+');await page.locator('#find-edit-replace').evaluate(n=>n.open=true);
- await page.locator('#find-edit-replacement').fill('$& [MSW]');await expect(page.locator('#find-edit-replace-all')).toBeEnabled();
+ await page.locator('#find-edit-regex').check();
+ await page.locator('#find-edit-query').fill('[\\s\\S]+');await page.locator('#find-edit-replace-enabled').check();
+ await page.locator('#find-edit-replacement').fill('$& [MSW]');await expect(page.locator('#find-edit-apply')).toBeEnabled();
  const batchHistory=await page.evaluate(()=>editorHistory.undoLength()),cdp=await context.newCDPSession(page);
  await cdp.send('Profiler.enable');await cdp.send('Profiler.start');
- await measure('replaceAll',async()=>{await page.locator('#find-edit-replace-all').click();await page.waitForFunction(()=>document.getElementById('find-edit-message').textContent.startsWith('已修改'));});
+ await measure('replaceAll',async()=>{await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();await page.waitForFunction(()=>document.getElementById('find-edit-message').textContent.startsWith('已修改'));});
  const profile=await cdp.send('Profiler.stop');writeFileSync(join(root,'replace.cpuprofile'),JSON.stringify(profile.profile));await cdp.detach();
  const replaced=await snapshot(page);expect(replaced.subtitles.cues.map(c=>c.content.text)).toEqual(before.subtitles.cues.map(c=>c.content.text?c.content.text+' [MSW]':c.content.text));
  expect(replaced.subtitles.bindings).toEqual(before.subtitles.bindings);expect(unchangedFields(replaced)).toEqual(unchangedFields(before));
@@ -83,17 +83,17 @@ test('real long project: search, editing, undo, responsiveness and round trip',a
  await measure('batchRedo',()=>page.evaluate(()=>performRedo()));expect((await snapshot(page)).subtitles).toEqual(replaced.subtitles);
  await page.evaluate(()=>performUndo());
 
- await measure('continuousOpen',()=>page.locator('[data-find-view="edit"]').click());
- expect(await page.locator('#find-tools-rows textarea').count()).toBeLessThan(30);
- await measure('continuousTyping',()=>page.locator('#find-tools-rows textarea').first().pressSequentially(' 校对',{delay:30}));
- await page.locator('#find-tools-discard').click();
- await page.locator('[data-find-view="tidy"]').click();await page.locator('#find-tidy-prefix').check();
- await measure('tidyPreview',async()=>{await page.locator('#find-tidy-prefix-text').fill('MSW: ');await expect(page.locator('#find-tools-apply')).toBeEnabled();});
- await measure('tidyApply',()=>page.locator('#find-tools-apply').click());
+ await measure('clearSearch',()=>page.locator('#find-edit-query').fill(''));await expect(page.locator('#find-edit-count')).toContainText(`${before.subtitles.cues.length} 条 ·`);
+ expect(await page.locator('#find-edit-rows textarea').count()).toBeLessThan(30);
+ await measure('continuousTyping',()=>page.locator('#find-edit-rows textarea').first().pressSequentially(' 校对',{delay:30}));
+ await page.locator('[data-reset]:visible').first().click();
+ await page.locator('#find-tidy-prefix').check();
+ await measure('tidyPreview',async()=>{await page.locator('#find-tidy-prefix-text').fill('MSW: ');await expect(page.locator('#find-edit-apply')).toBeEnabled();});
+ await measure('tidyApply',()=>page.locator('#find-edit-apply').click());
  expect((await snapshot(page)).subtitles.cues.every(c=>c.content.text.startsWith('MSW: '))).toBe(true);
  await page.evaluate(()=>performUndo());expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
 
- await page.locator('[data-find-view="search"]').click();await page.locator('#find-edit-regex').uncheck();await query('the');
+ await page.locator('#find-edit-regex').uncheck();await query('the');
  await page.evaluate(()=>{player.currentTime=1;waveformEditor.scroll.scrollTop=0;waveformEditor.renderMultiVisible(true);return player.play();});
  const playing=await page.evaluate(()=>player.currentTime);
  await measure('searchWhilePlaying',()=>query('you'));expect(await page.evaluate(()=>!player.paused&&player.currentTime>0)).toBe(true);
@@ -116,19 +116,19 @@ test('real long project: scoped edits, locked tracks, conflict, drag and disk ex
  const before=await snapshot(page),tracks=before.subtitles.tracks,chosen=before.subtitles.cues.filter(c=>c.track_id===tracks[0].id&&!c.content.disabled&&c.content.text.trim()).slice(0,3).map(c=>c.id);
  report.fixture={cues:before.subtitles.cues.length,tracks:tracks.length,bindings:before.subtitles.bindings.length};
  await page.evaluate(ids=>MSWFindEdit.open({view:'tidy',ids}),chosen);
- await page.locator('#find-tidy-prefix').check();await page.locator('#find-tidy-prefix-text').fill('验收 ');await expect(page.locator('#find-tools-apply')).toBeEnabled();
- await page.locator('#find-tools-apply').click();const scoped=await snapshot(page);
+ await page.locator('#find-tidy-prefix').check();await page.locator('#find-tidy-prefix-text').fill('验收 ');await expect(page.locator('#find-edit-apply')).toBeEnabled();
+ await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();const scoped=await snapshot(page);
  expect(scoped.subtitles.cues.filter((c,i)=>c.content.text!==before.subtitles.cues[i].content.text).map(c=>c.id)).toEqual(chosen);
  expect(scoped.subtitles.bindings).toEqual(before.subtitles.bindings);expect(unchangedFields(scoped)).toEqual(unchangedFields(before));
  await page.evaluate(()=>performUndo());expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
- await page.evaluate(id=>fixedUpdateTrack(id,{locked:true}),tracks[0].id);
- await expect(page.locator('#find-tools-status')).toContainText('跳过 3 条锁定字幕');await expect(page.locator('#find-tools-apply')).toBeDisabled();
- await page.evaluate(()=>performUndo());
- await page.locator('[data-find-view="edit"]').click();const first=page.locator('#find-tools-rows textarea').first();await first.fill('Pending conflict');
- await page.locator('#find-edit-close').click();await page.keyboard.press('Control+f');await page.locator('[data-find-view="edit"]').click();await expect(first).toHaveValue('Pending conflict');
+ await page.evaluate(id=>fixedUpdateTrack(id,{locked:true}),tracks[0].id);await page.locator('#find-tidy-prefix').check();
+ await expect(page.locator('#find-edit-message')).toContainText('跳过 3 条锁定字幕');await expect(page.locator('#find-edit-apply')).toBeDisabled();
+ await page.evaluate(()=>performUndo());await page.locator('#find-tidy-prefix').uncheck();
+ const first=page.locator('#find-edit-rows textarea').first();await first.fill('Pending conflict');
+ await page.locator('#find-edit-close').click();await page.keyboard.press('Control+f');await expect(first).toHaveValue('Pending conflict');
  await page.evaluate(id=>{const row=layerCore.tracks(DATA).flatMap(s=>s.segments).find(c=>c.id===id);window.longOldText=row.text;row.text='Changed elsewhere';waveformEditor.refreshCueOverlay();MSWFindEdit.changed();},chosen[0]);
- await expect(page.locator('#find-tools-status')).toContainText('目标字幕已改变');await expect(page.locator('#find-tools-apply')).toBeDisabled();
- await page.locator('#find-tools-discard').click();
+ await expect(page.locator('#find-edit-message')).toContainText('目标字幕已改变');await expect(page.locator('#find-edit-apply')).toBeDisabled();
+ await page.locator('[data-reset]:visible').first().click();
  await page.evaluate(id=>{const row=layerCore.tracks(DATA).flatMap(s=>s.segments).find(c=>c.id===id);row.text=window.longOldText;waveformEditor.refreshCueOverlay();MSWFindEdit.changed();},chosen[0]);
  await page.locator('#find-edit-close').click();
 
@@ -145,7 +145,7 @@ test('real long project: scoped edits, locked tracks, conflict, drag and disk ex
  report.drag={deltaMs:moved.content.start-old.content.start,bound:!!pair};
 
  await page.evaluate(ids=>MSWFindEdit.open({view:'edit',ids}),chosen);
- await page.locator('#find-tools-rows textarea').first().fill('Long project validation\n长工程校对');await page.locator('#find-tools-apply').click();
+ await page.locator('#find-edit-rows textarea').first().fill('Long project validation\n长工程校对');await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();
  const expected=await snapshot(page);await page.locator('#find-edit-close').click();
  await page.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);
  const saveStart=Date.now();expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);report.saveMs=Date.now()-saveStart;

@@ -8,12 +8,12 @@
       for (const key of removed) records.delete(key);
       for (const row of rows) records.set(row.key, row);
     }
-    function search({ query = '', caseSensitive = false, regex = false, scope = 'all', tracks = [], selected = [], limit = 50000, replacement = null } = {}) {
-      if (!query) return { rows: [], count: 0, limited: false };
+    function search({ query = '', caseSensitive = false, regex = false, scope = 'all', tracks = [], selected = [], limit = 50000, replacement = null, allowEmpty = false, keys = null, drafts = null } = {}) {
+      if (!query && !allowEmpty) return { rows: [], count: 0, limited: false };
       let pattern;
       try { pattern = new RegExp(regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'gu' : 'giu'); }
       catch (_) { return { rows: [], count: 0, error: 'invalid-regex' }; }
-      const trackSet = new Set(tracks), ids = new Set(selected), rows = [];
+      const trackSet = new Set(tracks), ids = new Set(selected), allowed = keys === null ? null : new Set(keys), rows = [];
       let count = 0, limited = false, zeroWidth = false, outputSize = 0;
       function substitute(match, text) {
         if (!regex) return replacement;
@@ -30,7 +30,9 @@
         });
       }
       for (const row of records.values()) {
+        if (allowed && !allowed.has(row.key)) continue;
         if (scope === 'tracks' && !trackSet.has(row.trackId) || scope === 'selected' && !ids.has(row.id)) continue;
+        if (!query) { rows.push({key:row.key,matches:[]}); continue; }
         pattern.lastIndex = 0;
         const matches = [], replacements = [];
         let match;
@@ -66,6 +68,16 @@
         const x = records.get(a.key), y = records.get(b.key);
         return x.start - y.start || x.order - y.order || x.number - y.number || x.key.localeCompare(y.key);
       });
+      // Filtering uses the committed source; replacement acts on the shared draft.
+      // Typing a draft therefore never removes the focused result from the list.
+      if (drafts && Object.keys(drafts).length) {
+        const edited = createEngine();
+        edited.update({rows:rows.filter(r=>Object.hasOwn(drafts,r.key)).map(r=>({...records.get(r.key),text:drafts[r.key]}))});
+        const edits = edited.search({query,caseSensitive,regex,limit,replacement});
+        if (edits.error || edits.limited) return {...edits,rows:[]};
+        const byKey = new Map(edits.rows.map(r=>[r.key,r]));
+        for (const hit of rows) if (Object.hasOwn(drafts,hit.key)) Object.assign(hit,{before:records.get(hit.key).text,after:byKey.get(hit.key)?.after ?? drafts[hit.key]});
+      }
       return { rows, count, limited, zeroWidth };
     }
     return { update, search };

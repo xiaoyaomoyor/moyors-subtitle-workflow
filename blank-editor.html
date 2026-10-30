@@ -3643,76 +3643,43 @@
 
   /* === Modal === */
   .gap-remove-panel.msw-processing-panel { width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 60px); }
-  .gap-remove-panel.msw-find-panel { width: min(520px, calc(100vw - 24px)); height: min(510px, calc(100vh - 32px)); min-width: min(320px, calc(100vw - 24px)); min-height: min(300px, calc(100vh - 32px)); max-width: calc(100vw - 12px); max-height: calc(100vh - 12px); resize: both; overflow: hidden; }
-  .find-edit-tools { flex: 0 0 auto; padding: 12px 14px 8px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border-subtle); }
-  .find-edit-scope-row, .find-edit-query-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
-  .find-edit-scope-label { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px; white-space: nowrap; }
-  .msw-find-panel .find-edit-scope-label select { width: 128px; }
-  #find-edit-selection { display: inline-flex; align-items: center; gap: 2px; color: var(--text-secondary); font-size: 12px; }
-  .msw-find-panel .find-edit-options { margin: 0 0 0 auto; border: none; padding: 0; position: relative; }
-  .find-edit-options > div { padding-top: 8px; display: grid; gap: 8px; }
-  #find-edit-tracks { display: flex; gap: 8px 14px; flex-wrap: wrap; max-height: 96px; overflow-y: auto; }
-  .msw-find-panel .media-preview-toggle input { width: 15px; height: 15px; margin: 0; padding: 0; box-shadow: none; accent-color: var(--accent); }
-  .msw-find-panel .media-preview-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; white-space: nowrap; }
-  .msw-find-panel .find-icon { width: 30px; height: 32px; min-height: 0; padding: 5px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-secondary); background: var(--bg-input); cursor: pointer; }
-  .find-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-  .msw-find-panel .find-icon:hover { color: var(--text-primary); border-color: var(--accent); }
-  .msw-find-panel .find-icon:disabled { opacity: .4; cursor: default; }
-  .find-query-input { flex: 1; min-width: 120px; position: relative; }
-  .msw-find-panel .find-query-input input { padding-right: 33px; }
-  .msw-find-panel .find-query-input .find-icon { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); border: none; background: transparent; height: 28px; }
-  .find-edit-summary { color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
-  #find-edit-message { margin: 0; }
-  #find-edit-results { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; position: relative; scrollbar-gutter: stable; }
+  .gap-remove-panel.msw-find-panel { width: min(680px, calc(100vw - 24px)); height: min(780px, calc(100vh - 32px)); min-width: min(340px, calc(100vw - 24px)); min-height: min(380px, calc(100vh - 32px)); max-width: calc(100vw - 12px); max-height: calc(100vh - 12px); resize: both; overflow: hidden; }
+  .find-unified-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .msw-find-panel .find-section { flex: 0 0 auto; margin: 0; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); }
+  .find-section > summary { font-size: 13px; font-weight: 600; color: var(--text-primary); cursor: pointer; }
+  .find-section > summary span { font-size: 12px; font-weight: 400; color: var(--text-secondary); margin-left: 8px; }
+  .find-section[open] > summary { margin-bottom: 10px; }
+  .find-checks { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  #find-edit-tracks, #find-edit-speakers { padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border-subtle); max-height: 100px; overflow: auto; }
+  .msw-find-panel .media-preview-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; white-space: nowrap; }
+  .msw-find-panel input[type="checkbox"] { width: 15px; height: 15px; margin: 0; padding: 0; box-shadow: none; accent-color: var(--accent); flex-shrink: 0; }
+  .msw-find-panel .msw-option-help-trigger { flex: 0 0 auto; width: 22px; height: 22px; padding: 0; border: 0; background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
+  .msw-find-panel .find-results-section[open] { flex: 1 0 auto; }
+  .find-results-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .find-results-toolbar > label { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .msw-find-panel #find-edit-group { width: auto; font-size: 12px; padding: 4px 8px; }
+  #find-edit-results { height: clamp(180px, 34vh, 400px); overflow: auto; overscroll-behavior: contain; position: relative; scrollbar-gutter: stable; }
   #find-edit-rows { position: relative; }
-  .msw-find-panel .find-edit-tools { min-height: 0; max-height: 47%; overflow: auto; }
-  .msw-find-panel .find-edit-tools > * { flex-shrink: 0; }
-  .find-view-switch { display: flex; gap: 4px; flex-wrap: wrap; }
-  .find-view-switch button { border: 1px solid var(--btn-border); border-radius: var(--radius-sm); padding: 5px 9px; background: var(--btn-bg); color: var(--text-secondary); font-size: 12px; cursor: pointer; }
-  .find-view-switch button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg-input)); }
-  .find-view-switch button:disabled { opacity: .45; cursor: not-allowed; }
-  #find-tools { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-  .find-tools-controls { flex: 0 0 auto; min-height: 0; max-height: 30vh; box-sizing: border-box; overflow: auto; padding: 8px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-subtle); }
-  .find-tools-controls > * { flex-shrink: 0; }
-  .find-tidy-checks { display: flex; flex: 1 0 100%; max-width: 100%; min-width: 0; gap: 7px 12px; flex-wrap: wrap; align-items: center; }
-  #find-tidy-query { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
-  .find-tools-controls .msw-processing-hint { margin: 0; font-size: 12px; }
-  #find-continuous-threshold { width: 70px; font-size: 12px; }
-  #find-tools-list { flex: 1 1 auto; min-height: 60px; overflow: auto; overscroll-behavior: contain; position: relative; }
-  #find-tools-rows { position: relative; }
-  .find-tools-row { position: absolute; left: 0; width: 100%; padding: 8px 14px; box-sizing: border-box; border-bottom: 1px solid var(--border-subtle); }
-  .find-tools-row .find-result-text { margin: 6px 0; }
-  .msw-find-panel .find-tools-row textarea { min-height: 70px; height: 75px; resize: none; font-size: 13px; }
-  .find-tools-location { border: 0; padding: 0; background: transparent; color: var(--text-secondary); font-size: 12px; cursor: pointer; }
-  .find-tools-location:hover { color: var(--accent); }
-  .find-tools-row-status { margin-left: auto; font-size: 11px; }
-  .find-tools-footer { flex: 0 0 auto; padding: 5px 14px 9px; border-top: 1px solid var(--border-subtle); }
-  .find-tools-footer .msw-processing-hint { margin: 2px 0 6px; font-size: 12px; }
-  #find-whole-editor { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 14px; }
-  .msw-find-panel #find-whole-text { min-height: 100px; height: 160px; max-height: none; font-size: 13px; line-height: 1.6; }
-  #find-whole-details { font-size: 12px; }
-  .msw-find-panel .find-replace { margin: 0; padding: 0; border: 0; }
-  .find-replace-controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding-top: 8px; }
-  .msw-find-panel .find-replace-controls textarea { flex: 1 1 170px; min-height: 32px; resize: vertical; max-height: 80px; }
-  .find-replace-controls button, .find-editor-actions button { padding: 6px 9px; font-size: 12px; white-space: nowrap; }
-  #find-edit-plan { margin: 5px 0 0; font-size: 12px; }
-  .msw-find-panel .find-edit-one { position: absolute; right: 10px; z-index: 1; }
-  .find-result-after { color: var(--accent); }
-  #find-edit-editor { flex: 0 0 auto; min-height: 0; max-height: 48%; overflow: auto; padding: 10px 14px; border-top: 1px solid var(--border-subtle); }
-  .find-editor-heading, .find-editor-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; margin-bottom: 6px; }
-  .find-editor-heading span { color: var(--text-secondary); }
-  .find-editor-actions { margin: 6px 0 0; }
-  #find-edit-text { display: block; min-height: 60px; max-height: 170px; resize: vertical; }
-  #find-edit-drafts { flex: 0 0 auto; padding: 5px 14px; border: 0; text-align: left; color: var(--accent); background: transparent; font-size: 12px; }
   #find-edit-empty { color: var(--text-secondary); text-align: center; padding: 20px 10px; font-size: 13px; }
-  .msw-find-panel .find-result { position: absolute; left: 0; width: 100%; height: 70px; padding: 9px 45px 9px 14px; display: flex; flex-direction: column; gap: 6px; text-align: left; border: none; border-bottom: 1px solid var(--border-subtle); border-radius: 0; background: transparent; color: var(--text-primary); cursor: pointer; box-sizing: border-box; font: inherit; }
-  .msw-find-panel .find-result:hover, .msw-find-panel .find-result[aria-current="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  .msw-find-panel .find-result:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
-  .find-result-meta { display: flex; gap: 10px; align-items: center; font-size: 11px; color: var(--text-secondary); white-space: nowrap; width: 100%; }
-  .find-result-meta strong { font-weight: 600; color: var(--text-primary); }
-  .find-result-status { margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
-  .find-result-text { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-  .find-result mark, .waveform-cue-label mark { color: inherit; background: color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 2px; }
+  .find-unified-row { position: absolute; left: 0; width: 100%; box-sizing: border-box; padding: 8px 4px; border-bottom: 1px solid var(--border-subtle); }
+  .find-unified-row.current { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .find-result-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: var(--text-secondary); }
+  .find-tools-location { border: 0; padding: 0; background: transparent; color: var(--text-secondary); font-size: 12px; text-align: left; cursor: pointer; }
+  .find-tools-location:hover { color: var(--accent); }
+  .find-result-status { margin-left: auto; white-space: nowrap; }
+  .find-reset { border: 0; padding: 0 4px; background: transparent; color: var(--accent); cursor: pointer; }
+  .msw-find-panel .find-unified-row textarea { display: block; resize: none; min-height: 0; font-size: 13px; line-height: 1.5; }
+  .find-result-after { font-size: 12px; line-height: 20px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .find-affixes { display: flex; gap: 8px; margin-top: 8px; }
+  .find-replace-line { display: flex; gap: 8px; align-items: end; margin-top: 10px; }
+  .find-replace-line > label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; font-size: 12px; }
+  .find-replace-line > span { padding-bottom: 8px; color: var(--text-secondary); }
+  .find-unified-footer { flex: 0 0 auto; border-top: 1px solid var(--border-subtle); padding: 8px 14px 12px; }
+  #find-edit-message { margin: 0 0 8px; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+  .find-footer-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .find-footer-actions button { font-size: 13px; padding: 6px 12px; }
+  #find-edit-drafts { border: 0; background: transparent; color: var(--accent); font-size: 12px; cursor: pointer; margin-left: auto; padding: 0; }
+  .waveform-cue-label mark { color: inherit; background: color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 2px; }
   .waveform-cue-block.msw-search-hit::after { content: ''; position: absolute; left: 7px; right: 7px; bottom: 2px; height: 2px; border-bottom: 2px dotted var(--accent); pointer-events: none; }
   .waveform-cue-block.msw-search-current::after { border-bottom-style: solid; }
   .waveform-cue-label mark.current { background: color-mix(in srgb, var(--accent) 48%, transparent); }
@@ -8035,7 +8002,7 @@
           <span><kbd data-mod>Ctrl+F</kbd> 查找字幕并定位到波形，支持全部轨道、指定轨道和所选字幕</span>
           <span>查找面板可预览并替换文字；点击结果右侧铅笔编辑，<kbd data-mod>Ctrl+Enter</kbd> 应用，<kbd>Esc</kbd> 取消本条草稿</span>
           <span><kbd>文字整理</kbd> 在查找并编辑中修剪空白、首字母大写、添加前后缀或去除 Markdown 标记</span>
-          <span><kbd>连续编辑</kbd> 按轨道逐条校对，多行保留为同条字幕；单轨整体编辑可调整未绑定字幕的行结构</span>
+          <span><kbd>连续编辑</kbd> 筛选后逐条或按轨道、说话人整段校对；勾选结果后统一应用，保留时间与绑定</span>
         </div>
       </section>
       <section class="help-subgroup">
@@ -9391,58 +9358,36 @@
     <div class="gap-remove-heading"><span class="gap-remove-eyebrow">字幕</span><h3 id="find-edit-title">查找并编辑</h3></div>
     <button type="button" id="find-edit-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭查找并编辑"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </header>
-  <div class="find-edit-tools">
-    <div class="find-edit-scope-row">
-      <label class="find-edit-scope-label">范围<select id="find-edit-scope"><option value="all">全部轨道</option><option value="tracks">指定轨道</option><option value="selected">所选字幕</option></select></label>
-      <span id="find-edit-selection" hidden><span id="find-edit-selected-count">0</span><span> 条</span><button type="button" id="find-edit-use-selection" class="find-icon" title="使用当前选择" aria-label="使用当前选择"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6"/></svg></button></span>
-      <details class="find-edit-options" data-find-search><summary>匹配设置</summary><div><label class="media-preview-toggle"><input id="find-edit-case" type="checkbox">区分大小写</label><label class="media-preview-toggle"><input id="find-edit-regex" type="checkbox">正则表达式</label></div></details>
-    </div>
-    <div id="find-edit-tracks" hidden aria-label="搜索轨道"></div>
-    <div id="find-edit-views" class="find-view-switch" role="group" aria-label="文字工具"><button type="button" data-find-view="search" aria-pressed="true">查找替换</button><button type="button" data-find-view="tidy" aria-pressed="false">文字整理</button><button type="button" data-find-view="edit" aria-pressed="false">连续编辑</button></div>
-    <div class="find-edit-query-row" data-find-search>
-      <div class="find-query-input"><input type="text" id="find-edit-query" placeholder="查找字幕文字…" aria-label="查找字幕文字" autocomplete="off" spellcheck="false"><button type="button" id="find-edit-clear" class="find-icon" title="清空查找" aria-label="清空查找"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
-      <button type="button" id="find-edit-prev" class="find-icon" title="上一处（Shift+Enter）" aria-label="上一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
-      <button type="button" id="find-edit-next" class="find-icon" title="下一处（Enter）" aria-label="下一处" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
-    </div>
-    <details id="find-edit-replace" class="find-replace" data-find-search><summary>替换</summary>
-      <div class="find-replace-controls"><textarea id="find-edit-replacement" rows="1" placeholder="替换为…（留空删除匹配文字）" aria-label="替换为" spellcheck="false"></textarea><button type="button" id="find-edit-replace-current" disabled>替换当前</button><button type="button" id="find-edit-replace-all" disabled>替换全部</button></div>
-      <p id="find-edit-plan" class="msw-processing-hint" role="status"></p>
+  <div class="find-unified-body">
+    <details class="find-section" id="find-edit-filters" open><summary>筛选</summary>
+      <div class="find-checks">
+        <label class="media-preview-toggle"><input id="find-edit-only-selected" type="checkbox">仅所选字幕</label>
+        <label class="media-preview-toggle"><input id="find-edit-all-tracks" type="checkbox" checked>全部轨道</label>
+        <label class="media-preview-toggle"><input id="find-edit-all-speakers" type="checkbox" checked>全部说话人</label>
+        <label class="media-preview-toggle"><input id="find-edit-case" type="checkbox">区分大小写</label>
+        <label class="media-preview-toggle"><input id="find-edit-regex" type="checkbox">正则表达式</label>
+        <span data-option-help="按文字模式查找，例如 foo|bar 匹配两者之一。替换可用 $1 引用括号中的内容；不熟悉时保持关闭。"></span>
+      </div>
+      <div id="find-edit-tracks" class="find-checks" hidden aria-label="筛选轨道"></div>
+      <div id="find-edit-speakers" class="find-checks" hidden aria-label="筛选说话人"></div>
     </details>
-    <div class="find-edit-summary" id="find-edit-count" data-find-search role="status" aria-live="polite">0 条字幕 · 0 处匹配</div>
-    <p id="find-edit-message" class="msw-processing-hint" role="status" hidden></p>
-  </div>
-  <div id="find-edit-results" tabindex="0" aria-label="查找结果" aria-busy="false"><p id="find-edit-empty">输入文字开始查找</p><div id="find-edit-rows" data-i18n-skip></div></div>
-  <section id="find-tools" hidden>
-    <div id="find-tidy-options" class="find-tools-controls">
-      <div class="find-tidy-checks" data-option-help="依次去除 Markdown、修剪空白、首字母大写、添加前缀和后缀。只改范围内正文，不修改绑定伙伴。">
+    <details class="find-section find-results-section" id="find-edit-result-section" open><summary>筛选结果 <span id="find-edit-count" role="status"></span></summary>
+      <div class="find-results-toolbar"><label>编辑形式<select id="find-edit-group"><option value="rows">逐条编辑</option><option value="track">整段 · 按轨道</option><option value="speaker">整段 · 按说话人</option></select></label><span data-option-help="勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。"></span><button id="find-edit-drafts" type="button" hidden></button></div>
+      <div id="find-edit-results" tabindex="0" aria-label="筛选结果" aria-busy="false"><p id="find-edit-empty">当前范围没有字幕</p><div id="find-edit-rows" data-i18n-skip></div></div>
+    </details>
+    <details class="find-section" id="find-edit-operations" open><summary>操作</summary>
+      <div id="find-tidy-options" class="find-checks">
         <label class="media-preview-toggle"><input id="find-tidy-trim" type="checkbox">修剪前后空白</label>
         <label class="media-preview-toggle"><input id="find-tidy-capitalize" type="checkbox">首字母大写</label>
         <label class="media-preview-toggle"><input id="find-tidy-markdown" type="checkbox">去除 Markdown 标记</label>
         <label class="media-preview-toggle"><input id="find-tidy-prefix" type="checkbox">添加前缀</label>
         <label class="media-preview-toggle"><input id="find-tidy-suffix" type="checkbox">添加后缀</label>
       </div>
-      <input id="find-tidy-prefix-text" type="text" placeholder="插入到字幕开头" aria-label="前缀" hidden>
-      <input id="find-tidy-suffix-text" type="text" placeholder="插入到字幕结尾" aria-label="后缀" hidden>
-      <label class="media-preview-toggle"><input id="find-tidy-matched" type="checkbox">仅匹配结果<span id="find-tidy-query" class="find-edit-summary" data-i18n-skip></span></label>
-    </div>
-    <div id="find-continuous-options" class="find-tools-controls" hidden>
-      <div class="find-view-switch" role="group" aria-label="编辑视图"><button id="find-continuous-rows" type="button" aria-pressed="true">逐条编辑</button><button id="find-continuous-whole" type="button" aria-pressed="false">整体编辑</button></div>
-      <label id="find-continuous-filter" class="find-edit-scope-label" data-option-help="只筛选列表显示，不改变已编辑草稿的应用范围。忽略空白，标点计入。">字数 ≥<input id="find-continuous-threshold" type="number" min="0" step="1" placeholder="不限" aria-label="显示字数阈值"></label>
-      <p id="find-continuous-hint" class="msw-processing-hint"></p>
-    </div>
-    <div id="find-tools-list" tabindex="0" aria-label="文字编辑列表"><div id="find-tools-rows" data-i18n-skip></div></div>
-    <div id="find-whole-editor" hidden>
-      <textarea id="find-whole-text" rows="6" aria-label="整体字幕正文" spellcheck="false"></textarea>
-      <details id="find-whole-details"><summary>修改详情</summary><div id="find-whole-report" data-i18n-skip></div></details>
-    </div>
-    <div class="find-tools-footer"><p id="find-tools-status" class="msw-processing-hint" role="status"></p><div class="find-editor-actions"><button type="button" id="find-tools-discard">放弃修改</button><button type="button" id="find-tools-apply" class="primary" disabled>应用处理</button></div></div>
-  </section>
-  <button type="button" id="find-edit-drafts" hidden></button>
-  <section id="find-edit-editor" hidden>
-    <div class="find-editor-heading"><strong id="find-edit-edit-title"></strong><span id="find-edit-edit-status" role="status"></span></div>
-    <textarea id="find-edit-text" rows="3" aria-label="编辑字幕正文" spellcheck="false"></textarea>
-    <div class="find-editor-actions"><button type="button" id="find-edit-discard">取消编辑</button><button type="button" id="find-edit-apply" class="primary">应用修改</button><span class="find-edit-summary">Ctrl+Enter 应用 · Esc 取消</span></div>
-  </section>
+      <div class="find-affixes"><input id="find-tidy-prefix-text" placeholder="插入到字幕开头" aria-label="前缀" hidden><input id="find-tidy-suffix-text" placeholder="插入到字幕结尾" aria-label="后缀" hidden></div>
+      <div class="find-replace-line"><label>查找<input type="text" id="find-edit-query" placeholder="筛选字幕文字…" aria-label="查找字幕文字" spellcheck="false"></label><span aria-hidden="true">→</span><label><span class="media-preview-toggle"><input type="checkbox" id="find-edit-replace-enabled">替换</span><input type="text" id="find-edit-replacement" placeholder="替换为…（留空删除）" aria-label="替换为" disabled></label></div>
+    </details>
+  </div>
+  <footer class="find-unified-footer"><p id="find-edit-message" role="status"></p><div class="find-footer-actions"><button type="button" id="find-edit-select-all">选中全部筛选</button><button type="button" id="find-edit-apply" class="primary" disabled>应用编辑</button></div></footer>
 </aside>
 
 <!-- 表情包选择 modal -->
@@ -20449,12 +20394,12 @@ export default MawDynamicCaptions;
       for (const key of removed) records.delete(key);
       for (const row of rows) records.set(row.key, row);
     }
-    function search({ query = '', caseSensitive = false, regex = false, scope = 'all', tracks = [], selected = [], limit = 50000, replacement = null } = {}) {
-      if (!query) return { rows: [], count: 0, limited: false };
+    function search({ query = '', caseSensitive = false, regex = false, scope = 'all', tracks = [], selected = [], limit = 50000, replacement = null, allowEmpty = false, keys = null, drafts = null } = {}) {
+      if (!query && !allowEmpty) return { rows: [], count: 0, limited: false };
       let pattern;
       try { pattern = new RegExp(regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'gu' : 'giu'); }
       catch (_) { return { rows: [], count: 0, error: 'invalid-regex' }; }
-      const trackSet = new Set(tracks), ids = new Set(selected), rows = [];
+      const trackSet = new Set(tracks), ids = new Set(selected), allowed = keys === null ? null : new Set(keys), rows = [];
       let count = 0, limited = false, zeroWidth = false, outputSize = 0;
       function substitute(match, text) {
         if (!regex) return replacement;
@@ -20471,7 +20416,9 @@ export default MawDynamicCaptions;
         });
       }
       for (const row of records.values()) {
+        if (allowed && !allowed.has(row.key)) continue;
         if (scope === 'tracks' && !trackSet.has(row.trackId) || scope === 'selected' && !ids.has(row.id)) continue;
+        if (!query) { rows.push({key:row.key,matches:[]}); continue; }
         pattern.lastIndex = 0;
         const matches = [], replacements = [];
         let match;
@@ -20507,6 +20454,16 @@ export default MawDynamicCaptions;
         const x = records.get(a.key), y = records.get(b.key);
         return x.start - y.start || x.order - y.order || x.number - y.number || x.key.localeCompare(y.key);
       });
+      // Filtering uses the committed source; replacement acts on the shared draft.
+      // Typing a draft therefore never removes the focused result from the list.
+      if (drafts && Object.keys(drafts).length) {
+        const edited = createEngine();
+        edited.update({rows:rows.filter(r=>Object.hasOwn(drafts,r.key)).map(r=>({...records.get(r.key),text:drafts[r.key]}))});
+        const edits = edited.search({query,caseSensitive,regex,limit,replacement});
+        if (edits.error || edits.limited) return {...edits,rows:[]};
+        const byKey = new Map(edits.rows.map(r=>[r.key,r]));
+        for (const hit of rows) if (Object.hasOwn(drafts,hit.key)) Object.assign(hit,{before:records.get(hit.key).text,after:byKey.get(hit.key)?.after ?? drafts[hit.key]});
+      }
       return { rows, count, limited, zeroWidth };
     }
     return { update, search };
@@ -23182,6 +23139,17 @@ export default MawDynamicCaptions;
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '仅所选字幕': 'Selected cues only', '来源已删除': 'Source deleted', '应用后：': 'After applying: ',
+    '目标字幕已改变，草稿已保留': 'Target text changed; your draft is preserved.',
+    '按文字模式查找，例如 foo|bar 匹配两者之一。替换可用 $1 引用括号中的内容；不熟悉时保持关闭。': 'Find by pattern: foo|bar matches either word. Use $1 in replacements for the first captured group. Leave off for ordinary text searches.',
+    '勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。': 'Only checked results are applied. Keep cue separators in grouped text; body text can span multiple lines. Use split or merge to change cue structure. Click a cue number to locate it.',
+    '全部轨道': 'All tracks', '全部说话人': 'All speakers', '未指定说话人': 'Unassigned speaker', '筛选结果': 'Filtered results',
+    '编辑形式': 'Editing view', '整段 · 按轨道': 'Grouped · Track', '整段 · 按说话人': 'Grouped · Speaker',
+    '选中全部筛选': 'Select all results', '应用编辑': 'Apply edits', '放弃此条草稿': 'Discard this draft',
+    '筛选字幕文字…': 'Filter subtitle text…', '替换为…（留空删除）': 'Replace with… (empty deletes)',
+    '请保留字幕分隔行；增删字幕请使用切分或合并': 'Keep cue separators. Use split or merge to add or remove cues.',
+    '筛选后逐条或按轨道、说话人整段校对；勾选结果后统一应用，保留时间与绑定': 'Edit individual cues or groups by track/speaker, then apply to checked results. Timing and bindings remain intact.',
+
     '范围': 'Scope', '文字工具': 'Text tools', '查找替换': 'Find and replace', '文字整理': 'Text cleanup', '连续编辑': 'Continuous editing',
     '仅匹配结果': 'Only matching results', '尚未查找': 'No search yet', '添加后缀': 'Add suffix',
     '请先完成有效查找，或取消仅匹配结果': 'Complete a valid search, or turn off matching results only.',
@@ -26010,6 +25978,14 @@ export default MawDynamicCaptions;
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const unifiedPlan=/^(已)?修改 (\d+) 条 · 跳过 (\d+) 条锁定字幕$/.exec(text);
+    if(unifiedPlan)return `${unifiedPlan[1]?'Changed':'Change'} ${unifiedPlan[2]} cues · Skip ${unifiedPlan[3]} locked`;
+    const unifiedCount=/^(\d+) 条 · 已选 (\d+)$/.exec(text);
+    if(unifiedCount)return `${unifiedCount[1]} cues · ${unifiedCount[2]} selected`;
+    const unifiedDraft=/^(\d+) 条未应用$/.exec(text);
+    if(unifiedDraft)return `${unifiedDraft[1]} unapplied`;
+    const unifiedChanges=/^(\d+) 条字幕将更新$/.exec(text);
+    if(unifiedChanges)return `${unifiedChanges[1]} cues will change`;
     const gapReference = /^参考轨道 · (.+)$/.exec(text);
     if (gapReference) return `Reference tracks · ${translateText(gapReference[1], lang)}`;
     const splitTrack=/^仅切 (S\d+(?:主|副)?_\d+) 并解绑$/.exec(text);
@@ -57962,7 +57938,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null, track = null) {
     // 组 1：合并与批量文本操作
     addItem('累加状态合并', 'C', () => merge(targetIdxs));
     addItem('共有状态合并', `${modKeyLabel()}+Shift+C`, () => merge(targetIdxs, 'common'));
-    addItem('查找并编辑选中字幕…', '', () => window.MSWFindEdit.open({view:'search',replace:true,ids:targetIdxs.map(i=>(track?.segments||DATA.segments)[i]?.id).filter(Boolean)}));
+    addItem('查找并编辑选中字幕…', '', () => window.MSWFindEdit.open({ids:targetIdxs.map(i=>(track?.segments||DATA.segments)[i]?.id).filter(Boolean)}));
     addSep();
     // 组 2：外观（表情包与颜色）；「拓展表情包时长」仅在范围内已有表情包时显示
     const hasStickerInRange = targetIdxs.some(i =>
@@ -66739,233 +66715,44 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   global.MSWSubtitleExport={open,refresh};
 })(window);
 
-// Text tools share the find panel's scope, drafts, navigation and text history.
+// Shared, identity-preserving grouped text representation.
+(function(global){
+  'use strict';
+  const marker = row => `⟦${row.trackName}_${row.number}⟧`;
+  function pack(rows, text = row => row.text) { return rows.map(row => marker(row) + '\n' + text(row)).join('\n\n'); }
+  function unpack(rows, text) {
+    text = text.replace(/\r\n?/g, '\n');
+    const values = []; let offset = 0;
+    for (let i=0;i<rows.length;i++) {
+      const prefix = marker(rows[i]) + '\n';
+      if (!text.startsWith(prefix, offset)) throw Error('请保留字幕分隔行；增删字幕请使用切分或合并');
+      const start = offset + prefix.length;
+      const end = i+1<rows.length ? text.indexOf('\n\n'+marker(rows[i+1])+'\n',start) : text.length;
+      if (end<0) throw Error('请保留字幕分隔行；增删字幕请使用切分或合并');
+      const value=text.slice(start,end);
+      if (/^⟦[^\n]+⟧$/m.test(value)) throw Error('请勿在正文中添加字幕分隔行');
+      values.push(value); offset=end+2;
+    }
+    return values;
+  }
+  const api={pack,unpack};
+  global.MSWFindTextTools=api;
+  if(typeof module!=='undefined')module.exports=api;
+})(typeof window==='undefined'?globalThis:window);
+
+// One filtered result set, shared drafts and one text transaction.
 (function (global) {
   'use strict';
-  global.MSWFindTextTools = function (bridge) {
-    const el = id => document.getElementById('find-' + id), t = bridge.t, formatTime = bridge.formatTime;
-    const list = el('tools-list'), canvas = el('tools-rows');
-    let mode = 'search', view = 'rows', shown = [], changes = [], timer, renderFrame;
-    let whole = null, resumedWhole = null, wholeDrafts = new Map(), notice = '', scopeKey = '';
-    const count = (zh, en) => global.MSWE_I18N?.language === 'en' ? en : zh;
-    const dirty = d => d && d.before !== d.after;
-    const status = text => { el('tools-status').textContent = t(text); };
-    const pendingRows = () => bridge.scope().map(r => bridge.drafts().get(r.key)).filter(dirty);
-    const wholeDirty = d => d && d.text !== d.initial;
-    function options() {
-      return { trim: el('tidy-trim').checked, capitalize: el('tidy-capitalize').checked,
-        stripMarkdown: el('tidy-markdown').checked, addPrefix: el('tidy-prefix').checked,
-        prefix: el('tidy-prefix-text').value, addSuffix: el('tidy-suffix').checked, suffix: el('tidy-suffix-text').value };
-    }
-    function summary(plan) {
-      return count(`修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`, `Change ${plan.edits.length} cues · Skip ${plan.locked} locked`);
-    }
-    function setMode(next) {
-      mode = next; notice = ''; list.scrollTop = 0;
-      el('tools').hidden = mode === 'search';
-      el('tidy-options').hidden = mode !== 'tidy'; el('continuous-options').hidden = mode !== 'edit';
-      refresh();
-    }
-    function refresh() {
-      if (mode === 'search') return;
-      clearTimeout(timer);
-      const rows = bridge.scope();
-      const nextScope = JSON.stringify([bridge.scopeTracks(), rows.map(r => r.key)]);
-      if (nextScope !== scopeKey) { notice = ''; scopeKey = nextScope; list.scrollTop = 0; }
-      if (mode === 'edit' && !resumedWhole && bridge.scopeTracks().length !== 1) view = 'rows';
-      el('continuous-rows').setAttribute('aria-pressed', String(view === 'rows'));
-      el('continuous-whole').setAttribute('aria-pressed', String(view === 'whole'));
-      el('tools-apply').textContent = t(mode === 'tidy' ? '应用处理' : '应用修改');
-      el('tools-discard').hidden = mode === 'tidy';
-      el('whole-editor').hidden = mode !== 'edit' || view !== 'whole';
-      list.hidden = mode === 'edit' && view === 'whole';
-      if (mode === 'tidy') {
-        el('tidy-prefix-text').hidden = !el('tidy-prefix').checked; el('tidy-suffix-text').hidden = !el('tidy-suffix').checked;
-        const query = bridge.query();
-        el('tidy-query').textContent = query.text ? `“${query.text}”` : t('尚未查找');
-        el('tidy-matched').disabled = !query.text && !el('tidy-matched').checked;
-        const matched = el('tidy-matched').checked, selected = matched ? rows.filter(r => query.keys.has(r.key)) : rows;
-        const opts = options();
-        changes = selected.map(r => ({ key:r.key, before:r.text, after:AsrEditorUtils.applyTextProcessing(r.text, opts) })).filter(c => c.before !== c.after);
-        shown = changes.map(c => ({ ...bridge.records().get(c.key), change:c }));
-        const plan = MSWFindCore.planChanges(changes, bridge.records());
-        el('tools-apply').disabled = !plan.edits.length || matched && (!query.text || !query.ready);
-        status(notice || (matched && (!query.text || !query.ready) ? '请先完成有效查找，或取消仅匹配结果' : summary(plan)));
-      } else {
-        const single = bridge.scopeTracks().length === 1;
-        el('continuous-whole').disabled = !single;
-        el('continuous-hint').textContent = t(view === 'whole' ? '一行对应一条字幕；绑定字幕的拆分／合并请使用联动操作。' : single ? '' : '整体编辑需要选择单条轨道。');
-        el('continuous-filter').hidden = view === 'whole';
-        if (view === 'whole') { loadWhole(rows); return; }
-        const threshold = el('continuous-threshold').value;
-        shown = rows.filter(r => threshold === '' || MSWBatchEditing.visibleCharacterCount(bridge.drafts().get(r.key)?.after ?? r.text) >= Number(threshold));
-        updateRowsStatus();
-      }
-      render();
-    }
-    function updateRowsStatus() {
-      const plan = MSWFindCore.planChanges(pendingRows(), bridge.records());
-      el('tools-apply').disabled = !plan.edits.length || !!plan.conflicts.length;
-      el('tools-discard').disabled = !pendingRows().length;
-      status(notice || (plan.conflicts.length ? '目标字幕已改变，草稿已保留' : summary(plan)));
-    }
-    function meta(row) {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'find-tools-location'; button.dataset.locate = row.key;
-      button.textContent = `${row.trackName}_${row.number}  ${formatTime(row.start)}`;
-      button.title = t('定位到字幕'); return button;
-    }
-    function render() {
-      if (mode === 'search' || list.hidden || !bridge.isOpen()) return;
-      cancelAnimationFrame(renderFrame);
-      const height = mode === 'edit' ? 128 : 100;
-      canvas.style.height = `${shown.length * height}px`;
-      const first = Math.max(0, Math.floor(list.scrollTop / height) - 2), last = Math.min(shown.length, first + Math.ceil(list.clientHeight / height) + 5);
-      const focused = document.activeElement?.closest('#find-tools-rows textarea'), focus = focused && {key:focused.dataset.key, start:focused.selectionStart, end:focused.selectionEnd};
-      const fragment = document.createDocumentFragment();
-      for (let i = first; i < last; i++) {
-        const row = shown[i], item = document.createElement('div'); item.className = 'find-tools-row'; item.dataset.key = row.key;
-        item.style.top = `${i * height}px`; item.style.height = `${height}px`;
-        const header = document.createElement('div'); header.className = 'find-editor-heading'; header.append(meta(row));
-        const state = document.createElement('span'); state.className = 'find-tools-row-status';
-        const draft = bridge.drafts().has(row.key) ? bridge.draft(row.key) : null;
-        state.textContent = t(row.locked ? '已锁定' : dirty(draft) ? (draft.before !== row.text ? '原文已改变' : '未应用') : row.disabled ? '已禁用' : '');
-        header.append(state); item.append(header);
-        if (mode === 'edit') {
-          const input = document.createElement('textarea'); input.rows = 2; input.dataset.key = row.key; input.value = draft?.after ?? row.text;
-          input.readOnly = row.locked; input.ariaLabel = `${row.trackName}_${row.number}`; input.spellcheck = false; item.append(input);
-        } else {
-          for (const [title, value] of [['原文',row.change.before],['处理后',row.change.after]]) {
-            const line = document.createElement('div'); line.className = 'find-result-text'; line.textContent = `${t(title)}：${value || t('（空文本）')}`;
-            line.title = value; item.append(line);
-          }
-        }
-        fragment.append(item);
-      }
-      canvas.replaceChildren(fragment);
-      if (focus) { const input = [...canvas.querySelectorAll('textarea')].find(n => n.dataset.key === focus.key); if (input) { input.focus({preventScroll:true}); input.setSelectionRange(focus.start,focus.end); } }
-    }
-    function loadWhole(rows) {
-      const tracks = bridge.scopeTracks(), key = JSON.stringify([tracks, rows.map(r => r.id)]);
-      whole = resumedWhole || wholeDrafts.get(key) || null;
-      if (whole && !wholeDirty(whole)) { wholeDrafts.delete(key); whole = null; }
-      if (!whole) {
-        if (tracks.length !== 1 || !rows.length || rows.some(r => r.text.includes('\n'))) {
-          el('whole-text').value = ''; el('whole-text').disabled = true; el('tools-apply').disabled = true; el('tools-discard').disabled = true;
-          status(tracks.length !== 1 ? '整体编辑需要选择单条轨道。' : !rows.length ? '当前范围没有字幕' : '当前字幕含有换行，请使用逐条编辑。'); el('whole-report').replaceChildren(); return;
-        }
-        const p = MSWProductionProject.toProject(DATA), ids = rows.map(r => r.id), chosen = new Set(ids), snapshot = MSWBatchEditing.trackCues(p, tracks[0]);
-        const source = MSWBatchEditing.textSources(snapshot.filter(c => chosen.has(c.id)), p);
-        const initial = source.map(c => c.text).join('\n');
-        whole = {key, track:tracks[0], ids, snapshot, source, initial, text:initial, title:rows[0].trackName};
-      }
-      el('whole-text').disabled = false;
-      if (el('whole-text').value !== whole.text) el('whole-text').value = whole.text;
-      el('whole-text').readOnly = rows.some(r => r.locked);
-      previewWhole();
-    }
-    function wholePlan(draft, makeId) {
-      if (pendingLinkedSplit || waveformEditor?.drag) throw Error('请先完成当前切分或拖动');
-      const p = MSWProductionProject.toProject(DATA), ids = new Set(draft.ids);
-      const current = MSWBatchEditing.textSources(MSWBatchEditing.trackCues(p,draft.track).filter(c => ids.has(c.id)),p);
-      if (JSON.stringify(current) !== JSON.stringify(draft.source)) throw Error('目标字幕已改变，草稿已保留');
-      const lines = draft.text.replace(/\r\n?/g,'\n').split('\n');
-      const report = AsrEditorUtils.buildTimedTextEditReport(draft.source,lines);
-      if (!report.valid) throw Error('无法映射这些行，请检查修改内容');
-      const segments = AsrEditorUtils.applyTimedTextEdit(draft.source,lines);
-      if (!segments) throw Error('无法映射这些行，请检查修改内容');
-      const result = MSWBatchEditing.draft(p,draft.track,draft.snapshot,draft.ids,segments,report,{makeId});
-      return { ...result, report, segments };
-    }
-    function previewWhole() {
-      el('tools-apply').disabled = true; el('tools-discard').disabled = !wholeDirty(whole); el('whole-report').replaceChildren();
-      if (!whole || !wholeDirty(whole)) { status(notice || '当前没有文字修改'); return; }
-      try {
-        const result = wholePlan(whole), stats = result.report.stats;
-        const added = result.ids.filter(id => !whole.ids.includes(id)).length, removed = whole.ids.filter(id => !result.ids.includes(id)).length;
-        status(count(`修改 ${stats.changedSegments} 条 · 新增 ${added} 条 · 移除 ${removed} 条`, `Change ${stats.changedSegments} · Add ${added} · Remove ${removed}`));
-        const metrics = document.createElement('p'); metrics.className = 'msw-processing-hint';
-        metrics.textContent = count(`字词时间码：完整映射 ${stats.fullMappedCues || 0} · 部分保留 ${stats.partialMappedCues || 0} · 重新分配 ${stats.structureMappedCues || 0} · 估算 ${stats.estimatedTimingCues || 0} · 清除 ${stats.lostMappedCues || 0}`, `Word timing: complete ${stats.fullMappedCues || 0} · partial ${stats.partialMappedCues || 0} · remapped ${stats.structureMappedCues || 0} · estimated ${stats.estimatedTimingCues || 0} · cleared ${stats.lostMappedCues || 0}`);
-        el('whole-report').append(metrics);
-        result.segments.slice(0,100).forEach(c => { const line=document.createElement('div'); line.textContent=`${formatTime(c.start)} → ${formatTime(c.end)}  ${c.text}`; el('whole-report').append(line); });
-        if(result.segments.length>100){const hint=document.createElement('p');hint.textContent=t('详情仅展示前 100 条，应用包含全部修改。');el('whole-report').append(hint);}
-        el('tools-apply').disabled = !stats.changedSegments;
-      } catch(error) { status(error.message); }
-    }
-    function apply() {
-      if (el('tools-apply').disabled) return;
-      try {
-        if (mode === 'edit' && view === 'whole') {
-          commitProcessingEdits();
-          const result = wholePlan(whole, kind => MSWProject.id(kind));
-          if (whole.ids.some(id => dirty([...bridge.drafts().values()].find(d => bridge.records().get(d.key)?.id === id)))) throw Error('请先应用或取消目标字幕的未应用修改');
-          const sameStructure = result.ids.length === whole.ids.length && result.segments.every((c,i) => c.id === whole.source[i].id && c.start === whole.source[i].start && c.end === whole.source[i].end);
-          if (sameStructure) bridge.commit(result.segments.map((c,i) => ({key:JSON.stringify([whole.track,c.id]),before:whole.source[i].text,after:c.text})), '整体文字编辑');
-          else productionCommitProject(result.project,'整体文字编辑',result.ids);
-          wholeDrafts.delete(whole.key); whole = null; resumedWhole = null;
-        } else {
-          const edits = mode === 'tidy' ? changes : pendingRows();
-          if (mode === 'tidy' && edits.some(c => dirty(bridge.drafts().get(c.key)))) throw Error('请先应用或取消目标字幕的未应用修改');
-          const plan = bridge.commit(edits, mode === 'tidy' ? '文字整理' : '连续文字编辑');
-          for (const c of plan.edits) bridge.drafts().delete(c.key);
-          notice = count(`已修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`, `Changed ${plan.edits.length} cues · Skipped ${plan.locked} locked`);
-        }
-        bridge.refresh(); refresh(); bridge.draftsChanged();
-      } catch(error) { status(error.message); el('tools-apply').disabled = true; }
-    }
-    function discard() {
-      notice = '';
-      if (mode === 'edit' && view === 'whole') { if(whole) wholeDrafts.delete(whole.key); whole=null; resumedWhole=null; }
-      else for (const row of bridge.scope()) bridge.drafts().delete(row.key);
-      refresh(); bridge.draftsChanged();
-    }
-    function resumeWhole(key) {
-      const pending = key ? wholeDrafts.get(key) : [...wholeDrafts.values()].find(wholeDirty); if (!pending) return false;
-      bridge.selectIds(pending.ids); resumedWhole = pending; view = 'whole'; bridge.setMode('edit'); refresh(); el('whole-text').focus(); return true;
-    }
-    for (const id of ['tidy-trim','tidy-capitalize','tidy-markdown','tidy-prefix','tidy-suffix','tidy-matched']) el(id).addEventListener('change', () => { notice='';refresh(); });
-    for (const id of ['tidy-prefix-text','tidy-suffix-text','continuous-threshold']) el(id).addEventListener('input', () => {notice='';clearTimeout(timer);timer=setTimeout(refresh,170);el('tools-apply').disabled=true;});
-    for (const name of ['rows','whole']) el('continuous-'+name).addEventListener('click', () => {
-      view=name;resumedWhole=null;notice='';list.scrollTop=0;
-      el('continuous-rows').setAttribute('aria-pressed',String(view==='rows'));el('continuous-whole').setAttribute('aria-pressed',String(view==='whole'));refresh();
-    });
-    el('whole-text').addEventListener('input', () => { if(!whole)return;whole.text=el('whole-text').value;if(wholeDirty(whole))wholeDrafts.set(whole.key,whole);else wholeDrafts.delete(whole.key);notice='';el('tools-apply').disabled=true;bridge.draftsChanged();clearTimeout(timer);timer=setTimeout(previewWhole,170); });
-    list.addEventListener('scroll', () => {cancelAnimationFrame(renderFrame);renderFrame=requestAnimationFrame(render);});
-    new ResizeObserver(render).observe(list);
-    canvas.addEventListener('click', event => {const button=event.target.closest('[data-locate]');if(button)bridge.navigate(button.dataset.locate);});
-    canvas.addEventListener('input', event => {
-      const input=event.target.closest('textarea[data-key]');if(!input)return;
-      const draft=bridge.draft(input.dataset.key);draft.after=input.value;notice='';
-      input.closest('.find-tools-row').querySelector('.find-tools-row-status').textContent=t(dirty(draft)?'未应用':'');
-      updateRowsStatus();bridge.draftsChanged();
-    });
-    el('tools-apply').addEventListener('click',apply);el('tools-discard').addEventListener('click',discard);
-    el('tools').addEventListener('keydown', event => {if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)&&!event.isComposing){event.preventDefault();event.stopPropagation();if(view==='whole'&&mode==='edit'){clearTimeout(timer);previewWhole();}apply();}});
-    return { setMode,refresh,hasDraft:()=>[...wholeDrafts.values()].some(wholeDirty),pendingCount:()=>[...wholeDrafts.values()].filter(wholeDirty).length,resumeWhole,
-      pendingKeys:()=>[...wholeDrafts.values()].filter(wholeDirty).map(d=>d.key),
-      invalidate(){el('tools-apply').disabled=true;},
-      sourceChanged(){notice='';},
-      scopeChanged(){resumedWhole=null;notice='';},
-      reset(){clearTimeout(timer);wholeDrafts.clear();whole=null;resumedWhole=null;view='rows';notice='';scopeKey='';}, close(){clearTimeout(timer);} };
-  };
-})(window);
-
-// Search, replacement previews and cue-local text transactions.
-(function (global) {
-  'use strict';
-  const core = global.MSWFindCore, host = global.MSWE.resolve('processing-host');
-  const el = id => document.getElementById('find-edit-' + id), panel = el('panel');
-  const viewport = el('results'), canvas = el('rows');
-  let rowHeight = 70, ready = false, publishedVersion = -1, editKey = null, drafts = new Map(), operationNotice = '';
-  let mode = 'search', textTools = null, scopeCache = null, draftCursor = '';
-  const t = text => global.MSWE_I18N?.translateText(text) || text;
-  let records = new Map(), references = new Map(), cuesById = new Map(), tracks = [], trackSignature = '';
-  let result = { rows: [], count: 0 }, matchMap = new Map(), selected = [], trackIds = new Set();
-  let activeKey = null, activeMatch = 0, queryVersion = 0, worker = null, workerBusy = false;
-  let timeout, queryTimer, syncTimer, renderFrame, plainEngine = core.createEngine();
-  const floating = host.createFloatingPanel({ panel, dragHandle: el('drag'),
-    anchorButton: document.querySelector('[data-menubar-item="subtitle"] > button'),
-    positionKey: 'msw.findEdit.position.v1', onClose: onClose });
-
+  const core=global.MSWFindCore, host=global.MSWE.resolve('processing-host');
+  const el=id=>document.getElementById('find-edit-'+id), panel=el('panel'), viewport=el('results'), canvas=el('rows');
+  const tidy=id=>document.getElementById('find-tidy-'+id);
+  const t=text=>global.MSWE_I18N?.translateText(text)||text;
+  let records=new Map(),references=new Map(),cuesById=new Map(),tracks=[],trackSignature='',speakerSignature='';
+  let trackIds=new Set(),speakerIds=new Set(),selected=[],excluded=new Set(),drafts=new Map(),invalidGroups=new Map();
+  let result={rows:[],count:0},matchMap=new Map(),units=[],changes=[],ready=false,activeKey=null,activeMatch=0;
+  let queryVersion=0,worker=null,workerBusy=false,timeout,queryTimer,syncTimer,renderFrame,rowHeight=156;
+  let plainEngine=core.createEngine(),notice='',recoverDrafts=false;
+  const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.querySelector('[data-menubar-item="subtitle"] > button'),positionKey:'msw.findEdit.position.v1',onClose});
   function sources() { return layerCore.tracks(DATA); }
   function readIndex() {
     const flat = fixedTrackMode();
@@ -66977,7 +66764,8 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       const trackId = owners ? owners.get(fixedTrackCore.key({ role: source.role, track_id: source.track_id, cue_id: cue.id })) : source.track_id || 'main';
       const track = trackMap.get(trackId); if (!track) return;
       const key = JSON.stringify([trackId, cue.id]);
-      const row = { key, id: cue.id, trackId, trackName: track.name, order: track.order, start: cue.start, end: cue.end,
+      const speaker = MSWSpeaker.profile(DATA,cue,source.segments[cue.color_ref?.headIdx]);
+      const row = { speakerId:speaker?.id || '', speakerName:speaker ? MSWSpeaker.displayName(speaker) : t('未指定说话人'), key, id: cue.id, trackId, trackName: track.name, order: track.order, start: cue.start, end: cue.end,
         text: String(cue.text || ''), locked: !!track.locked, disabled: track.enabled === false || !!cue.disabled };
       if (!groups.has(trackId)) groups.set(trackId, []);
       groups.get(trackId).push(row); refs.set(key, { cue, source, index });
@@ -66993,97 +66781,58 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     records = next; references = refs; cuesById = new Map([...refs.values()].map(ref => [ref.cue.id, ref.cue]));
     const patch = { rows: changed, removed };
     plainEngine.update(patch); worker?.postMessage({ type: 'update', patch });
-    refreshTracks();
+    refreshFilters();
     return changed.length > 0 || removed.length > 0;
   }
-  function refreshTracks() {
-    const signature = JSON.stringify(tracks.map(track => [track.id, track.name, track.locked, track.enabled]));
-    if (signature === trackSignature) return;
-    const first = !trackSignature; trackSignature = signature;
-    if (first) trackIds = new Set(tracks.map(track => track.id));
-    else trackIds = new Set([...trackIds].filter(id => tracks.some(track => track.id === id)));
-    el('tracks').replaceChildren(...tracks.map(track => {
-      const label = document.createElement('label'); label.className = 'media-preview-toggle';
-      const input = document.createElement('input'); input.type = 'checkbox'; input.value = track.id; input.checked = trackIds.has(track.id);
-      input.addEventListener('change', () => { if (input.checked) trackIds.add(track.id); else trackIds.delete(track.id); textTools?.scopeChanged(); scheduleQuery(); textTools?.refresh(); });
-      label.append(input, document.createTextNode(track.name)); return label;
+
+  function checks(target, rows, chosen) {
+    target.replaceChildren(...rows.map(row=>{
+      const label=document.createElement('label');label.className='media-preview-toggle';
+      const input=document.createElement('input');input.type='checkbox';input.value=row.id;input.checked=chosen.has(row.id);
+      input.addEventListener('change',()=>{input.checked?chosen.add(row.id):chosen.delete(row.id);scheduleQuery();});
+      label.append(input,document.createTextNode(row.name));return label;
     }));
   }
-  function options() {
-    return { query: el('query').value, caseSensitive: el('case').checked, regex: el('regex').checked,
-      scope: el('scope').value, tracks: [...trackIds], selected,
-      replacement: el('replace').open ? el('replacement').value : null };
+  function refreshFilters() {
+    const signature=JSON.stringify(tracks.map(r=>[r.id,r.name]));
+    if(signature!==trackSignature){if(!trackSignature)trackIds=new Set(tracks.map(r=>r.id));trackSignature=signature;checks(el('tracks'),tracks,trackIds);}
+    const speakers=(DATA.preview?.speaker_palette?.rows||[]).map(r=>({id:r.id,name:MSWSpeaker.displayName(r)}));
+    const known=new Set(speakers.map(r=>r.id));
+    for(const r of records.values())if(!known.has(r.speakerId)){speakers.push({id:r.speakerId,name:r.speakerName});known.add(r.speakerId);}
+    const ss=JSON.stringify(speakers);
+    if(ss!==speakerSignature){if(!speakerSignature)speakerIds=new Set(speakers.map(r=>r.id));speakerSignature=ss;checks(el('speakers'),speakers,speakerIds);}
   }
-  function stopWorker() { clearTimeout(timeout); worker?.terminate(); worker = null; workerBusy = false; }
-  function ensureWorker() {
-    if (worker) return true;
-    let url;
-    try {
-      url = URL.createObjectURL(new Blob([core.workerSource()], { type: 'text/javascript' }));
-      worker = new Worker(url);
-      worker.onmessage = event => {
-        if (event.data.version !== queryVersion || !floating.isOpen()) return;
-        workerBusy = false; clearTimeout(timeout); publish(event.data.result);
-      };
-      worker.onerror = event => { event.preventDefault(); stopWorker(); fallback(queryVersion, options()); };
-      worker.postMessage({ type: 'update', patch: { rows: [...records.values()], reset: true } });
-      return true;
-    } catch (_) { stopWorker(); return false; }
-    finally { if (url) URL.revokeObjectURL(url); }
+  function scopedRows() {
+    const ids=new Set(selected);
+    return [...records.values()].filter(r=>(!el('only-selected').checked||ids.has(r.id))&&(el('all-tracks').checked||trackIds.has(r.trackId))&&(el('all-speakers').checked||speakerIds.has(r.speakerId)));
   }
-  function fallback(version, query) {
-    if (version !== queryVersion || !floating.isOpen()) return;
-    if (query.regex) { publish({ rows: [], count: 0, error: 'worker-unavailable' }); return; }
-    // Literal matching is bounded. Never execute arbitrary regex on the UI thread.
-    publish(plainEngine.search(query));
+  function options(){return {query:el('query').value,caseSensitive:el('case').checked,regex:el('regex').checked,
+    keys:scopedRows().map(r=>r.key),allowEmpty:true,replacement:el('replace-enabled').checked?el('replacement').value:null,
+    drafts:Object.fromEntries([...drafts].map(([key,d])=>[key,d.after]))};}
+  function stopWorker(){clearTimeout(timeout);worker?.terminate();worker=null;workerBusy=false;}
+  function ensureWorker(){
+    if(worker)return true;let url;
+    try {url=URL.createObjectURL(new Blob([core.workerSource()],{type:'text/javascript'}));worker=new Worker(url);
+      worker.onmessage=event=>{if(event.data.version!==queryVersion||!floating.isOpen())return;workerBusy=false;clearTimeout(timeout);publish(event.data.result);};
+      worker.onerror=event=>{event.preventDefault();stopWorker();fallback(options());};
+      worker.postMessage({type:'update',patch:{rows:[...records.values()],reset:true}});return true;
+    }catch(_){stopWorker();return false;}finally{if(url)URL.revokeObjectURL(url);}
   }
-  function message(text) { el('message').textContent = t(text); el('message').hidden = !text || mode !== 'search'; }
-  function publish(next) {
-    const oldIndex = result.rows.findIndex(row => row.key === activeKey);
-    result = next; publishedVersion = queryVersion; ready = !next.error && !next.limited; viewport.setAttribute('aria-busy', 'false');
-    matchMap = new Map(next.rows.map(row => [records.get(row.key)?.id, row]));
-    if (!next.rows.some(row => row.key === activeKey)) { activeKey = oldIndex >= 0 ? next.rows[Math.min(oldIndex, next.rows.length - 1)]?.key || null : null; activeMatch = 0; }
-    else activeMatch = Math.min(activeMatch, matchMap.get(records.get(activeKey)?.id)?.matches.length - 1 || 0);
-    el('count').textContent = global.MSWE_I18N?.language === 'en'
-      ? `${next.rows.length} cues · ${next.count} matches` : `${next.rows.length} 条字幕 · ${next.count} 处匹配`;
-    const notices = { 'invalid-regex': '正则表达式无效', 'worker-unavailable': '此环境无法安全运行正则，请使用普通文字查找', 'timeout': '查询耗时过长，请简化正则表达式', 'replacement-too-large': '替换结果过大，请缩小范围' };
-    message(notices[next.error] || (next.limited ? '匹配过多，仅显示前 50000 处，请缩小范围' : next.zeroWidth ? '已忽略不包含文字的零宽匹配' : operationNotice));
-    el('empty').textContent = t(!el('query').value ? '输入文字开始查找' : '没有匹配的字幕');
-    el('empty').hidden = !!next.rows.length || !!next.error;
-    el('prev').disabled = el('next').disabled = !next.count;
-    rowHeight = el('replace').open ? 100 : 70;
-    canvas.style.height = `${next.rows.length * rowHeight}px`;
-    syncActions(); syncDraftStatus(); renderRows(); paintWaveform(); textTools?.refresh();
+  function fallback(query){publish(query.regex?{rows:[],count:0,error:'worker-unavailable'}:plainEngine.search(query));}
+  function runQuery(){
+    if(!floating.isOpen())return;const query=options(),version=queryVersion;
+    if(!ensureWorker()){fallback(query);return;}
+    workerBusy=true;worker.postMessage({type:'search',version,query});
+    timeout=setTimeout(()=>{if(version===queryVersion&&workerBusy){stopWorker();publish({rows:[],count:0,error:'timeout'});}},1500);
   }
-  function runQuery() {
-    if (!floating.isOpen()) return;
-    const query = options(), version = queryVersion;
-    if (!query.query) { publish({ rows: [], count: 0 }); return; }
-    viewport.setAttribute('aria-busy', 'true'); el('count').textContent = t('正在查找…');
-    if (!ensureWorker()) { fallback(version, query); return; }
-    workerBusy = true; worker.postMessage({ type: 'search', version, query });
-    timeout = setTimeout(() => { if (version === queryVersion && workerBusy) { stopWorker(); publish({ rows: [], count: 0, error: 'timeout' }); } }, 1500);
+  function scheduleQuery({resetScroll=true}={}) {
+    ready=false;el('apply').disabled=true;viewport.setAttribute('aria-busy','true');clearTimeout(queryTimer);++queryVersion;
+    if(workerBusy)stopWorker();
+    if(resetScroll){viewport.scrollTop=0;activeKey=null;notice='';recoverDrafts=false;}
+    matchMap.clear();paintWaveform();queryTimer=setTimeout(runQuery,160);
   }
-  function scheduleQuery({ resetScroll = true } = {}) {
-    ready = false; syncActions(); textTools?.invalidate();
-    clearTimeout(queryTimer); ++queryVersion;
-    if (workerBusy) stopWorker();
-    if (resetScroll) {
-      operationNotice = '';
-      viewport.scrollTop = 0; activeKey = null; activeMatch = 0;
-      result = { rows: [], count: 0 }; canvas.replaceChildren(); canvas.style.height = '0px';
-      el('prev').disabled = el('next').disabled = true; el('empty').hidden = true; message('');
-    }
-    // Old highlights must not advertise a newer query while it is pending.
-    matchMap.clear(); paintWaveform();
-    queryTimer = setTimeout(runQuery, 170);
-  }
-  function changed() {
-    if (!floating.isOpen()) return;
-    ready = false; syncActions(); textTools?.invalidate();
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => { if (readIndex()) { textTools?.sourceChanged(); scheduleQuery({ resetScroll: false }); } else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); textTools?.refresh(); } syncDraftStatus(); }, 180);
-  }
+  function changed(){if(!floating.isOpen())return;ready=false;el('apply').disabled=true;clearTimeout(syncTimer);
+    syncTimer=setTimeout(()=>{readIndex();scheduleQuery({resetScroll:false});},180);}
   function highlight(node, text, matches, active = -1) {
     node.replaceChildren(); let cursor = 0;
     matches.forEach(([start, end], i) => {
@@ -67091,43 +66840,6 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       const mark = document.createElement('mark'); mark.textContent = text.slice(start, end); mark.classList.toggle('current', i === active); node.append(mark); cursor = end;
     });
     node.append(document.createTextNode(text.slice(cursor)));
-  }
-  function renderRows() {
-    if (!floating.isOpen() || mode !== 'search') return;
-    cancelAnimationFrame(renderFrame);
-    const first = Math.max(0, Math.floor(viewport.scrollTop / rowHeight) - 3);
-    const last = Math.min(result.rows.length, first + Math.ceil(viewport.clientHeight / rowHeight) + 7);
-    const fragment = document.createDocumentFragment();
-    for (let i = first; i < last; i++) {
-      const hit = result.rows[i], row = records.get(hit.key); if (!row) continue;
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'find-result'; button.dataset.key = hit.key;
-      button.style.top = `${i * rowHeight}px`; button.style.height = `${rowHeight}px`; button.setAttribute('aria-current', hit.key === activeKey ? 'true' : 'false');
-      button.setAttribute('aria-label', `${row.trackName}_${row.number} ${formatTime(row.start)} ${row.text}`);
-      const meta = document.createElement('span'); meta.className = 'find-result-meta';
-      const name = document.createElement('strong'); name.textContent = `${row.trackName}_${row.number}`;
-      const time = document.createElement('span'); time.textContent = formatTime(row.start);
-      const status = document.createElement('span'); status.className = 'find-result-status';
-      status.textContent = [row.locked ? t('已锁定') : '', row.disabled ? t('已禁用') : '', hit.matches.length > 1 ? `×${hit.matches.length}` : ''].filter(Boolean).join(' · ');
-      meta.append(name, time, status);
-      const text = document.createElement('span'); text.className = 'find-result-text'; text.dataset.i18nSkip = '';
-      const current = hit.key === activeKey ? activeMatch : 0, start = Math.max(0, hit.matches[current][0] - 35), end = Math.min(row.text.length, Math.max(start + 140, hit.matches[current][1] + 35));
-      const snippet = row.text.slice(start, end);
-      const ranges = hit.matches.map(([a, b]) => [Math.max(a, start) - start, Math.min(b, end) - start]).filter(([a, b]) => b > a);
-      highlight(text, snippet, ranges); if (start) text.prepend('…'); if (end < row.text.length) text.append('…');
-      button.append(meta, text);
-      if (hit.after !== undefined) {
-        text.prepend(t('原文') + '：');
-        const after = document.createElement('span'); after.className = 'find-result-text find-result-after';
-        after.textContent = t('替换后') + '：' + (hit.after || t('（空文本）')); after.title = hit.after;
-        button.append(after);
-      }
-      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'find-icon find-edit-one';
-      edit.dataset.editKey = hit.key; edit.style.top = `${i * rowHeight + 8}px`;
-      edit.title = edit.ariaLabel = t('编辑此条字幕');
-      edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l5-1L21 7l-5-5L4 14z"/></svg>';
-      fragment.append(button, edit);
-    }
-    canvas.replaceChildren(fragment);
   }
   function formatTime(ms) {
     const total = Math.max(0, Math.round(ms)), seconds = Math.floor(total / 1000), minutes = Math.floor(seconds / 60);
@@ -67166,7 +66878,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     if (fixedTrackMode()) {
       const track = DATA.subtitle_tracks.tracks.find(track => track.id === row.trackId);
       if (track?.collapsed) {
-        if (!fixedUpdateTrack(track.id, { collapsed: false })) { message('请先完成当前编辑，再展开目标轨道'); return; }
+        if (!fixedUpdateTrack(track.id, { collapsed: false })) { notice='请先完成当前编辑，再展开目标轨道';el('message').textContent=t(notice);return; }
         readIndex(); ref = references.get(key);
       }
       fixedActiveTrackId = row.trackId;
@@ -67182,23 +66894,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     seekFromWaveform(row.start / 1000, { pauseAfterSeek: true });
     waveformEditor?.refreshCueOverlay?.();
     waveformEditor?.revealTime(row.start, true);
-    const i = result.rows.findIndex(hit => hit.key === key), top = i * rowHeight;
+    const i = units.findIndex(unit => unit.rows.some(row=>row.key===key)), top = i * rowHeight;
     if (top < viewport.scrollTop || top + rowHeight > viewport.scrollTop + viewport.clientHeight) viewport.scrollTop = top;
-    syncActions(); renderRows(); paintWaveform();
-  }
-  function currentChange() {
-    const hit = result.rows.find(row => row.key === activeKey) || result.rows[0];
-    if (!hit?.replacements) return null;
-    const i = hit.key === activeKey ? activeMatch : 0, [a, b] = hit.matches[i];
-    return { key: hit.key, before: hit.before, after: hit.before.slice(0, a) + hit.replacements[i] + hit.before.slice(b) };
-  }
-  function syncActions() {
-    const plan = core.planChanges(result.rows.filter(r => r.after !== undefined), records);
-    const current = currentChange(), now = current && core.planChanges([current], records);
-    el('replace-current').disabled = !ready || !now?.edits.length;
-    el('replace-all').disabled = !ready || !plan.edits.length;
-    el('plan').textContent = ready && el('replace').open
-      ? (global.MSWE_I18N?.language === 'en' ? `Change ${plan.edits.length} cues · Skip ${plan.locked} locked` : `修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`) : '';
+    renderRows(); paintWaveform();
   }
   function capture(record, label = record.label) {
     const ids = new Set(record.cues.map(c => c.id));
@@ -67238,158 +66936,152 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     }) };
     editorHistory.push(capture(patch)); restore(patch); return plan;
   }
-  function replace(all) {
-    if (!ready) return;
-    try {
-      const changes = all ? result.rows.filter(r => r.after !== undefined) : [currentChange()].filter(Boolean);
-      if (changes.some(c => drafts.has(c.key) && drafts.get(c.key).after !== drafts.get(c.key).before)) throw Error('请先应用或取消目标字幕的未应用修改');
-      const plan = commit(changes, all ? '替换全部' : '替换当前');
-      operationNotice = global.MSWE_I18N?.language === 'en' ? `Changed ${plan.edits.length} cues · Skipped ${plan.locked} locked` : `已修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`;
-      readIndex(); scheduleQuery({ resetScroll: false });
-    } catch (error) { operationNotice = error.message; message(operationNotice); readIndex(); scheduleQuery({ resetScroll: false }); syncDraftStatus(); }
-  }
-  function editOne(key) {
-    readIndex(); const row = records.get(key); if (!row && !drafts.has(key)) return;
-    draftFor(key); if (mode !== 'search') setMode('search');
-    editKey = key; el('editor').hidden = false;
-    el('text').value = drafts.get(key).after; el('edit-title').textContent = drafts.get(key).title;
-    syncDraftStatus(); el('text').focus();
-  }
-  function draftFor(key) {
-    const row=records.get(key), old=drafts.get(key);
-    if (!old || old.before===old.after && row && old.before!==row.text) drafts.set(key,{key,before:row.text,after:row.text,title:`${row.trackName}_${row.number}`});
-    return drafts.get(key);
-  }
-  function hasDraft() { return [...drafts.values()].some(d => d.before !== d.after) || !!textTools?.hasDraft(); }
-  function syncDraftStatus() {
-    const dirty = [...drafts.values()].filter(d => d.before !== d.after);
-    const count=dirty.length+(textTools?.pendingCount()||0);
-    el('drafts').hidden = !count;
-    el('drafts').textContent = global.MSWE_I18N?.language === 'en' ? `${count} unapplied drafts` : `${count} 条未应用修改`;
-    const draft = drafts.get(editKey), row = records.get(editKey);
-    if (!draft) return;
-    const conflict = !row || row.text !== draft.before;
-    el('edit-status').textContent = t(conflict ? '原文已改变，草稿已保留' : row.locked ? '已锁定' : draft.before !== draft.after ? '未应用' : '');
-    el('apply').disabled = conflict || row?.locked || draft.before === draft.after;
-    el('text').readOnly = !!row?.locked;
-  }
-  function discard() { drafts.delete(editKey); editKey = null; el('editor').hidden = true; syncDraftStatus(); }
-  function applyDraft() {
-    const draft = drafts.get(editKey); if (!draft || el('apply').disabled) return;
-    try { const plan = commit([draft], '编辑查找结果'); if (plan.locked) throw Error('已锁定'); discard(); }
-    catch (error) { el('edit-status').textContent = t(error.message); }
-  }
-  function step(direction) {
-    if (!result.count) return;
-    let index = result.rows.findIndex(row => row.key === activeKey), occurrence = activeMatch + direction;
-    if (index < 0) { index = direction > 0 ? 0 : result.rows.length - 1; occurrence = direction > 0 ? 0 : result.rows[index].matches.length - 1; }
-    else if (occurrence >= result.rows[index].matches.length) { index = (index + 1) % result.rows.length; occurrence = 0; }
-    else if (occurrence < 0) { index = (index + result.rows.length - 1) % result.rows.length; occurrence = result.rows[index].matches.length - 1; }
-    navigate(result.rows[index].key, occurrence);
-  }
-  function scopeChanged() {
-    textTools?.scopeChanged();
-    const scope = el('scope').value;
-    el('tracks').hidden = scope !== 'tracks'; el('selection').hidden = scope !== 'selected';
-    if (scope === 'selected') selected = batchSelectedIds();
-    el('selected-count').textContent = String(selected.length); scheduleQuery(); textTools?.refresh();
-  }
-  function scopedRows() {
-    const scope=el('scope').value, signature=scope==='tracks'?[...trackIds].join('\n'):scope;
-    if(scopeCache?.records===records&&scopeCache.signature===signature&&scopeCache.selected===selected)return scopeCache.rows;
-    const ids=new Set(selected),rows=[...records.values()].filter(r=>scope==='all'||scope==='tracks'&&trackIds.has(r.trackId)||scope==='selected'&&ids.has(r.id))
-      .sort((a,b)=>a.start-b.start||a.order-b.order||a.number-b.number);
-    scopeCache={records,signature,selected,rows};return rows;
-  }
-  function scopeTracks() {
-    return el('scope').value==='all'?tracks.map(r=>r.id):el('scope').value==='tracks'?[...trackIds]:[...new Set(scopedRows().map(r=>r.trackId))];
-  }
-  function setMode(next) {
-    mode=next;
-    panel.querySelectorAll('[data-find-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.findView===mode)));
-    panel.querySelectorAll('[data-find-search]').forEach(node=>node.hidden=mode!=='search');
-    viewport.hidden=mode!=='search';el('editor').hidden=mode!=='search'||!editKey;
-    el('message').hidden=mode!=='search'||!el('message').textContent;
-    textTools.setMode(mode);renderRows();
-  }
-  function setSelectionScope(ids) {
-    textTools?.scopeChanged();
-    selected=[...ids];el('scope').value='selected';el('tracks').hidden=true;el('selection').hidden=false;
-    el('selected-count').textContent=String(selected.length);scheduleQuery();textTools?.refresh();
-  }
-  function open({view, ids, replace:showReplace=false}={}) {
-    const wasOpen = floating.isOpen(); floating.open();
-    readIndex(); if (!wasOpen) scheduleQuery({ resetScroll: false });
-    if(ids)setSelectionScope(ids);
-    if(view)setMode(view);else textTools.refresh();
-    if(showReplace)el('replace').open=true;
-    if(mode==='search'){el('query').focus();el('query').select();}
-  }
-  function onClose() {
-    clearTimeout(queryTimer); clearTimeout(syncTimer); ++queryVersion; stopWorker(); matchMap.clear(); paintWaveform();
-    textTools?.close();
-    // A disabled result revealed for navigation returns to the user's normal visibility.
-    waveformEditor?.refreshCueOverlay?.();
-  }
-  textTools=global.MSWFindTextTools({t,formatTime,scope:scopedRows,scopeTracks,records:()=>records,drafts:()=>drafts,draft:draftFor,commit,navigate,
-    isOpen:()=>floating.isOpen(),setMode,selectIds:setSelectionScope,draftsChanged:syncDraftStatus,
-    query:()=>({text:el('query').value,ready,keys:new Set(result.rows.map(r=>r.key))}),
-    refresh:()=>{readIndex();scheduleQuery({resetScroll:false});}});
-  el('views').addEventListener('click',event=>{const button=event.target.closest('[data-find-view]');if(button)setMode(button.dataset.findView);});
-  el('open').addEventListener('click', () => open()); el('close').addEventListener('click', () => floating.close());
-  el('replace').addEventListener('toggle', () => scheduleQuery({ resetScroll: false }));
-  el('replacement').addEventListener('input', event => { operationNotice = ''; if (!event.isComposing) scheduleQuery({ resetScroll: false }); });
-  el('replacement').addEventListener('compositionend', () => scheduleQuery({ resetScroll: false }));
-  el('replace-current').addEventListener('click', () => replace(false)); el('replace-all').addEventListener('click', () => replace(true));
-  el('text').addEventListener('input', () => { const d = drafts.get(editKey); if (d) { d.after = el('text').value; syncDraftStatus(); } });
-  el('apply').addEventListener('click', applyDraft); el('discard').addEventListener('click', discard);
-  el('drafts').addEventListener('click', () => {
-    const choices=[...[...drafts.keys()].filter(k=>drafts.get(k).before!==drafts.get(k).after).map(key=>({id:'cue:'+key,key})),
-      ...textTools.pendingKeys().map(key=>({id:'whole:'+key,key,whole:true}))];
-    if(!choices.length)return;
-    const next=choices[(choices.findIndex(c=>c.id===draftCursor)+1)%choices.length];draftCursor=next.id;
-    if(next.whole)textTools.resumeWhole(next.key);else editOne(next.key);
-  });
-  el('query').addEventListener('input', event => { if (!event.isComposing) scheduleQuery(); });
-  el('query').addEventListener('compositionend', () => scheduleQuery());
-  el('query').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); step(event.shiftKey ? -1 : 1); } });
-  el('clear').addEventListener('click', () => { el('query').value = ''; scheduleQuery(); el('query').focus(); });
-  el('prev').addEventListener('click', () => step(-1)); el('next').addEventListener('click', () => step(1));
-  el('scope').addEventListener('change', scopeChanged); el('use-selection').addEventListener('click', scopeChanged);
-  for (const id of ['case', 'regex']) el(id).addEventListener('change', () => scheduleQuery());
-  viewport.addEventListener('scroll', () => { cancelAnimationFrame(renderFrame); renderFrame = requestAnimationFrame(renderRows); });
-  canvas.addEventListener('click', event => { const edit = event.target.closest('[data-edit-key]'); if (edit) { editOne(edit.dataset.editKey); return; } const button = event.target.closest('[data-key]'); if (button) navigate(button.dataset.key); });
-  canvas.addEventListener('dblclick', event => { const button = event.target.closest('[data-key]'); if (button) editOne(button.dataset.key); });
-  const observer = new ResizeObserver(() => { if (floating.isOpen()) renderRows(); }); observer.observe(viewport);
-  new ResizeObserver(() => {
-    if (!floating.isOpen()) return;
-    const rect = panel.getBoundingClientRect();
-    panel.style.left = `${Math.max(6, Math.min(rect.left, innerWidth - rect.width - 6))}px`;
-    panel.style.top = `${Math.max(6, Math.min(rect.top, innerHeight - rect.height - 6))}px`;
-  }).observe(panel);
-  document.addEventListener('keydown', event => {
-    const modal = document.querySelector('.modal-mask.show, dialog[open]');
-    if (event.isComposing || modal || event.defaultPrevented || event.key === 'Escape' && document.querySelector('#ctxmenu.show')) return;
-    if (floating.isOpen() && el('editor').contains(event.target)) {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); discard(); return; }
-      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.stopImmediatePropagation(); applyDraft(); return; }
+  function processOptions(){return {trim:tidy('trim').checked,capitalize:tidy('capitalize').checked,stripMarkdown:tidy('markdown').checked,addPrefix:tidy('prefix').checked,prefix:tidy('prefix-text').value,addSuffix:tidy('suffix').checked,suffix:tidy('suffix-text').value};}
+  function publish(next){
+    if(recoverDrafts&&!next.error){
+      const present=new Set(next.rows.map(r=>r.key));
+      for(const [key,d] of drafts)if(d.before!==d.after&&!present.has(key)){next.rows.push({key,matches:[],after:d.after});present.add(key);}
+      for(const group of invalidGroups.values())for(const row of group.rows)if(!present.has(row.key)){next.rows.push({key:row.key,matches:[]});present.add(row.key);}
     }
-    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
-      event.preventDefault(); event.stopImmediatePropagation(); open({view:'search'});
-    } else if (event.key === 'Escape' && floating.isOpen() && !document.querySelector('#msw-option-help:not([hidden])')) {
-      const front = [...document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show')].sort((a, b) => +getComputedStyle(b).zIndex - +getComputedStyle(a).zIndex)[0];
-      if (front === panel) { event.preventDefault(); event.stopImmediatePropagation(); floating.close(); }
+    result=next;ready=!next.error&&!next.limited;viewport.setAttribute('aria-busy','false');
+    matchMap=new Map(next.rows.filter(r=>r.matches.length).map(r=>[records.get(r.key)?.id,r]));
+    const errors={'invalid-regex':'正则表达式无效','worker-unavailable':'此环境无法安全运行正则，请使用普通文字查找','timeout':'查询耗时过长，请简化正则表达式','replacement-too-large':'替换结果过大，请缩小范围'};
+    notice=errors[next.error]||(next.limited?'匹配过多，请缩小范围':notice);
+    buildUnits();updatePlan();renderRows();paintWaveform();
+  }
+  function buildUnits(){
+    const rows=result.rows.map(hit=>records.get(hit.key)||drafts.get(hit.key)?.row||[...invalidGroups.values()].flatMap(g=>g.rows).find(r=>r.key===hit.key)).filter(Boolean),group=el('group').value;
+    if(group==='rows')units=rows.map(row=>({id:row.key,title:`${row.trackName}_${row.number}`,rows:[row]}));
+    else {const groups=new Map();for(const row of rows){const key=group==='track'?row.trackId:row.speakerId;if(!groups.has(key))groups.set(key,{id:group+':'+key,title:group==='track'?row.trackName:row.speakerName,rows:[]});groups.get(key).rows.push(row);}units=[...groups.values()];}
+    for(const unit of units)unit.draftKey=JSON.stringify(unit.rows.map(r=>r.key));
+    rowHeight=group==='rows'?156:300;canvas.style.height=`${units.length*rowHeight}px`;
+    el('empty').hidden=!!rows.length;el('empty').textContent=t('当前范围没有字幕');
+  }
+  function draftFor(key){const row=records.get(key);let d=drafts.get(key);if(!d&&row){d={key,before:row.text,after:row.text,row:{...row}};drafts.set(key,d);}return d;}
+  function inputText(row){return drafts.get(row.key)?.after??row.text;}
+  function unitText(unit){return el('group').value==='rows'?inputText(unit.rows[0]):invalidGroups.get(unit.draftKey)?.text??MSWFindTextTools.pack(unit.rows,inputText);}
+  function updatePlan(){
+    const opts=processOptions();
+    changes=result.rows.filter(hit=>!excluded.has(hit.key)).map(hit=>{
+      const draft=drafts.get(hit.key),row=records.get(hit.key)||draft?.row;
+      return {key:hit.key,before:draft?.before??row?.text??'',after:AsrEditorUtils.applyTextProcessing(hit.after??draft?.after??row?.text??'',opts)};
+    });
+    const plan=core.planChanges(changes,records),invalid=units.some(u=>invalidGroups.has(u.draftKey)&&u.rows.some(r=>!excluded.has(r.key)));
+    el('apply').disabled=!ready||invalid||!!plan.conflicts.length||!plan.edits.length;
+    el('message').textContent=t(invalid?'请保留字幕分隔行；增删字幕请使用切分或合并':plan.conflicts.length?'目标字幕已改变，草稿已保留':notice||`修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`);
+    el('count').textContent=t(`${result.rows.length} 条 · 已选 ${changes.length}`);
+    const dirty=[...drafts.values()].filter(d=>d.before!==d.after).length+invalidGroups.size;
+    el('drafts').hidden=!dirty;el('drafts').textContent=t(`${dirty} 条未应用`);
+    el('select-all').disabled=!result.rows.length;
+    return new Map(changes.map(c=>[c.key,c]));
+  }
+  function renderRows(){
+    if(!floating.isOpen()||!el('result-section').open)return;cancelAnimationFrame(renderFrame);
+    const first=Math.max(0,Math.floor(viewport.scrollTop/rowHeight)-2),last=Math.min(units.length,first+Math.ceil(viewport.clientHeight/rowHeight)+5);
+    const changesByKey=new Map(changes.map(c=>[c.key,c])),existing=new Map([...canvas.children].map(n=>[n.dataset.unit,n]));
+    const keep=new Set();
+    for(let i=first;i<last;i++){
+      const unit=units[i];keep.add(unit.id);let node=existing.get(unit.id);
+      if(!node){
+        node=document.createElement('article');node.className='find-unified-row';node.dataset.unit=unit.id;
+        const header=document.createElement('div');header.className='find-result-meta';
+        const check=document.createElement('input');check.type='checkbox';check.dataset.check=unit.id;
+        const button=document.createElement('button');button.type='button';button.className='find-tools-location';button.dataset.locate=unit.id;
+        const state=document.createElement('span');state.className='find-result-status';
+        const reset=document.createElement('button');reset.type='button';reset.className='find-reset';reset.dataset.reset=unit.id;reset.textContent='↶';reset.title=t('放弃此条草稿');
+        header.append(check,button,state,reset);
+        const input=document.createElement('textarea');input.dataset.unit=unit.id;input.spellcheck=false;
+        const preview=document.createElement('div');preview.className='find-result-after';preview.dataset.preview='';
+        node.append(header,input,preview);canvas.append(node);
+      }
+      node.style.top=`${i*rowHeight}px`;node.style.height=`${rowHeight}px`;
+      node.classList.toggle('current',unit.rows.some(r=>r.key===activeKey));
+      const selectedCount=unit.rows.filter(r=>!excluded.has(r.key)).length,check=node.querySelector('input');
+      check.checked=selectedCount===unit.rows.length;check.indeterminate=selectedCount>0&&!check.checked;check.ariaLabel=t('选中')+' '+unit.title;
+      node.querySelector('[data-locate]').textContent=unit.title+'  '+formatTime(unit.rows[0].start)+(unit.rows.length>1?' · '+t(`${unit.rows.length} 条字幕`):'');
+      const input=node.querySelector('textarea'),value=unitText(unit);if(input.value!==value&&document.activeElement!==input)input.value=value;
+      input.ariaLabel=unit.title;input.readOnly=unit.rows.some(r=>r.locked||!records.has(r.key));input.style.height=el('group').value==='rows'?'74px':'214px';
+      const dirty=unit.rows.some(r=>drafts.has(r.key)&&drafts.get(r.key).after!==drafts.get(r.key).before)||invalidGroups.has(unit.draftKey);
+      node.querySelector('.find-result-status').textContent=t(unit.rows.some(r=>!records.has(r.key))?'来源已删除':input.readOnly?'已锁定':dirty?'未应用':unit.rows.every(r=>r.disabled)?'已禁用':'');node.querySelector('[data-reset]').hidden=!dirty;
+      const modified=unit.rows.filter(r=>changesByKey.has(r.key)&&changesByKey.get(r.key).after!==inputText(r));
+      const preview=node.querySelector('[data-preview]');preview.textContent=modified.length?t('应用后：')+(unit.rows.length===1?changesByKey.get(unit.rows[0].key).after:t(modified.length+' 条字幕将更新')):'';
+      preview.title=preview.textContent;
     }
-  }, true);
-  window.addEventListener('msw:subtitles-changed', changed);
-  window.addEventListener('msw:project-changed', () => {
-    stopWorker(); ++queryVersion; clearTimeout(queryTimer); clearTimeout(syncTimer);
-    records.clear(); references.clear(); plainEngine = core.createEngine(); trackSignature = ''; activeKey = null;
-    selected = []; el('scope').value = 'all'; el('query').value = ''; el('tracks').hidden = el('selection').hidden = true;
-    drafts.clear();scopeCache=null;draftCursor='';textTools.reset();mode='search';setMode('search');editKey = null; el('editor').hidden = true; el('replacement').value = ''; ready = false; syncDraftStatus();
-    if (floating.isOpen()) { readIndex(); publish({ rows: [], count: 0 }); }
+    for(const [id,node] of existing)if(!keep.has(id)&&!node.contains(document.activeElement))node.remove();
+  }
+  function apply(){
+    if(el('apply').disabled)return;
+    try{const plan=commit(changes,'查找并编辑');for(const c of plan.edits)drafts.delete(c.key);
+      notice=`已修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`;
+      // A single application consumes the operation recipe, avoiding accidental double prefixes.
+      for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;
+      tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;el('replace-enabled').checked=false;el('replacement').disabled=true;
+      readIndex();scheduleQuery({resetScroll:false});
+    }catch(error){notice=error.message;el('message').textContent=t(notice);el('apply').disabled=true;}
+  }
+  function hasDraft(){return invalidGroups.size>0||[...drafts.values()].some(d=>d.before!==d.after);}
+  function open({ids}={}){const was=floating.isOpen();floating.open();readIndex();
+    if(ids){selected=[...ids];el('only-selected').checked=true;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;}
+    if(!was||ids)scheduleQuery({resetScroll:false});el('query').focus();}
+  function onClose(){clearTimeout(queryTimer);clearTimeout(syncTimer);++queryVersion;stopWorker();matchMap.clear();paintWaveform();waveformEditor?.refreshCueOverlay?.();}
+  el('open').addEventListener('click',()=>open());el('close').addEventListener('click',()=>floating.close());el('apply').addEventListener('click',apply);
+  for(const id of ['only-selected','all-tracks','all-speakers','case','regex'])el(id).addEventListener('change',()=>{
+    if(id==='only-selected'&&el(id).checked)selected=batchSelectedIds();
+    el('tracks').hidden=el('all-tracks').checked;el('speakers').hidden=el('all-speakers').checked;scheduleQuery();
   });
-  global.MSWFindEdit = Object.freeze({ open, close: () => floating.close(), changed, decorateBlock, keepVisible, capture, restore, hasDraft });
+  el('group').addEventListener('change',()=>{viewport.scrollTop=0;canvas.replaceChildren();buildUnits();updatePlan();renderRows();});
+  el('select-all').addEventListener('click',()=>{for(const hit of result.rows)excluded.delete(hit.key);updatePlan();renderRows();});
+  el('replace-enabled').addEventListener('change',()=>{el('replacement').disabled=!el('replace-enabled').checked;notice='';scheduleQuery({resetScroll:false});});
+  for(const id of ['query','replacement']){
+    el(id).addEventListener('input',event=>{notice='';if(!event.isComposing)scheduleQuery({resetScroll:id==='query'});});
+    el(id).addEventListener('compositionend',()=>scheduleQuery({resetScroll:id==='query'}));
+  }
+  for(const id of ['trim','capitalize','markdown','prefix','suffix','prefix-text','suffix-text'])tidy(id).addEventListener(id.endsWith('-text')?'input':'change',()=>{
+    notice='';tidy('prefix-text').hidden=!tidy('prefix').checked;tidy('suffix-text').hidden=!tidy('suffix').checked;updatePlan();renderRows();
+  });
+  canvas.addEventListener('change',event=>{const id=event.target.dataset.check;if(!id)return;const unit=units.find(u=>u.id===id);for(const r of unit.rows)event.target.checked?excluded.delete(r.key):excluded.add(r.key);updatePlan();renderRows();});
+  canvas.addEventListener('click',event=>{
+    const locate=event.target.closest('[data-locate]'),reset=event.target.closest('[data-reset]');
+    const unit=units.find(u=>u.id===(locate?.dataset.locate||reset?.dataset.reset));if(!unit)return;
+    if(locate)navigate(unit.rows[0].key);
+    else {for(const row of unit.rows)drafts.delete(row.key);invalidGroups.delete(unit.draftKey);notice='';scheduleQuery({resetScroll:false});updatePlan();renderRows();}
+  });
+  canvas.addEventListener('input',event=>{
+    const input=event.target.closest('textarea');if(!input)return;const unit=units.find(u=>u.id===input.dataset.unit);if(!unit)return;
+    notice='';
+    try{const values=el('group').value==='rows'?[input.value]:MSWFindTextTools.unpack(unit.rows,input.value);
+      unit.rows.forEach((row,i)=>{const d=draftFor(row.key);d.after=values[i];if(d.after===d.before)drafts.delete(row.key);});invalidGroups.delete(unit.draftKey);
+    }catch(error){invalidGroups.set(unit.draftKey,{text:input.value,rows:unit.rows,group:el('group').value});notice=error.message;}
+    updatePlan();if(!event.isComposing)scheduleQuery({resetScroll:false});
+  });
+  canvas.addEventListener('compositionend',()=>scheduleQuery({resetScroll:false}));
+  el('drafts').addEventListener('click',()=>{
+    const invalid=[...invalidGroups.values()][0],dirty=[...drafts.values()].filter(d=>d.before!==d.after);
+    selected=invalid?invalid.rows.map(r=>r.id):dirty.map(d=>records.get(d.key)?.id).filter(Boolean);
+    el('only-selected').checked=true;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;el('query').value='';
+    if(invalid)el('group').value=invalid.group;scheduleQuery();recoverDrafts=true;
+  });
+  viewport.addEventListener('scroll',()=>{cancelAnimationFrame(renderFrame);renderFrame=requestAnimationFrame(renderRows);});
+  new ResizeObserver(renderRows).observe(viewport);el('result-section').addEventListener('toggle',renderRows);
+  new ResizeObserver(()=>{if(!floating.isOpen())return;const r=panel.getBoundingClientRect();panel.style.left=`${Math.max(6,Math.min(r.left,innerWidth-r.width-6))}px`;panel.style.top=`${Math.max(6,Math.min(r.top,innerHeight-r.height-6))}px`;}).observe(panel);
+  document.addEventListener('keydown',event=>{
+    if(event.isComposing||event.defaultPrevented||document.querySelector('.modal-mask.show,dialog[open]'))return;
+    if((event.ctrlKey||event.metaKey)&&!event.altKey&&!event.shiftKey&&event.key.toLowerCase()==='f'){event.preventDefault();event.stopImmediatePropagation();open();}
+    else if(floating.isOpen()&&panel.contains(event.target)&&event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();event.stopImmediatePropagation();apply();}
+    else if(event.key==='Escape'&&floating.isOpen()&&!document.querySelector('#ctxmenu.show,#msw-option-help:not([hidden])')){
+      const front=[...document.querySelectorAll('.gap-remove-panel.show,.settings-panel.show')].sort((a,b)=>+getComputedStyle(b).zIndex-+getComputedStyle(a).zIndex)[0];
+      if(front===panel){event.preventDefault();event.stopImmediatePropagation();floating.close();}
+    }
+  },true);
+  window.addEventListener('msw:subtitles-changed',changed);
+  window.addEventListener('msw:project-changed',()=>{
+    stopWorker();++queryVersion;clearTimeout(queryTimer);clearTimeout(syncTimer);records.clear();references.clear();plainEngine=core.createEngine();trackSignature=speakerSignature='';activeKey=null;
+    selected=[];recoverDrafts=false;excluded.clear();drafts.clear();invalidGroups.clear();el('only-selected').checked=false;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;
+    el('query').value=el('replacement').value='';el('replace-enabled').checked=false;el('replacement').disabled=true;el('group').value='rows';notice='';
+    for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;
+    if(floating.isOpen()){readIndex();scheduleQuery();}
+  });
+  global.MSWFindEdit=Object.freeze({open,close:()=>floating.close(),changed,decorateBlock,keepVisible,capture,restore,hasDraft});
 })(window);
 
 // Channel curves share a cue clock, but retain independent values and keyframes.

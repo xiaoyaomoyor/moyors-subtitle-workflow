@@ -70,7 +70,7 @@ test('secondary color, replacement and sticker commands keep main text untouched
   await page.evaluate(()=>performUndo());
   await page.evaluate(()=>{clearSelection({silent:true});selectedExtensionIdxs.add(0);selectedExtensionIdxs.add(1);showExtensionContextMenu(400,250,0,2000);});
   await item(page,'查找并编辑选中字幕…').click();
-  await page.locator('#find-edit-query').fill('好');await page.locator('#find-edit-replacement').fill('们');await expect(page.locator('#find-edit-replace-all')).toBeEnabled();await page.locator('#find-edit-replace-all').click();
+  await page.locator('#find-edit-query').fill('好');await page.locator('#find-edit-replace-enabled').check();await page.locator('#find-edit-replacement').fill('们');await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();
   p=await snap(page);expect(p.subtitles.cues.some(c=>c.content.text==='你们')).toBe(true);expect(p.subtitles.cues.some(c=>c.content.text==='Hello')).toBe(true);
   await page.evaluate(()=>performUndo());
   await page.evaluate(()=>{STICKERS.push({name:'test-sticker',filename:'test.png'});openStickerPicker([0],false,{extension:getActiveExtensionTrack()});assignSticker(STICKERS.at(-1));});

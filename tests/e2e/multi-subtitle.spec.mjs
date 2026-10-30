@@ -875,11 +875,11 @@ test('applies text processing to selected extension subtitles', async ({ page })
   const row = page.locator('.multi-dual-cue').first();
   await row.locator('.multi-cue-column.extension .text').click();
   await page.evaluate(()=>MSWFindEdit.open({view:'tidy',ids:batchSelectedIds()}));
-  await expect(page.locator('#find-edit-scope')).toHaveValue('selected');
+  await expect(page.locator('#find-edit-only-selected')).toBeChecked();
   await page.locator('#find-tidy-prefix').check();
   await page.locator('#find-tidy-prefix-text').fill('X ');
-  await expect(page.locator('#find-tools-rows')).toContainText('S2_1');
-  await expect(page.locator('#find-tools-apply')).toBeEnabled();await page.locator('#find-tools-apply').click();await page.locator('#find-edit-close').click();
+  await expect(page.locator('#find-edit-rows')).toContainText('S2_1');
+  await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();await page.locator('#find-edit-close').click();
 
   // 未绑定轨道按各自数据定位，文本处理后不依赖展示行的临时配对。
   await expect(page.locator('.multi-cue-column.main[data-main-idx="0"] .text')).toHaveText('main cue');

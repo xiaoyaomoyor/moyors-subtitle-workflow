@@ -1,20 +1,16 @@
-// Search, replacement previews and cue-local text transactions.
+// One filtered result set, shared drafts and one text transaction.
 (function (global) {
   'use strict';
-  const core = global.MSWFindCore, host = global.MSWE.resolve('processing-host');
-  const el = id => document.getElementById('find-edit-' + id), panel = el('panel');
-  const viewport = el('results'), canvas = el('rows');
-  let rowHeight = 70, ready = false, publishedVersion = -1, editKey = null, drafts = new Map(), operationNotice = '';
-  let mode = 'search', textTools = null, scopeCache = null, draftCursor = '';
-  const t = text => global.MSWE_I18N?.translateText(text) || text;
-  let records = new Map(), references = new Map(), cuesById = new Map(), tracks = [], trackSignature = '';
-  let result = { rows: [], count: 0 }, matchMap = new Map(), selected = [], trackIds = new Set();
-  let activeKey = null, activeMatch = 0, queryVersion = 0, worker = null, workerBusy = false;
-  let timeout, queryTimer, syncTimer, renderFrame, plainEngine = core.createEngine();
-  const floating = host.createFloatingPanel({ panel, dragHandle: el('drag'),
-    anchorButton: document.querySelector('[data-menubar-item="subtitle"] > button'),
-    positionKey: 'msw.findEdit.position.v1', onClose: onClose });
-
+  const core=global.MSWFindCore, host=global.MSWE.resolve('processing-host');
+  const el=id=>document.getElementById('find-edit-'+id), panel=el('panel'), viewport=el('results'), canvas=el('rows');
+  const tidy=id=>document.getElementById('find-tidy-'+id);
+  const t=text=>global.MSWE_I18N?.translateText(text)||text;
+  let records=new Map(),references=new Map(),cuesById=new Map(),tracks=[],trackSignature='',speakerSignature='';
+  let trackIds=new Set(),speakerIds=new Set(),selected=[],excluded=new Set(),drafts=new Map(),invalidGroups=new Map();
+  let result={rows:[],count:0},matchMap=new Map(),units=[],changes=[],ready=false,activeKey=null,activeMatch=0;
+  let queryVersion=0,worker=null,workerBusy=false,timeout,queryTimer,syncTimer,renderFrame,rowHeight=156;
+  let plainEngine=core.createEngine(),notice='',recoverDrafts=false;
+  const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.querySelector('[data-menubar-item="subtitle"] > button'),positionKey:'msw.findEdit.position.v1',onClose});
   function sources() { return layerCore.tracks(DATA); }
   function readIndex() {
     const flat = fixedTrackMode();
@@ -26,7 +22,8 @@
       const trackId = owners ? owners.get(fixedTrackCore.key({ role: source.role, track_id: source.track_id, cue_id: cue.id })) : source.track_id || 'main';
       const track = trackMap.get(trackId); if (!track) return;
       const key = JSON.stringify([trackId, cue.id]);
-      const row = { key, id: cue.id, trackId, trackName: track.name, order: track.order, start: cue.start, end: cue.end,
+      const speaker = MSWSpeaker.profile(DATA,cue,source.segments[cue.color_ref?.headIdx]);
+      const row = { speakerId:speaker?.id || '', speakerName:speaker ? MSWSpeaker.displayName(speaker) : t('未指定说话人'), key, id: cue.id, trackId, trackName: track.name, order: track.order, start: cue.start, end: cue.end,
         text: String(cue.text || ''), locked: !!track.locked, disabled: track.enabled === false || !!cue.disabled };
       if (!groups.has(trackId)) groups.set(trackId, []);
       groups.get(trackId).push(row); refs.set(key, { cue, source, index });
@@ -42,97 +39,58 @@
     records = next; references = refs; cuesById = new Map([...refs.values()].map(ref => [ref.cue.id, ref.cue]));
     const patch = { rows: changed, removed };
     plainEngine.update(patch); worker?.postMessage({ type: 'update', patch });
-    refreshTracks();
+    refreshFilters();
     return changed.length > 0 || removed.length > 0;
   }
-  function refreshTracks() {
-    const signature = JSON.stringify(tracks.map(track => [track.id, track.name, track.locked, track.enabled]));
-    if (signature === trackSignature) return;
-    const first = !trackSignature; trackSignature = signature;
-    if (first) trackIds = new Set(tracks.map(track => track.id));
-    else trackIds = new Set([...trackIds].filter(id => tracks.some(track => track.id === id)));
-    el('tracks').replaceChildren(...tracks.map(track => {
-      const label = document.createElement('label'); label.className = 'media-preview-toggle';
-      const input = document.createElement('input'); input.type = 'checkbox'; input.value = track.id; input.checked = trackIds.has(track.id);
-      input.addEventListener('change', () => { if (input.checked) trackIds.add(track.id); else trackIds.delete(track.id); textTools?.scopeChanged(); scheduleQuery(); textTools?.refresh(); });
-      label.append(input, document.createTextNode(track.name)); return label;
+
+  function checks(target, rows, chosen) {
+    target.replaceChildren(...rows.map(row=>{
+      const label=document.createElement('label');label.className='media-preview-toggle';
+      const input=document.createElement('input');input.type='checkbox';input.value=row.id;input.checked=chosen.has(row.id);
+      input.addEventListener('change',()=>{input.checked?chosen.add(row.id):chosen.delete(row.id);scheduleQuery();});
+      label.append(input,document.createTextNode(row.name));return label;
     }));
   }
-  function options() {
-    return { query: el('query').value, caseSensitive: el('case').checked, regex: el('regex').checked,
-      scope: el('scope').value, tracks: [...trackIds], selected,
-      replacement: el('replace').open ? el('replacement').value : null };
+  function refreshFilters() {
+    const signature=JSON.stringify(tracks.map(r=>[r.id,r.name]));
+    if(signature!==trackSignature){if(!trackSignature)trackIds=new Set(tracks.map(r=>r.id));trackSignature=signature;checks(el('tracks'),tracks,trackIds);}
+    const speakers=(DATA.preview?.speaker_palette?.rows||[]).map(r=>({id:r.id,name:MSWSpeaker.displayName(r)}));
+    const known=new Set(speakers.map(r=>r.id));
+    for(const r of records.values())if(!known.has(r.speakerId)){speakers.push({id:r.speakerId,name:r.speakerName});known.add(r.speakerId);}
+    const ss=JSON.stringify(speakers);
+    if(ss!==speakerSignature){if(!speakerSignature)speakerIds=new Set(speakers.map(r=>r.id));speakerSignature=ss;checks(el('speakers'),speakers,speakerIds);}
   }
-  function stopWorker() { clearTimeout(timeout); worker?.terminate(); worker = null; workerBusy = false; }
-  function ensureWorker() {
-    if (worker) return true;
-    let url;
-    try {
-      url = URL.createObjectURL(new Blob([core.workerSource()], { type: 'text/javascript' }));
-      worker = new Worker(url);
-      worker.onmessage = event => {
-        if (event.data.version !== queryVersion || !floating.isOpen()) return;
-        workerBusy = false; clearTimeout(timeout); publish(event.data.result);
-      };
-      worker.onerror = event => { event.preventDefault(); stopWorker(); fallback(queryVersion, options()); };
-      worker.postMessage({ type: 'update', patch: { rows: [...records.values()], reset: true } });
-      return true;
-    } catch (_) { stopWorker(); return false; }
-    finally { if (url) URL.revokeObjectURL(url); }
+  function scopedRows() {
+    const ids=new Set(selected);
+    return [...records.values()].filter(r=>(!el('only-selected').checked||ids.has(r.id))&&(el('all-tracks').checked||trackIds.has(r.trackId))&&(el('all-speakers').checked||speakerIds.has(r.speakerId)));
   }
-  function fallback(version, query) {
-    if (version !== queryVersion || !floating.isOpen()) return;
-    if (query.regex) { publish({ rows: [], count: 0, error: 'worker-unavailable' }); return; }
-    // Literal matching is bounded. Never execute arbitrary regex on the UI thread.
-    publish(plainEngine.search(query));
+  function options(){return {query:el('query').value,caseSensitive:el('case').checked,regex:el('regex').checked,
+    keys:scopedRows().map(r=>r.key),allowEmpty:true,replacement:el('replace-enabled').checked?el('replacement').value:null,
+    drafts:Object.fromEntries([...drafts].map(([key,d])=>[key,d.after]))};}
+  function stopWorker(){clearTimeout(timeout);worker?.terminate();worker=null;workerBusy=false;}
+  function ensureWorker(){
+    if(worker)return true;let url;
+    try {url=URL.createObjectURL(new Blob([core.workerSource()],{type:'text/javascript'}));worker=new Worker(url);
+      worker.onmessage=event=>{if(event.data.version!==queryVersion||!floating.isOpen())return;workerBusy=false;clearTimeout(timeout);publish(event.data.result);};
+      worker.onerror=event=>{event.preventDefault();stopWorker();fallback(options());};
+      worker.postMessage({type:'update',patch:{rows:[...records.values()],reset:true}});return true;
+    }catch(_){stopWorker();return false;}finally{if(url)URL.revokeObjectURL(url);}
   }
-  function message(text) { el('message').textContent = t(text); el('message').hidden = !text || mode !== 'search'; }
-  function publish(next) {
-    const oldIndex = result.rows.findIndex(row => row.key === activeKey);
-    result = next; publishedVersion = queryVersion; ready = !next.error && !next.limited; viewport.setAttribute('aria-busy', 'false');
-    matchMap = new Map(next.rows.map(row => [records.get(row.key)?.id, row]));
-    if (!next.rows.some(row => row.key === activeKey)) { activeKey = oldIndex >= 0 ? next.rows[Math.min(oldIndex, next.rows.length - 1)]?.key || null : null; activeMatch = 0; }
-    else activeMatch = Math.min(activeMatch, matchMap.get(records.get(activeKey)?.id)?.matches.length - 1 || 0);
-    el('count').textContent = global.MSWE_I18N?.language === 'en'
-      ? `${next.rows.length} cues · ${next.count} matches` : `${next.rows.length} 条字幕 · ${next.count} 处匹配`;
-    const notices = { 'invalid-regex': '正则表达式无效', 'worker-unavailable': '此环境无法安全运行正则，请使用普通文字查找', 'timeout': '查询耗时过长，请简化正则表达式', 'replacement-too-large': '替换结果过大，请缩小范围' };
-    message(notices[next.error] || (next.limited ? '匹配过多，仅显示前 50000 处，请缩小范围' : next.zeroWidth ? '已忽略不包含文字的零宽匹配' : operationNotice));
-    el('empty').textContent = t(!el('query').value ? '输入文字开始查找' : '没有匹配的字幕');
-    el('empty').hidden = !!next.rows.length || !!next.error;
-    el('prev').disabled = el('next').disabled = !next.count;
-    rowHeight = el('replace').open ? 100 : 70;
-    canvas.style.height = `${next.rows.length * rowHeight}px`;
-    syncActions(); syncDraftStatus(); renderRows(); paintWaveform(); textTools?.refresh();
+  function fallback(query){publish(query.regex?{rows:[],count:0,error:'worker-unavailable'}:plainEngine.search(query));}
+  function runQuery(){
+    if(!floating.isOpen())return;const query=options(),version=queryVersion;
+    if(!ensureWorker()){fallback(query);return;}
+    workerBusy=true;worker.postMessage({type:'search',version,query});
+    timeout=setTimeout(()=>{if(version===queryVersion&&workerBusy){stopWorker();publish({rows:[],count:0,error:'timeout'});}},1500);
   }
-  function runQuery() {
-    if (!floating.isOpen()) return;
-    const query = options(), version = queryVersion;
-    if (!query.query) { publish({ rows: [], count: 0 }); return; }
-    viewport.setAttribute('aria-busy', 'true'); el('count').textContent = t('正在查找…');
-    if (!ensureWorker()) { fallback(version, query); return; }
-    workerBusy = true; worker.postMessage({ type: 'search', version, query });
-    timeout = setTimeout(() => { if (version === queryVersion && workerBusy) { stopWorker(); publish({ rows: [], count: 0, error: 'timeout' }); } }, 1500);
+  function scheduleQuery({resetScroll=true}={}) {
+    ready=false;el('apply').disabled=true;viewport.setAttribute('aria-busy','true');clearTimeout(queryTimer);++queryVersion;
+    if(workerBusy)stopWorker();
+    if(resetScroll){viewport.scrollTop=0;activeKey=null;notice='';recoverDrafts=false;}
+    matchMap.clear();paintWaveform();queryTimer=setTimeout(runQuery,160);
   }
-  function scheduleQuery({ resetScroll = true } = {}) {
-    ready = false; syncActions(); textTools?.invalidate();
-    clearTimeout(queryTimer); ++queryVersion;
-    if (workerBusy) stopWorker();
-    if (resetScroll) {
-      operationNotice = '';
-      viewport.scrollTop = 0; activeKey = null; activeMatch = 0;
-      result = { rows: [], count: 0 }; canvas.replaceChildren(); canvas.style.height = '0px';
-      el('prev').disabled = el('next').disabled = true; el('empty').hidden = true; message('');
-    }
-    // Old highlights must not advertise a newer query while it is pending.
-    matchMap.clear(); paintWaveform();
-    queryTimer = setTimeout(runQuery, 170);
-  }
-  function changed() {
-    if (!floating.isOpen()) return;
-    ready = false; syncActions(); textTools?.invalidate();
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => { if (readIndex()) { textTools?.sourceChanged(); scheduleQuery({ resetScroll: false }); } else { ready = publishedVersion === queryVersion && !result.error && !result.limited; syncActions(); textTools?.refresh(); } syncDraftStatus(); }, 180);
-  }
+  function changed(){if(!floating.isOpen())return;ready=false;el('apply').disabled=true;clearTimeout(syncTimer);
+    syncTimer=setTimeout(()=>{readIndex();scheduleQuery({resetScroll:false});},180);}
   function highlight(node, text, matches, active = -1) {
     node.replaceChildren(); let cursor = 0;
     matches.forEach(([start, end], i) => {
@@ -140,43 +98,6 @@
       const mark = document.createElement('mark'); mark.textContent = text.slice(start, end); mark.classList.toggle('current', i === active); node.append(mark); cursor = end;
     });
     node.append(document.createTextNode(text.slice(cursor)));
-  }
-  function renderRows() {
-    if (!floating.isOpen() || mode !== 'search') return;
-    cancelAnimationFrame(renderFrame);
-    const first = Math.max(0, Math.floor(viewport.scrollTop / rowHeight) - 3);
-    const last = Math.min(result.rows.length, first + Math.ceil(viewport.clientHeight / rowHeight) + 7);
-    const fragment = document.createDocumentFragment();
-    for (let i = first; i < last; i++) {
-      const hit = result.rows[i], row = records.get(hit.key); if (!row) continue;
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'find-result'; button.dataset.key = hit.key;
-      button.style.top = `${i * rowHeight}px`; button.style.height = `${rowHeight}px`; button.setAttribute('aria-current', hit.key === activeKey ? 'true' : 'false');
-      button.setAttribute('aria-label', `${row.trackName}_${row.number} ${formatTime(row.start)} ${row.text}`);
-      const meta = document.createElement('span'); meta.className = 'find-result-meta';
-      const name = document.createElement('strong'); name.textContent = `${row.trackName}_${row.number}`;
-      const time = document.createElement('span'); time.textContent = formatTime(row.start);
-      const status = document.createElement('span'); status.className = 'find-result-status';
-      status.textContent = [row.locked ? t('已锁定') : '', row.disabled ? t('已禁用') : '', hit.matches.length > 1 ? `×${hit.matches.length}` : ''].filter(Boolean).join(' · ');
-      meta.append(name, time, status);
-      const text = document.createElement('span'); text.className = 'find-result-text'; text.dataset.i18nSkip = '';
-      const current = hit.key === activeKey ? activeMatch : 0, start = Math.max(0, hit.matches[current][0] - 35), end = Math.min(row.text.length, Math.max(start + 140, hit.matches[current][1] + 35));
-      const snippet = row.text.slice(start, end);
-      const ranges = hit.matches.map(([a, b]) => [Math.max(a, start) - start, Math.min(b, end) - start]).filter(([a, b]) => b > a);
-      highlight(text, snippet, ranges); if (start) text.prepend('…'); if (end < row.text.length) text.append('…');
-      button.append(meta, text);
-      if (hit.after !== undefined) {
-        text.prepend(t('原文') + '：');
-        const after = document.createElement('span'); after.className = 'find-result-text find-result-after';
-        after.textContent = t('替换后') + '：' + (hit.after || t('（空文本）')); after.title = hit.after;
-        button.append(after);
-      }
-      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'find-icon find-edit-one';
-      edit.dataset.editKey = hit.key; edit.style.top = `${i * rowHeight + 8}px`;
-      edit.title = edit.ariaLabel = t('编辑此条字幕');
-      edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l5-1L21 7l-5-5L4 14z"/></svg>';
-      fragment.append(button, edit);
-    }
-    canvas.replaceChildren(fragment);
   }
   function formatTime(ms) {
     const total = Math.max(0, Math.round(ms)), seconds = Math.floor(total / 1000), minutes = Math.floor(seconds / 60);
@@ -215,7 +136,7 @@
     if (fixedTrackMode()) {
       const track = DATA.subtitle_tracks.tracks.find(track => track.id === row.trackId);
       if (track?.collapsed) {
-        if (!fixedUpdateTrack(track.id, { collapsed: false })) { message('请先完成当前编辑，再展开目标轨道'); return; }
+        if (!fixedUpdateTrack(track.id, { collapsed: false })) { notice='请先完成当前编辑，再展开目标轨道';el('message').textContent=t(notice);return; }
         readIndex(); ref = references.get(key);
       }
       fixedActiveTrackId = row.trackId;
@@ -231,23 +152,9 @@
     seekFromWaveform(row.start / 1000, { pauseAfterSeek: true });
     waveformEditor?.refreshCueOverlay?.();
     waveformEditor?.revealTime(row.start, true);
-    const i = result.rows.findIndex(hit => hit.key === key), top = i * rowHeight;
+    const i = units.findIndex(unit => unit.rows.some(row=>row.key===key)), top = i * rowHeight;
     if (top < viewport.scrollTop || top + rowHeight > viewport.scrollTop + viewport.clientHeight) viewport.scrollTop = top;
-    syncActions(); renderRows(); paintWaveform();
-  }
-  function currentChange() {
-    const hit = result.rows.find(row => row.key === activeKey) || result.rows[0];
-    if (!hit?.replacements) return null;
-    const i = hit.key === activeKey ? activeMatch : 0, [a, b] = hit.matches[i];
-    return { key: hit.key, before: hit.before, after: hit.before.slice(0, a) + hit.replacements[i] + hit.before.slice(b) };
-  }
-  function syncActions() {
-    const plan = core.planChanges(result.rows.filter(r => r.after !== undefined), records);
-    const current = currentChange(), now = current && core.planChanges([current], records);
-    el('replace-current').disabled = !ready || !now?.edits.length;
-    el('replace-all').disabled = !ready || !plan.edits.length;
-    el('plan').textContent = ready && el('replace').open
-      ? (global.MSWE_I18N?.language === 'en' ? `Change ${plan.edits.length} cues · Skip ${plan.locked} locked` : `修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`) : '';
+    renderRows(); paintWaveform();
   }
   function capture(record, label = record.label) {
     const ids = new Set(record.cues.map(c => c.id));
@@ -287,156 +194,150 @@
     }) };
     editorHistory.push(capture(patch)); restore(patch); return plan;
   }
-  function replace(all) {
-    if (!ready) return;
-    try {
-      const changes = all ? result.rows.filter(r => r.after !== undefined) : [currentChange()].filter(Boolean);
-      if (changes.some(c => drafts.has(c.key) && drafts.get(c.key).after !== drafts.get(c.key).before)) throw Error('请先应用或取消目标字幕的未应用修改');
-      const plan = commit(changes, all ? '替换全部' : '替换当前');
-      operationNotice = global.MSWE_I18N?.language === 'en' ? `Changed ${plan.edits.length} cues · Skipped ${plan.locked} locked` : `已修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`;
-      readIndex(); scheduleQuery({ resetScroll: false });
-    } catch (error) { operationNotice = error.message; message(operationNotice); readIndex(); scheduleQuery({ resetScroll: false }); syncDraftStatus(); }
-  }
-  function editOne(key) {
-    readIndex(); const row = records.get(key); if (!row && !drafts.has(key)) return;
-    draftFor(key); if (mode !== 'search') setMode('search');
-    editKey = key; el('editor').hidden = false;
-    el('text').value = drafts.get(key).after; el('edit-title').textContent = drafts.get(key).title;
-    syncDraftStatus(); el('text').focus();
-  }
-  function draftFor(key) {
-    const row=records.get(key), old=drafts.get(key);
-    if (!old || old.before===old.after && row && old.before!==row.text) drafts.set(key,{key,before:row.text,after:row.text,title:`${row.trackName}_${row.number}`});
-    return drafts.get(key);
-  }
-  function hasDraft() { return [...drafts.values()].some(d => d.before !== d.after) || !!textTools?.hasDraft(); }
-  function syncDraftStatus() {
-    const dirty = [...drafts.values()].filter(d => d.before !== d.after);
-    const count=dirty.length+(textTools?.pendingCount()||0);
-    el('drafts').hidden = !count;
-    el('drafts').textContent = global.MSWE_I18N?.language === 'en' ? `${count} unapplied drafts` : `${count} 条未应用修改`;
-    const draft = drafts.get(editKey), row = records.get(editKey);
-    if (!draft) return;
-    const conflict = !row || row.text !== draft.before;
-    el('edit-status').textContent = t(conflict ? '原文已改变，草稿已保留' : row.locked ? '已锁定' : draft.before !== draft.after ? '未应用' : '');
-    el('apply').disabled = conflict || row?.locked || draft.before === draft.after;
-    el('text').readOnly = !!row?.locked;
-  }
-  function discard() { drafts.delete(editKey); editKey = null; el('editor').hidden = true; syncDraftStatus(); }
-  function applyDraft() {
-    const draft = drafts.get(editKey); if (!draft || el('apply').disabled) return;
-    try { const plan = commit([draft], '编辑查找结果'); if (plan.locked) throw Error('已锁定'); discard(); }
-    catch (error) { el('edit-status').textContent = t(error.message); }
-  }
-  function step(direction) {
-    if (!result.count) return;
-    let index = result.rows.findIndex(row => row.key === activeKey), occurrence = activeMatch + direction;
-    if (index < 0) { index = direction > 0 ? 0 : result.rows.length - 1; occurrence = direction > 0 ? 0 : result.rows[index].matches.length - 1; }
-    else if (occurrence >= result.rows[index].matches.length) { index = (index + 1) % result.rows.length; occurrence = 0; }
-    else if (occurrence < 0) { index = (index + result.rows.length - 1) % result.rows.length; occurrence = result.rows[index].matches.length - 1; }
-    navigate(result.rows[index].key, occurrence);
-  }
-  function scopeChanged() {
-    textTools?.scopeChanged();
-    const scope = el('scope').value;
-    el('tracks').hidden = scope !== 'tracks'; el('selection').hidden = scope !== 'selected';
-    if (scope === 'selected') selected = batchSelectedIds();
-    el('selected-count').textContent = String(selected.length); scheduleQuery(); textTools?.refresh();
-  }
-  function scopedRows() {
-    const scope=el('scope').value, signature=scope==='tracks'?[...trackIds].join('\n'):scope;
-    if(scopeCache?.records===records&&scopeCache.signature===signature&&scopeCache.selected===selected)return scopeCache.rows;
-    const ids=new Set(selected),rows=[...records.values()].filter(r=>scope==='all'||scope==='tracks'&&trackIds.has(r.trackId)||scope==='selected'&&ids.has(r.id))
-      .sort((a,b)=>a.start-b.start||a.order-b.order||a.number-b.number);
-    scopeCache={records,signature,selected,rows};return rows;
-  }
-  function scopeTracks() {
-    return el('scope').value==='all'?tracks.map(r=>r.id):el('scope').value==='tracks'?[...trackIds]:[...new Set(scopedRows().map(r=>r.trackId))];
-  }
-  function setMode(next) {
-    mode=next;
-    panel.querySelectorAll('[data-find-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.findView===mode)));
-    panel.querySelectorAll('[data-find-search]').forEach(node=>node.hidden=mode!=='search');
-    viewport.hidden=mode!=='search';el('editor').hidden=mode!=='search'||!editKey;
-    el('message').hidden=mode!=='search'||!el('message').textContent;
-    textTools.setMode(mode);renderRows();
-  }
-  function setSelectionScope(ids) {
-    textTools?.scopeChanged();
-    selected=[...ids];el('scope').value='selected';el('tracks').hidden=true;el('selection').hidden=false;
-    el('selected-count').textContent=String(selected.length);scheduleQuery();textTools?.refresh();
-  }
-  function open({view, ids, replace:showReplace=false}={}) {
-    const wasOpen = floating.isOpen(); floating.open();
-    readIndex(); if (!wasOpen) scheduleQuery({ resetScroll: false });
-    if(ids)setSelectionScope(ids);
-    if(view)setMode(view);else textTools.refresh();
-    if(showReplace)el('replace').open=true;
-    if(mode==='search'){el('query').focus();el('query').select();}
-  }
-  function onClose() {
-    clearTimeout(queryTimer); clearTimeout(syncTimer); ++queryVersion; stopWorker(); matchMap.clear(); paintWaveform();
-    textTools?.close();
-    // A disabled result revealed for navigation returns to the user's normal visibility.
-    waveformEditor?.refreshCueOverlay?.();
-  }
-  textTools=global.MSWFindTextTools({t,formatTime,scope:scopedRows,scopeTracks,records:()=>records,drafts:()=>drafts,draft:draftFor,commit,navigate,
-    isOpen:()=>floating.isOpen(),setMode,selectIds:setSelectionScope,draftsChanged:syncDraftStatus,
-    query:()=>({text:el('query').value,ready,keys:new Set(result.rows.map(r=>r.key))}),
-    refresh:()=>{readIndex();scheduleQuery({resetScroll:false});}});
-  el('views').addEventListener('click',event=>{const button=event.target.closest('[data-find-view]');if(button)setMode(button.dataset.findView);});
-  el('open').addEventListener('click', () => open()); el('close').addEventListener('click', () => floating.close());
-  el('replace').addEventListener('toggle', () => scheduleQuery({ resetScroll: false }));
-  el('replacement').addEventListener('input', event => { operationNotice = ''; if (!event.isComposing) scheduleQuery({ resetScroll: false }); });
-  el('replacement').addEventListener('compositionend', () => scheduleQuery({ resetScroll: false }));
-  el('replace-current').addEventListener('click', () => replace(false)); el('replace-all').addEventListener('click', () => replace(true));
-  el('text').addEventListener('input', () => { const d = drafts.get(editKey); if (d) { d.after = el('text').value; syncDraftStatus(); } });
-  el('apply').addEventListener('click', applyDraft); el('discard').addEventListener('click', discard);
-  el('drafts').addEventListener('click', () => {
-    const choices=[...[...drafts.keys()].filter(k=>drafts.get(k).before!==drafts.get(k).after).map(key=>({id:'cue:'+key,key})),
-      ...textTools.pendingKeys().map(key=>({id:'whole:'+key,key,whole:true}))];
-    if(!choices.length)return;
-    const next=choices[(choices.findIndex(c=>c.id===draftCursor)+1)%choices.length];draftCursor=next.id;
-    if(next.whole)textTools.resumeWhole(next.key);else editOne(next.key);
-  });
-  el('query').addEventListener('input', event => { if (!event.isComposing) scheduleQuery(); });
-  el('query').addEventListener('compositionend', () => scheduleQuery());
-  el('query').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); step(event.shiftKey ? -1 : 1); } });
-  el('clear').addEventListener('click', () => { el('query').value = ''; scheduleQuery(); el('query').focus(); });
-  el('prev').addEventListener('click', () => step(-1)); el('next').addEventListener('click', () => step(1));
-  el('scope').addEventListener('change', scopeChanged); el('use-selection').addEventListener('click', scopeChanged);
-  for (const id of ['case', 'regex']) el(id).addEventListener('change', () => scheduleQuery());
-  viewport.addEventListener('scroll', () => { cancelAnimationFrame(renderFrame); renderFrame = requestAnimationFrame(renderRows); });
-  canvas.addEventListener('click', event => { const edit = event.target.closest('[data-edit-key]'); if (edit) { editOne(edit.dataset.editKey); return; } const button = event.target.closest('[data-key]'); if (button) navigate(button.dataset.key); });
-  canvas.addEventListener('dblclick', event => { const button = event.target.closest('[data-key]'); if (button) editOne(button.dataset.key); });
-  const observer = new ResizeObserver(() => { if (floating.isOpen()) renderRows(); }); observer.observe(viewport);
-  new ResizeObserver(() => {
-    if (!floating.isOpen()) return;
-    const rect = panel.getBoundingClientRect();
-    panel.style.left = `${Math.max(6, Math.min(rect.left, innerWidth - rect.width - 6))}px`;
-    panel.style.top = `${Math.max(6, Math.min(rect.top, innerHeight - rect.height - 6))}px`;
-  }).observe(panel);
-  document.addEventListener('keydown', event => {
-    const modal = document.querySelector('.modal-mask.show, dialog[open]');
-    if (event.isComposing || modal || event.defaultPrevented || event.key === 'Escape' && document.querySelector('#ctxmenu.show')) return;
-    if (floating.isOpen() && el('editor').contains(event.target)) {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); discard(); return; }
-      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.stopImmediatePropagation(); applyDraft(); return; }
+  function processOptions(){return {trim:tidy('trim').checked,capitalize:tidy('capitalize').checked,stripMarkdown:tidy('markdown').checked,addPrefix:tidy('prefix').checked,prefix:tidy('prefix-text').value,addSuffix:tidy('suffix').checked,suffix:tidy('suffix-text').value};}
+  function publish(next){
+    if(recoverDrafts&&!next.error){
+      const present=new Set(next.rows.map(r=>r.key));
+      for(const [key,d] of drafts)if(d.before!==d.after&&!present.has(key)){next.rows.push({key,matches:[],after:d.after});present.add(key);}
+      for(const group of invalidGroups.values())for(const row of group.rows)if(!present.has(row.key)){next.rows.push({key:row.key,matches:[]});present.add(row.key);}
     }
-    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
-      event.preventDefault(); event.stopImmediatePropagation(); open({view:'search'});
-    } else if (event.key === 'Escape' && floating.isOpen() && !document.querySelector('#msw-option-help:not([hidden])')) {
-      const front = [...document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show')].sort((a, b) => +getComputedStyle(b).zIndex - +getComputedStyle(a).zIndex)[0];
-      if (front === panel) { event.preventDefault(); event.stopImmediatePropagation(); floating.close(); }
+    result=next;ready=!next.error&&!next.limited;viewport.setAttribute('aria-busy','false');
+    matchMap=new Map(next.rows.filter(r=>r.matches.length).map(r=>[records.get(r.key)?.id,r]));
+    const errors={'invalid-regex':'正则表达式无效','worker-unavailable':'此环境无法安全运行正则，请使用普通文字查找','timeout':'查询耗时过长，请简化正则表达式','replacement-too-large':'替换结果过大，请缩小范围'};
+    notice=errors[next.error]||(next.limited?'匹配过多，请缩小范围':notice);
+    buildUnits();updatePlan();renderRows();paintWaveform();
+  }
+  function buildUnits(){
+    const rows=result.rows.map(hit=>records.get(hit.key)||drafts.get(hit.key)?.row||[...invalidGroups.values()].flatMap(g=>g.rows).find(r=>r.key===hit.key)).filter(Boolean),group=el('group').value;
+    if(group==='rows')units=rows.map(row=>({id:row.key,title:`${row.trackName}_${row.number}`,rows:[row]}));
+    else {const groups=new Map();for(const row of rows){const key=group==='track'?row.trackId:row.speakerId;if(!groups.has(key))groups.set(key,{id:group+':'+key,title:group==='track'?row.trackName:row.speakerName,rows:[]});groups.get(key).rows.push(row);}units=[...groups.values()];}
+    for(const unit of units)unit.draftKey=JSON.stringify(unit.rows.map(r=>r.key));
+    rowHeight=group==='rows'?156:300;canvas.style.height=`${units.length*rowHeight}px`;
+    el('empty').hidden=!!rows.length;el('empty').textContent=t('当前范围没有字幕');
+  }
+  function draftFor(key){const row=records.get(key);let d=drafts.get(key);if(!d&&row){d={key,before:row.text,after:row.text,row:{...row}};drafts.set(key,d);}return d;}
+  function inputText(row){return drafts.get(row.key)?.after??row.text;}
+  function unitText(unit){return el('group').value==='rows'?inputText(unit.rows[0]):invalidGroups.get(unit.draftKey)?.text??MSWFindTextTools.pack(unit.rows,inputText);}
+  function updatePlan(){
+    const opts=processOptions();
+    changes=result.rows.filter(hit=>!excluded.has(hit.key)).map(hit=>{
+      const draft=drafts.get(hit.key),row=records.get(hit.key)||draft?.row;
+      return {key:hit.key,before:draft?.before??row?.text??'',after:AsrEditorUtils.applyTextProcessing(hit.after??draft?.after??row?.text??'',opts)};
+    });
+    const plan=core.planChanges(changes,records),invalid=units.some(u=>invalidGroups.has(u.draftKey)&&u.rows.some(r=>!excluded.has(r.key)));
+    el('apply').disabled=!ready||invalid||!!plan.conflicts.length||!plan.edits.length;
+    el('message').textContent=t(invalid?'请保留字幕分隔行；增删字幕请使用切分或合并':plan.conflicts.length?'目标字幕已改变，草稿已保留':notice||`修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`);
+    el('count').textContent=t(`${result.rows.length} 条 · 已选 ${changes.length}`);
+    const dirty=[...drafts.values()].filter(d=>d.before!==d.after).length+invalidGroups.size;
+    el('drafts').hidden=!dirty;el('drafts').textContent=t(`${dirty} 条未应用`);
+    el('select-all').disabled=!result.rows.length;
+    return new Map(changes.map(c=>[c.key,c]));
+  }
+  function renderRows(){
+    if(!floating.isOpen()||!el('result-section').open)return;cancelAnimationFrame(renderFrame);
+    const first=Math.max(0,Math.floor(viewport.scrollTop/rowHeight)-2),last=Math.min(units.length,first+Math.ceil(viewport.clientHeight/rowHeight)+5);
+    const changesByKey=new Map(changes.map(c=>[c.key,c])),existing=new Map([...canvas.children].map(n=>[n.dataset.unit,n]));
+    const keep=new Set();
+    for(let i=first;i<last;i++){
+      const unit=units[i];keep.add(unit.id);let node=existing.get(unit.id);
+      if(!node){
+        node=document.createElement('article');node.className='find-unified-row';node.dataset.unit=unit.id;
+        const header=document.createElement('div');header.className='find-result-meta';
+        const check=document.createElement('input');check.type='checkbox';check.dataset.check=unit.id;
+        const button=document.createElement('button');button.type='button';button.className='find-tools-location';button.dataset.locate=unit.id;
+        const state=document.createElement('span');state.className='find-result-status';
+        const reset=document.createElement('button');reset.type='button';reset.className='find-reset';reset.dataset.reset=unit.id;reset.textContent='↶';reset.title=t('放弃此条草稿');
+        header.append(check,button,state,reset);
+        const input=document.createElement('textarea');input.dataset.unit=unit.id;input.spellcheck=false;
+        const preview=document.createElement('div');preview.className='find-result-after';preview.dataset.preview='';
+        node.append(header,input,preview);canvas.append(node);
+      }
+      node.style.top=`${i*rowHeight}px`;node.style.height=`${rowHeight}px`;
+      node.classList.toggle('current',unit.rows.some(r=>r.key===activeKey));
+      const selectedCount=unit.rows.filter(r=>!excluded.has(r.key)).length,check=node.querySelector('input');
+      check.checked=selectedCount===unit.rows.length;check.indeterminate=selectedCount>0&&!check.checked;check.ariaLabel=t('选中')+' '+unit.title;
+      node.querySelector('[data-locate]').textContent=unit.title+'  '+formatTime(unit.rows[0].start)+(unit.rows.length>1?' · '+t(`${unit.rows.length} 条字幕`):'');
+      const input=node.querySelector('textarea'),value=unitText(unit);if(input.value!==value&&document.activeElement!==input)input.value=value;
+      input.ariaLabel=unit.title;input.readOnly=unit.rows.some(r=>r.locked||!records.has(r.key));input.style.height=el('group').value==='rows'?'74px':'214px';
+      const dirty=unit.rows.some(r=>drafts.has(r.key)&&drafts.get(r.key).after!==drafts.get(r.key).before)||invalidGroups.has(unit.draftKey);
+      node.querySelector('.find-result-status').textContent=t(unit.rows.some(r=>!records.has(r.key))?'来源已删除':input.readOnly?'已锁定':dirty?'未应用':unit.rows.every(r=>r.disabled)?'已禁用':'');node.querySelector('[data-reset]').hidden=!dirty;
+      const modified=unit.rows.filter(r=>changesByKey.has(r.key)&&changesByKey.get(r.key).after!==inputText(r));
+      const preview=node.querySelector('[data-preview]');preview.textContent=modified.length?t('应用后：')+(unit.rows.length===1?changesByKey.get(unit.rows[0].key).after:t(modified.length+' 条字幕将更新')):'';
+      preview.title=preview.textContent;
     }
-  }, true);
-  window.addEventListener('msw:subtitles-changed', changed);
-  window.addEventListener('msw:project-changed', () => {
-    stopWorker(); ++queryVersion; clearTimeout(queryTimer); clearTimeout(syncTimer);
-    records.clear(); references.clear(); plainEngine = core.createEngine(); trackSignature = ''; activeKey = null;
-    selected = []; el('scope').value = 'all'; el('query').value = ''; el('tracks').hidden = el('selection').hidden = true;
-    drafts.clear();scopeCache=null;draftCursor='';textTools.reset();mode='search';setMode('search');editKey = null; el('editor').hidden = true; el('replacement').value = ''; ready = false; syncDraftStatus();
-    if (floating.isOpen()) { readIndex(); publish({ rows: [], count: 0 }); }
+    for(const [id,node] of existing)if(!keep.has(id)&&!node.contains(document.activeElement))node.remove();
+  }
+  function apply(){
+    if(el('apply').disabled)return;
+    try{const plan=commit(changes,'查找并编辑');for(const c of plan.edits)drafts.delete(c.key);
+      notice=`已修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`;
+      // A single application consumes the operation recipe, avoiding accidental double prefixes.
+      for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;
+      tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;el('replace-enabled').checked=false;el('replacement').disabled=true;
+      readIndex();scheduleQuery({resetScroll:false});
+    }catch(error){notice=error.message;el('message').textContent=t(notice);el('apply').disabled=true;}
+  }
+  function hasDraft(){return invalidGroups.size>0||[...drafts.values()].some(d=>d.before!==d.after);}
+  function open({ids}={}){const was=floating.isOpen();floating.open();readIndex();
+    if(ids){selected=[...ids];el('only-selected').checked=true;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;}
+    if(!was||ids)scheduleQuery({resetScroll:false});el('query').focus();}
+  function onClose(){clearTimeout(queryTimer);clearTimeout(syncTimer);++queryVersion;stopWorker();matchMap.clear();paintWaveform();waveformEditor?.refreshCueOverlay?.();}
+  el('open').addEventListener('click',()=>open());el('close').addEventListener('click',()=>floating.close());el('apply').addEventListener('click',apply);
+  for(const id of ['only-selected','all-tracks','all-speakers','case','regex'])el(id).addEventListener('change',()=>{
+    if(id==='only-selected'&&el(id).checked)selected=batchSelectedIds();
+    el('tracks').hidden=el('all-tracks').checked;el('speakers').hidden=el('all-speakers').checked;scheduleQuery();
   });
-  global.MSWFindEdit = Object.freeze({ open, close: () => floating.close(), changed, decorateBlock, keepVisible, capture, restore, hasDraft });
+  el('group').addEventListener('change',()=>{viewport.scrollTop=0;canvas.replaceChildren();buildUnits();updatePlan();renderRows();});
+  el('select-all').addEventListener('click',()=>{for(const hit of result.rows)excluded.delete(hit.key);updatePlan();renderRows();});
+  el('replace-enabled').addEventListener('change',()=>{el('replacement').disabled=!el('replace-enabled').checked;notice='';scheduleQuery({resetScroll:false});});
+  for(const id of ['query','replacement']){
+    el(id).addEventListener('input',event=>{notice='';if(!event.isComposing)scheduleQuery({resetScroll:id==='query'});});
+    el(id).addEventListener('compositionend',()=>scheduleQuery({resetScroll:id==='query'}));
+  }
+  for(const id of ['trim','capitalize','markdown','prefix','suffix','prefix-text','suffix-text'])tidy(id).addEventListener(id.endsWith('-text')?'input':'change',()=>{
+    notice='';tidy('prefix-text').hidden=!tidy('prefix').checked;tidy('suffix-text').hidden=!tidy('suffix').checked;updatePlan();renderRows();
+  });
+  canvas.addEventListener('change',event=>{const id=event.target.dataset.check;if(!id)return;const unit=units.find(u=>u.id===id);for(const r of unit.rows)event.target.checked?excluded.delete(r.key):excluded.add(r.key);updatePlan();renderRows();});
+  canvas.addEventListener('click',event=>{
+    const locate=event.target.closest('[data-locate]'),reset=event.target.closest('[data-reset]');
+    const unit=units.find(u=>u.id===(locate?.dataset.locate||reset?.dataset.reset));if(!unit)return;
+    if(locate)navigate(unit.rows[0].key);
+    else {for(const row of unit.rows)drafts.delete(row.key);invalidGroups.delete(unit.draftKey);notice='';scheduleQuery({resetScroll:false});updatePlan();renderRows();}
+  });
+  canvas.addEventListener('input',event=>{
+    const input=event.target.closest('textarea');if(!input)return;const unit=units.find(u=>u.id===input.dataset.unit);if(!unit)return;
+    notice='';
+    try{const values=el('group').value==='rows'?[input.value]:MSWFindTextTools.unpack(unit.rows,input.value);
+      unit.rows.forEach((row,i)=>{const d=draftFor(row.key);d.after=values[i];if(d.after===d.before)drafts.delete(row.key);});invalidGroups.delete(unit.draftKey);
+    }catch(error){invalidGroups.set(unit.draftKey,{text:input.value,rows:unit.rows,group:el('group').value});notice=error.message;}
+    updatePlan();if(!event.isComposing)scheduleQuery({resetScroll:false});
+  });
+  canvas.addEventListener('compositionend',()=>scheduleQuery({resetScroll:false}));
+  el('drafts').addEventListener('click',()=>{
+    const invalid=[...invalidGroups.values()][0],dirty=[...drafts.values()].filter(d=>d.before!==d.after);
+    selected=invalid?invalid.rows.map(r=>r.id):dirty.map(d=>records.get(d.key)?.id).filter(Boolean);
+    el('only-selected').checked=true;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;el('query').value='';
+    if(invalid)el('group').value=invalid.group;scheduleQuery();recoverDrafts=true;
+  });
+  viewport.addEventListener('scroll',()=>{cancelAnimationFrame(renderFrame);renderFrame=requestAnimationFrame(renderRows);});
+  new ResizeObserver(renderRows).observe(viewport);el('result-section').addEventListener('toggle',renderRows);
+  new ResizeObserver(()=>{if(!floating.isOpen())return;const r=panel.getBoundingClientRect();panel.style.left=`${Math.max(6,Math.min(r.left,innerWidth-r.width-6))}px`;panel.style.top=`${Math.max(6,Math.min(r.top,innerHeight-r.height-6))}px`;}).observe(panel);
+  document.addEventListener('keydown',event=>{
+    if(event.isComposing||event.defaultPrevented||document.querySelector('.modal-mask.show,dialog[open]'))return;
+    if((event.ctrlKey||event.metaKey)&&!event.altKey&&!event.shiftKey&&event.key.toLowerCase()==='f'){event.preventDefault();event.stopImmediatePropagation();open();}
+    else if(floating.isOpen()&&panel.contains(event.target)&&event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();event.stopImmediatePropagation();apply();}
+    else if(event.key==='Escape'&&floating.isOpen()&&!document.querySelector('#ctxmenu.show,#msw-option-help:not([hidden])')){
+      const front=[...document.querySelectorAll('.gap-remove-panel.show,.settings-panel.show')].sort((a,b)=>+getComputedStyle(b).zIndex-+getComputedStyle(a).zIndex)[0];
+      if(front===panel){event.preventDefault();event.stopImmediatePropagation();floating.close();}
+    }
+  },true);
+  window.addEventListener('msw:subtitles-changed',changed);
+  window.addEventListener('msw:project-changed',()=>{
+    stopWorker();++queryVersion;clearTimeout(queryTimer);clearTimeout(syncTimer);records.clear();references.clear();plainEngine=core.createEngine();trackSignature=speakerSignature='';activeKey=null;
+    selected=[];recoverDrafts=false;excluded.clear();drafts.clear();invalidGroups.clear();el('only-selected').checked=false;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;
+    el('query').value=el('replacement').value='';el('replace-enabled').checked=false;el('replacement').disabled=true;el('group').value='rows';notice='';
+    for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;
+    if(floating.isOpen()){readIndex();scheduleQuery();}
+  });
+  global.MSWFindEdit=Object.freeze({open,close:()=>floating.close(),changed,decorateBlock,keepVisible,capture,restore,hasDraft});
 })(window);

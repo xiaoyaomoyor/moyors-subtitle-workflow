@@ -66,3 +66,19 @@ test('no-op replacements, zero-width and oversized results cannot make unintende
  assert.equal(e.search({query:'(?=a)',regex:true,replacement:'X'}).count,0);
  assert.equal(e.search({query:'alpha',replacement:'x'.repeat(3*1024*1024)}).error,'replacement-too-large');
 });
+
+
+test('unified empty search returns all filtered cues and drafts combine with replacement',()=>{
+ const e=make();assert.equal(e.search({allowEmpty:true}).rows.length,3);assert.equal(e.search({allowEmpty:true,keys:[]}).rows.length,0);
+ let r=e.search({query:'alpha',keys:['a'],replacement:'Hello',drafts:{a:'Alpha changed\nline'}});
+ assert.equal(r.rows[0].before,rows[0].text);assert.equal(r.rows[0].after,'Hello changed\nline');
+ r=e.search({query:'alpha',drafts:{a:'No match now'}});assert.equal(r.rows.find(r=>r.key==='a').after,'No match now');
+ assert.equal(e.search({allowEmpty:true,drafts:{a:''}}).rows.find(r=>r.key==='a').after,'');
+});
+test('group editing preserves identity and multiline text and rejects boundary damage',()=>{
+ const {pack,unpack}=createRequire(import.meta.url)('../web/msw-find-text-tools.js');
+ const input=[{trackName:'S1主',number:1,text:'A\nB'},{trackName:'S2',number:2,text:' C\n\nD '}];
+ const text=pack(input);assert.deepEqual(unpack(input,text),input.map(r=>r.text));
+ assert.deepEqual(unpack(input,text.replace('A\nB','new\nline')),['new\nline',' C\n\nD ']);
+ assert.throws(()=>unpack(input,text.replace('⟦S2_2⟧','deleted')));assert.throws(()=>unpack(input,text+'\n⟦S3_3⟧'));
+});
