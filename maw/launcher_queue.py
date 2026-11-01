@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from maw.gui_workflow import (
     TranscriptionCancelledError, default_srt_path, run_transcription, unique_output_path, render_editor_html,
 )
-from maw.gui_config import DEFAULT_MODEL_ID
+from maw.gui_config import DEFAULT_MODEL_ID, api_key_for_provider
 from maw.media import MEDIA_EXTENSIONS, probe_audio_tracks, resolve_project_media
 from maw.media_cache import MediaCacheCancelled, embed_media_caches
 from maw.postprocess_io import read_project, read_srt, render_srt, write_derived_project, _atomic_write, project_from_subtitle_segments
@@ -145,6 +145,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
     """Validate every task before starting any work, including service parameters."""
     if not isinstance(plan, dict) or plan.get("version") != VERSION:
         return [], [{"message": "任务方案版本无效。", "module": "media"}]
+    plan = copy.deepcopy(plan)
     if plan.get("pendingAssociations"):
         return [], [{"message": "请先确认文件关联，或选择分别处理。", "module": "media"}]
     raw_tasks = plan.get("tasks")
@@ -153,6 +154,18 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
     modules, output = plan.get("modules", {}), plan.get("output", {})
     if not isinstance(modules, dict) or not isinstance(output, dict):
         return [], [{"message": "任务参数格式无效。", "module": "media"}]
+    try:
+        service_plan = copy.deepcopy(plan.get("postprocess") or {"steps": []})
+        active_steps = set(modules.get("postprocess", []))
+        service_plan["enabled"] = bool(active_steps)
+        for step in service_plan.get("steps", []):
+            step["enabled"] = step.get("id") in active_steps
+        frozen_llm = snapshot_postprocess_llm_settings(env_path, service_plan)
+        if modules.get("asr"):
+            recognition = plan.setdefault("recognition", {})
+            recognition["apiKey"] = recognition.get("apiKey") or api_key_for_provider(recognition.get("providerId") or "qwen", env_path)
+    except (TypeError, ValueError) as error:
+        return [], [{"message": str(error), "module": "media"}]
     prepared, errors, identities, sources, reserved = [], [], set(), set(), set()
     for raw in raw_tasks:
         task_id = str(raw.get("id", "")) if isinstance(raw, dict) else ""
@@ -241,7 +254,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
             if output.get("srtOnly") and output.get("exportSrt") is False and not ("translate" in active and (output.get("exportTranslatedSrt", True) or (bilingual_enabled and output.get("exportBilingualSrt")))):
                 module = "output"
                 raise ValueError("只生成 SRT 时至少选择一种可输出的字幕。")
-            post, problems = validate_plan(post, env_path=env_path, media_path=media or source, ffmpeg_path=tools.ffmpeg)
+            post, problems = validate_plan(post, env_path=env_path, media_path=media or source, ffmpeg_path=tools.ffmpeg, llm_settings=frozen_llm)
             if problems:
                 errors.extend({"taskId": task_id, "module": p.get("step") or "media", "field": p.get("field"), "message": p["message"]} for p in problems)
                 continue
@@ -281,7 +294,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
             waveform = bool(modules.get("waveform")) and bool(media) and tracks != [] and not output.get("srtOnly")
             if modules.get("waveform") and not waveform:
                 warnings.append("波形生成不适用：仅输出字幕。" if output.get("srtOnly") else "波形生成不适用：未关联可用音轨。")
-            prepared.append(PreparedTask(task_id, source, project, media, track, default_track, anchor, post, snapshot_postprocess_llm_settings(env_path, post), request, waveform, bool(plan.get("generateSpectral")), export_srt, warnings, bool(output.get("srtOnly")), bool(output.get("generateHtml")), str(plan.get("recognition", {}).get("guiLang") or "zh"), bool(plan.get("rebuildWaveform")), original_target))
+            prepared.append(PreparedTask(task_id, source, project, media, track, default_track, anchor, post, copy.deepcopy(frozen_llm), request, waveform, bool(plan.get("generateSpectral")), export_srt, warnings, bool(output.get("srtOnly")), bool(output.get("generateHtml")), str(plan.get("recognition", {}).get("guiLang") or "zh"), bool(plan.get("rebuildWaveform")), original_target))
         except Exception as error:
             errors.append({"taskId": task_id, "module": module, "field": getattr(error, "field", ""), "message": str(error)})
     return prepared, errors

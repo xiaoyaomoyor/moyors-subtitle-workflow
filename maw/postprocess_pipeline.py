@@ -88,10 +88,10 @@ def default_postprocess_plan() -> dict[str, object]:
                 "cleanMarkdownSymbols": True,
             },
             {"id": "replace", "enabled": False, "replacements": [], "replacementSeparator": "arrow", "replacementTrim": True, "replacementCustomSeparator": "", "conversion": TextConversion.OFF.value},
-            {"id": "proofread", "enabled": False, "providerId": "deepseek", "customPrompt": ""},
-            {"id": "resegment", "enabled": False, "providerId": "deepseek", "customPrompt": ""},
+            {"id": "proofread", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "customPrompt": ""},
+            {"id": "resegment", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "customPrompt": ""},
             {"id": "ocr", "enabled": False, "modelId": OCR_MODEL_ID, "videoPath": "", "videoPathMode": "", "regionMode": "full", "regionX1": 0, "regionY1": 0, "regionX2": 100, "regionY2": 100, "threshold": 0.5, "report": False},
-            {"id": "translate", "enabled": False, "providerId": "deepseek", "target": "zh", "mergeBilingual": False, "embedTranslations": False, "bilingualLineOrder": "", "customPrompt": ""},
+            {"id": "translate", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "target": "zh", "mergeBilingual": False, "embedTranslations": False, "bilingualLineOrder": "", "customPrompt": ""},
         ],
     }
 
@@ -145,7 +145,9 @@ def normalize_plan(raw: object) -> dict[str, object]:
             if key in {"id", "enabled"} or key not in source:
                 continue
             value = source[key]
-            if key == "replacements":
+            if key == "reasoningMode":
+                step[key] = normalize_reasoning_mode(value) if value else ""
+            elif key == "replacements":
                 step[key] = _normalize_replacements(value, trim=replacement_trim)
             elif key == "replacementTrim":
                 step[key] = bool(value)
@@ -313,22 +315,35 @@ def snapshot_postprocess_llm_settings(
         if str(step.get("id") or "") not in {"proofread", "resegment", "translate"}:
             continue
         provider_id = str(step.get("providerId") or "deepseek")
-        if provider_id in snapshot:
-            continue
         values = _llm_values(env_path, provider_id)
         preset = preset_by_id(provider_id)
         env_values = load_env(env_path)
-        snapshot[provider_id] = {
+        snapshot[str(step["id"])] = {
+            "providerId": provider_id,
             "apiKey": values["apiKey"],
             "baseUrl": values["baseUrl"],
-            "model": values["model"],
+            "model": str(step.get("model") or values["model"]),
             "verified": "1" if is_llm_verified(env_path, provider_id) else "",
             "reasoningMode": normalize_reasoning_mode(
-                os.environ.get(f"{preset.env_prefix}_REASONING_MODE")
+                step.get("reasoningMode") or os.environ.get(f"{preset.env_prefix}_REASONING_MODE")
                 or env_values.get(f"{preset.env_prefix}_REASONING_MODE", DEFAULT_REASONING_MODE)
             ),
         }
     return snapshot
+
+
+def _step_llm_settings(
+    env_path: Path, step: Mapping[str, object],
+    snapshot: Mapping[str, Mapping[str, str]] | None = None,
+) -> dict[str, str]:
+    """Resolve once per step; accept provider-keyed snapshots from older retries."""
+    provider_id = str(step.get("providerId") or "deepseek")
+    if snapshot is not None:
+        values = snapshot.get(str(step["id"])) or snapshot.get(provider_id)
+        if values is None:
+            raise ValueError("本次任务缺少 LLM 步骤配置，请重新开始任务。")
+        return dict(values)
+    return snapshot_postprocess_llm_settings(env_path, {"enabled": True, "steps": [step]})[str(step["id"])]
 
 
 def validate_plan(
@@ -354,7 +369,7 @@ def validate_plan(
                 errors.append({"step": step_id, "field": "postprocessScriptPath", "message": "文稿匹配需要一个存在的 .txt、.md 或 .markdown 文稿文件。"})
         elif step_id in {"proofread", "resegment", "translate"}:
             provider_id = str(step.get("providerId") or "deepseek")
-            status = _snapshot_provider_status(llm_settings.get(provider_id)) if llm_settings and provider_id in llm_settings else postprocess_provider_status(env_path, provider_id)
+            status = _snapshot_provider_status(_step_llm_settings(env_path, step, llm_settings))
             if not status["hasApiKey"]:
                 errors.append({"step": step_id, "field": "llmApiKey", "message": "LLM 供应商缺少 API Key，请在更多设置的供应商环境中填写并保存。"})
             elif not status["hasBaseUrl"]:
@@ -613,6 +628,10 @@ def run_postprocess_pipeline(
         scope['sourceTrackId'] = preflight(view, scope.get('sourceTrackId'),
                                            enabled_steps(plan)[max(0, resume_from):], target_id=scope.get('targetTrackId'))
     plan = {**plan, 'trackScope': scope}
+    if llm_settings is None:
+        llm_settings = snapshot_postprocess_llm_settings(env_path, plan)
+    else:
+        llm_settings = {key: dict(value) for key, value in llm_settings.items()}
     normalized, errors = validate_plan(plan, env_path=env_path, media_path=media_path, ffmpeg_path=ffmpeg_path, llm_settings=llm_settings)
     if errors:
         raise ValueError(errors[0]["message"])
@@ -1043,7 +1062,7 @@ def _run_step(
         "translate_en" if step_id == "translate" else step_id
     )
     provider_id = str(step.get("providerId") or "deepseek")
-    values = dict(llm_settings.get(provider_id)) if llm_settings and provider_id in llm_settings else _llm_values(env_path, provider_id)
+    values = _step_llm_settings(env_path, step, llm_settings)
     settings = LlmSettings(
         provider_id=provider_id,
         api_key=values["apiKey"],

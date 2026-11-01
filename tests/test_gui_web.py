@@ -45,6 +45,31 @@ class FakeWindow:
 
 @final
 class GuiWebBridgeTests(unittest.TestCase):
+    def test_asr_connection_save_preserves_key_and_task_defaults(self):
+        from maw.gui_config import load_env
+        self.env_path.write_text("DASHSCOPE_API_KEY=test-old\nDASHSCOPE_DEFAULT_LANGUAGE=en\nMAW_GUI_LAST_MODEL=qwen-audio-3.0-asr\n", encoding="utf-8")
+        result = self.api.save_asr_connection({"providerId": "qwen", "apiKey": "", "region": "beijing", "workspaceId": "test-workspace"})
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["hasApiKey"])
+        self.assertNotIn("test-old", str(result))
+        saved = load_env(self.env_path)
+        self.assertEqual(saved["DASHSCOPE_API_KEY"], "test-old")
+        self.assertEqual(saved["DASHSCOPE_DEFAULT_LANGUAGE"], "en")
+        self.assertEqual(saved["MAW_GUI_LAST_MODEL"], "qwen-audio-3.0-asr")
+        self.assertEqual(saved["DASHSCOPE_WORKSPACE_ID"], "test-workspace")
+        result = self.api.save_asr_connection({"providerId": "openai", "apiKey": "new-test", "openaiBaseUrl": "https://example.test/v1"})
+        self.assertTrue(result["ok"])
+        saved = load_env(self.env_path)
+        self.assertEqual(saved["MAW_OPENAI_ASR_API_KEY"], "new-test")
+        self.assertEqual(saved["DASHSCOPE_API_KEY"], "test-old")
+
+    def test_step_capabilities_do_not_make_cloud_requests(self):
+        with mock.patch("maw.postprocess_llm.requests.Session") as network:
+            result = self.api.get_postprocess_model_capabilities({"providerId": "zhipu", "model": "glm-5.3-flash", "reasoningMode": "off"})
+        self.assertEqual(result["effectiveMode"], "low")
+        self.assertEqual(result["modes"], ["auto", "low", "high", "max"])
+        network.assert_not_called()
+
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_dir.name)
@@ -3932,7 +3957,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn('交互式口播对齐…', launcher_script)
         self.assertNotIn('id="saveSettings"', page)
         self.assertIn('id="openConnectionSettings"', page)
-        self.assertIn('openSettings("llmSettingsSection")', launcher_script)
+        self.assertIn('openSettings("asrSettingsSection")', launcher_script)
 
     def test_launcher_t2_pagination_and_media_search_contracts(self) -> None:
         """T2（三轮审查 U4/A6/A7）：分页契约、服务端搜索、媒体名索引与页码控件。"""
@@ -4568,7 +4593,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         self.assertIn('class="language-layout"', page)
         self.assertIn('class="language-side"', page)
-        self.assertIn('id="languageGroup" class="adv-group"', page)
+        self.assertIn('id="languageGroup" class="field"', page)
         self.assertIn(
             ".adv-group {\n  grid-column: 1 / -1;\n  display: grid;",
             stylesheet,
@@ -4590,7 +4615,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('id="segmentationField" class="segmentation-settings-fields"', page)
         self.assertIn('id="advancedParamsGroup" class="adv-group"', page)
         self.assertIn("function syncAdvancedParamsGroup()", script)
-        self.assertIn("syncWorkspace(); syncAdvancedParamsGroup();", script)
+        self.assertIn("syncAdvancedParamsGroup();", script)
         self.assertIn('id="qwenAudioOptions" class="adv-group qwen-audio-options hidden"', page)
         self.assertIn('id="sonioxContextOptions" class="adv-group soniox-context-options hidden"', page)
         self.assertIn('data-i18n="advanced_params"', page)
@@ -4623,26 +4648,14 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn(".advanced-col {\n  display: grid;\n  grid-template-columns: 1fr 1fr;", stylesheet)
         self.assertNotIn("display: contents", stylesheet)
 
-    def test_regional_fields_are_temporarily_hidden_for_domestic_launcher(self) -> None:
+    def test_regional_fields_belong_to_saved_asr_connections(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
-        script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
-
-        self.assertIn('id="regionField" class="field hidden"', page)
-        self.assertIn('id="workspaceField" class="field hidden"', page)
-        self.assertIn("北京地域选填（推荐），新加坡地域必填。", page)
-        self.assertIn(
-            "const SHOW_REGIONAL_FIELDS = false;",
-            script,
-        )
-        self.assertIn(
-            '$("regionField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || current.regions.length === 0);',
-            script,
-        )
-        self.assertIn(
-            '$("workspaceField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || provider().regions.length === 0);',
-            script,
-        )
-        self.assertIn('data.region === "singapore" && !data.workspaceId', script)
+        settings = page[page.index('id="asrSettingsSection"'):page.index('id="llmSettingsSection"')]
+        for field in ("apiKey", "region", "workspaceId", "openaiBaseUrl"):
+            self.assertIn(f'id="{field}"', settings)
+        prefab = page[page.index('id="recognitionCard"'):page.index('id="proofreadCard"')]
+        self.assertNotIn('id="apiKey"', prefab)
+        self.assertIn('id="qwenAudioContext"', prefab)
 
     def test_launcher_section_titles_share_emoji_numbering_and_size(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")

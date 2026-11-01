@@ -29,8 +29,10 @@ test('OpenAI ASR exposes official models and a conditional Custom model input', 
     '自定义（Custom）',
   ]);
   await expect(page.locator('#openaiModelField')).toBeHidden();
+  await page.locator('#openConnectionSettings').click();
   await expect(page.locator('#openKeyUrl')).toHaveText('OpenAI 官方');
   await expect(page.locator('#keyHintSuffix')).toHaveText('获取 API Key');
+  await page.evaluate(() => MSWNavigation.show('prefab'));
 
   await page.locator('#model').selectOption('custom-asr');
   await expect(page.locator('#openaiModelField')).toBeVisible();
@@ -121,9 +123,9 @@ test('Launcher settings switch between accessible tabs and deep links', async ({
   await page.locator('[data-nav-page="settings"]').click();
   await page.mouse.move(600, 400); // 移开悬停，让折叠导航收起（展开层覆盖左缘内容）
 
-  // S2：设置改为右侧单选分组栏（六组）；键盘左右/上下/Home/End 在分组间移动。
+  // S2：设置改为右侧单选分组栏（七组）；键盘左右/上下/Home/End 在分组间移动。
   const tabs = page.locator('#settingsRail [role="tab"]');
-  await expect(tabs).toHaveCount(6);
+  await expect(tabs).toHaveCount(7);
   await expect(page.locator('#settingsRail')).toHaveAttribute('aria-label', '设置分组');
   await expect(page.locator('#settingsAppearancePanel')).toBeVisible();
   await expect(page.locator('#settingsConnectionPanel')).toBeHidden();
@@ -293,13 +295,13 @@ test('LLM tested model synchronizes prefab summaries and reopening settings', as
     MSWLauncher.openSettings('llmSettingsSection');
   });
   await page.locator('#llmProvider').selectOption('custom');
-  await expect(page.locator('#proofreadModel')).toHaveValue('models/gemini-3.8-flash');
-  await expect(page.locator('#proofreadModel')).toHaveAttribute('readonly', '');
+  await expect(page.locator('#proofreadModel')).toHaveAttribute('placeholder', /models\/gemini-3\.8-flash/);
+  await expect(page.locator('#proofreadModel')).not.toHaveAttribute('readonly', '');
   await page.locator('#llmModel').fill('gemini-3.5-flash-lite');
   await page.locator('#llmReasoningMode').selectOption('low');
   await page.locator('#testLlmConnection').click();
   for (const id of ['proofread', 'resegment', 'translate']) {
-    await expect(page.locator('#' + id + 'Model')).toHaveValue('gemini-3.5-flash-lite');
+    await expect(page.locator('#' + id + 'Model')).toHaveAttribute('placeholder', /gemini-3\.5-flash-lite/);
   }
   expect(await page.evaluate(() => __testedPayload.model)).toBe('gemini-3.5-flash-lite');
   await page.locator('#llmProvider').selectOption('deepseek');
@@ -310,7 +312,7 @@ test('LLM tested model synchronizes prefab summaries and reopening settings', as
   await page.locator('#llmModel').fill('unsaved-model');
   await page.locator('#testLlmConnection').click();
   await expect(page.locator('#llmSettingsSaveStatus')).not.toContainText('连接成功');
-  await expect(page.locator('#proofreadModel')).toHaveValue('gemini-3.5-flash-lite');
+  await expect(page.locator('#proofreadModel')).toHaveAttribute('placeholder', /gemini-3\.5-flash-lite/);
 });
 
 test('LLM delayed test saves the submitted model rather than a newer draft', async ({ page }) => {
@@ -691,7 +693,9 @@ test('error reports copy safe details and support file URL fallback', async ({ p
   // R4/F09：识别默认关闭；本用例涉及识别表单，先启用识别模块。
   await page.locator('#prefabRail input[data-module-id="asr"]').check();
   await page.evaluate(id => MSWWorkflow.setCollapsed(id, false), "asr");
+  await page.locator('#openConnectionSettings').click();
   await page.locator('#apiKey').fill('sk-secret-test-key');
+  await page.evaluate(() => MSWNavigation.show('prefab'));
   await page.evaluate(() => {
     window.MSWLauncher.appendLog('child output: duration probe failed');
     window.MSWLauncher.appendLog('Authorization: Bearer secret-bearer-token');

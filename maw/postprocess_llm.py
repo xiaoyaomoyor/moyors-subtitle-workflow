@@ -62,7 +62,7 @@ class LlmClientError(RuntimeError):
 
 
 LlmDelta = Callable[[str, str], None]
-REASONING_MODES: Final[frozenset[str]] = frozenset({"auto", "off", "low", "medium", "high"})
+REASONING_MODES: Final[frozenset[str]] = frozenset({"auto", "off", "low", "medium", "high", "max"})
 MAX_RESPONSE_ATTEMPTS: Final[int] = 2
 CONNECTION_TEST_READ_TIMEOUT: Final[int] = 90
 MAX_PROVIDER_DIAGNOSTIC_CHARS: Final[int] = 240
@@ -520,6 +520,38 @@ def llm_request_summary(settings: LlmSettings) -> dict[str, str]:
             "reasoningMode": normalize_reasoning_mode(settings.reasoning_mode)}
 
 
+def reasoning_capabilities(settings: LlmSettings) -> dict[str, object]:
+    """UI choices mirror request adapters; unknown endpoints expose only auto."""
+    family, model = _provider_family(settings), _request_model(settings).lower()
+    modes, minimum, switch_only = ["auto"], False, False
+    if family == "gemini" and model.startswith("gemini-"):
+        minimum = not model.startswith("gemini-2.5-") or model.startswith("gemini-2.5-pro")
+        modes += ["off", "low", "high"] if model.startswith("gemini-3-pro") else ["off", "low", "medium", "high"]
+        if model.startswith(("gemini-3.8-", "gemini-4-", "gemini-3.1-pro", "gemini-3-pro", "gemini-2.5-pro")):
+            modes.remove("off")
+    elif family == "zhipu":
+        if "glm-5.3" in model:
+            modes += ["low", "high", "max"]
+            minimum = True
+        elif "glm-5.2" in model:
+            modes += ["off", "high", "max"]
+        else:
+            modes += ["off", "high"]
+            switch_only = True
+    elif family == "deepseek":
+        modes += ["off", "low", "high", "max"] if "v4" in model or model == "deepseek-flash" else ["off", "high"]
+        switch_only = len(modes) == 3
+    elif family == "qwen":
+        modes += ["off", "low", "medium", "high"] if any(name in model for name in ("qwen3", "qwq", "qvq")) else ["off", "high"]
+        switch_only = len(modes) == 3
+    effective = normalize_reasoning_mode(settings.reasoning_mode)
+    if family == "gemini" and effective == "off" and "off" not in modes:
+        effective = "low"
+    if family == "zhipu" and "glm-5.3" in model:
+        effective = {"off": "low", "medium": "high"}.get(effective, effective)
+    return {"modes": modes, "minimum": minimum, "switchOnly": switch_only, "effectiveMode": effective}
+
+
 def _reasoning_parameters(settings: LlmSettings) -> dict[str, JsonValue]:
     mode = normalize_reasoning_mode(settings.reasoning_mode)
     if mode == "auto":
@@ -529,6 +561,8 @@ def _reasoning_parameters(settings: LlmSettings) -> dict[str, JsonValue]:
     model = _request_model(settings).lower()
     if family == "gemini":
         if mode == "off":
+            if model.startswith(("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3-flash", "gemini-3.1-flash-lite")):
+                return {"reasoning_effort": "minimal"}
             # Gemini 3+ and 2.5 Pro cannot disable thinking. The existing off
             # preference means the lowest supported effort, not model default.
             if re.match(r"gemini-(?:[3-9]|[1-9]\d+)[.-]", model) or model.startswith("gemini-2.5-pro"):
@@ -551,13 +585,13 @@ def _reasoning_parameters(settings: LlmSettings) -> dict[str, JsonValue]:
 
     if family == "deepseek":
         result = {"thinking": {"type": "disabled" if mode == "off" else "enabled"}}
-        if mode != "off" and "v4" in model:
-            # Current DeepSeek V4 endpoints expose high/max rather than the
-            # full five-level scale. Keep low/medium conservative and stable.
-            result["reasoning_effort"] = "high"
+        if mode != "off" and ("v4" in model or model == "deepseek-flash"):
+            result["reasoning_effort"] = "high" if mode == "medium" else mode
         return result
 
     if family == "zhipu":
+        if "glm-5.3" in model:
+            return {"thinking": {"type": "enabled"}, "reasoning_effort": {"off": "low", "medium": "high"}.get(mode, mode)}
         result = {"thinking": {"type": "disabled" if mode == "off" else "enabled"}}
         if mode != "off" and "glm-5.2" in model:
             result["reasoning_effort"] = mode

@@ -726,10 +726,10 @@ class PostprocessPipelineTests(unittest.TestCase):
         plan = self.plan({"id": "proofread", "enabled": True, "providerId": "custom"})
 
         snapshot = snapshot_postprocess_llm_settings(self.env_path, plan)
-        self.assertEqual(snapshot["custom"]["apiKey"], "sk-private")
-        self.assertEqual(snapshot["custom"]["baseUrl"], "https://example.test/v1")
-        self.assertEqual(snapshot["custom"]["model"], "demo")
-        self.assertEqual(snapshot["custom"]["verified"], "1")
+        self.assertEqual(snapshot["proofread"]["apiKey"], "sk-private")
+        self.assertEqual(snapshot["proofread"]["baseUrl"], "https://example.test/v1")
+        self.assertEqual(snapshot["proofread"]["model"], "demo")
+        self.assertEqual(snapshot["proofread"]["verified"], "1")
 
         self.env_path.write_text(
             "MAW_POSTPROCESS_CUSTOM_API_KEY=sk-changed\n"
@@ -746,6 +746,64 @@ class PostprocessPipelineTests(unittest.TestCase):
         )
         self.assertEqual(errors, ())
         self.assertNotIn("apiKey", json.dumps(plan, ensure_ascii=False))
+
+    def test_steps_use_independent_overrides_and_frozen_credentials(self):
+        from maw.postprocess_pipeline import _step_llm_settings
+        self.env_path.write_text("MAW_POSTPROCESS_CUSTOM_API_KEY=test\nMAW_POSTPROCESS_CUSTOM_MODEL=default\nMAW_POSTPROCESS_CUSTOM_BASE_URL=https://example.test/v1\nMAW_POSTPROCESS_CUSTOM_REASONING_MODE=medium\n", encoding="utf-8")
+        plan = self.plan(
+            {"id": "proofread", "enabled": True, "providerId": "custom", "model": "model-a", "reasoningMode": "low"},
+            {"id": "translate", "enabled": True, "providerId": "custom", "model": "model-b"},
+            {"id": "resegment", "enabled": True, "providerId": "custom", "reasoningMode": "high"})
+        normalized = save_postprocess_plan(self.env_path, plan)
+        snapshot = snapshot_postprocess_llm_settings(self.env_path, normalized)
+        self.assertEqual((snapshot["proofread"]["model"], snapshot["proofread"]["reasoningMode"]), ("model-a", "low"))
+        self.assertEqual((snapshot["translate"]["model"], snapshot["translate"]["reasoningMode"]), ("model-b", "medium"))
+        self.assertEqual((snapshot["resegment"]["model"], snapshot["resegment"]["reasoningMode"]), ("default", "high"))
+        self.env_path.write_text("MAW_POSTPROCESS_CUSTOM_MODEL=changed\n", encoding="utf-8")
+        for step in normalized["steps"]:
+            if step["id"] in snapshot:
+                self.assertEqual(_step_llm_settings(self.env_path, step, snapshot), snapshot[step["id"]])
+        self.assertNotIn('apiKey', str(normalized))
+        self.assertEqual(load_postprocess_config(self.root / "maw-postprocess.json")["plan"], normalized)
+
+    def test_pipeline_dispatches_frozen_step_models_even_when_defaults_change(self):
+        self.env_path.write_text("MAW_POSTPROCESS_CUSTOM_API_KEY=test\nMAW_POSTPROCESS_CUSTOM_MODEL=default\nMAW_POSTPROCESS_CUSTOM_BASE_URL=https://example.test/v1\n", encoding="utf-8")
+        record_llm_verification(self.env_path, "custom")
+        plan = self.plan(
+            {"id": "proofread", "enabled": True, "providerId": "custom", "model": "proofreader", "reasoningMode": "low"},
+            {"id": "translate", "enabled": True, "providerId": "custom", "model": "translator", "reasoningMode": "high", "target": "en"})
+        seen = []
+        def complete(settings, _prompt, cues):
+            seen.append((settings.model, settings.reasoning_mode, settings.api_key))
+            self.env_path.write_text("MAW_POSTPROCESS_CUSTOM_API_KEY=changed\nMAW_POSTPROCESS_CUSTOM_MODEL=changed\n", encoding="utf-8")
+            return {"groups": [{"id": c["id"], "text": c["text"] if settings.model == "proofreader" else "Translated " + c["id"]} for c in cues]}
+        with mock.patch("maw.postprocess_pipeline.complete_subtitle_groups", side_effect=complete):
+            result = run_postprocess_pipeline(plan, media_path=self.media, project_path=self.project, srt_path=self.srt,
+                env_path=self.env_path, ffmpeg_path=None, cancel_event=Event())
+        self.assertEqual(result.completed_steps, ("proofread", "translate"))
+        self.assertEqual(seen, [("proofreader", "low", "test"), ("translator", "high", "test")])
+
+    def test_retry_keeps_step_snapshot_after_saved_defaults_change(self):
+        self.env_path.write_text("MAW_POSTPROCESS_CUSTOM_API_KEY=test\nMAW_POSTPROCESS_CUSTOM_MODEL=default\nMAW_POSTPROCESS_CUSTOM_BASE_URL=https://example.test/v1\n", encoding="utf-8")
+        record_llm_verification(self.env_path, "custom")
+        plan = self.plan({"id": "translate", "enabled": True, "providerId": "custom", "model": "translator", "reasoningMode": "high", "target": "en"}, retain=True)
+        snapshot = snapshot_postprocess_llm_settings(self.env_path, plan)
+        args = dict(media_path=self.media, project_path=self.project, srt_path=self.srt,
+                    env_path=self.env_path, ffmpeg_path=None, cancel_event=Event(), llm_settings=snapshot)
+        with mock.patch("maw.postprocess_pipeline.complete_subtitle_groups", side_effect=RuntimeError("mock failure")):
+            with self.assertRaises(PostprocessPipelineError) as raised:
+                run_postprocess_pipeline(plan, **args)
+        error = raised.exception
+        self.env_path.write_text("MAW_POSTPROCESS_CUSTOM_API_KEY=changed\nMAW_POSTPROCESS_CUSTOM_MODEL=changed\n", encoding="utf-8")
+        seen = []
+        def complete(settings, _prompt, cues):
+            seen.append((settings.model, settings.reasoning_mode, settings.api_key))
+            return {"groups": [{"id": c["id"], "text": "Translated " + c["id"]} for c in cues]}
+        with mock.patch("maw.postprocess_pipeline.complete_subtitle_groups", side_effect=complete):
+            result = run_postprocess_pipeline(plan, **args, resume_directory=error.run_directory,
+                resume_from=error.failed_index, resume_project_path=error.current_project, resume_srt_path=error.current_srt)
+        self.assertTrue(result.project_path.is_file())
+        self.assertEqual(seen, [("translator", "high", "test")])
 
     def test_publish_gates_original_and_translated_srt_independently(self) -> None:
         """S5/§7.1：只工程/工程+原文/工程+译文/三者同时——导出开关独立生效。"""

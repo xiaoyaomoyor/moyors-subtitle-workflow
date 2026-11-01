@@ -56,7 +56,7 @@ test('advanced help is localized, compact and does not toggle checkboxes or subm
     expect(b.x).toBeGreaterThan(a.x + a.width);
     for (const [selector, text] of [
       ['#qwenAudioHotwordsLabel', language === 'zh' ? '不保证命中' : 'does not guarantee'],
-      ['#speakerColorsField', language === 'zh' ? '最多 5 种颜色' : 'up to 5 colors'],
+      ['#speakerColorsField', language === 'zh' ? '说话人色系' : 'each detected speaker'],
       ['#debugRawField', language === 'zh' ? '不会限制处理时长' : 'does not limit'],
     ]) {
       await page.locator(`${selector} .module-help`).click();

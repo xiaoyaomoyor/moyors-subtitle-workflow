@@ -3711,3 +3711,16 @@ select[multiple] option {
 .launcher-toast button svg { width: 16px; height: 16px; }
 @media (max-width: 700px) { .home-launch { flex-wrap: wrap; } .home-server-control { flex-basis: 100%; } }
 @media (prefers-reduced-motion: reduce) { #homeServerToggle[data-state="busy"] svg { animation: none; } }
+
+/* Prefab steps share a compact provider → model → effort/language row. */
+.step-service-grid { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(220px, 1.5fr) minmax(180px, 1fr); gap: 12px; align-items: start; }
+.step-service-grid > .field { min-width: 0; margin-top: 0; }
+.step-service-grid input, .step-service-grid select { width: 100%; min-width: 0; }
+.step-model-picker .llm-model-options { max-height: 250px; overflow-y: auto; }
+.step-model-picker .llm-model-option { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .step-service-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.asr-quick-row { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin: 4px 0 12px; }
+.asr-service-grid #languageGroup { margin: 0; padding: 0; border: 0; }
+.asr-service-grid .language-layout { display: block; }
+.asr-service-grid .language-side:has(.hidden):not(:has(:not(.hidden))) { display: none; }

@@ -61,8 +61,16 @@ def validate(raw):
                     or any(not isinstance(name, str) or not 1 <= len(name) <= 80
                            or public_recipe(provider, item) != item for name, item in library.items())):
                 raise ValueError('配音预设内容无效')
-    if 'postprocess' in raw and public_plan(raw['postprocess']) != raw['postprocess']:
-        raise ValueError('处理流程含无效参数或文件／轨道引用')
+    if 'postprocess' in raw:
+        candidate = copy.deepcopy(raw['postprocess'])
+        # Older exported plans had no per-step overrides; missing means inherit.
+        if isinstance(candidate, dict) and isinstance(candidate.get('steps'), list):
+            for step in candidate['steps']:
+                if isinstance(step, dict) and step.get('id') in {'proofread', 'resegment', 'translate'}:
+                    step.setdefault('model', '')
+                    step.setdefault('reasoningMode', '')
+        if public_plan(candidate) != candidate:
+            raise ValueError('处理流程含无效参数或文件／轨道引用')
     if 'recovery' in raw:
         value = raw['recovery']
         if (not isinstance(value, dict) or set(value) != {'enabled', 'interval', 'limit'}

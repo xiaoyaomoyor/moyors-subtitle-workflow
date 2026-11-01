@@ -200,30 +200,30 @@
             <label for="queueAsrPolicy" data-i18n="queue_asr_policy">已有字幕的处理</label>
             <select id="queueAsrPolicy"><option value="missing" data-i18n="queue_asr_missing">仅识别没有字幕的任务</option><option value="replace" data-i18n="queue_asr_replace">重新识别并写入新工程</option></select>
           </div>
-          <div class="provider-row">
-            <div class="field provider-field">
-              <label for="provider" data-i18n="provider">识别方式</label>
-              <select id="provider"></select>
-            </div>
-            <label class="check-field" for="testRun" data-i18n-title="test_run_title">
-              <input id="testRun" type="checkbox">
-              <span data-i18n="test_run">快速测试</span>
-            </label>
+          <div class="step-service-grid asr-service-grid">
+            <div class="field provider-field"><label for="provider" data-i18n="provider">识别方式</label><select id="provider"></select></div>
+            <div id="modelField" class="field"><label for="model" data-i18n="model">模型</label><select id="model"></select><p id="modelNote" class="hint"></p></div>
+            <div id="languageGroup" class="field">
+                  <label id="languageGroupTitle" for="language" data-i18n="language">语言</label>
+                  <div id="languageField" class="field">
+                    <div class="language-layout">
+                      <select id="language" aria-labelledby="languageGroupTitle"></select>
+                      <div class="language-side">
+                        <div class="lang-actions"><button id="languageReset" class="ghost small hidden" type="button" data-i18n="language_reset">重置（自动识别）</button></div>
+                        <p id="languageHint" class="hint hidden" data-i18n="language_multi_hint">可多选；不选即自动识别（仅偏向，不限制）。</p>
+                        <p id="languageFilterHint" class="hint hint-top-spaced hidden" data-i18n="language_filter_hint">默认仅显示常用语言，其余可在「配置」中开启。</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+          </div>
+          <div class="asr-quick-row">
+            <label class="check-field" for="testRun" data-i18n-title="test_run_title"><input id="testRun" type="checkbox"><span data-i18n="test_run">快速测试</span></label>
+            <button id="openConnectionSettings" class="inline-link" type="button" data-i18n="manage_asr_connection">管理识别连接</button>
           </div>
           <p id="providerNote" class="hint warn hint-callout hidden" aria-live="polite"></p>
           <p id="testRunHint" class="hint hidden" data-i18n="test_run_override">快速测试已限定前 2 分钟</p>
-          <div id="modelField" class="field">
-            <label for="model" data-i18n="model">模型</label>
-            <select id="model"></select>
-            <p id="modelNote" class="hint"></p>
-          </div>
           <div id="customAsrFields" class="field hidden">
-            <div class="field">
-              <label for="openaiBaseUrl" data-i18n="custom_asr_base_url">ASR Base URL</label>
-              <input id="openaiBaseUrl" type="url" autocomplete="off" data-i18n-placeholder="custom_asr_base_url_placeholder">
-              <p class="hint" data-i18n="custom_asr_base_url_hint">默认使用 OpenAI 官方地址；程序会请求 /audio/transcriptions。</p>
-              <p id="openaiBaseUrlError" class="field-error"></p>
-            </div>
             <div class="field"><label for="openaiPrompt">Prompt</label><textarea id="openaiPrompt" maxlength="12000"></textarea></div>
             <div class="field"><label for="openaiKeywords">Keywords <span data-i18n="doubao_hotwords">即时热词（每行一个）</span></label><textarea id="openaiKeywords" maxlength="12000"></textarea></div>
             <label><input id="openaiDiarize" type="checkbox"> diarized_json</label>
@@ -234,15 +234,6 @@
               <p class="hint" data-i18n="custom_asr_model_hint">填写中转站控制台提供的模型名。</p>
               <p id="openaiModelError" class="field-error"></p>
             </div>
-          </div>
-          <div id="apiKeyField" class="field">
-            <label for="apiKey" data-i18n="key">API Key</label>
-            <div class="path-row key-row">
-              <input id="apiKey" type="password" autocomplete="off">
-            </div>
-            <p class="hint"><span data-i18n="key_hint_prefix">在</span> <button id="openKeyUrl" class="inline-link" type="button">阿里云百炼</button> <span id="keyHintSuffix" data-i18n="key_hint_suffix">获取 API Key ↗</span></p>
-            <p class="hint"><button id="openConnectionSettings" class="inline-link" type="button" data-i18n="open_connection_settings">在更多设置中保存密钥</button></p>
-            <p id="apiKeyError" class="field-error"></p>
           </div>
           <div id="localRuntimeCheckField" class="field hidden"><div class="local-status-row"><p id="localRuntimeCheckStatus" class="local-status" aria-live="polite"></p><button id="openLocalRuntimeSettings" class="inline-link" type="button" data-i18n="local_runtime_view_settings">在更多设置中查看</button></div></div>
           <div id="localModelPanel" class="local-model-panel hidden">
@@ -286,27 +277,7 @@
                   <h3 data-i18n="advanced_params">识别参数</h3>
                   <div class="advanced-col">
                     <div id="localDeviceField" class="field hidden"><label for="localDevice" data-i18n="local_device">设备</label><select id="localDevice"><option value="auto" data-i18n="device_auto">自动</option><option value="cpu" data-i18n="device_cpu">CPU</option><option value="cuda" data-i18n="device_cuda">CUDA</option></select></div>
-                    <div id="regionField" class="field hidden"><label for="region" data-i18n="region">地域</label><select id="region"></select></div>
-                    <div id="workspaceField" class="field hidden">
-                      <label for="workspaceId" data-i18n="workspace">工作空间 ID</label>
-                      <input id="workspaceId" type="text" autocomplete="off">
-                      <p class="hint" data-i18n="workspace_hint">北京地域选填（推荐），新加坡地域必填。</p>
-                      <p id="workspaceIdError" class="field-error"></p>
-                    </div>
                     <div id="lengthLimitField" class="field"><label for="lengthLimit" data-i18n="length_limit">时长上限</label><input id="lengthLimit" type="text" placeholder="2m / 30s / 1h" autocomplete="off"></div>
-                  </div>
-                </div>
-                <div id="languageGroup" class="adv-group">
-                  <h3 id="languageGroupTitle" data-i18n="language">语言</h3>
-                  <div id="languageField" class="field">
-                    <div class="language-layout">
-                      <select id="language" aria-labelledby="languageGroupTitle"></select>
-                      <div class="language-side">
-                        <div class="lang-actions"><button id="languageReset" class="ghost small hidden" type="button" data-i18n="language_reset">重置（自动识别）</button></div>
-                        <p id="languageHint" class="hint hidden" data-i18n="language_multi_hint">可多选；不选即自动识别（仅偏向，不限制）。</p>
-                        <p id="languageFilterHint" class="hint hint-top-spaced hidden" data-i18n="language_filter_hint">默认仅显示常用语言，其余可在「配置」中开启。</p>
-                      </div>
-                    </div>
                   </div>
                 </div>
                 <div id="doubaoOptions" class="adv-group hidden">
@@ -517,9 +488,16 @@
 
         <section id="proofreadCard" class="card module-card" data-module-card="proofread" aria-labelledby="proofreadCardTitle">
           <h2 id="proofreadCardTitle" data-i18n="auto_step_proofread">LLM 校对</h2>
-          <div class="toolbox-grid">
+          <div class="step-service-grid">
             <div class="field"><label for="proofreadProvider" data-i18n="toolbox_provider">供应商</label><select id="proofreadProvider"></select></div>
-            <div class="field"><label for="proofreadModel" data-i18n="llm_model">模型</label><input id="proofreadModel" readonly aria-readonly="true" data-i18n-title="module_model_saved"></div>
+            <div class="field"><label for="proofreadModel" data-i18n="llm_model">模型</label>
+              <div class="llm-model-picker step-model-picker">
+                <input id="proofreadModel" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="proofreadModelOptions">
+                <button id="proofreadModelToggle" class="llm-model-toggle" type="button" aria-label="选择模型"></button>
+                <div id="proofreadModelOptions" class="llm-model-options hidden" role="listbox"></div>
+              </div>
+            </div>
+            <div class="field"><label for="proofreadReasoningMode" data-i18n="llm_reasoning_mode">思考强度</label><select id="proofreadReasoningMode"><option value="">跟随更多设置</option></select></div>
           </div>
           <details class="preset-prompt"><summary><span data-i18n="module_preset_prompt">预设提示词</span> · <span id="proofreadPresetName"></span></summary><pre id="proofreadPresetText"></pre></details>
           <div class="field">
@@ -532,9 +510,16 @@
 
         <section id="resegmentCard" class="card module-card" data-module-card="resegment" aria-labelledby="resegmentCardTitle">
           <h2 id="resegmentCardTitle" data-i18n="auto_step_resegment">重新断句</h2>
-          <div class="toolbox-grid">
+          <div class="step-service-grid">
             <div class="field"><label for="resegmentProvider" data-i18n="toolbox_provider">供应商</label><select id="resegmentProvider"></select></div>
-            <div class="field"><label for="resegmentModel" data-i18n="llm_model">模型</label><input id="resegmentModel" readonly aria-readonly="true" data-i18n-title="module_model_saved"></div>
+            <div class="field"><label for="resegmentModel" data-i18n="llm_model">模型</label>
+              <div class="llm-model-picker step-model-picker">
+                <input id="resegmentModel" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="resegmentModelOptions">
+                <button id="resegmentModelToggle" class="llm-model-toggle" type="button" aria-label="选择模型"></button>
+                <div id="resegmentModelOptions" class="llm-model-options hidden" role="listbox"></div>
+              </div>
+            </div>
+            <div class="field"><label for="resegmentReasoningMode" data-i18n="llm_reasoning_mode">思考强度</label><select id="resegmentReasoningMode"><option value="">跟随更多设置</option></select></div>
           </div>
           <details class="preset-prompt"><summary><span data-i18n="module_preset_prompt">预设提示词</span> · <span id="resegmentPresetName"></span></summary><pre id="resegmentPresetText"></pre></details>
           <div class="field">
@@ -615,9 +600,16 @@
 
         <section id="translateCard" class="card module-card" data-module-card="translate" aria-labelledby="translateCardTitle">
           <h2 id="translateCardTitle" data-i18n="auto_step_translate">字幕翻译</h2>
-          <div class="toolbox-grid">
+          <div class="step-service-grid">
             <div class="field"><label for="translateProvider" data-i18n="toolbox_provider">供应商</label><select id="translateProvider"></select></div>
-            <div class="field"><label for="translateModel" data-i18n="llm_model">模型</label><input id="translateModel" readonly aria-readonly="true" data-i18n-title="module_model_saved"></div>
+            <div class="field"><label for="translateModel" data-i18n="llm_model">模型</label>
+              <div class="llm-model-picker step-model-picker">
+                <input id="translateModel" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="translateModelOptions">
+                <button id="translateModelToggle" class="llm-model-toggle" type="button" aria-label="选择模型"></button>
+                <div id="translateModelOptions" class="llm-model-options hidden" role="listbox"></div>
+              </div>
+            </div>
+            <div class="field"><label for="translateReasoningMode" data-i18n="llm_reasoning_mode">思考强度</label><select id="translateReasoningMode"><option value="">跟随更多设置</option></select></div>
           </div>
           <details class="preset-prompt"><summary><span data-i18n="module_preset_prompt">预设提示词</span> · <span id="translatePresetName"></span></summary><pre id="translatePresetText"></pre></details>
           <div class="toolbox-grid">
@@ -1109,6 +1101,33 @@
           </div>
           </section>
           <section id="settingsConnectionPanel" class="settings-panel hidden" role="tabpanel" aria-labelledby="settingsRailConnection" data-settings-panel="connection" aria-hidden="true">
+          <div class="settings-section" id="asrSettingsSection">
+            <h3 data-i18n="settings_asr_connection">语音识别连接</h3>
+            <div class="field"><label for="asrConnectionProvider" data-i18n="toolbox_provider">供应商</label><select id="asrConnectionProvider"></select></div>
+            <div id="apiKeyField" class="field">
+              <label for="apiKey" data-i18n="key">API Key</label>
+              <div class="path-row key-row">
+                <input id="apiKey" type="password" autocomplete="off">
+              </div>
+              <p class="hint"><span data-i18n="key_hint_prefix">在</span> <button id="openKeyUrl" class="inline-link" type="button">阿里云百炼</button> <span id="keyHintSuffix" data-i18n="key_hint_suffix">获取 API Key ↗</span></p>
+              <p id="apiKeyError" class="field-error"></p>
+            </div>
+            <div id="asrBaseUrlField" class="field hidden">
+              <label for="openaiBaseUrl" data-i18n="custom_asr_base_url">ASR Base URL</label>
+              <input id="openaiBaseUrl" type="url" autocomplete="off" data-i18n-placeholder="custom_asr_base_url_placeholder">
+              <p class="hint" data-i18n="custom_asr_base_url_hint">默认使用 OpenAI 官方地址；程序会请求 /audio/transcriptions。</p>
+              <p id="openaiBaseUrlError" class="field-error"></p>
+            </div>
+            <div id="regionField" class="field hidden"><label for="region" data-i18n="region">地域</label><select id="region"></select></div>
+            <div id="workspaceField" class="field hidden">
+              <label for="workspaceId" data-i18n="workspace">工作空间 ID</label>
+              <input id="workspaceId" type="text" autocomplete="off">
+              <p class="hint" data-i18n="workspace_hint">北京地域选填（推荐），新加坡地域必填。</p>
+              <p id="workspaceIdError" class="field-error"></p>
+            </div>
+            <div class="settings-actions"><button id="saveAsrConnection" class="ghost" type="button" data-i18n="save_key">存入本地环境</button></div>
+            <p id="asrConnectionStatus" class="settings-save-status hint" aria-live="polite"></p>
+          </div>
           <div class="settings-section" id="llmSettingsSection">
             <h3 data-i18n="settings_llm">LLM 后处理</h3>
             <p class="hint" data-i18n="settings_llm_hint" data-help>文稿匹配之外的 LLM 工具会使用这里保存的供应商配置。密钥只保存在本机环境文件。</p>

@@ -152,6 +152,23 @@ class TransferTests(unittest.TestCase):
         engine.save({'recipe': {'rate': 10}})
         self.assertEqual(engine.settings()['recipe']['rate'], 10)
 
+    def test_step_overrides_transfer_and_older_plans_inherit(self):
+        plan = public_plan({})
+        for step in plan['steps']:
+            step.pop('model', None)
+            step.pop('reasoningMode', None)
+        old = package({'defaults': {'postprocess': plan}}, ['processing'])
+        self.imported(old)
+        current = public_plan(self.store.read()['sections']['defaults']['postprocess'])
+        proofread = next(step for step in current['steps'] if step['id'] == 'proofread')
+        self.assertEqual((proofread['model'], proofread['reasoningMode']), ('', ''))
+        proofread.update(model='manual-model', reasoningMode='high')
+        self.store.update(['defaults', 'postprocess'], current)
+        exported = self.store.request({'action': 'export', 'categories': ['processing']})['package']
+        self.imported(exported)
+        self.assertEqual(self.store.read()['sections']['defaults']['postprocess'], current)
+        self.assertNotIn('apiKey', json.dumps(exported))
+
     def test_public_plan_removes_paths_and_project_track_scope(self):
         clean = public_plan({'outputDirectory': 'private', 'trackScope': {'sourceTrackId': 'cue-1'},
                              'steps': [{'id': 'match', 'scriptPath': 'private', 'enabled': True}]})

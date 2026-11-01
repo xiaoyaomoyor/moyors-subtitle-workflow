@@ -19,7 +19,7 @@ test('module providers are independent; saved model and preset are explicit', as
   await page.locator('#proofreadProvider').selectOption('qwen');
   await page.locator('#resegmentProvider').selectOption('deepseek');
   await page.locator('#translateProvider').selectOption('zhipu');
-  await expect(page.locator('#proofreadModel')).toHaveAttribute('readonly','');
+  await expect(page.locator('#proofreadModel')).toHaveAttribute('placeholder',/跟随更多设置/);
   await expect(page.locator('#translatePresetText')).not.toHaveText('');
   await page.evaluate(() => { document.getElementById('llmProvider').value='custom'; document.getElementById('llmProvider').dispatchEvent(new Event('change')); });
   const steps = await page.evaluate(() => MSWPlan.build().postprocess.steps);

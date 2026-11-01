@@ -1210,6 +1210,27 @@ class LauncherApi:
             "message": "settings saved",
         }
 
+    def save_asr_connection(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Save only connection fields; do not change the prefab's task settings."""
+        provider = provider_by_id(str(payload.get("providerId") or "qwen"))
+        if not provider.requires_api_key:
+            return _error_result("apiKey", "config_save_failed", "This provider does not use an API key.")
+        updates = {}
+        key = str(payload.get("apiKey") or "").strip()
+        if key:
+            updates[provider.models[0].env_key] = key
+        if provider.id == "qwen":
+            updates["DASHSCOPE_REGION"] = str(payload.get("region") or "beijing")
+            updates["DASHSCOPE_WORKSPACE_ID"] = str(payload.get("workspaceId") or "").strip()
+        elif provider.id == "openai":
+            updates["MAW_OPENAI_ASR_BASE_URL"] = str(payload.get("openaiBaseUrl") or OPENAI_ASR_DEFAULT_BASE_URL).strip()
+        try:
+            save_env(self.paths.env_path, updates)
+        except (OSError, UnicodeError, ValueError) as error:
+            return _error_result("apiKey", "config_save_failed", type(error).__name__)
+        saved_key = key or api_key_for_provider(provider.id, self.paths.env_path)
+        return {"ok": True, "providerId": provider.id, "hasApiKey": bool(saved_key), "maskedApiKey": masked_secret(saved_key)}
+
     def save_prefs(self, payload: Mapping[str, object]) -> dict[str, object]:
         updates: dict[str, str] = {}
         if "asrSegmentation" in payload:
@@ -1409,6 +1430,18 @@ class LauncherApi:
                 "model": settings.model,
             })
         return {"ok": True, "providerId": preset.id, "verified": is_llm_verified(self.paths.env_path, preset.id)}
+
+    def get_postprocess_model_capabilities(self, payload: Mapping[str, object]) -> dict[str, object]:
+        from maw.postprocess_llm import reasoning_capabilities
+        preset = preset_by_id(str(payload.get("providerId") or "deepseek"))
+        saved = _postprocess_values(self.paths.env_path, preset.env_prefix)
+        settings = LlmSettings(
+            provider_id=preset.id, api_key="",
+            base_url=str(payload.get("baseUrl") or saved["baseUrl"] or preset.base_url),
+            model=str(payload.get("model") or saved["model"] or preset.model),
+            reasoning_mode=str(payload.get("reasoningMode") or saved.get("reasoningMode") or DEFAULT_REASONING_MODE),
+        )
+        return {"ok": True, **reasoning_capabilities(settings)}
 
     def get_postprocess_models(self, payload: Mapping[str, object]) -> dict[str, object]:
         preset = preset_by_id(str(payload.get("providerId") or "deepseek"))

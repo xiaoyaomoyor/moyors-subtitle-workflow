@@ -11,7 +11,7 @@ from requests.exceptions import ConnectTimeout, HTTPError, ReadTimeout, SSLError
 
 from maw.postprocess_llm import (
     LlmClientError, LlmSettings, _reasoning_parameters, complete_subtitle_groups,
-    list_llm_models, test_llm_connection as check_connection,
+    list_llm_models, reasoning_capabilities, test_llm_connection as check_connection,
 )
 
 
@@ -31,6 +31,16 @@ def session_for(body=None):
 
 
 class GeminiConnectionTests(unittest.TestCase):
+    def test_step_reasoning_choices_match_supported_requests(self):
+        self.assertEqual(reasoning_capabilities(settings())["modes"], ["auto", "low", "medium", "high"])
+        self.assertEqual(_reasoning_parameters(settings("gemini-3.6-flash", "off")), {"reasoning_effort": "minimal"})
+        self.assertEqual(reasoning_capabilities(settings("gemini-3-pro-preview"))["modes"], ["auto", "low", "high"])
+        for mode, expected in (("off", "low"), ("low", "low"), ("medium", "high"), ("high", "high"), ("max", "max")):
+            value = LlmSettings("zhipu", "test", "https://open.bigmodel.cn/api/paas/v4", "glm-5.3-flash", mode)
+            self.assertEqual(reasoning_capabilities(value)["modes"], ["auto", "low", "high", "max"])
+            self.assertEqual(_reasoning_parameters(value), {"thinking": {"type": "enabled"}, "reasoning_effort": expected})
+        self.assertEqual(reasoning_capabilities(settings("unknown", url="https://unknown.test/v1"))["modes"], ["auto"])
+
     def test_official_catalog_normalizes_and_deduplicates_resource_names_only(self):
         session = session_for()
         session.get.return_value.json.return_value = {"data": [

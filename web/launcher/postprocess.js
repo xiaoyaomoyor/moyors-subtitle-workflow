@@ -979,10 +979,10 @@
         // 模块启用只来自 MSWModules；队列执行器为每项补充文稿和媒体。
         { id: "match", enabled: stepEnabled("match"), scriptPath: $("postprocessScriptPath").value.trim(), matchMode: $("postprocessMatchMode").value, extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"), preservePunctuation: punctuationLines("postprocessPreservePunctuation"), cleanMarkdownSymbols: Boolean($("postprocessCleanMarkdownSymbols")?.checked) },
         { id: "replace", enabled: stepEnabled("replace"), replacements: parseReplacements(), replacementSeparator: $("postprocessReplacementSeparator").value, replacementTrim: $("postprocessReplacementTrim").checked, replacementCustomSeparator: $("postprocessReplacementCustomSeparator").value, conversion: $("postprocessConversion").value },
-        { id: "proofread", enabled: stepEnabled("proofread"), providerId: $("proofreadProvider").value, customPrompt: getLlmPrompt("proofread") },
-        { id: "resegment", enabled: stepEnabled("resegment"), providerId: $("resegmentProvider").value, customPrompt: getLlmPrompt("resegment") },
+        { id: "proofread", enabled: stepEnabled("proofread"), providerId: $("proofreadProvider").value, ...stepModelOverrides.proofread, customPrompt: getLlmPrompt("proofread") },
+        { id: "resegment", enabled: stepEnabled("resegment"), providerId: $("resegmentProvider").value, ...stepModelOverrides.resegment, customPrompt: getLlmPrompt("resegment") },
         { id: "ocr", enabled: stepEnabled("ocr"), modelId: $("ocrModel").value, videoPath: ocrVideoManual ? $("ocrVideoPath").value.trim() : "", videoPathMode: ocrVideoManual ? "manual" : "auto", ...ocr, threshold: Number($("ocrThreshold").value), report: Boolean($("ocrReport").checked) },
-        { id: "translate", enabled: stepEnabled("translate"), providerId: $("translateProvider").value, target: $("autoTranslateTarget").value || "zh", mergeBilingual: ($("translationWriteMode").value === "bilingual"), embedTranslations: ($("translationWriteMode").value === "backfill"), bilingualLineOrder: $("autoTranslateBilingualOrder")?.value || "", customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
+        { id: "translate", enabled: stepEnabled("translate"), providerId: $("translateProvider").value, ...stepModelOverrides.translate, target: $("autoTranslateTarget").value || "zh", mergeBilingual: ($("translationWriteMode").value === "bilingual"), embedTranslations: ($("translationWriteMode").value === "backfill"), bilingualLineOrder: $("autoTranslateBilingualOrder")?.value || "", customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
       ];
     return {
       version: 1, outputSemantics: 'separate-v2',
@@ -1141,6 +1141,7 @@
       const selected = byId.get(id)?.providerId || fallback;
       select.replaceChildren(...(window.MSWLauncher.config.postprocessProviders || []).map(item => new Option(providerLabel(item), item.id)));
       select.value = [...select.options].some(option => option.value === selected) ? selected : select.options[0]?.value || '';
+      stepModelOverrides[id] = {model: String(byId.get(id)?.model || ''), reasoningMode: String(byId.get(id)?.reasoningMode || '')};
     }
     const match = byId.get("match") || {};
     $("postprocessMatchMode").value = match.matchMode === "text" ? "text" : "script";
@@ -1640,7 +1641,7 @@
     persistAutoPlanSoon();
   });
   $("translationWriteMode").addEventListener('change', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
-  for (const id of ['proofread', 'resegment', 'translate']) $(id + 'Provider').addEventListener('change', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
+  for (const id of ['proofread', 'resegment', 'translate']) $(id + 'Provider').addEventListener('change', () => { stepModelOverrides[id] = {model: '', reasoningMode: ''}; closeStepModels(id); renderAutoPostprocessState(); persistAutoPlanSoon(); });
   $("autoTranslateBilingualOrder").addEventListener("change", persistAutoPlanSoon);
   document.addEventListener('mswmodules', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
   document.addEventListener('mswqueuechange', () => { renderAutoPostprocessState(); void refreshSplitPreview(); });
@@ -1663,11 +1664,115 @@
     if (event.stage === "step_start") setResult(`${autoStepLabel(event.step)}：${t("toolbox_running")}`);
     if (event.stage === "step_done") setResult(`${autoStepLabel(event.step)}：${t("toolbox_done")}`, "success");
   };
+  const stepModelOverrides = Object.fromEntries(['proofread', 'resegment', 'translate'].map(id => [id, {model: '', reasoningMode: ''}]));
+  const stepCapabilityRequests = {};
+  const stepModelLoads = new Map();
+  const localText = (zh, en) => window.MSWLauncher.config?.guiLang === 'en' ? en : zh;
+  const followSettings = () => localText('跟随更多设置', 'Use saved settings');
+  function reasoningLabel(mode, caps = {}) {
+    if (mode === 'off') return caps.minimum ? localText('最低', 'Minimum') : localText('关闭思考', 'Off');
+    if (mode === 'high' && caps.switchOnly) return localText('开启思考', 'On');
+    return ({auto: localText('自动', 'Auto'), low: localText('低', 'Low'), medium: localText('中', 'Medium'), high: localText('高', 'High'), max: localText('最高', 'Maximum')})[mode] || mode;
+  }
+  function renderStepModel(id, item) {
+    const input = $(id + 'Model'), draft = stepModelOverrides[id];
+    if (input.value !== draft.model) input.value = draft.model;
+    input.placeholder = `${followSettings()} · ${item.model || '—'}`;
+    input.title = input.placeholder;
+    void renderStepReasoning(id, item);
+  }
+  async function renderStepReasoning(id, item) {
+    const draft = stepModelOverrides[id];
+    const request = JSON.stringify([item.id, item.model, item.baseUrl, item.reasoningMode, draft.model, draft.reasoningMode, window.MSWLauncher.config?.guiLang]);
+    if (stepCapabilityRequests[id] === request) return;
+    stepCapabilityRequests[id] = request;
+    const select = $(id + 'ReasoningMode');
+    const inherited = item.reasoningMode || 'off';
+    const result = await bridge('get_postprocess_model_capabilities', {providerId: item.id, model: draft.model || item.model, reasoningMode: inherited}).catch(() => null);
+    if (stepCapabilityRequests[id] !== request) return;
+    const caps = result?.ok ? result : {modes: ['auto'], effectiveMode: inherited};
+    if ($(id + 'Model')._modelChanged && result?.ok) {
+      $(id + 'Model')._modelChanged = false;
+      if (draft.reasoningMode && !caps.modes.includes(draft.reasoningMode)) { draft.reasoningMode = ''; persistAutoPlanSoon(); }
+    }
+    select.replaceChildren(new Option(`${followSettings()} · ${reasoningLabel(caps.effectiveMode || inherited, caps)}`, ''),
+      ...(caps.modes || ['auto']).map(mode => new Option(reasoningLabel(mode, caps), mode)));
+    // Keep old explicit values visible so reopening a saved plan never silently changes it.
+    if (draft.reasoningMode && ![...select.options].some(o => o.value === draft.reasoningMode)) {
+      select.add(new Option(`${reasoningLabel(draft.reasoningMode, caps)} · ${localText('已有设置', 'Saved value')}`, draft.reasoningMode));
+    }
+    select.value = draft.reasoningMode;
+  }
+  function closeStepModels(id) {
+    $(id + 'ModelOptions').classList.add('hidden');
+    $(id + 'Model').setAttribute('aria-expanded', 'false');
+  }
+  function drawStepModels(id, query = '') {
+    const item = provider($(id + 'Provider').value), list = $(id + 'ModelOptions');
+    list.replaceChildren();
+    const add = (text, value, action) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'llm-model-option';
+      button.setAttribute('role', 'option'); button.setAttribute('aria-selected', String(value === stepModelOverrides[id].model));
+      button.textContent = text;
+      button.addEventListener('mousedown', event => event.preventDefault());
+      button.addEventListener('click', action || (() => {
+        stepModelOverrides[id].model = value; $(id + 'Model')._modelChanged = true;
+        renderStepModel(id, item); closeStepModels(id); persistAutoPlanSoon();
+      }));
+      list.append(button);
+    };
+    add(`${followSettings()} · ${item.model || '—'}`, '');
+    for (const model of [...new Set([item.model, ...(item.availableModels || [])])].filter(Boolean)) {
+      if (model.toLowerCase().includes(query.trim().toLowerCase())) add(model, model);
+    }
+    add(localText('刷新模型列表', 'Refresh model list'), null, () => { void loadStepModels(id, true); });
+    if (item.modelListError) { const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = localText('未能获取列表，仍可直接输入模型名称。', 'Could not load models. You can still enter a model name.'); list.append(hint); }
+    list.classList.remove('hidden'); $(id + 'Model').setAttribute('aria-expanded', 'true');
+  }
+  async function loadStepModels(id, force = false) {
+    const item = provider($(id + 'Provider').value);
+    drawStepModels(id);
+    if (!force && item.availableModels?.length) return;
+    if (!stepModelLoads.has(item.id)) {
+      stepModelLoads.set(item.id, bridge('get_postprocess_models', {providerId: item.id}).then(result => {
+        item.modelListError = !result?.ok;
+        if (result?.ok) item.availableModels = result.models || [];
+      }).catch(() => { item.modelListError = true; }).finally(() => stepModelLoads.delete(item.id)));
+    }
+    await stepModelLoads.get(item.id);
+    if ($(id + 'Provider').value === item.id && $(id + 'Model').getAttribute('aria-expanded') === 'true') drawStepModels(id, $(id + 'Model').value);
+  }
+  for (const id of Object.keys(stepModelOverrides)) {
+    const input = $(id + 'Model');
+    input.addEventListener('focus', () => { void loadStepModels(id); });
+    input.addEventListener('input', () => {
+      stepModelOverrides[id].model = input.value.trim(); input._modelChanged = true;
+      drawStepModels(id, input.value);
+      clearTimeout(input._effortTimer);
+      input._effortTimer = setTimeout(() => { void renderStepReasoning(id, provider($(id + 'Provider').value)); }, 160);
+      persistAutoPlanSoon();
+    });
+    $(id + 'ModelToggle').addEventListener('mousedown', e => e.preventDefault());
+    $(id + 'ModelToggle').addEventListener('click', () => input.getAttribute('aria-expanded') === 'true' ? closeStepModels(id) : void loadStepModels(id));
+    $(id + 'ReasoningMode').addEventListener('change', () => { stepModelOverrides[id].reasoningMode = $(id + 'ReasoningMode').value; persistAutoPlanSoon(); });
+    input.closest('.step-model-picker').addEventListener('keydown', event => {
+      const buttons = [...$(id + 'ModelOptions').querySelectorAll('button')];
+      if (event.key === 'Escape') { input.focus(); closeStepModels(id); event.stopPropagation(); }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const current = buttons.indexOf(document.activeElement), delta = event.key === 'ArrowDown' ? 1 : -1;
+        if (input.getAttribute('aria-expanded') !== 'true') { void loadStepModels(id); } else buttons[(current + delta + buttons.length) % buttons.length]?.focus();
+      }
+    });
+    input.closest('.step-model-picker').addEventListener('focusout', event => { if (!input.closest('.step-model-picker').contains(event.relatedTarget)) closeStepModels(id); });
+    document.addEventListener('pointerdown', event => { if (!input.closest('.step-model-picker').contains(event.target)) closeStepModels(id); });
+  }
+
   function renderLlmServiceSummaries() {
     for (const id of ['proofread', 'resegment', 'translate']) {
       const item = provider($(id + 'Provider').value || 'deepseek');
       if (!item) continue;
-      $(id + 'Model').value = item.model || '—';
+      renderStepModel(id, item);
       $(id + 'PresetName').textContent = autoStepLabel(id) + (id === 'translate' ? ' · ' + $('autoTranslateTarget').selectedOptions[0].textContent : '');
       $(id + 'PresetText').textContent = taskPromptText(autoLlmOperation(id));
       const node = $('llmServiceSummary' + id[0].toUpperCase() + id.slice(1));

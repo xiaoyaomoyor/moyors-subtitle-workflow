@@ -111,6 +111,28 @@ class QueueTests(unittest.TestCase):
         self.assertNotEqual(result["srtPath"], str(self.srt))
         self.assertTrue(Path(result["projectPath"]).is_file())
 
+    def test_queue_freezes_step_models_before_inspecting_first_file(self):
+        from maw.postprocess_pipeline import record_llm_verification
+        self.env.write_text("MAW_POSTPROCESS_CUSTOM_API_KEY=test\nMAW_POSTPROCESS_CUSTOM_BASE_URL=https://example.test/v1\nMAW_POSTPROCESS_CUSTOM_MODEL=original\n", encoding="utf-8")
+        record_llm_verification(self.env, "custom")
+        plan = self.plan([self.project, self.srt], postprocess=['proofread', 'translate'])
+        plan['postprocess'] = {'enabled': True, 'steps': [
+            {'id':'proofread','providerId':'custom','enabled':True,'model':'per-step'},
+            {'id':'translate','providerId':'custom','enabled':True,'reasoningMode':'high'}]}
+        inspect = queue.inspect_input
+        def mutate(*args, **kwargs):
+            self.env.write_text("MAW_POSTPROCESS_CUSTOM_MODEL=changed\n", encoding="utf-8")
+            return inspect(*args, **kwargs)
+        with patch('maw.launcher_queue.inspect_input', side_effect=mutate):
+            tasks, errors = self.prepare(plan)
+        self.assertFalse(errors)
+        self.assertEqual(len(tasks), 2)
+        for task in tasks:
+            self.assertEqual(task.llm_settings['proofread']['model'], 'per-step')
+            self.assertEqual(task.llm_settings['translate']['model'], 'original')
+            self.assertEqual(task.llm_settings['translate']['reasoningMode'], 'high')
+        self.assertNotIn('apiKey', str(plan))
+
     def test_pending_association_blocks_entire_queue(self):
         plan = self.plan([self.media, self.srt])
         plan["pendingAssociations"] = 1
