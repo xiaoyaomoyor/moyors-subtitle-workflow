@@ -326,7 +326,7 @@
 
   function providerLabel(item) {
     if (item.id === "custom") return item.displayName || t("llm_custom_provider") || item.defaultLabel || item.label || CUSTOM_DEFAULT_LABEL;
-    return item.label || item.defaultLabel || item.id;
+    return window.MSWLauncher.llmProviderLabel(item.id);
   }
 
   function postprocessErrorText(result) {

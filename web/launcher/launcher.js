@@ -1634,7 +1634,7 @@
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [
           { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: true },
-          { id: "zhipu", label: "智谱 Coding Plan", baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4", model: "glm-5.2", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: false },
+          { id: "zhipu", label: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4", model: "glm-5.2", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: false },
           { id: "qwen", label: "阿里云 Qwen", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: false },
           { id: "custom", label: saved.customDisplayName || "Custom (OpenAI-compatible)", defaultLabel: "Custom (OpenAI-compatible)", displayName: saved.customDisplayName || "", baseUrl: "", model: "", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: false, hasModel: false, selected: false }
         ],
@@ -1790,7 +1790,7 @@
       choose_folder: async ({ kind } = {}) => ({ ok: true, path: kind === "model-cache" ? "D:\\Models\\MSW" : (kind === "ocr-runtime" ? "D:\\Models\\MSW\\ocr-runtime" : (kind === "runtime" ? "D:\\Users\\Demo\\AppData\\Local\\MSW\\local-runtime" : "D:\\Stickers")) }),
       save_sticker_dir: async ({ path }) => { saved.stickerDir = path || ""; return { ok: Boolean(path), stickerDir: saved.stickerDir, field: path ? "" : "stickerDir", error: path ? "" : "missing" }; },
       get_postprocess_settings: async ({ providerId }) => { const apiKey = saved.postprocessApiKeys[providerId] || ""; return { ok: true, providerId, apiKey, maskedApiKey: apiKey ? "sk-…mock" : "" }; },
-      save_postprocess_settings: async ({ providerId, apiKey, displayName, reasoningMode }) => { if (providerId === "custom") saved.customDisplayName = displayName || ""; if (apiKey) saved.postprocessApiKeys[providerId] = apiKey; return { ok: true, providerId, label: providerId === "custom" ? (displayName || "Custom (OpenAI-compatible)") : (providerId === "deepseek" ? "DeepSeek" : (providerId === "zhipu" ? "智谱 Coding Plan" : "阿里云 Qwen")), displayName: providerId === "custom" ? (displayName || "") : "", maskedApiKey: saved.postprocessApiKeys[providerId] ? "sk-…mock" : "", reasoningMode: reasoningMode || "off", verified: false }; },
+      save_postprocess_settings: async ({ providerId, apiKey, displayName, reasoningMode }) => { if (providerId === "custom") saved.customDisplayName = displayName || ""; if (apiKey) saved.postprocessApiKeys[providerId] = apiKey; return { ok: true, providerId, label: providerId === "custom" ? (displayName || "Custom (OpenAI-compatible)") : (providerId === "deepseek" ? "DeepSeek" : (providerId === "zhipu" ? "智谱 GLM" : "阿里云 Qwen")), displayName: providerId === "custom" ? (displayName || "") : "", maskedApiKey: saved.postprocessApiKeys[providerId] ? "sk-…mock" : "", reasoningMode: reasoningMode || "off", verified: false }; },
       test_postprocess_connection: async ({ providerId, apiKey, save }) => { if (save && apiKey) saved.postprocessApiKeys[providerId] = apiKey; return { ok: true, providerId, verified: true, saved: Boolean(save), maskedApiKey: saved.postprocessApiKeys[providerId] ? "sk-…mock" : "" }; },
       save_postprocess_plan: async ({ plan }) => { saved.postprocessAutoPlan = plan; return { ok: true, plan }; },
       validate_postprocess_plan: async ({ plan }) => ({ ok: true, plan, errors: [] }),
@@ -2137,8 +2137,8 @@
     const item = state.config?.postprocessProviders?.find((candidate) => candidate.id === id);
     if (id === "custom" && item?.displayName) return item.displayName;
     const labels = state.lang === "en"
-      ? { deepseek: "DeepSeek", zhipu: "Zhipu Coding Plan", qwen: "Alibaba Qwen", custom: "Custom (OpenAI-compatible)" }
-      : { deepseek: "DeepSeek", zhipu: "智谱 Coding Plan", qwen: "阿里云 Qwen", custom: "自定义（兼容 OpenAI）" };
+      ? { deepseek: "DeepSeek", zhipu: "Zhipu GLM", qwen: "Alibaba Qwen", custom: "Custom (OpenAI-compatible)" }
+      : { deepseek: "DeepSeek", zhipu: "智谱 GLM", qwen: "阿里云 Qwen", custom: "自定义（兼容 OpenAI）" };
     return labels[id] || item?.label || t("llm_provider_unknown");
   }
   function llmBuiltInProviderKeyGuidance(context = {}) {
@@ -3636,7 +3636,7 @@
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
   window.addEventListener('msw:config-notice', event => notify(event.detail.message, {error:true}));
-  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, notify, translate: t, errorText: errText, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
+  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, notify, translate: t, errorText: errText, llmProviderLabel, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
 
   window.MSWLauncher.validateQueueRecognition = mediaPath => validateLocal({ mediaPath, srtPath: 'queue.srt' });
   window.MSWLauncher.setQueueProgress = message => setStatus(message);

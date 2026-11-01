@@ -232,6 +232,8 @@ test('LLM settings indicate a saved key without refilling it and save after conn
   await openLauncher(page);
   // S4：LLM 连接配置在更多设置·服务与连接。
   await page.evaluate(() => window.MSWLauncher.openSettings('llmSettingsSection'));
+  await expect(page.locator('#llmProvider option[value="zhipu"]')).toHaveText('智谱 GLM');
+  await expect(page.locator('#translateProvider option[value="zhipu"]')).toHaveText('智谱 GLM');
   await page.evaluate(async () => {
     await window.MSWLauncher.callBackend('save_postprocess_settings', {
       providerId: 'deepseek',
@@ -363,6 +365,7 @@ test('Custom provider labels and missing-key errors follow the selected language
   await expect(page.locator('#llmApiKey')).toHaveClass(/invalid/);
 
   await page.locator('#llmProvider').selectOption('zhipu');
+  await expect(page.locator('#llmProvider option[value="zhipu"]')).toHaveText('Zhipu GLM');
   await expect(page.locator('#llmApiKey')).not.toHaveClass(/invalid/);
   await expect(page.locator('#llmApiKeyError')).toHaveText('');
 

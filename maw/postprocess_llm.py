@@ -84,7 +84,7 @@ PRESETS: Final[tuple[LlmProviderPreset, ...]] = (
     ),
     LlmProviderPreset(
         id="zhipu",
-        label="智谱 Coding Plan",
+        label="智谱 GLM",
         base_url="https://open.bigmodel.cn/api/coding/paas/v4",
         model="glm-5.2",
         env_prefix="MAW_POSTPROCESS_ZHIPU",

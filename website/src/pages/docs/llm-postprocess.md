@@ -124,7 +124,9 @@ source: "docs/LLM_POSTPROCESS_PROTOCOL.md"
 - `response_format: {"type": "json_object"}`；
 - `temperature: 0.1`。
 
-预设供应商为 DeepSeek、智谱 Coding Plan 和阿里云 Qwen；Custom 可填写 HTTPS 或环回 HTTP 的 OpenAI-compatible URL。API Key、URL、模型和最近供应商只保存在本机配置中，完整 Key 不进入工程、SRT、前端配置响应或任务结果。字幕文字会发送给用户选择的供应商，用户应自行确认其隐私和数据保留政策。
+预设供应商为 DeepSeek、智谱 GLM 和阿里云 Qwen；Custom 可填写 HTTPS 或环回 HTTP 的 OpenAI-compatible URL。API Key、URL、模型和最近供应商只保存在本机配置中，完整 Key 不进入工程、SRT、前端配置响应或任务结果。字幕文字会发送给用户选择的供应商，用户应自行确认其隐私和数据保留政策。
+
+“智谱 GLM”是供应商名称，不表示本次调用能使用 Coding Plan 套餐额度。套餐适用工具、接口和计费规则以智谱官方说明为准；本次名称调整不会更改已保存的接口，也不会自动切换计费渠道。
 
 ## 7. 思考强度与流式显示
 

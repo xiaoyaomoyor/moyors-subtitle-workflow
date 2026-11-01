@@ -620,7 +620,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(result["apiKey"], "sk-read-this-key")
         self.assertEqual(result["maskedApiKey"], "sk-…-key")
 
-    def test_postprocess_provider_presets_include_zhipu_coding_plan(self) -> None:
+    def test_postprocess_provider_presets_include_zhipu_glm(self) -> None:
         config = self.api.get_config()
         raw_providers = config["postprocessProviders"]
         if not isinstance(raw_providers, list):
@@ -628,7 +628,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         providers = {provider["id"]: provider for provider in raw_providers if isinstance(provider, dict)}
 
         self.assertEqual(providers["deepseek"]["model"], "deepseek-v4-flash")
-        self.assertEqual(providers["zhipu"]["label"], "智谱 Coding Plan")
+        self.assertEqual(providers["zhipu"]["label"], "智谱 GLM")
         self.assertEqual(providers["zhipu"]["baseUrl"], "https://open.bigmodel.cn/api/coding/paas/v4")
         self.assertEqual(providers["zhipu"]["model"], "glm-5.2")
 
