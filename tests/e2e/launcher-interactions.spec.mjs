@@ -269,6 +269,71 @@ test('LLM settings indicate a saved key without refilling it and save after conn
   await expect(page.locator('#llmApiKey')).toHaveValue('');
 });
 
+test('LLM tested model synchronizes prefab summaries and reopening settings', async ({ page }) => {
+  await openLauncher(page);
+  await page.evaluate(() => {
+    const item = MSWLauncher.config.postprocessProviders.find(p => p.id === 'custom');
+    Object.assign(item, {model: 'models/gemini-3.8-flash', displayName: 'Gemini',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/'});
+    for (const id of ['proofread', 'resegment', 'translate']) {
+      const select = document.getElementById(id + 'Provider');
+      select.value = 'custom'; select.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+    const original = MSWLauncher.callBackend;
+    MSWLauncher.callBackend = async (method, payload) => {
+      if (method === 'test_postprocess_connection') {
+        window.__testedPayload = {...payload};
+        if (window.__failTest) return {ok: false, code: 'postprocess_connection_failed'};
+        return {ok: true, saved: true, verified: true, reasoningMode: payload.reasoningMode, label: 'Gemini'};
+      }
+      return original(method, payload);
+    };
+    MSWLauncher.openSettings('llmSettingsSection');
+  });
+  await page.locator('#llmProvider').selectOption('custom');
+  await expect(page.locator('#proofreadModel')).toHaveValue('models/gemini-3.8-flash');
+  await expect(page.locator('#proofreadModel')).toHaveAttribute('readonly', '');
+  await page.locator('#llmModel').fill('gemini-3.5-flash-lite');
+  await page.locator('#llmReasoningMode').selectOption('low');
+  await page.locator('#testLlmConnection').click();
+  for (const id of ['proofread', 'resegment', 'translate']) {
+    await expect(page.locator('#' + id + 'Model')).toHaveValue('gemini-3.5-flash-lite');
+  }
+  expect(await page.evaluate(() => __testedPayload.model)).toBe('gemini-3.5-flash-lite');
+  await page.locator('#llmProvider').selectOption('deepseek');
+  await page.locator('#llmProvider').selectOption('custom');
+  await expect(page.locator('#llmModel')).toHaveValue('gemini-3.5-flash-lite');
+  await expect(page.locator('#llmReasoningMode')).toHaveValue('low');
+  await page.evaluate(() => { window.__failTest = true; });
+  await page.locator('#llmModel').fill('unsaved-model');
+  await page.locator('#testLlmConnection').click();
+  await expect(page.locator('#llmSettingsSaveStatus')).not.toContainText('连接成功');
+  await expect(page.locator('#proofreadModel')).toHaveValue('gemini-3.5-flash-lite');
+});
+
+test('LLM delayed test saves the submitted model rather than a newer draft', async ({ page }) => {
+  await openLauncher(page);
+  await page.evaluate(() => {
+    MSWLauncher.openSettings('llmSettingsSection');
+    const original = MSWLauncher.callBackend;
+    MSWLauncher.callBackend = async (method, payload) => {
+      if (method === 'test_postprocess_connection') {
+        window.__submittedProvider = payload.providerId;
+        return new Promise(resolve => { window.__finishModelTest = () => resolve({ok: true, saved: true, verified: true}); });
+      }
+      return original(method, payload);
+    };
+  });
+  await page.locator('#llmModel').fill('tested-model');
+  await page.locator('#testLlmConnection').click();
+  await page.waitForFunction(() => typeof __finishModelTest === 'function');
+  await page.locator('#llmModel').fill('new-unsaved-draft');
+  await page.evaluate(() => __finishModelTest());
+  await expect(page.locator('#testLlmConnection')).toBeEnabled();
+  expect(await page.evaluate(() => MSWLauncher.config.postprocessProviders.find(p => p.id === __submittedProvider).model)).toBe('tested-model');
+  await expect(page.locator('#llmModel')).toHaveValue('new-unsaved-draft');
+});
+
 test('Custom provider labels and missing-key errors follow the selected language', async ({ page }) => {
   await openLauncher(page);
 

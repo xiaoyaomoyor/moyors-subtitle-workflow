@@ -1251,7 +1251,7 @@
     $("getLlmModels").disabled = true;
     try {
       const item = provider();
-      const result = await bridge("test_postprocess_connection", {
+      const submitted = {
         providerId: item.id,
         apiKey: $("llmApiKey").value.trim(),
         baseUrl: $("llmBaseUrl").value.trim(),
@@ -1259,9 +1259,21 @@
         reasoningMode: $("llmReasoningMode").value,
         displayName: item.id === "custom" ? $("llmCustomDisplayName").value.trim() : "",
         save: true,
-      });
+      };
+      const result = await bridge("test_postprocess_connection", submitted);
       if (result.ok) {
         clearSettingsErrors();
+        if (result.saved) {
+          // The backend saves the tested values. Keep the module summaries and
+          // reopening the settings page in sync with that same snapshot.
+          item.baseUrl = submitted.baseUrl || item.baseUrl;
+          item.model = submitted.model || item.model;
+          item.reasoningMode = result.reasoningMode || submitted.reasoningMode;
+          item.displayName = submitted.displayName;
+          item.label = result.label || providerLabel(item);
+          item.hasBaseUrl = Boolean(item.baseUrl);
+          item.hasModel = Boolean(item.model);
+        }
         item.verified = Boolean(result.verified);
         item.maskedApiKey = result.maskedApiKey || item.maskedApiKey;
         item.hasApiKey = Boolean(result.maskedApiKey || $("llmApiKey").value.trim() || item.hasApiKey);

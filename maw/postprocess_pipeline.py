@@ -42,6 +42,7 @@ from maw.postprocess_llm import (
     DEFAULT_REASONING_MODE,
     LlmSettings,
     complete_subtitle_groups,
+    llm_request_summary,
     normalize_reasoning_mode,
     preset_by_id,
 )
@@ -716,6 +717,13 @@ def run_postprocess_pipeline(
             step_t0 = time.perf_counter()
             translation_intermediate_project: Path | None = None
             translation_intermediate_srt: Path | None = None
+            def on_step_event(event: Mapping[str, object]) -> None:
+                if event.get("stage") == "llm_request":
+                    manifest_steps[index - 1]["llmRequest"] = {
+                        key: event[key] for key in ("providerId", "model", "reasoningMode")
+                    }
+                    _write_manifest(run_directory, manifest)
+                _emit(on_event, event)
             try:
                 if step_id == "translate" and separate_outputs:
                     original_srt = current_srt
@@ -731,7 +739,7 @@ def run_postprocess_pipeline(
                     ocr_runtime_root=ocr_runtime_root,
                     output_directory=run_directory,
                     cancel_event=cancel_event,
-                    on_event=on_event,
+                    on_event=on_step_event,
                     llm_settings=llm_settings,
                     track_scope=scope if native else None,
                     strip_tail_punct=tail_strip_symbols(normalized),
@@ -1045,6 +1053,7 @@ def _run_step(
     )
     def complete(prompt: str, cues: list[dict[str, JsonValue]]) -> Mapping[str, JsonValue]:
         _check_cancel(cancel_event)
+        _emit(on_event, {"stage": "llm_request", "step": step_id, **llm_request_summary(settings)})
         return complete_subtitle_groups(settings, prompt, cues)
 
     def on_status(key: str, details: Mapping[str, int]) -> None:

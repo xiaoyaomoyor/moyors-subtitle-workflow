@@ -512,6 +512,14 @@ def _request_model(settings: LlmSettings, model: str | None = None) -> str:
     return value.removeprefix("models/") if _provider_family(settings) == "gemini" else value
 
 
+def llm_request_summary(settings: LlmSettings) -> dict[str, str]:
+    """Safe request identity for task logs; never include endpoints or credentials."""
+    def safe(value: str) -> str:
+        return re.sub(r"[\r\n\t]", " ", _sanitize_error_text(value, settings=settings))[:200]
+    return {"providerId": safe(settings.provider_id), "model": safe(_request_model(settings)),
+            "reasoningMode": normalize_reasoning_mode(settings.reasoning_mode)}
+
+
 def _reasoning_parameters(settings: LlmSettings) -> dict[str, JsonValue]:
     mode = normalize_reasoning_mode(settings.reasoning_mode)
     if mode == "auto":
