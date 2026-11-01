@@ -57,6 +57,7 @@
   };
   var searchTimer = 0;
   var coverObserver = null;
+  var renderPending = false;
 
   function el(id) { return document.getElementById(id); }
   function t(key) { return window.MSWLauncher ? window.MSWLauncher.translate(key) : key; }
@@ -179,8 +180,6 @@
         cover.append(label);
       }
     }
-    // S3/§5.1：图钉放封面固定角落；选中描边（卡片类）与图钉互不兼任。
-    if (entry.pinned) cover.append(makePin());
   }
 
   function coverNodes(path) {
@@ -354,19 +353,26 @@
     }
     info.append(name, media, dir, meta);
     card.append(cover, info);
+    if (entry.pinned) card.append(makePin());
     if (entry.isNew) {
       card.classList.add('has-new');
       var badge = document.createElement('span');
       badge.className = 'recent-new';
       badge.textContent = 'NEW';
+      badge.title = t('recent_new');
       card.append(badge);
     }
     return card;
   }
 
   function render() {
-    // 网格重建后卡片节点已换代：菜单随之关闭，避免悬浮菜单指向已换位的列表。
-    closeMenu({});
+    // Focus refresh can finish after a context menu opens. Keep its cards stable
+    // until the interaction ends, then render the latest fetched state once.
+    if (menu.el) { renderPending = true; return; }
+    renderPending = false;
+    var focused = document.activeElement?.closest('.recent-card');
+    var focusPath = focused?.dataset.path;
+    var focusGroup = focused?.closest('[data-home-group]')?.dataset.homeGroup;
     renderRecentGroup();
     renderAllGroup();
     // T1/U2：两组分别渲染后统一收集可见卡并集，一次更新封面观察——
@@ -374,12 +380,12 @@
     observeCovers(visibleProjects().slice(0, RECENT_LIMIT)
       .concat(state.allProjects));
     renderLaunchArea();
+    if (focusPath) document.querySelector('[data-home-group="' + focusGroup + '"] .recent-card[data-path="' + cssEscape(focusPath) + '"]')?.focus({preventScroll:true});
   }
 
   function renderRecentGroup() {
     var gridNode = el("recentGrid");
     var empty = el("recentEmpty");
-    var count = el("recentCount");
     gridNode.replaceChildren();
     // H03+T2/§5.2：筛选隐藏当前目标时清除选择——翻页不清（所选可在其他页），
     // 仅搜索（query 非空）后所选既不在最近可见也不在当前页时，再经服务端
@@ -401,7 +407,6 @@
     var shown = list.slice(0, RECENT_LIMIT);
     shown.forEach(function (entry) { gridNode.append(createCard(entry)); });
     empty.classList.toggle("hidden", list.length > 0);
-    count.textContent = list.length ? t("recent_count").replace("{n}", String(list.length)) : "";
     // 统计与封面按需拉取：卡片先显示占位，不伪造数字或画面。
     shown.filter(function (entry) { return entry.exists; }).forEach(requestStats);
     applyGroupCollapsed("recent");
@@ -412,23 +417,18 @@
     var gridNode = el("allGrid");
     var empty = el("allEmpty");
     var pager = el("allPager");
-    var count = el("allCount");
     gridNode.replaceChildren();
     // T2/U4：全部组内容 = 服务端当前页（DOM 只保留当前页，不累积）。
     var shown = state.allProjects;
     shown.forEach(function (entry) { gridNode.append(createCard(entry)); });
     empty.classList.toggle("hidden", shown.length > 0);
-    // §5.1：计数区分工程总数与当前结果数（服务端 matched/total）。
-    count.textContent = state.query
-      ? t("all_count_matched").replace("{matched}", String(state.allMatched)).replace("{total}", String(state.allTotal))
-      : t("all_count").replace("{n}", String(state.allTotal));
     renderAllPager(pager);
     shown.filter(function (entry) { return entry.exists; }).forEach(requestStats);
     applyGroupCollapsed("all");
     renderGroupHeaders();
   }
 
-  // T2/U4：页码控件——上一页/紧凑页码（省略号）/下一页 + 第 X/Y 页；0 条隐藏。
+  // 上一页／紧凑页码／下一页；数量统一放在分组标题。
   function renderAllPager(pager) {
     if (!pager) return;
     pager.replaceChildren();
@@ -465,10 +465,6 @@
       pager.append(btn);
     });
     pager.append(next);
-    var info = document.createElement("span");
-    info.className = "pager-info hint";
-    info.textContent = t("pager_info").replace("{page}", String(current)).replace("{pages}", String(pages)).replace("{n}", String(state.allMatched));
-    pager.append(info);
   }
 
   // 紧凑页码：始终含 1 与末页；当前页两侧各 1；其余折叠为省略号。
@@ -491,10 +487,10 @@
   }
 
   function renderGroupHeaders() {
-    // C4：最近组计数显示（x/9）——x 为当前显示数（上限 9）；全部组仍显示总数。
+    // 标题统一显示当前可见数量／上限或登记总数。
     var recentCount = Math.min(visibleProjects().length, RECENT_LIMIT) + "/" + RECENT_LIMIT;
     [["recent", "recentGroupTitle", recentCount],
-     ["all", "allGroupTitle", visibleAllProjects().length]].forEach(function (item) {
+     ["all", "allGroupTitle", state.allProjects.length + "/" + state.allTotal]].forEach(function (item) {
       var node = el(item[1]);
       if (node) {
         var label = node.querySelector(".home-group-label");
@@ -507,16 +503,9 @@
 
   function applyGroupCollapsed(group) {
     var body = el(group === "recent" ? "recentGroupBody" : "allGroupBody");
-    var footer = el(group === "recent" ? "recentGroupTarget" : "allGroupTarget");
     if (!body) return;
     var collapsed = Boolean(state.groupsCollapsed[group]);
     body.classList.toggle("hidden", collapsed);
-    if (footer) {
-      // §5.1：折叠分组保留当前选择，底部显示将打开的工程名。
-      var entry = selectedEntry();
-      footer.textContent = collapsed && entry ? t("home_target").replace("{name}", entry.name) : "";
-      footer.classList.toggle("hidden", !collapsed || !entry);
-    }
   }
 
   function statsTextFor(entry) {
@@ -970,6 +959,7 @@
     var opener = menu.opener;
     menu.opener = null;
     node.remove();
+    if (renderPending) queueMicrotask(render);
     if (options.restoreFocus && opener && document.contains(opener)) opener.focus();
   }
 

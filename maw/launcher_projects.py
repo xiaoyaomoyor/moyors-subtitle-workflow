@@ -250,8 +250,8 @@ def recent_projects_payload(
         return registered.get(_canonical_identity(path)[0], {}).get("isNew") is True
 
     ordered.sort(key=lambda p: _latest_iso(editor_times.get(str(p), ""), created_times.get(str(p), "")), reverse=True)
-    pinned_first = sorted(ordered, key=lambda p: (not is_new(p), str(p) not in pinned_keys))
-    # 固定项在前；其余保持编辑器「最近优先」顺序。
+    pinned_first = sorted(ordered, key=lambda p: (str(p) not in pinned_keys, not is_new(p)))
+    # 顶置优先，其次为新项目；同组保持「最近优先」顺序。
     final_order: list[Path] = []
     seen: set[str] = set()
     for path in pinned_first:

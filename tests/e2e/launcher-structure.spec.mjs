@@ -196,7 +196,7 @@ test('pinned recent card shows an SVG pin with accessible label; idle status is 
   });
   expect(pin).not.toBeNull();
   expect(pin.hasSvg).toBe(true);
-  expect(pin.label).toBe('已固定');
+  expect(pin.label).toBe('已顶置');
 
   // 闲置状态不再常驻「就绪」：空消息收起，仍保留 aria-live 语义。
   const status = await page.evaluate(() => {

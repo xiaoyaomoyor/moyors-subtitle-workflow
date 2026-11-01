@@ -3539,15 +3539,16 @@ class LauncherAssetContractTests(unittest.TestCase):
         # Shift+F10 / Menu 键唤起，键盘唤起聚焦首项并按卡片定位（不依赖鼠标坐标）。
         self.assertIn('event.key === "ContextMenu"', home_script)
         self.assertIn("{ keyboard: true }", home_script)
-        # 菜单动作含「打开工程」首项；Esc 关闭可选择归还焦点；网格重建时菜单关闭。
+        # 菜单动作含「打开工程」首项；Esc 关闭归还焦点；菜单操作期间延迟列表重绘。
         self.assertIn("recent_open_project", launcher_script)
         self.assertIn("restoreFocus", home_script)
         self.assertIn(
-            "closeMenu({});",
+            "renderPending = true; return;",
             home_script.split("function render()")[1].split("\n  function ")[0],
         )
+        self.assertIn("if (renderPending) queueMicrotask(render);", home_script)
 
-        # 图钉：SVG 图标（Lucide pin 竖针脚）+ 无障碍名称保留「已固定」。
+        # 图钉：SVG 图标（Lucide pin 竖针脚）+ 无障碍名称保留。
         self.assertIn('pin.setAttribute("aria-label", t("recent_pinned"))', home_script)
         self.assertIn("M12 17v5", home_script)
         self.assertIn("recent_pinned", launcher_script)
@@ -3743,12 +3744,12 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('register_project(project_path, source="editor")', serve_source)
 
         # 首页双折叠分组 + 图钉入封面 + 三种移除语义。
-        for element_id in ("recentGroupTitle", "recentGroupBody", "allGroupTitle", "allGroupBody", "allGrid", "allCount", "launcherToasts"):
+        for element_id in ("recentGroupTitle", "recentGroupBody", "allGroupTitle", "allGroupBody", "allGrid", "launcherToasts"):
             self.assertIn(f'id="{element_id}"', page)
         self.assertIn('data-home-group="recent"', page)
         self.assertIn('data-home-group="all"', page)
         self.assertIn('MSW_HOME_GROUPS_V2', home_script)
-        self.assertIn(".recent-cover .recent-pin", (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8"))
+        self.assertIn(".recent-pin", (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8"))
         # 多节点回写：同一工程在两组的封面/统计/媒体名同步。
         self.assertIn("bothGrids()", home_script)
         self.assertIn('bridge("delete_project_file", { path: entry.path })', home_script)
@@ -3859,9 +3860,9 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("const ap = a.pinned ? 0 : 1;", launcher_script)
 
         # C2：图钉在封面左上角并向内倾斜（避开右上角选中对勾）。
-        pin_block = stylesheet[stylesheet.index(".recent-cover .recent-pin,"):]
-        self.assertIn("top: 8px;", pin_block[:200])
-        self.assertIn("left: 8px;", pin_block[:200])
+        pin_block = stylesheet[stylesheet.index(".recent-pin, .recent-new"):]
+        self.assertIn("top: 10px;", pin_block[:200])
+        self.assertIn("left: 10px;", pin_block[:200])
         self.assertIn("transform: rotate(-35deg);", pin_block[:900])
         self.assertNotIn("right: 6px;", pin_block[:200])
 
@@ -3871,7 +3872,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("state.selectedPaths.indexOf(card.dataset.path) >= 0", home_script)
         self.assertIn("selectedPaths: []", home_script)
         # 批量菜单标签带数量；批量删除确认列出全部名称（真实换行）。
-        for key in ('selected_extra: "已选 {n} 个"', 'batch_pin: "固定所选工程（{n}）"', 'batch_delete: "删除所选工程文件（{n}）…"',
+        for key in ('selected_extra: "已选 {n} 个"', 'batch_pin: "顶置所选项目（{n}）"', 'batch_delete: "删除所选工程文件（{n}）…"',
                     'batch_remove_registry: "从全部工程记录移除（{n}）"', 'batch_delete_done: "已将 {n} 个工程文件移入回收站。"'):
             self.assertIn(key, launcher_script)
         self.assertIn('\\n{names}\\n', next(row for row in launcher_script.split("\n") if "batch_delete_confirm:" in row))

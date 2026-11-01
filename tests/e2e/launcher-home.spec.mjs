@@ -201,7 +201,7 @@ test('context menu exposes open, pin, folder, cover refresh, and remove actions'
   const items = menu.locator('button[role="menuitem"]');
   await expect(items).toHaveCount(5);
   await expect(items.nth(0)).toHaveText('打开工程');
-  await expect(items.nth(1)).toHaveText('取消固定');
+  await expect(items.nth(1)).toHaveText('取消顶置');
   await expect(items.nth(2)).toHaveText('打开所在文件夹');
   await expect(items.nth(3)).toHaveText('刷新封面');
   await expect(items.nth(4)).toHaveText('从最近记录移除');
@@ -268,7 +268,7 @@ test('all-projects group registers beyond the recent list and stays in sync', as
   }));
   expect(names.all).toEqual(expect.arrayContaining(['clip.mosp', 'intro.mosp', 'old-take.mosp']));
   expect(names.recent).not.toContain('old-take.mosp');
-  expect(await page.locator('#allGroupTitle .home-group-label').textContent()).toContain('（3）');
+  expect(await page.locator('#allGroupTitle .home-group-label').textContent()).toContain('（3/3）');
 
   // 同一工程两组出现：选择状态同步到两张卡（选择/图钉/封面按路径同步）。
   await page.locator('#allGrid .recent-card').first().click();
@@ -277,11 +277,11 @@ test('all-projects group registers beyond the recent list and stays in sync', as
   // 图钉在封面固定角落（不在信息区显示文字徽标）。
   const pin = await page.evaluate(() => {
     const card = document.querySelector('#allGrid .recent-card.pinned');
-    const pinNode = card?.querySelector('.recent-cover .recent-pin');
+    const pinNode = card?.querySelector('.recent-pin');
     return { inCover: Boolean(pinNode), label: pinNode?.getAttribute('aria-label') };
   });
   expect(pin.inCover).toBe(true);
-  expect(pin.label).toBe('已固定');
+  expect(pin.label).toBe('已顶置');
 });
 
 test('home survives non-overlapping sets and an all-stale catalog (T5)', async ({ page }) => {
@@ -373,7 +373,8 @@ test('all-projects pagination serves real pages with server-side search (T2)', a
     MSWProjectHome.refresh();
   });
   await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length === 12);
-  await expect(page.locator('#allPager .pager-info')).toContainText('1/3');
+  await expect(page.locator('#allGroupTitle .home-group-label')).toHaveText('全部工程（12/30）');
+  await expect(page.locator('#allPager .pager-info')).toHaveCount(0);
   await expect(page.locator('#allPager button').first()).toBeDisabled(); // 上一页禁用
 
   // 翻页：DOM 只保留当前页，激活页码移动。
@@ -386,7 +387,7 @@ test('all-projects pagination serves real pages with server-side search (T2)', a
   await page.locator('#recentSearch').fill('bulk-1');
   await page.waitForTimeout(500);
   await expect(page.locator('#allPager .pager-page.active')).toHaveText('1');
-  await expect(page.locator('#allCount')).toContainText('/');
+  await expect(page.locator('#allGroupTitle .home-group-label')).toContainText('/');
   await page.locator('#recentSearch').fill('');
   await page.waitForTimeout(500);
 });
@@ -481,7 +482,7 @@ test('delete project file flow confirms scope, recycles, and reports; registry r
   const menu = page.locator('#recentContextMenu');
   const items = menu.locator('button[role="menuitem"]');
   const labels = await items.evaluateAll((nodes) => nodes.map((node) => node.textContent));
-  expect(labels).toEqual(['打开工程', '固定到列表顶部', '打开所在文件夹', '刷新封面', '从全部工程记录移除', '删除工程文件…']);
+  expect(labels).toEqual(['打开工程', '顶置项目', '打开所在文件夹', '刷新封面', '从全部工程记录移除', '删除工程文件…']);
   const danger = menu.locator('button.danger');
   await expect(danger).toHaveCount(1);
   expect(await danger.locator('svg').count()).toBe(1);
@@ -537,18 +538,17 @@ test('home groups collapse independently with memory and search counts both list
   await openHome(page);
   await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card').length > 0);
 
-  // 折叠全部工程：正文收起、底部显示将打开的目标、标题箭头态切换。
+  // 折叠全部工程：正文收起，保留选中状态，不显示冗余目标说明。
   await page.locator('#allGrid .recent-card').first().click();
   await page.locator('#allGroupTitle').click();
   await expect(page.locator('#allGroupBody')).toBeHidden();
   await expect(page.locator('#allGroupTitle')).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.locator('#allGroupTarget')).not.toHaveClass(/hidden/);
+  await expect(page.locator('#allGroupTarget, #recentGroupTarget')).toHaveCount(0);
   await expect(page.locator('#recentGroupBody')).toBeVisible();
 
   // 折叠状态记忆：切页返回后保持。
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
   await page.evaluate(() => window.MSWNavigation.show('home'));
-  await page.waitForFunction(() => document.querySelectorAll('#allGrid .recent-card, #allGroupTarget:not(.hidden)').length >= 0);
   await expect(page.locator('#allGroupBody')).toBeHidden();
 
   // 搜索作用于两组并显示命中/总数；最近组上限 9 条（C4）。
@@ -557,7 +557,7 @@ test('home groups collapse independently with memory and search counts both list
   await page.locator('#recentSearch').fill('intro.mosp');
   await expect(page.locator('#recentGrid .recent-card')).toHaveCount(1);
   await expect(page.locator('#allGrid .recent-card')).toHaveCount(1);
-  await expect(page.locator('#allCount')).toContainText('/');
+  await expect(page.locator('#allGroupTitle .home-group-label')).toContainText('/');
 });
 
 test('server conflicts surface a return-or-independent choice instead of silent reuse', async ({ page }) => {
@@ -685,7 +685,7 @@ test('pin badge sits at the cover top-left and is tilted inward (C2)', async ({ 
   const pin = cardOf(page, 'clip.mosp').locator('.recent-pin');
   await expect(pin).toBeVisible();
   const geo = await pin.evaluate((node) => {
-    const cover = node.closest('.recent-cover').getBoundingClientRect();
+    const cover = node.closest('.recent-card').querySelector('.recent-cover').getBoundingClientRect();
     const box = node.getBoundingClientRect();
     return { offsetLeft: box.left - cover.left, transform: getComputedStyle(node.querySelector("svg")).transform };
   });
@@ -710,8 +710,8 @@ test('ctrl-click and shift-click build a multi-selection that drives the batch m
   // 右键所选卡：菜单进入批量模式（固定项带数量）。
   await clip.click({ button: 'right' });
   const menu = page.locator('#recentContextMenu');
-  await expect(menu.locator('button').filter({ hasText: '固定所选工程（2）' })).toHaveCount(1);
-  await expect(menu.locator('button').filter({ hasText: '固定到列表顶部' })).toHaveCount(0);
+  await expect(menu.locator('button').filter({ hasText: '顶置所选项目（2）' })).toHaveCount(1);
+  await expect(menu.locator('button').filter({ hasText: '顶置项目' })).toHaveCount(0);
   await page.keyboard.press('Escape');
 
   // 普通点击重置为单选；Shift 在全部组内做范围选择（名称序 clip/intro/old-take）。
@@ -773,7 +773,7 @@ test('batch recent mutations finish sequentially before refreshing the shared li
   });
   await cardOf(page,'clip.mosp').click();await cardOf(page,'intro.mosp').click({modifiers:['Control']});
   await cardOf(page,'clip.mosp').click({button:'right'});
-  await page.locator('#recentContextMenu button').filter({hasText:'固定所选工程（2）'}).click();
+  await page.locator('#recentContextMenu button').filter({hasText:'顶置所选项目（2）'}).click();
   await expect.poll(()=>page.evaluate(()=>window.__recentWrites.length)).toBe(1);
   expect(await page.evaluate(()=>window.__recentReads)).toBe(0);
   await page.evaluate(()=>window.__recentWrites[0]());
@@ -841,6 +841,8 @@ test('home badges and footer remain compact in light and dark themes', async ({ 
     window.__demoRegistry[0].isNew = true;
     return MSWProjectHome.refresh();
   });
+  // Select without acknowledging NEW so all three badges can be compared together.
+  await page.locator('#allGrid .recent-card.has-new').evaluate(n => n.classList.add('selected'));
   for (const theme of ['light','dark']) {
     await page.evaluate(theme => { if (theme==='light') document.documentElement.dataset.theme='light'; else delete document.documentElement.dataset.theme; }, theme);
     await page.waitForTimeout(200); // Finish the color transition before visual capture.
@@ -848,7 +850,54 @@ test('home badges and footer remain compact in light and dark themes', async ({ 
     const layout = await page.evaluate(() => ({overflow:document.documentElement.scrollWidth > innerWidth,buttons:[...document.querySelectorAll('.home-launch > button')].map(n=>n.textContent)}));
     expect(layout.overflow).toBe(false);
     expect(layout.buttons).toEqual(['启动空白编辑器','打开所选工程']);
+    const badges = await page.locator('#allGrid .recent-card.has-new').evaluate(card => {
+      const styles = [getComputedStyle(card, '::after'), getComputedStyle(card.querySelector('.recent-pin')), getComputedStyle(card.querySelector('.recent-new'))];
+      return styles.map(s => [s.width,s.height,s.top,s.borderRadius,s.backgroundColor]);
+    });
+    expect(badges[1]).toEqual(badges[0]);expect(badges[2]).toEqual(badges[0]);
     await page.screenshot({path:testInfo.outputPath(`home-${theme}.png`)});
+  }
+});
+
+test('returning focus refresh cannot dismiss or replace an open project menu', async ({page}) => {
+  await openHome(page);
+  await page.evaluate(() => {
+    window.__homeRefresh = [];
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'get_recent_projects' || method === 'get_all_projects') {
+        const result = await next(method, payload);
+        result.projects = result.projects.map(p => p.name === 'intro.mosp' ? {...p, name:'updated.mosp'} : p);
+        return new Promise(resolve => __homeRefresh.push(() => resolve(result)));
+      }
+      return next(method,payload);
+    };
+    window.dispatchEvent(new Event('blur'));window.dispatchEvent(new Event('focus'));
+  });
+  await expect.poll(() => page.evaluate(() => __homeRefresh.length)).toBe(2);
+  await cardOf(page,'clip.mosp').click({button:'right'});
+  await page.evaluate(() => { window.__keptMenu=document.getElementById('recentContextMenu');__homeRefresh.forEach(resolve=>resolve()); });
+  await expect.poll(() => page.evaluate(() => MSWProjectHome.state.projects.some(p=>p.name==='updated.mosp'))).toBe(true);
+  await page.evaluate(() => new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await expect(page.locator('#recentContextMenu')).toBeVisible();
+  expect(await page.evaluate(() => __keptMenu===document.getElementById('recentContextMenu'))).toBe(true);
+  await cardOf(page,'intro.mosp').click({button:'right'});
+  await expect(page.locator('#recentContextMenu')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(cardOf(page,'intro.mosp').locator('.recent-name')).toHaveText('updated.mosp');
+  await expect(cardOf(page,'intro.mosp')).toBeFocused();
+});
+
+test('only group title toggles collapse, without repeated counts or target hints', async ({page}) => {
+  await openHome(page);
+  await expect(page.locator('#recentCount,#allCount,.pager-info,.home-group-target')).toHaveCount(0);
+  for (const group of ['recent','all']) {
+    const title=page.locator('#'+group+'GroupTitle'), section=page.locator('[data-home-group="'+group+'"]');
+    const box=await title.boundingBox(), outer=await section.boundingBox();
+    expect(box.width).toBeLessThan(outer.width/2);
+    await page.mouse.click(outer.x+outer.width-15,box.y+box.height/2);
+    await expect(title).toHaveAttribute('aria-expanded','true');
+    await title.click();await expect(title).toHaveAttribute('aria-expanded','false');
+    await title.focus();await page.keyboard.press('Enter');await expect(title).toHaveAttribute('aria-expanded','true');
   }
 });
 

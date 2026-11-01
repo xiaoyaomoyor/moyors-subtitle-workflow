@@ -512,7 +512,7 @@ class PreparedProjectCardsTests(unittest.TestCase):
             launcher_projects.acknowledge_project(root / 'unknown.mosp', registry)
             self.assertEqual(len(launcher_projects._read_registry(registry)), 1)
 
-    def test_new_projects_are_not_hidden_by_nine_pinned_cards(self):
+    def test_pinned_projects_precede_new_projects_and_new_remains_in_registry(self):
         with TemporaryDirectory() as raw:
             root = Path(raw).resolve()
             registry = root / 'registry.json'
@@ -525,8 +525,14 @@ class PreparedProjectCardsTests(unittest.TestCase):
             launcher_projects.register_project(new, source='created', registry_path=registry)
             rows = recent_projects_payload(registry_path=registry, settings_path=settings, metadata_path=metadata)['projects']
             self.assertEqual(len(rows), 9)
-            self.assertEqual(rows[0]['path'], str(new))
-            self.assertTrue(rows[0]['isNew'])
+            self.assertTrue(all(row['pinned'] for row in rows))
+            self.assertNotIn(str(new), [row['path'] for row in rows])
+            listing = launcher_projects.all_projects_payload(registry_path=registry, settings_path=settings, metadata_path=metadata)['projects']
+            self.assertTrue(next(row for row in listing if row['path'] == str(new))['isNew'])
+            set_recent_project_pinned(old[-1], False, metadata)
+            rows = recent_projects_payload(registry_path=registry, settings_path=settings, metadata_path=metadata)['projects']
+            self.assertTrue(all(row['pinned'] for row in rows[:8]))
+            self.assertEqual(rows[8]['path'], str(new))
 
 
 class AllProjectsPaginationTests(unittest.TestCase):
