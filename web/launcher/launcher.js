@@ -1179,7 +1179,11 @@
     llm_http_model_list_operation: "获取模型",
     llm_quick_actions: "快捷功能",
     llm_connection_testing: "正在测试连接……",
-    llm_test_read_timeout: "等待模型回复超时（90 秒）。能获取模型列表不代表生成正常；请检查网络／代理或降低思考强度后重试。未自动重试。",
+    llm_test_read_timeout: "等待模型回复超时（90 秒）。模型列表和网页可用不代表 API 生成正常，请检查 API 的代理线路或服务状态。未自动重试。",
+    llm_test_headers_timeout: "90 秒内未收到生成接口的响应头，尚不能确定是线路还是服务等待。请核对代理是否接管 API 域名；可临时切换全局模式对比。未自动重试。",
+    llm_test_body_timeout: "已收到生成接口响应，但读取首段回复文字超时（90 秒）。请检查代理线路或服务状态。未自动重试。",
+    llm_test_tls_eof: "API 的加密连接被提前断开（TLS EOF），尚未完成回复验证。请更换代理节点，并确认 API 域名走代理；降低思考强度无法修复此类连接中断。未自动重试。",
+    llm_test_tls_error: "无法建立或验证 API 的加密连接，请检查代理及系统证书。证书校验保持开启。",
     llm_test_connect_timeout: "10 秒内未能建立连接，请检查网络或代理。",
     llm_test_empty_response: "服务已响应，但未返回文字；可能是思考耗尽了输出额度，请降低思考强度后重试。",
     llm_test_protocol: "服务已响应，但不是有效的文字回复，请核对兼容接口地址与模型。",
@@ -1247,7 +1251,11 @@
     llm_http_model_list_operation: "model lookup",
     llm_quick_actions: "Quick actions",
     llm_connection_testing: "Testing connection…",
-    llm_test_read_timeout: "Timed out waiting for a model reply (90 seconds). Listing models does not verify generation; check the network/proxy or lower the thinking level. No automatic retry was sent.",
+    llm_test_read_timeout: "Timed out waiting for a model reply (90 seconds). Model-list and website access do not verify API generation. Check the API proxy route or service status. No automatic retry was sent.",
+    llm_test_headers_timeout: "No generation response headers within 90 seconds. This does not distinguish a route issue from a service delay. Check the API domain's proxy route; temporarily compare with global proxy mode. No automatic retry was sent.",
+    llm_test_body_timeout: "The generation API responded, but reading its first reply text timed out (90 seconds). Check the proxy route or service status. No automatic retry was sent.",
+    llm_test_tls_eof: "The encrypted API connection closed unexpectedly (TLS EOF); reply verification did not complete. Try another proxy node and check the API domain's route. Lowering thinking cannot fix this connection failure. No automatic retry was sent.",
+    llm_test_tls_error: "Could not establish or verify the encrypted API connection. Check the proxy and system certificates. Certificate verification remains enabled.",
     llm_test_connect_timeout: "Could not connect within 10 seconds. Check the network or proxy.",
     llm_test_empty_response: "The service responded without text; thinking may have exhausted the output budget. Try a lower thinking level.",
     llm_test_protocol: "The service responded without a valid text completion. Check the compatible endpoint and model.",
@@ -2152,7 +2160,7 @@
   function errText(code, detail, context = {}) {
     if (["subtitle_invalid", "script_invalid", "match_invalid", "match_too_low"].includes(code)) return t(code);
     if (code === 'postprocess_connection_failed') {
-      const key = {read_timeout:'llm_test_read_timeout', connect_timeout:'llm_test_connect_timeout', empty_response:'llm_test_empty_response', protocol:'llm_test_protocol'}[context?.errorCategory];
+      const key = {read_timeout:'llm_test_read_timeout', response_headers_timeout:'llm_test_headers_timeout', response_body_timeout:'llm_test_body_timeout', tls_eof:'llm_test_tls_eof', tls_error:'llm_test_tls_error', connect_timeout:'llm_test_connect_timeout', empty_response:'llm_test_empty_response', protocol:'llm_test_protocol'}[context?.errorCategory];
       if (key) return t(key);
     }
     const compact = compactDetail(detail);

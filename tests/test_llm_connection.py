@@ -1,12 +1,13 @@
 """LLM connection checks must verify generation, not just catalog/HTTP access."""
 import json
+import ssl
 import threading
 import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
-from requests.exceptions import ConnectTimeout, ReadTimeout
+from requests.exceptions import ConnectTimeout, ReadTimeout, SSLError
 
 from maw.postprocess_llm import (
     LlmClientError, LlmSettings, _reasoning_parameters, complete_subtitle_groups,
@@ -25,6 +26,7 @@ def session_for(body=None):
     session = mock.MagicMock()
     session.__enter__.return_value = session
     session.post.return_value.json.return_value = body or {"choices": [{"message": {"content": "OK"}}]}
+    session.post.return_value.headers = {"Content-Type": "application/json"}
     return session
 
 
@@ -54,6 +56,8 @@ class GeminiConnectionTests(unittest.TestCase):
             self.assertEqual(payload["model"], "gemini-3.8-flash")
             self.assertEqual(payload["reasoning_effort"], "low")
             self.assertEqual(payload["max_tokens"], 4096)
+            self.assertTrue(payload["stream"])
+            self.assertTrue(session.post.call_args.kwargs["stream"])
             self.assertEqual(session.post.call_args.kwargs["timeout"], (10, 90))
             session.post.return_value.json.return_value = {"choices": [{"message": {
                 "content": json.dumps({"groups": [{"source_ids": ["c1"], "text": "你好"}]})
@@ -86,7 +90,7 @@ class GeminiConnectionTests(unittest.TestCase):
             self.assertNotIn("reasoning_effort", payload)
 
     def test_timeouts_are_distinguished_redacted_and_not_retried(self):
-        for exception, category in [(ReadTimeout, "read_timeout"), (ConnectTimeout, "connect_timeout")]:
+        for exception, category in [(ReadTimeout, "response_headers_timeout"), (ConnectTimeout, "connect_timeout")]:
             with self.subTest(category=category):
                 session = session_for()
                 session.post.side_effect = exception("https://private.example?key=test-only-secret")
@@ -97,6 +101,89 @@ class GeminiConnectionTests(unittest.TestCase):
                 self.assertNotIn("private.example", str(caught.exception))
                 self.assertNotIn("test-only-secret", str(caught.exception))
                 session.post.assert_called_once()
+
+    def test_tls_eof_and_certificate_failures_are_safe_and_not_retried(self):
+        for cause, category in [
+            (ssl.SSLEOFError(8, "[SSL: UNEXPECTED_EOF_WHILE_READING] private.example test-only-secret"), "tls_eof"),
+            (ssl.SSLCertVerificationError(1, "certificate verify failed test-only-secret"), "tls_error"),
+        ]:
+            with self.subTest(category=category):
+                session = session_for()
+                session.post.side_effect = SSLError(cause)
+                with mock.patch("maw.postprocess_llm.requests.Session", return_value=session):
+                    with self.assertRaises(LlmClientError) as caught:
+                        check_connection(settings())
+                self.assertEqual(caught.exception.category, category)
+                self.assertNotIn("test-only-secret", str(caught.exception))
+                self.assertNotIn("private.example", str(caught.exception))
+                session.post.assert_called_once()
+                self.assertNotIn("verify", session.post.call_args.kwargs)
+
+    def test_stream_requires_actual_text_not_thinking_or_http_success(self):
+        for lines, category in [
+            ([b'data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}', b'data: [DONE]'], "empty_response"),
+            ([b'data: {"error":{"message":"quota exceeded"}}'], "provider_response"),
+            ([b'data: invalid json'], "protocol"),
+        ]:
+            with self.subTest(category=category):
+                session = session_for()
+                session.post.return_value.headers = {"Content-Type": "text/event-stream; charset=utf-8"}
+                session.post.return_value.iter_lines.return_value = lines
+                with mock.patch("maw.postprocess_llm.requests.Session", return_value=session):
+                    with self.assertRaises(LlmClientError) as caught:
+                        check_connection(settings())
+                self.assertEqual(caught.exception.category, category)
+                session.post.return_value.close.assert_called_once()
+                session.post.assert_called_once()
+
+    def test_real_stream_first_text_returns_without_waiting_for_buffer_or_close(self):
+        calls = []
+        release = threading.Event()
+        class Handler(BaseHTTPRequestHandler):
+            mode = "ok"
+            protocol_version = "HTTP/1.1"
+            def log_message(self, *_args):
+                pass
+            def do_POST(self):
+                calls.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                mode = self.mode
+                if mode == "headers_timeout":
+                    release.wait(1)
+                    self.close_connection = True
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                # Deliberately shorter than requests' default 512-byte buffer,
+                # with no [DONE] and no socket close until the check returns.
+                if mode == "ok":
+                    self.wfile.write('data: {"choices":[{"delta":{"content":"好"}}]}\n\n'.encode())
+                    self.wfile.flush()
+                release.wait(1)
+                self.close_connection = True
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        endpoint = f"http://127.0.0.1:{server.server_port}/v1/chat/completions"
+        try:
+            # Only reroute transport to localhost; keep real Gemini payload,
+            # response parsing, and requests/urllib3 timeout behavior.
+            with mock.patch("maw.postprocess_llm._chat_endpoint", return_value=endpoint), \
+                 mock.patch("maw.postprocess_llm.CONNECTION_TEST_READ_TIMEOUT", 0.15):
+                check_connection(settings())
+                for mode, category in [("body_timeout", "response_body_timeout"), ("headers_timeout", "response_headers_timeout")]:
+                    Handler.mode = mode
+                    with self.assertRaises(LlmClientError) as caught:
+                        check_connection(settings())
+                    self.assertEqual(caught.exception.category, category)
+            self.assertEqual(len(calls), 3)
+            self.assertTrue(all(call["stream"] for call in calls))
+        finally:
+            release.set()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
 
     def test_http_200_is_not_success_without_text(self):
         for body, category in [

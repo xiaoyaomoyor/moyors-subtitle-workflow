@@ -347,13 +347,13 @@ test('LLM timeout and empty replies have distinct guidance and do not auto-retry
       return {ok:true};
     };
   });
-  for (const [category, expected] of [['read_timeout','90 秒'],['connect_timeout','10 秒'],['empty_response','未返回文字'],['protocol','不是有效的文字回复']]) {
+  for (const [category, expected] of [['read_timeout','90 秒'],['response_headers_timeout','响应头'],['response_body_timeout','首段回复文字'],['tls_eof','TLS EOF'],['tls_error','系统证书'],['connect_timeout','10 秒'],['empty_response','未返回文字'],['protocol','不是有效的文字回复']]) {
     await page.evaluate(c => window.__connectionCategory=c, category);
     await page.locator('#testLlmConnection').click();
     await expect(page.locator('#llmSettingsSaveStatus')).toContainText(expected);
     await expect(page.locator('#testLlmConnection')).toBeEnabled();
   }
-  expect(await page.evaluate(() => __connectionCalls)).toBe(4);
+  expect(await page.evaluate(() => __connectionCalls)).toBe(8);
 });
 
 test('LLM HTTP failures give provider-aware actions without showing the key', async ({ page }) => {

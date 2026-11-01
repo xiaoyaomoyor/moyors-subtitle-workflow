@@ -7,13 +7,15 @@ from __future__ import annotations
 import ipaddress
 import json
 import re
+import ssl
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Final
 from urllib.parse import urlparse
 
 import requests
-from requests.exceptions import ConnectTimeout, HTTPError, JSONDecodeError, ReadTimeout, RequestException
+from requests.exceptions import ConnectTimeout, HTTPError, JSONDecodeError, ReadTimeout, RequestException, SSLError
+from urllib3.exceptions import ReadTimeoutError
 
 from maw.project_preview import JsonValue
 
@@ -271,6 +273,8 @@ def _response_protocol_error(parsed: object) -> str | None:
 def test_llm_connection(settings: LlmSettings) -> None:
     """Send a minimal chat request to verify the current LLM settings."""
     endpoint = _chat_endpoint(settings.base_url)
+    streaming = _provider_family(settings) == "gemini"
+    received_headers = False
     payload = {
         "model": _request_model(settings),
         "messages": [{"role": "user", "content": "Reply with OK."}],
@@ -279,19 +283,41 @@ def test_llm_connection(settings: LlmSettings) -> None:
         "max_tokens": 4096 if _provider_family(settings) == "gemini" or normalize_reasoning_mode(settings.reasoning_mode) != "off" else 64,
     }
     payload.update(_reasoning_parameters(settings))
+    if streaming:
+        # Exercise the same streaming API as subtitle processing, and stop as
+        # soon as real reply text arrives. Waiting for a complete JSON body
+        # hides whether the API has responded at all or stalled mid-response.
+        payload["stream"] = True
     try:
         with requests.Session() as session:
             response = session.post(
                 endpoint,
-                headers=_request_headers(settings, streaming=False),
+                headers=_request_headers(settings, streaming=streaming),
                 json=payload,
                 timeout=(10, CONNECTION_TEST_READ_TIMEOUT),
+                **({"stream": True} if streaming else {}),
             )
+            received_headers = True
             try:
-                response.raise_for_status()
-            except HTTPError as error:
-                raise _provider_response_error(response, settings=settings, operation="connection test") from error
-            body = response.json()
+                try:
+                    response.raise_for_status()
+                except HTTPError as error:
+                    raise _provider_response_error(response, settings=settings, operation="connection test") from error
+                content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() if streaming else ""
+                if streaming and content_type == "text/event-stream":
+                    body = _read_stream_response(
+                        response, lambda _kind, _text: None, settings=settings,
+                        stop_after_content=True,
+                    )
+                elif not streaming or content_type == "application/json":
+                    body = response.json()
+                else:
+                    raise LlmClientError(
+                        "LLM endpoint did not return a text event stream or JSON; check the API endpoint and proxy.",
+                        category="protocol", operation="connection test",
+                    )
+            finally:
+                response.close()
             try:
                 # Thinking-only completions can carry a null content field.
                 choices = body.get("choices") if isinstance(body, dict) else None
@@ -316,23 +342,64 @@ def test_llm_connection(settings: LlmSettings) -> None:
             category="connect_timeout", operation="connection test",
         ) from error
     except ReadTimeout as error:
-        raise LlmClientError(
-            f"LLM connection test timed out waiting for a response ({CONNECTION_TEST_READ_TIMEOUT} seconds read timeout). "
-            "A model list does not verify generation. The model, service or network may be delayed; no automatic retry was sent.",
-            category="read_timeout", operation="connection test",
-        ) from error
+        raise _connection_read_timeout(streaming=streaming, received_headers=received_headers) from error
     except JSONDecodeError as error:
         raise LlmClientError(
             "LLM endpoint responded without valid JSON; check the OpenAI-compatible chat endpoint.",
             category="protocol", operation="connection test",
         ) from error
+    except SSLError as error:
+        unexpected_eof = any(
+            isinstance(cause, ssl.SSLEOFError) or "UNEXPECTED_EOF_WHILE_READING" in str(cause)
+            for cause in _exception_chain(error)
+        )
+        raise LlmClientError(
+            "The encrypted API connection was closed unexpectedly. Check the proxy route or node; no automatic retry was sent."
+            if unexpected_eof else
+            "The encrypted API connection could not be verified or established. Check the proxy and system certificates; certificate verification remains enabled.",
+            category="tls_eof" if unexpected_eof else "tls_error", operation="connection test",
+        ) from error
     except RequestException as error:
+        # requests wraps urllib3's body-read timeout in ConnectionError when
+        # stream=True; it is not a new connection failure.
+        if _is_read_timeout(error):
+            raise _connection_read_timeout(streaming=streaming, received_headers=received_headers) from error
         detail = _bound_diagnostic(str(error), settings=settings)
         raise LlmClientError(
             f"LLM network connection test failed: {detail or 'request failed'}",
             category="network",
             operation="connection test",
         ) from error
+
+
+def _exception_chain(error: BaseException) -> Iterable[BaseException]:
+    pending = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        yield current
+        pending.extend(arg for arg in current.args if isinstance(arg, BaseException))
+        pending.extend(cause for cause in (current.__cause__, current.__context__, getattr(current, "reason", None)) if isinstance(cause, BaseException))
+
+
+def _is_read_timeout(error: BaseException) -> bool:
+    return any(isinstance(cause, (ReadTimeout, ReadTimeoutError)) for cause in _exception_chain(error))
+
+
+def _connection_read_timeout(*, streaming: bool, received_headers: bool) -> LlmClientError:
+    category = "read_timeout"
+    stage = "waiting for a model reply"
+    if streaming:
+        category = "response_body_timeout" if received_headers else "response_headers_timeout"
+        stage = "reading reply text after response headers" if received_headers else "waiting for response headers"
+    return LlmClientError(
+        f"LLM connection test timed out {stage} ({CONNECTION_TEST_READ_TIMEOUT} seconds read timeout). "
+        "Model-list and website access do not verify API generation. Check the API proxy route and service; no automatic retry was sent.",
+        category=category, operation="connection test",
+    )
 
 
 def list_llm_models(settings: LlmSettings) -> list[str]:
@@ -506,6 +573,7 @@ def _read_stream_response(
     on_delta: LlmDelta | None,
     *,
     settings: LlmSettings | None = None,
+    stop_after_content: bool = False,
 ) -> dict[str, JsonValue]:
     if on_delta is None:
         raise AssertionError("stream callback is required for an SSE response")
@@ -516,7 +584,10 @@ def _read_stream_response(
     # text/event-stream responses without an explicit charset, which mangles
     # multi-byte UTF-8 (e.g. 0x85 in a Chinese character becomes U+0085 NEL
     # and splitlines() breaks SSE events mid-JSON).
-    for data in _iter_sse_data(response.iter_lines(decode_unicode=False)):
+    # A probe's entire reply may be much smaller than requests' 512-byte
+    # default buffer. Don't wait for extra bytes (or socket close) to see it.
+    lines = response.iter_lines(decode_unicode=False, **({"chunk_size": 1} if stop_after_content else {}))
+    for data in _iter_sse_data(lines):
         if data == "[DONE]":
             break
         try:
@@ -548,6 +619,8 @@ def _read_stream_response(
         if content:
             content_parts.append(content)
             on_delta("content", content)
+            if stop_after_content and content.strip():
+                break
     return {
         "choices": [
             {
