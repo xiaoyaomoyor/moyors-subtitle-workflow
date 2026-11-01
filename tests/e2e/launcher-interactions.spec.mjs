@@ -315,6 +315,47 @@ test('Custom provider labels and missing-key errors follow the selected language
   await expect(page.locator('#llmApiKey')).not.toHaveClass(/invalid/);
 });
 
+test('Gemini official reasoning uses a clear minimum label without changing other providers', async ({page}) => {
+  await openLauncher(page);
+  await page.evaluate(() => MSWLauncher.openSettings('llmSettingsSection'));
+  await page.locator('#llmProvider').selectOption('custom');
+  await page.locator('#llmBaseUrl').fill('https://generativelanguage.googleapis.com/v1beta/openai/');
+  await page.locator('#llmModel').fill('models/gemini-3.8-flash');
+  await expect(page.locator('#llmReasoningMode option[value="off"]')).toHaveText('最低（无法关闭）');
+  await expect(page.locator('#llmReasoningHint')).toContainText('不支持关闭');
+  await page.locator('#llmReasoningMode').selectOption('high');
+  await page.locator('#llmModel').fill('gemini-3.8-flash');
+  await expect(page.locator('#llmReasoningMode')).toHaveValue('high');
+  await page.locator('#llmBaseUrl').fill('https://proxy.example/v1');
+  await expect(page.locator('#llmReasoningMode option[value="off"]')).toHaveText('关闭思考');
+  await page.locator('#llmBaseUrl').fill('https://generativelanguage.googleapis.com/v1beta/openai/');
+  await page.locator('#llmModel').fill('gemini-2.5-flash');
+  await expect(page.locator('#llmReasoningMode option[value="off"]')).toHaveText('关闭思考');
+});
+
+test('LLM timeout and empty replies have distinct guidance and do not auto-retry', async ({page}) => {
+  await openLauncher(page);
+  await page.evaluate(() => MSWLauncher.openSettings('llmSettingsSection'));
+  await page.locator('#llmProvider').selectOption('custom');
+  await page.evaluate(() => {
+    window.__connectionCategory = 'read_timeout';window.__connectionCalls = 0;
+    MSWLauncher.callBackend = async method => {
+      if (method === 'test_postprocess_connection') {
+        window.__connectionCalls++;
+        return {ok:false,code:'postprocess_connection_failed',field:'postprocessProvider',errorCategory:window.__connectionCategory};
+      }
+      return {ok:true};
+    };
+  });
+  for (const [category, expected] of [['read_timeout','90 秒'],['connect_timeout','10 秒'],['empty_response','未返回文字'],['protocol','不是有效的文字回复']]) {
+    await page.evaluate(c => window.__connectionCategory=c, category);
+    await page.locator('#testLlmConnection').click();
+    await expect(page.locator('#llmSettingsSaveStatus')).toContainText(expected);
+    await expect(page.locator('#testLlmConnection')).toBeEnabled();
+  }
+  expect(await page.evaluate(() => __connectionCalls)).toBe(4);
+});
+
 test('LLM HTTP failures give provider-aware actions without showing the key', async ({ page }) => {
   await openLauncher(page);
   // S4：LLM 连接配置在更多设置·服务与连接。

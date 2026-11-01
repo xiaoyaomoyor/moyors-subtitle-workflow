@@ -4868,6 +4868,8 @@ def _llm_error_result(
         "detail": str(error),
         "error": str(error),
     }
+    if operation == "connection test" and category:
+        result["errorCategory"] = category
     status_code = getattr(error, "status_code", None)
     if isinstance(status_code, int):
         result["httpStatus"] = status_code

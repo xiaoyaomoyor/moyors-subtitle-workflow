@@ -411,6 +411,7 @@
       option.addEventListener("mousedown", (event) => event.preventDefault());
       option.addEventListener("click", () => {
         $("llmModel").value = model;
+        syncGeminiReasoning();
         setFieldError("llmModel", "");
         setModelChoicesOpen(false);
         $("llmModel").focus();
@@ -576,6 +577,19 @@
     settingsButton.textContent = t(settingsButton.dataset.i18n);
   }
 
+  function syncGeminiReasoning() {
+    let official = false;
+    try { official = new URL($("llmBaseUrl").value.trim()).hostname === "generativelanguage.googleapis.com"; } catch (_) { /* URL is still being entered. */ }
+    const model = $("llmModel").value.trim().replace(/^models\//u, '').toLowerCase();
+    const minimumOnly = $("llmProvider").value === 'custom' && official && (/^gemini-(?:[3-9]|[1-9]\d+)[.-]/u.test(model) || model.startsWith('gemini-2.5-pro'));
+    const option = $("llmReasoningMode").querySelector('[value="off"]');
+    option.dataset.i18n = minimumOnly ? 'llm_reasoning_minimum' : 'llm_reasoning_off';
+    option.textContent = t(option.dataset.i18n);
+    const hint = $("llmReasoningHint");
+    hint.dataset.i18n = minimumOnly ? 'llm_reasoning_gemini_hint' : 'llm_reasoning_mode_hint';
+    hint.textContent = t(hint.dataset.i18n);
+  }
+
   function renderProvider(providerId = $("llmProvider").value) {
     const item = provider(providerId);
     syncProviderOptionLabels();
@@ -584,6 +598,7 @@
     $("llmModel").value = item.model || "";
     renderModelChoices(item.availableModels || []);
     $("llmReasoningMode").value = item.reasoningMode || "off";
+    syncGeminiReasoning();
     $("llmApiKey").value = "";
     $("llmApiKey").placeholder = "";
     $("llmCustomDisplayNameField").classList.toggle("hidden", item.id !== "custom");
@@ -1591,8 +1606,8 @@
     if (!event.target?.closest?.(".llm-model-picker")) setModelChoicesOpen(false);
   });
   ["llmApiKey", "llmBaseUrl", "llmModel", "llmReasoningMode"].forEach((id) => {
-    $(id).addEventListener("input", () => setFieldError(id, ""));
-    $(id).addEventListener("change", () => setFieldError(id, ""));
+    $(id).addEventListener("input", () => { setFieldError(id, ""); syncGeminiReasoning(); });
+    $(id).addEventListener("change", () => { setFieldError(id, ""); syncGeminiReasoning(); });
   });
   $("postprocessReplacements").addEventListener("input", () => { setFieldError("postprocessReplacements", ""); renderReplacementPreview(); renderAutoPostprocessState(); maybeEnablePendingAutoStep(); persistAutoPlanSoon(); });
   $("postprocessReplacementSeparator").addEventListener("change", () => { syncReplacementSeparator(); renderReplacementPreview(); renderAutoPostprocessState(); persistAutoPlanSoon(); });

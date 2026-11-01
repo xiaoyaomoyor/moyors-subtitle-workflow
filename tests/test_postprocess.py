@@ -1066,6 +1066,7 @@ class PostprocessTests(unittest.TestCase):
             model="custom-model",
         )
         response = mock.Mock()
+        response.json.return_value = {"choices": [{"message": {"content": "OK"}}]}
         session = mock.MagicMock()
         session.__enter__.return_value = session
         session.post.return_value = response
@@ -1079,9 +1080,9 @@ class PostprocessTests(unittest.TestCase):
             json={
                 "model": "custom-model",
                 "messages": [{"role": "user", "content": "Reply with OK."}],
-                "max_tokens": 1,
+                "max_tokens": 64,
             },
-            timeout=(10, 30),
+            timeout=(10, 90),
         )
         response.raise_for_status.assert_called_once_with()
 

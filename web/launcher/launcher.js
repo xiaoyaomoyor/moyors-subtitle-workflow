@@ -1179,6 +1179,10 @@
     llm_http_model_list_operation: "获取模型",
     llm_quick_actions: "快捷功能",
     llm_connection_testing: "正在测试连接……",
+    llm_test_read_timeout: "等待模型回复超时（90 秒）。能获取模型列表不代表生成正常；请检查网络／代理或降低思考强度后重试。未自动重试。",
+    llm_test_connect_timeout: "10 秒内未能建立连接，请检查网络或代理。",
+    llm_test_empty_response: "服务已响应，但未返回文字；可能是思考耗尽了输出额度，请降低思考强度后重试。",
+    llm_test_protocol: "服务已响应，但不是有效的文字回复，请核对兼容接口地址与模型。",
     llm_connection_success: "连接成功。",
     llm_connection_saved: "连接成功（已自动保存到本地环境）",
     llm_base_url: "API URL",
@@ -1186,6 +1190,8 @@
     llm_reasoning_mode: "思考强度",
     llm_reasoning_auto: "自动（跟随模型默认）",
     llm_reasoning_off: "关闭思考",
+    llm_reasoning_minimum: "最低（无法关闭）",
+    llm_reasoning_gemini_hint: "此模型不支持关闭思考；最低按低强度执行，自动跟随模型默认。",
     llm_reasoning_low: "低",
     llm_reasoning_medium: "中",
     llm_reasoning_high: "高",
@@ -1241,6 +1247,10 @@
     llm_http_model_list_operation: "model lookup",
     llm_quick_actions: "Quick actions",
     llm_connection_testing: "Testing connection…",
+    llm_test_read_timeout: "Timed out waiting for a model reply (90 seconds). Listing models does not verify generation; check the network/proxy or lower the thinking level. No automatic retry was sent.",
+    llm_test_connect_timeout: "Could not connect within 10 seconds. Check the network or proxy.",
+    llm_test_empty_response: "The service responded without text; thinking may have exhausted the output budget. Try a lower thinking level.",
+    llm_test_protocol: "The service responded without a valid text completion. Check the compatible endpoint and model.",
     llm_connection_success: "Connection successful.",
     llm_connection_saved: "Connection successful (saved to local environment automatically).",
     llm_base_url: "API URL",
@@ -1248,6 +1258,8 @@
     llm_reasoning_mode: "Reasoning effort",
     llm_reasoning_auto: "Auto (follow model default)",
     llm_reasoning_off: "Disable thinking",
+    llm_reasoning_minimum: "Minimum (cannot disable)",
+    llm_reasoning_gemini_hint: "This model requires thinking. Minimum uses low effort; Auto follows the model default.",
     llm_reasoning_low: "Low",
     llm_reasoning_medium: "Medium",
     llm_reasoning_high: "High",
@@ -2139,6 +2151,10 @@
   }
   function errText(code, detail, context = {}) {
     if (["subtitle_invalid", "script_invalid", "match_invalid", "match_too_low"].includes(code)) return t(code);
+    if (code === 'postprocess_connection_failed') {
+      const key = {read_timeout:'llm_test_read_timeout', connect_timeout:'llm_test_connect_timeout', empty_response:'llm_test_empty_response', protocol:'llm_test_protocol'}[context?.errorCategory];
+      if (key) return t(key);
+    }
     const compact = compactDetail(detail);
     const builtInGuidance = ["postprocess_connection_failed", "postprocess_models_failed"].includes(code) && !Number.isInteger(Number(context?.httpStatus))
       ? llmBuiltInProviderKeyGuidance(context)

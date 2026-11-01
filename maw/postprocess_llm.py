@@ -13,7 +13,7 @@ from typing import Final
 from urllib.parse import urlparse
 
 import requests
-from requests.exceptions import HTTPError, JSONDecodeError, RequestException
+from requests.exceptions import ConnectTimeout, HTTPError, JSONDecodeError, ReadTimeout, RequestException
 
 from maw.project_preview import JsonValue
 
@@ -62,6 +62,7 @@ class LlmClientError(RuntimeError):
 LlmDelta = Callable[[str, str], None]
 REASONING_MODES: Final[frozenset[str]] = frozenset({"auto", "off", "low", "medium", "high"})
 MAX_RESPONSE_ATTEMPTS: Final[int] = 2
+CONNECTION_TEST_READ_TIMEOUT: Final[int] = 90
 MAX_PROVIDER_DIAGNOSTIC_CHARS: Final[int] = 240
 _REASONING_ALIASES: Final[dict[str, str]] = {
     "default": DEFAULT_REASONING_MODE,
@@ -166,14 +167,17 @@ def _request_completion(
 ) -> dict[str, JsonValue]:
     endpoint = _chat_endpoint(settings.base_url)
     payload = {
-        "model": settings.model,
+        "model": _request_model(settings),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(cues, ensure_ascii=False)},
         ],
         "response_format": {"type": "json_object"},
-        "temperature": 0.1,
     }
+    # Gemini 3.6+ no longer accepts the old sampling controls. Use the
+    # provider default rather than carrying our generic temperature override.
+    if _provider_family(settings) != "gemini":
+        payload["temperature"] = 0.1
     payload.update(_reasoning_parameters(settings))
     streaming = on_delta is not None
     if streaming:
@@ -268,9 +272,11 @@ def test_llm_connection(settings: LlmSettings) -> None:
     """Send a minimal chat request to verify the current LLM settings."""
     endpoint = _chat_endpoint(settings.base_url)
     payload = {
-        "model": settings.model,
+        "model": _request_model(settings),
         "messages": [{"role": "user", "content": "Reply with OK."}],
-        "max_tokens": 1,
+        # Thinking consumes output budget too; one token cannot verify an
+        # actual reply. This is a ceiling, not a requested response length.
+        "max_tokens": 4096 if _provider_family(settings) == "gemini" or normalize_reasoning_mode(settings.reasoning_mode) != "off" else 64,
     }
     payload.update(_reasoning_parameters(settings))
     try:
@@ -279,14 +285,47 @@ def test_llm_connection(settings: LlmSettings) -> None:
                 endpoint,
                 headers=_request_headers(settings, streaming=False),
                 json=payload,
-                timeout=(10, 30),
+                timeout=(10, CONNECTION_TEST_READ_TIMEOUT),
             )
             try:
                 response.raise_for_status()
             except HTTPError as error:
                 raise _provider_response_error(response, settings=settings, operation="connection test") from error
+            body = response.json()
+            try:
+                # Thinking-only completions can carry a null content field.
+                choices = body.get("choices") if isinstance(body, dict) else None
+                first = choices[0] if isinstance(choices, list) and choices else None
+                message = first.get("message") if isinstance(first, dict) else None
+                content = "" if isinstance(message, dict) and message.get("content") is None else _response_content(body)
+            except LlmClientError as error:
+                raise LlmClientError(
+                    "LLM endpoint responded without a text completion; check the chat endpoint and model.",
+                    category="protocol", operation="connection test",
+                ) from error
+            if not content.strip():
+                raise LlmClientError(
+                    "LLM endpoint responded but returned no text; thinking may have exhausted the output budget. Try a lower thinking level.",
+                    category="empty_response", operation="connection test",
+                )
     except LlmClientError:
         raise
+    except ConnectTimeout as error:
+        raise LlmClientError(
+            "LLM connection test could not establish a connection within 10 seconds; check the network or proxy.",
+            category="connect_timeout", operation="connection test",
+        ) from error
+    except ReadTimeout as error:
+        raise LlmClientError(
+            f"LLM connection test timed out waiting for a response ({CONNECTION_TEST_READ_TIMEOUT} seconds read timeout). "
+            "A model list does not verify generation. The model, service or network may be delayed; no automatic retry was sent.",
+            category="read_timeout", operation="connection test",
+        ) from error
+    except JSONDecodeError as error:
+        raise LlmClientError(
+            "LLM endpoint responded without valid JSON; check the OpenAI-compatible chat endpoint.",
+            category="protocol", operation="connection test",
+        ) from error
     except RequestException as error:
         detail = _bound_diagnostic(str(error), settings=settings)
         raise LlmClientError(
@@ -348,6 +387,7 @@ def list_llm_models(settings: LlmSettings) -> list[str]:
                 if isinstance(candidate, str) and candidate.strip():
                     model_id = candidate.strip()
                     break
+        model_id = _request_model(settings, model_id)
         if model_id and model_id not in seen:
             seen.add(model_id)
             models.append(model_id)
@@ -387,6 +427,8 @@ def _provider_family(settings: LlmSettings) -> str:
     if provider != "custom":
         return provider
     url = settings.base_url.lower()
+    if urlparse(url).hostname == "generativelanguage.googleapis.com":
+        return "gemini"
     if "dashscope.aliyuncs.com" in url or "maas.aliyuncs.com" in url:
         return "qwen"
     if "deepseek.com" in url:
@@ -396,13 +438,30 @@ def _provider_family(settings: LlmSettings) -> str:
     return "custom"
 
 
+def _request_model(settings: LlmSettings, model: str | None = None) -> str:
+    value = (settings.model if model is None else model).strip()
+    # Resource names returned by Google's model catalog may include models/.
+    # Never rewrite arbitrary third-party routing/model IDs.
+    return value.removeprefix("models/") if _provider_family(settings) == "gemini" else value
+
+
 def _reasoning_parameters(settings: LlmSettings) -> dict[str, JsonValue]:
     mode = normalize_reasoning_mode(settings.reasoning_mode)
     if mode == "auto":
         return {}
 
     family = _provider_family(settings)
-    model = settings.model.strip().lower()
+    model = _request_model(settings).lower()
+    if family == "gemini":
+        if mode == "off":
+            # Gemini 3+ and 2.5 Pro cannot disable thinking. The existing off
+            # preference means the lowest supported effort, not model default.
+            if re.match(r"gemini-(?:[3-9]|[1-9]\d+)[.-]", model) or model.startswith("gemini-2.5-pro"):
+                return {"reasoning_effort": "low"}
+            if model.startswith("gemini-2.5-"):
+                return {"reasoning_effort": "none"}
+            return {}
+        return {"reasoning_effort": mode}
     if family == "qwen":
         if mode == "off":
             return {"enable_thinking": False}
