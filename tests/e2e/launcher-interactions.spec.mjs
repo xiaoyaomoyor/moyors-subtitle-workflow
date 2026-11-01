@@ -482,12 +482,37 @@ test('runtime errors show an actionable notice outside the log', async ({ page }
   await expect(page.locator('#status')).toContainText('未找到 FFmpeg / FFprobe');
 });
 
+test('LLM server errors retain diagnostics without guessing their source', async ({ page }) => {
+  await openLauncher(page);
+  await page.evaluate(() => {
+    MSWLauncher.openSettings('llmSettingsSection');
+    window.__httpDiagnostic = '';
+    MSWLauncher.callBackend = async method => method === 'test_postprocess_connection' ? ({
+      ok: false, code: 'postprocess_connection_failed', httpStatus: 503,
+      providerId: 'custom', operation: 'connection test', diagnostic: window.__httpDiagnostic,
+    }) : ({ok: true});
+  });
+  await page.locator('#testLlmConnection').click();
+  const message = page.locator('#llmSettingsSaveStatus');
+  await expect(message).toContainText('HTTP 503');
+  await expect(message).toContainText('仅凭状态码无法确定来源');
+  await expect(message).not.toContainText('不是网络');
+  await page.evaluate(() => window.__httpDiagnostic = 'Model busy | status=UNAVAILABLE');
+  await page.locator('#testLlmConnection').click();
+  await expect(message).toContainText('接口说明：Model busy | status=UNAVAILABLE');
+  await setLauncherLanguage(page, 'en');
+  await page.evaluate(() => MSWLauncher.openSettings('llmSettingsSection'));
+  await page.locator('#testLlmConnection').click();
+  await expect(message).toContainText('status alone does not identify the source');
+  await expect(message).toContainText('Response detail: Model busy');
+});
+
 test('provider HTTP failures keep retry guidance and original transcription discoverable', async ({ page }) => {
   await openLauncher(page);
   await page.evaluate(() => window.MSWLauncher.onBackendEvent({
     type: 'error',
     code: 'postprocess_provider_response',
-    detail: '后处理步骤 translate 失败：LLM provider returned HTTP 400: invalid request. This is a provider response, not a network outage.',
+    detail: '后处理步骤 translate 失败：LLM request received HTTP 400: invalid request.',
     canRetry: true,
     failedStep: 'translate',
     originalSrtPath: 'D:\\Demo\\clip.srt',
@@ -495,7 +520,8 @@ test('provider HTTP failures keep retry guidance and original transcription disc
   }));
 
   await expect(page.locator('#errorNotice')).toBeVisible();
-  await expect(page.locator('#errorNoticeMessage')).toContainText('这不是网络中断');
+  await expect(page.locator('#errorNoticeMessage')).toContainText('请求返回 HTTP 错误');
+  await expect(page.locator('#errorNoticeMessage')).not.toContainText('不是网络中断');
   await expect(page.locator('#errorNoticeMessage')).toContainText('原始转写仍然保留');
   await expect(page.locator('#retryPostprocess')).toBeVisible();
   await expect(page.locator('#openFolder')).toBeVisible();

@@ -841,7 +841,7 @@ class PostprocessTests(unittest.TestCase):
         self.assertEqual(error.category, "provider_response")
         self.assertEqual(error.status_code, 400)
         self.assertIn("HTTP 400", str(error))
-        self.assertIn("not a network outage", str(error))
+        self.assertNotIn("not a network outage", str(error))
         self.assertIn("invalid request", error.diagnostic)
         self.assertNotIn("bearer-example-secret", error.diagnostic)
         self.assertNotIn("sk-example-secret", error.diagnostic)

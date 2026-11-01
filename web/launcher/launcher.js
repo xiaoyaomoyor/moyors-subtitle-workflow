@@ -1175,6 +1175,8 @@
     llm_http_forbidden: "供应商拒绝了请求（HTTP 403，{operation}）。当前供应商：{provider}。请核对供应商、API URL 与 API Key 签发方是否一致，并确认账号或模型有权限；不要在错误报告中粘贴 Key。",
     llm_http_not_found: "接口或模型不存在（HTTP 404，{operation}）。请检查 API URL 的兼容路径和模型 ID；获取模型时还要确认该供应商提供 /models 接口。这个状态通常不是 API Key 问题。",
     llm_http_rate_limited: "请求被限流或额度暂时耗尽（HTTP 429，{operation}）。请稍后重试，降低请求频率或批次大小，并检查当前供应商的额度与限流策略。",
+    llm_http_server_error: "接口返回 HTTP {status}（{operation}）。服务或中间网关暂时异常，仅凭状态码无法确定来源。请稍后重试，或保持模型不变、更换代理节点对比。",
+    llm_http_response_detail: "接口说明：{detail}",
     llm_http_connection_operation: "连接测试",
     llm_http_model_list_operation: "获取模型",
     llm_quick_actions: "快捷功能",
@@ -1247,6 +1249,8 @@
     llm_http_forbidden: "The provider rejected the request (HTTP 403, {operation}). Current provider: {provider}. Compare the provider, API URL, and the issuer of the API key, then confirm that the account or model is allowed; never paste the key into an error report.",
     llm_http_not_found: "The endpoint or model was not found (HTTP 404, {operation}). Check the compatible API URL path and model ID; when fetching models, confirm that the provider exposes /models. This is usually not an API-key problem.",
     llm_http_rate_limited: "The request was rate-limited or the quota is temporarily exhausted (HTTP 429, {operation}). Wait and retry, reduce request frequency or batch size, and check the current provider's quota and rate-limit policy.",
+    llm_http_server_error: "The request received HTTP {status} ({operation}). The service or an intermediary gateway is temporarily unavailable; the status alone does not identify the source. Retry later, or compare another proxy node using the same model.",
+    llm_http_response_detail: "Response detail: {detail}",
     llm_http_connection_operation: "connection test",
     llm_http_model_list_operation: "model lookup",
     llm_quick_actions: "Quick actions",
@@ -1402,7 +1406,7 @@
       soniox_context_too_long: "Soniox 上下文约限制为 10000 个字符。",
       soniox_context_invalid: "Soniox 上下文格式不正确，请检查高级设置中的填写格式。",
       postprocess_config_invalid: (detail) => `自动后处理配置不完整：${detail || "请打开工具箱完成配置。"}`,
-      postprocess_provider_response: (detail) => `后处理服务已返回 HTTP 错误，这不是网络中断；原始转写仍然保留，可从失败步骤重试。${detail ? ` 详细信息：${detail}` : ""}`,
+      postprocess_provider_response: (detail) => `后处理请求返回 HTTP 错误；原始转写仍然保留，可从失败步骤重试。${detail ? ` 详细信息：${detail}` : ""}`,
       postprocess_failed: (detail) => `转写已完成，但自动后处理失败；原始转写仍然保留，可从失败步骤重试：${detail || "请查看日志。"}`,
       postprocess_cancelled: "自动后处理已取消，原始转写产物仍然保留。",
       waveform_unavailable: (detail) => `无法从该媒体生成可用波形：${detail || "请检查 FFmpeg 和媒体文件。"}`,
@@ -1461,7 +1465,7 @@
       context_too_long: "Qwen-Audio context is limited to 400 characters.",
       soniox_context_too_long: "Soniox context is limited to approximately 10,000 characters.",
       postprocess_config_invalid: (detail) => `Automatic post-processing is not configured: ${detail || "open the toolbox to finish setup."}`,
-      postprocess_provider_response: (detail) => `The post-processing provider returned an HTTP error; this is not a network outage. The original transcription remains available, and you can retry from the failed step.${detail ? ` Details: ${detail}` : ""}`,
+      postprocess_provider_response: (detail) => `The post-processing request received an HTTP error. The original transcription remains available, and you can retry from the failed step.${detail ? ` Details: ${detail}` : ""}`,
       waveform_unavailable: (detail) => `No usable waveform could be generated: ${detail || "check FFmpeg and the media file."}`,
       waveform_generation_failed: (detail) => `Waveform project generation failed: ${detail || "check the media and output-folder permissions."}`,
       media_tool_busy: "Another media operation is already running. Please wait for it to finish.",
@@ -2149,13 +2153,18 @@
     const keys = { 401: "llm_http_unauthorized", 403: "llm_http_forbidden", 404: "llm_http_not_found", 429: "llm_http_rate_limited" };
     const key = numericStatus === 401 && ["deepseek", "zhipu", "qwen"].includes(providerId)
       ? "llm_http_unauthorized_builtin"
-      : (numericStatus === 401 && providerId === "custom" ? "llm_http_unauthorized_custom" : keys[numericStatus]);
+      : (numericStatus === 401 && providerId === "custom" ? "llm_http_unauthorized_custom" : (numericStatus >= 500 && numericStatus < 600 ? "llm_http_server_error" : keys[numericStatus]));
     if (!key) return "";
     const isModelList = String(context?.operation || "").toLowerCase().includes("model");
     const operation = t(isModelList ? "llm_http_model_list_operation" : "llm_http_connection_operation");
-    return t(key)
+    const message = t(key)
+      .replaceAll("{status}", String(numericStatus))
       .replaceAll("{provider}", llmProviderLabel(context?.providerId))
       .replaceAll("{operation}", operation);
+    const diagnostic = compactDetail(context?.diagnostic);
+    return numericStatus >= 500 && diagnostic
+      ? `${message} ${t('llm_http_response_detail').replaceAll('{detail}', diagnostic)}`
+      : message;
   }
   function errText(code, detail, context = {}) {
     if (["subtitle_invalid", "script_invalid", "match_invalid", "match_too_low"].includes(code)) return t(code);

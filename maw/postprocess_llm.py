@@ -679,9 +679,9 @@ def _provider_response_error(
     diagnostic = _extract_server_diagnostic(response, settings=settings)
     status_text = f"HTTP {status_code}" if status_code is not None else "an HTTP error"
     detail = f"{status_text}: {diagnostic}" if diagnostic else status_text
-    message = (
-        f"LLM provider returned {detail}. This is a provider response, not a network outage."
-    )
+    message = f"LLM request received {detail}."
+    if status_code is not None and status_code >= 500:
+        message += " The API service or an intermediary gateway may be unavailable; the status alone does not identify the source."
     return LlmClientError(
         message,
         category="provider_response",
@@ -727,7 +727,7 @@ def _extract_diagnostic_fields(value: Mapping[object, object], *, depth: int = 0
             parts.append(nested)
     elif isinstance(nested_error, (str, int, float)):
         parts.append(str(nested_error))
-    for key in ("message", "detail", "code", "type", "param"):
+    for key in ("message", "detail", "code", "status", "type", "param"):
         candidate = value.get(key)
         if isinstance(candidate, (str, int, float)) and str(candidate).strip():
             parts.append(f"{key}={candidate}" if key != "message" else str(candidate))

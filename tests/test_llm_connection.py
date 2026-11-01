@@ -7,7 +7,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
-from requests.exceptions import ConnectTimeout, ReadTimeout, SSLError
+from requests.exceptions import ConnectTimeout, HTTPError, ReadTimeout, SSLError
 
 from maw.postprocess_llm import (
     LlmClientError, LlmSettings, _reasoning_parameters, complete_subtitle_groups,
@@ -118,6 +118,29 @@ class GeminiConnectionTests(unittest.TestCase):
                 self.assertNotIn("private.example", str(caught.exception))
                 session.post.assert_called_once()
                 self.assertNotIn("verify", session.post.call_args.kwargs)
+
+    def test_503_reports_response_without_claiming_google_or_network_cause(self):
+        for body in [{}, {"error": {"code": 503, "status": "UNAVAILABLE", "message": "Model busy test-only-secret"}}]:
+            with self.subTest(body=body):
+                session = session_for(body)
+                response = session.post.return_value
+                response.status_code = 503
+                response.json.return_value = body
+                response.raise_for_status.side_effect = HTTPError("503 Service Unavailable")
+                with mock.patch("maw.postprocess_llm.requests.Session", return_value=session):
+                    with self.assertRaises(LlmClientError) as caught:
+                        check_connection(settings())
+                error = caught.exception
+                self.assertEqual(error.status_code, 503)
+                self.assertEqual(error.category, "provider_response")
+                self.assertIn("intermediary gateway", str(error))
+                self.assertNotIn("not a network outage", str(error))
+                self.assertNotIn("test-only-secret", str(error))
+                self.assertEqual(bool(error.diagnostic), bool(body))
+                if body:
+                    self.assertIn("status=UNAVAILABLE", error.diagnostic)
+                session.post.assert_called_once()
+                response.close.assert_called_once()
 
     def test_stream_requires_actual_text_not_thinking_or_http_success(self):
         for lines, category in [
