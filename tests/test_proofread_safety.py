@@ -7,9 +7,9 @@ from threading import Event
 from unittest.mock import Mock, patch
 
 from maw.launcher_processing import native_project
-from maw.postprocess import LlmPostprocessRequest, OutputMode, process_llm_snapshot, run_llm_postprocess
+from maw.postprocess import LlmPostprocessRequest, OutputMode, PostprocessStepError, process_llm_snapshot, run_llm_postprocess
 from maw.postprocess_pipeline import PostprocessPipelineError, run_postprocess_pipeline
-from maw.postprocess_llm import LlmSettings, llm_request_summary
+from maw.postprocess_llm import LlmClientError, LlmSettings, llm_request_summary
 
 
 def request(**kwargs):
@@ -48,21 +48,23 @@ class ProofreadSafetyTests(unittest.TestCase):
         self.assertEqual(result.project['segments'][1], original['segments'][1])
         self.assertEqual(result.project['language'], 'en')
 
-    def test_obvious_language_changes_rejected_without_retry(self):
+    def test_obvious_language_changes_keep_original_after_bounded_retry(self):
         for source, output in [('Welcome to our adventure.', '欢迎来到我们的冒险'),
                                ('欢迎来到我们的冒险', 'Welcome to our adventure.'),
                                ('Это наше приключение', 'This is our adventure'),
                                ('안녕하세요 여러분', 'Hello everybody')]:
             with self.subTest(source=source):
                 complete = Mock(return_value={'groups': [{'id': 'c0001', 'text': output}]})
-                with self.assertRaisesRegex(ValueError, '疑似被翻译'):
-                    process_llm_snapshot(project(source), request(), complete=complete)
-                complete.assert_called_once()
+                result = process_llm_snapshot(project(source), request(), complete=complete)
+                self.assertEqual(result.project['segments'][0]['text'], source)
+                self.assertIn('疑似被翻译', ' '.join(result.warnings))
+                self.assertEqual(complete.call_count, 2)
 
     def test_short_utterances_rejected_as_a_batch(self):
         response = {'groups': [{'id': 'c0001', 'text': '不'}, {'id': 'c0002', 'text': '是'}]}
-        with self.assertRaisesRegex(ValueError, '整批字幕'):
-            process_llm_snapshot(project('No', 'Yes'), request(), complete=lambda *_: response)
+        result = process_llm_snapshot(project('No', 'Yes'), request(), complete=lambda *_: response)
+        self.assertEqual([s['text'] for s in result.project['segments']], ['No', 'Yes'])
+        self.assertTrue(result.warnings)
 
     def test_existing_mixed_language_names_and_same_script_corrections_allowed(self):
         pairs = [('Play Minecraft with 小明.', 'Play Minecraft with 小明!'),
@@ -86,8 +88,9 @@ class ProofreadSafetyTests(unittest.TestCase):
                  [good[0], None]]
         for groups in cases:
             with self.subTest(groups=groups):
-                with self.assertRaisesRegex(ValueError, '未写入校对结果'):
-                    process_llm_snapshot(project('Hello', 'World'), request(), complete=lambda *_: {'groups': groups})
+                result = process_llm_snapshot(project('Hello', 'World'), request(), complete=lambda *_: {'groups': groups})
+                self.assertEqual([s['text'] for s in result.project['segments']], ['Hello', 'World'])
+                self.assertIn('保留原文', ' '.join(result.warnings))
 
     def test_all_blank_cues_preserved_without_calling_model(self):
         complete = Mock(side_effect=AssertionError('must not call'))
@@ -104,8 +107,10 @@ class ProofreadSafetyTests(unittest.TestCase):
             calls = []
             def complete(prompt, cues):
                 calls.append(cues)
-                return {'groups': [{'id': c['id'], 'text': c['text'] if len(calls) == 1 else '你好世界'} for c in cues]}
-            with self.assertRaisesRegex(ValueError, '第 2 批校对结果无效'):
+                if len(calls) > 1:
+                    raise LlmClientError('offline', category='network')
+                return {'groups': [{'id': c['id'], 'text': c['text']} for c in cues]}
+            with self.assertRaisesRegex(PostprocessStepError, '第 2/2 批'):
                 run_llm_postprocess(LlmPostprocessRequest(source, None, OutputMode.JSON, 'proofread', ''), complete=complete)
             self.assertEqual(source.read_text(encoding='utf-8'), original)
             self.assertEqual(list(root.iterdir()), [source])
@@ -171,7 +176,7 @@ class ProofreadPipelineTests(unittest.TestCase):
                 'zhipu': {'apiKey': 'test-secret', 'baseUrl': 'https://example.test', 'model': 'translate-test', 'verified': '1'}}
             def complete(settings, prompt, cues):
                 self.assertEqual(settings.model, 'models/gemini-test')
-                return {'groups': [{'id': c['id'], 'text': '你好世界'} for c in cues]}
+                raise LlmClientError('offline', category='network')
             with patch('maw.postprocess_pipeline.complete_subtitle_groups', side_effect=complete) as llm:
                 with self.assertRaises(PostprocessPipelineError) as caught:
                     run_postprocess_pipeline(plan, project_path=source, srt_path=root / 'source.srt', media_path=media,

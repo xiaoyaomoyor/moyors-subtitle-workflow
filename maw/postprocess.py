@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import difflib
+import json
 import re
 import unicodedata
 from collections import Counter
@@ -65,6 +66,7 @@ class LlmPostprocessRequest:
     strip_tail_punct: str = ""
     translation_progress_path: Path | None = None
     translation_provider_fingerprint: str = ""
+    proofread_progress_path: Path | None = None
 
 
 class PostprocessStepError(RuntimeError):
@@ -345,13 +347,15 @@ def process_llm_snapshot(
             raise ValueError("工程没有可翻译的非空字幕，未写出输出产物。")
     batches = _llm_batches(cues)
     from maw.translation_progress import TranslationProgress
-    progress = TranslationProgress(request.translation_progress_path if strict_translation else None,
+    progress = TranslationProgress(request.translation_progress_path if strict_translation else request.proofread_progress_path if strict_proofreading else None,
         [system_prompt, request.translation_provider_fingerprint, source_id_map, cues])
     _notify_status(on_status, "toolbox_status_preparing_llm")
     responses: list[Mapping[str, JsonValue]] = []
     skipped_source_ids: set[str] = set()
     response_warnings: list[str] = []
     response_modes: list[str] = []
+    proofread_review: list[dict] = []
+    proofread_diagnostics: list[dict] = []
     for index, batch in enumerate(batches, 1):
         _notify_status(on_status, "toolbox_status_llm_batch", current=index, total=len(batches))
         if strict_translation:
@@ -383,6 +387,15 @@ def process_llm_snapshot(
             response_mode = "cues"
             if not batch_skipped:
                 progress.save(batch, clean_response)
+        elif strict_proofreading:
+            clean_response, review, diagnostics = _complete_proofread_batch(
+                complete, system_prompt, batch, batch_number=index, total_batches=len(batches), progress=progress)
+            proofread_review.extend(review)
+            proofread_diagnostics.extend(diagnostics)
+            preserved = {item['id'] for item in review}
+            clean_response = {'groups': [group for group in clean_response['groups']
+                                         if group['source_ids'][0] not in preserved]}
+            batch_skipped, batch_warnings, response_mode = frozenset(), (), 'cues'
         else:
             try:
                 response = complete(system_prompt, batch)
@@ -393,17 +406,13 @@ def process_llm_snapshot(
                     f"第 {index}/{len(batches)} 批（{first_id}–{last_id}）处理失败：{error}",
                     error,
                 ) from error
-            if strict_proofreading:
-                clean_response = _validate_proofread_response(response, batch, batch_number=index)
-                batch_skipped, batch_warnings, response_mode = frozenset(), (), "cues"
-            else:
-                clean_response, batch_skipped, batch_warnings, response_mode = _sanitize_llm_response(
-                    response,
-                    batch,
-                    batch_number=index,
-                    strict_translation=False,
-                    item_aware_resegment=item_aware_resegment,
-                )
+            clean_response, batch_skipped, batch_warnings, response_mode = _sanitize_llm_response(
+                response,
+                batch,
+                batch_number=index,
+                strict_translation=False,
+                item_aware_resegment=item_aware_resegment,
+            )
         responses.append(clean_response)
         response_modes.append(response_mode)
         skipped_source_ids.update(batch_skipped)
@@ -442,17 +451,31 @@ def process_llm_snapshot(
     elif item_aware_resegment:
         raise ValueError("LLM 分批返回了不一致的字词边界协议，未写出输出产物。")
     else:
-        application_skipped_source_ids = skipped_source_ids | preserved_blank_source_ids | preserved_target_source_ids
+        preserved_proofread_ids = {item['id'] for item in proofread_review}
+        application_skipped_source_ids = skipped_source_ids | preserved_blank_source_ids | preserved_target_source_ids | preserved_proofread_ids
         processed, warnings = _apply_llm_groups_with_warnings(
             project,
             response,
             strict_translation=strict_translation,
             strict_proofreading=strict_proofreading,
             skipped_source_ids=application_skipped_source_ids,
-            preserve_skipped_source_ids=preserved_blank_source_ids | preserved_target_source_ids,
+            preserve_skipped_source_ids=preserved_blank_source_ids | preserved_target_source_ids | preserved_proofread_ids,
             preserve_items_on_equal_text=not strict_translation,
             drop_items=strict_translation,
         )
+    if strict_proofreading:
+        ids = dict(source_id_map)
+        source_by_id = {str(cue['id']): cue['text'] for cue in cues}
+        review = [{**item, 'segmentId': ids[item['id']], 'sourceText': source_by_id[item['id']]}
+                  for item in proofread_review]
+        if request.proofread_progress_path is not None:
+            from maw.file_io import atomic_write_text
+            atomic_write_text(request.proofread_progress_path.with_name('proofread-review.json'),
+                json.dumps({'version': 1, 'retainedOriginal': review, 'diagnostics': proofread_diagnostics},
+                           ensure_ascii=False, indent=2) + '\n')
+        if review:
+            response_warnings.append(f"校对有 {len(review)} 条结果仍不可靠，已保留原文：" + '、'.join(item['id'] for item in review))
+            response_warnings.extend(f"{item['id']}（{item['segmentId']}）：{item['reason']}" for item in review)
     if skipped_source_ids:
         warnings = (
             _format_skip_summary(skipped_source_ids),
@@ -460,7 +483,7 @@ def process_llm_snapshot(
             *warnings,
         )
     else:
-        warnings = tuple(warnings)
+        warnings = (*response_warnings, *warnings) if strict_proofreading else tuple(warnings)
     if preserved_blank_source_ids:
         action = "校对" if strict_proofreading else "翻译"
         warnings = (
@@ -494,7 +517,7 @@ def process_llm_snapshot(
         output_operation = f"{request.operation}-{BACKFILL_ARTIFACT_MARKER}"
         warnings = ("已将翻译结果回填进原字幕，输出为单条字幕。", *warnings)
     return LlmSnapshotResult(processed, tuple(warnings), output_operation,
-                             tuple(sorted(preserved_blank_source_ids | preserved_target_source_ids)), source_id_map)
+                             tuple(sorted(preserved_blank_source_ids | preserved_target_source_ids | {item['id'] for item in proofread_review})), source_id_map)
 
 
 BILINGUAL_LINE_ORDERS: Final[frozenset[str]] = frozenset({"", "translation_first", "original_first"})
@@ -798,6 +821,90 @@ def _merge_translation_response_parts(
     }
 
 
+def _proofread_parts(response, batch, *, batch_number):
+    """Keep only independently validated cues; ambiguous structures are all rejected."""
+    try:
+        clean = _validate_proofread_response(response, batch, batch_number=batch_number)
+        return {group['source_ids'][0]: group for group in clean['groups']}, {}
+    except ValueError as error:
+        reason = str(error)
+    groups = response.get('groups') if isinstance(response, Mapping) else None
+    aligned = isinstance(groups, list) and len(groups) == len(batch) and all(
+        isinstance(group, dict) and group.get('source_ids', [group.get('id')]) == [cue['id']]
+        and ('id' not in group or group['id'] == cue['id']) for cue, group in zip(batch, groups))
+    if not aligned or _proofread_changed_script(' '.join(str(c['text']) for c in batch),
+            ' '.join(str(g.get('text') or '') for g in groups)):
+        return {}, {str(c['id']): reason for c in batch}
+    valid, invalid = {}, {}
+    for cue, group in zip(batch, groups):
+        try:
+            clean = _validate_proofread_response({'groups': [group]}, [cue], batch_number=batch_number)
+            valid[str(cue['id'])] = clean['groups'][0]
+        except ValueError as error:
+            invalid[str(cue['id'])] = str(error)
+    return valid, invalid
+
+
+def _complete_proofread_batch(complete, system_prompt, batch, *, batch_number, total_batches, progress):
+    """At most two repair calls; unresolved cues keep their complete original data."""
+    cached = progress.get(batch)
+    if cached is not None:
+        try:
+            clean = _validate_proofread_response(cached, batch, batch_number=batch_number)
+            review, diagnostics = cached.get('review', []), cached.get('diagnostics', [])
+            sources = {str(c['id']): str(c['text']) for c in batch}
+            texts = {g['source_ids'][0]: g['text'] for g in clean['groups']}
+            if (not isinstance(review, list) or not isinstance(diagnostics, list)
+                    or any(not isinstance(item, dict) or item.get('id') not in sources
+                           or not isinstance(item.get('reason'), str)
+                           or texts[item['id']] != sources[item['id']].strip() for item in review)):
+                raise ValueError('invalid proofread cache')
+            return clean, review, diagnostics
+        except (ValueError, TypeError, KeyError):
+            pass
+
+    def call(cues, repair=False):
+        prompt = system_prompt
+        if repair:
+            prompt += ('\n上次返回未通过校验。本次只处理下面的字幕。source_text 必须逐字复制输入的 text，'
+                       '包括空格、标点和换行；只在返回的 text 中填写纠错结果。不得翻译、改变 ID 或挪动相邻内容。')
+        try:
+            return complete(prompt, cues)
+        except RuntimeError as error:
+            if getattr(error, 'category', '') == 'response_format':
+                return {'groups': []}
+            first_id, last_id = cues[0]['id'], cues[-1]['id']
+            raise _postprocess_step_error(f"第 {batch_number}/{total_batches} 批（{first_id}–{last_id}）处理失败：{error}", error) from error
+
+    valid, invalid = _proofread_parts(call(batch), batch, batch_number=batch_number)
+    diagnostics = [{'id': key, 'batch': batch_number, 'attempt': 1, 'reason': reason} for key, reason in invalid.items()]
+    pending = [cue for cue in batch if str(cue['id']) in invalid]
+    # Structural errors are retried in smaller pieces; an isolated bad echo
+    # never resends the already valid neighbours.
+    midpoint = (len(pending) + 1) // 2
+    for subset in (pending[:midpoint], pending[midpoint:]):
+        if not subset:
+            continue
+        repaired, remaining = _proofread_parts(call(subset, repair=True), subset, batch_number=batch_number)
+        valid.update(repaired)
+        for cue in subset:
+            invalid.pop(str(cue['id']), None)
+        invalid.update(remaining)
+        diagnostics.extend({'id': key, 'batch': batch_number, 'attempt': 2, 'reason': reason} for key, reason in remaining.items())
+    review = [{'id': str(cue['id']), 'batch': batch_number, 'reason': invalid[str(cue['id'])]}
+              for cue in batch if str(cue['id']) in invalid]
+    response = {'groups': [valid.get(str(cue['id']), {'source_ids': [str(cue['id'])], 'text': str(cue['text'])}) for cue in batch]}
+    # Recheck the composed reply: several individually ambiguous short replies
+    # must not collectively turn a whole batch into another language.
+    try:
+        _validate_proofread_response(response, batch, batch_number=batch_number)
+    except ValueError as error:
+        review = [{'id': str(cue['id']), 'batch': batch_number, 'reason': str(error)} for cue in batch]
+        response = {'groups': [{'source_ids': [str(cue['id'])], 'text': str(cue['text'])} for cue in batch]}
+    progress.save(batch, {**response, 'review': review, 'diagnostics': diagnostics})
+    return response, review, diagnostics
+
+
 def _proofread_scripts(text: str) -> Counter[str]:
     """Conservative script evidence, not a language-identification service."""
     scripts: Counter[str] = Counter()
@@ -833,7 +940,7 @@ def _validate_proofread_response(
 ) -> dict[str, JsonValue]:
     """Reject the whole batch before applying any untrusted proofreading text."""
     def fail(reason: str) -> NoReturn:
-        raise ValueError(f"第 {batch_number} 批校对结果无效：{reason}。未写入校对结果，后续处理已停止；原始字幕保持不变。")
+        raise ValueError(f"第 {batch_number} 批校对结果无效：{reason}。")
 
     groups = response.get("groups") if isinstance(response, Mapping) else None
     if not isinstance(groups, list) or len(groups) != len(batch):
@@ -851,7 +958,13 @@ def _validate_proofread_response(
             fail(f"{expected} 的正文为空")
         source = str(cue["text"])
         if "source_text" in group and group["source_text"] != source:
-            fail(f"{expected} 回传的原文不匹配")
+            echoed = group['source_text']
+            if isinstance(echoed, str):
+                at = next((i for i, (a, b) in enumerate(zip(source, echoed)) if a != b), min(len(source), len(echoed)))
+                detail = f"首个差异在第 {at + 1} 个字符，输入 {source[max(0, at-12):at+24]!r}，回传 {echoed[max(0, at-12):at+24]!r}"
+            else:
+                detail = "回传原文不是文字"
+            fail(f"{expected} 回传的原文不匹配（{detail}）")
         if _proofread_changed_script(source, text):
             fail(f"{expected} 疑似被翻译为其他语言；校对只能纠错，不能改变原语言")
         clean.append({"source_ids": [expected], "text": text.strip()})

@@ -368,7 +368,6 @@ def validate_plan(
             if path.suffix.lower() not in SCRIPT_EXTENSIONS or not path.is_file():
                 errors.append({"step": step_id, "field": "postprocessScriptPath", "message": "文稿匹配需要一个存在的 .txt、.md 或 .markdown 文稿文件。"})
         elif step_id in {"proofread", "resegment", "translate"}:
-            provider_id = str(step.get("providerId") or "deepseek")
             status = _snapshot_provider_status(_step_llm_settings(env_path, step, llm_settings))
             if not status["hasApiKey"]:
                 errors.append({"step": step_id, "field": "llmApiKey", "message": "LLM 供应商缺少 API Key，请在更多设置的供应商环境中填写并保存。"})
@@ -917,6 +916,14 @@ def run_postprocess_pipeline(
                 output_directory=str(normalized.get("outputDirectory") or ""),
                 output_stem=str(normalized.get("outputStem") or ""),
             )
+        proofread_report = run_directory / 'proofread-review.json'
+        if any(step['id'] == 'proofread' for step in steps) and proofread_report.is_file():
+            report = json.loads(proofread_report.read_text(encoding='utf-8'))
+            if report.get('retainedOriginal'):
+                review_path = final_project.with_suffix('.proofread-review.json')
+                _atomic_write(review_path, json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+                manifest['proofreadReviewPath'] = str(review_path)
+                warnings.append(f'校对待确认清单：{review_path.name}')
         manifest["status"] = "done"
         manifest["finalProjectPath"] = str(final_project)
         manifest["finalSrtPath"] = str(final_srt)
@@ -1091,6 +1098,7 @@ def _run_step(
         bilingual_line_order=str(step.get("bilingualLineOrder") or ""),
         strip_tail_punct=tail_strip_symbols(load_postprocess_plan(env_path)) if strip_tail_punct is None else strip_tail_punct,
         translation_progress_path=(translation_progress_directory or output_directory) / 'translation-progress.json' if step_id == 'translate' else None,
+        proofread_progress_path=(translation_progress_directory or output_directory) / 'proofread-progress.json' if step_id == 'proofread' else None,
         translation_provider_fingerprint=fingerprint([settings.provider_id, settings.base_url,
                                                       settings.model, settings.reasoning_mode]),
     ), complete=complete, on_status=on_status)
