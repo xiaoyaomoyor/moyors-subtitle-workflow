@@ -3102,7 +3102,7 @@
   }
 
   const DEFAULT_EDITOR_SETTINGS = Object.freeze({
-    splitKey: 'enter', splitUseWordTimestamps: true, splitAutoSubmit: true,
+    splitKey: 'enter', splitUseWordTimestamps: true,
     mainSplitModeOverride: null,
     splitTrimSymbols: [...DEFAULT_SPLIT_TRIM_SYMBOLS],
     overlayEnabled: true, extensionOverlayEnabled: true, assMode: false, multiSubtitleRowHeight: 168, flatTrackSettingsMigrated: false,
@@ -3163,7 +3163,6 @@
       ...DEFAULT_EDITOR_SETTINGS,
       splitKey: savedSettings.splitKey === 'ctrl-enter' ? 'ctrl-enter' : 'enter',
       splitUseWordTimestamps: savedSettings.splitUseWordTimestamps !== false,
-      splitAutoSubmit: savedSettings.splitAutoSubmit !== false,
       // 主字幕拆分类型手动指定偏好：word / continuous / null（跟随工程与检测）。
       mainSplitModeOverride: ['word', 'continuous'].includes(savedSettings.mainSplitModeOverride)
         ? savedSettings.mainSplitModeOverride : null,

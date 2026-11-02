@@ -2,14 +2,14 @@
 
 对应六阶段方案的第 1–4 阶段。导入导出入口、分类与生效规则见 [配置管理](CONFIGURATION_MANAGEMENT.md)。公共接口为 Python `maw.user_config.UserConfig` 与浏览器 `MSWConfig.storage`；登记表 `maw/user_config.py::REGISTRY` 同时提供给启动器和编辑器，不分别维护两份浏览器键名清单。
 
-2026-11-02 的窗口拆分盘点见 [编辑器设置与项目设置：归属和分类](SETTINGS_OWNERSHIP.md)。该文补充逐字段归属、工作区与个人默认的混合写入问题及后续验收条件；当前入口尚未拆分，不能把分类方案当作已上线行为。
+2026-11-02 的窗口拆分盘点见 [编辑器设置与项目设置：归属和分类](SETTINGS_OWNERSHIP.md)。阶段 2 已落实保存隔离和旧字段迁移，见 [实施记录](TEST_FEEDBACK_SETTINGS_MIGRATION_20261102.md)；两个窗口的入口与布局仍留待后续阶段。
 
 ## 唯一保存来源
 
 | 配置／数据 | 内容及默认来源 | 保存来源 | 可迁移导出 | 生效时间 |
 | --- | --- | --- | --- | --- |
 | 编辑与播放偏好 | 切分、拼合、列表、字幕编辑器、快捷键步长、预览避让、试听、彩蛋、自动保存；`web/editor-utils.js::DEFAULT_EDITOR_SETTINGS` 与 `normalizeEditorSettings` | 公共库 `browser.moy.asr.editor.settings.v1` | 是 | 当前窗口即时；其他窗口重开后读取 |
-| 波形与默认布局 | 模式、每行时长、高度、轨道头、悬停、拖动播放头、频谱颜色、Dock 布局；`web/waveform.js::DEFAULT_SETTINGS/readSettings` | 公共库 `browser.moy.asr.waveform.settings.v1`；工程另保存工作区快照 | 是 | 当前窗口应用；工程恢复与用户默认的写入隔离仍需完善，见设置拆分盘点 S01／S02 |
+| 波形与默认布局 | 模式、每行时长、高度、轨道头、悬停、拖动播放头、频谱颜色、Dock 布局；`web/waveform.js::DEFAULT_SETTINGS/normalizeWaveformSettings` | 公共库 `browser.moy.asr.waveform.settings.v1`；工程另保存工作区快照 | 是，排除临时布局编辑状态 | 当前窗口应用；恢复工程／工作区和撤销不回写个人默认，手动修改只保存实际变更字段 |
 | 界面主题 | 内置主题选择、颜色、用户主题、颜色暂存；`web/editor.js` 主题定义和规范化 | 公共库 editor settings、customThemes、themeCustomColors | 是 | 当前窗口即时 |
 | 编辑器语言 | `web/editor-i18n.js::normalizeLanguage`，默认中文 | 公共库 `browser.mawe.language` | 是 | 当前窗口即时 |
 | 独立预览样式选择 | `web/msw-project-style-ui.js` 的 proof 状态，默认跟随工程 | 公共库 `browser.msw.subtitle-proof.v1` | 是，须检查预设依赖 | 下次预览；不修改工程样式 |

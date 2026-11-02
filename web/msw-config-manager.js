@@ -17,8 +17,22 @@
     }
   }
   const spec=()=>global.MSWConfig.snapshot.transfer.filter(x=>offlineIds.includes(x.id));
-  function pick(sections,ids){const result={};for(const row of spec().filter(x=>ids.includes(x.id)))for(const path of row.paths){let value=get(sections,path);if(path[0]==='server'&&['saved_workspaces','preset_workspaces'].includes(path[1])&&object(value))value=Object.fromEntries(Object.entries(value).map(([name,ws])=>[name,Object.fromEntries(Object.entries(ws).filter(([k])=>k!=='navigation'))]));if(value!==undefined)put(result,path,value);}return result;}
-  const pack=(sections,ids)=>({format:'msw-config',version:1,kind:'preferences',categories:ids,sections:pick(sections,ids)});
+  function pick(sections, ids, publicFields = true) {
+    const result = {};
+    for (const row of spec().filter(x => ids.includes(x.id))) for (const path of row.paths) {
+      let value = get(sections, path);
+      if (publicFields && path[0] === 'browser') value = global.MSWConfig.exportValue(path[1], value);
+      if (path[0] === 'server' && ['saved_workspaces','preset_workspaces'].includes(path[1]) && object(value)) {
+        value = Object.fromEntries(Object.entries(value).map(([name,ws]) => [name,Object.fromEntries(Object.entries(ws).filter(([k]) => k !== 'navigation'))]));
+      }
+      if (value !== undefined) put(result, path, value);
+    }
+    return result;
+  }
+  const pack=(sections,ids)=>{
+    safe(sections);
+    return {format:'msw-config',version:1,kind:'preferences',categories:ids,sections:pick(global.MSWConfig.migrateSections(sections),ids)};
+  };
   function validPackage(raw){
     safe(raw);
     if(!object(raw)||raw.format!=='msw-config'||raw.version!==1||!['preferences','workspace'].includes(raw.kind)
@@ -26,7 +40,9 @@
       ||!Array.isArray(raw.categories)||!raw.categories.length||!object(raw.sections))throw Error('配置格式或版本不受支持');
     if(new TextEncoder().encode(JSON.stringify(raw)).length>4194304)throw Error('配置文件超过 4 MB');
     if(raw.categories.some(id=>!offlineIds.includes(id)))throw Error('此文件包含服务端配置，请在启动器或本机服务版编辑器中导入。');
-    if(!equal(raw.sections,pick(raw.sections,raw.categories)))throw Error('配置包含未登记字段');
+    if(!equal(raw.sections,pick(raw.sections,raw.categories,false)))throw Error('配置包含未登记字段');
+    global.MSWConfig.validateFields(raw.sections);
+    raw = {...raw, sections:pick(global.MSWConfig.migrateSections(raw.sections),raw.categories)};
     for(const [key,value] of Object.entries(raw.sections.browser||{})){
       const rule=global.MSWConfig.snapshot.registry[key];
       if(rule.encoding==='text'?typeof value!=='string':key==='moy.asr.editor.customThemes.v1'?!Array.isArray(value):!object(value))throw Error('配置类型不匹配');
@@ -50,9 +66,10 @@
       if(Object.keys(raw).some(k=>!['format','version','kind','categories','sections'].includes(k))||new Set(raw.categories).size!==raw.categories.length)throw Error('配置包含未知或重复字段');
       const allowed={};for(const row of global.MSWConfig.snapshot.transfer.filter(x=>raw.categories.includes(x.id)))for(const path of row.paths){const value=get(raw.sections,path);if(value!==undefined)put(allowed,path,value);}
       if(!equal(allowed,raw.sections))throw Error('配置包含未登记字段');
-      raw={...raw,categories:payload.categories,sections:pick(raw.sections,payload.categories)};
+      global.MSWConfig.validateFields(raw.sections);
+      raw={...raw,categories:payload.categories,sections:pick(global.MSWConfig.migrateSections(raw.sections),payload.categories)};
     }
-    validPackage(raw);
+    raw=validPackage(raw);
     if(!payload.categories?.length||payload.categories.some(id=>!raw.categories.includes(id))||!['keep','replace'].includes(payload.policy))throw Error('请选择分类和冲突处理方式');
     const before=global.MSWConfig.snapshot.sections,after=clone(before),rows=[];
     for(const row of spec().filter(x=>payload.categories.includes(x.id))){
@@ -63,6 +80,7 @@
         else if(payload.policy==='keep'&&path[0]==='speakerSchemes'&&old)value={version:1,schemes:mergeLibrary(old.schemes,value.schemes)};
         else if(payload.policy==='keep'&&path[1]==='moy.asr.editor.customThemes.v1'&&old)value=mergeLibrary(old,value);
         else if(payload.policy==='keep')value=keep(old,value);
+        if(path[0]==='browser')value=global.MSWConfig.preserveLocalFields(path[1],old,value);
         put(after,path,value);
         if(path[0]==='server'&&['saved_workspaces','preset_workspaces'].includes(path[1])&&value){for(const [name,ws] of Object.entries(value)){if(old?.[name]?.navigation)after.server[path[1]][name].navigation=clone(old[name].navigation);}}
       }

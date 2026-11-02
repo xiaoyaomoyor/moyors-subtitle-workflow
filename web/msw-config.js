@@ -91,6 +91,97 @@
     },
   };
   function observe(key, text) { if(registry[key]) observed[key] = registry[key].encoding==='text'?String(text):JSON.parse(text); }
+  function migrateSections(sections) {
+    const result = clone(sections), browser = result.browser || {};
+    for (const [key, spec] of Object.entries(registry)) {
+      const values = browser[key]; if (!spec.fields || !object(values)) continue;
+      for (const [field, rule] of Object.entries(spec.fields)) {
+        if (!Object.hasOwn(values, field)) continue;
+        if (rule.retired) { delete values[field]; continue; }
+        if (!rule.targets) continue;
+        let value = values[field];
+        if (rule.scale) {
+          if (value === null || typeof value === 'boolean' || String(value).trim() === '') continue;
+          value = Number(value) * rule.scale; if (!Number.isFinite(value)) continue;
+          value = Math.max(10, Math.min(60000, Math.round(value)));
+        } else if (field === 'mergeJoinText' && typeof value !== 'string') continue;
+        else if (field === 'showGroupBadges' && typeof value !== 'boolean') continue;
+        for (const target of rule.targets) if (!Object.hasOwn(values, target)) values[target] = clone(value);
+        delete values[field];
+      }
+    }
+    const editor = browser['moy.asr.editor.settings.v1'];
+    if (editor && editor.flatTrackSettingsMigrated !== true && [64,80,96,120,144,168,192,240,300,360].includes(editor.multiSubtitleRowHeight)) {
+      const wave = browser['moy.asr.waveform.settings.v1'] ??= {};
+      if (object(wave)) { if (!Object.hasOwn(wave, 'rowHeight')) wave.rowHeight = editor.multiSubtitleRowHeight; editor.flatTrackSettingsMigrated = true; }
+    }
+    return result;
+  }
+  function exportValue(key, value) {
+    const rules = registry[key]?.fields;
+    return rules && object(value) ? Object.fromEntries(Object.entries(value).filter(([field]) => rules[field]?.exportable === true)) : value;
+  }
+  function validateFields(sections) {
+    const project = new Set('subtitles segments preview timebase workspace speaker_palette audio_tracks audio_clips media assets gap_remove'.split(' '));
+    for (const [key, value] of Object.entries(sections.browser || {})) {
+      const rules = registry[key]?.fields; if (!rules || !object(value)) continue;
+      if (Object.keys(value).some(field => project.has(field))) throw Error('个人配置不能包含工程设置或字幕内容');
+      if (Object.keys(value).some(field => !Object.hasOwn(rules, field))) throw Error('配置包含未登记的设置字段');
+    }
+  }
+  function preserveLocalFields(key, before, after) {
+    const rules = registry[key]?.fields;
+    if (!rules || !object(before)) return after;
+    const local = Object.fromEntries(Object.entries(before).filter(([field]) => !rules[field]?.exportable && !rules[field]?.retired && !rules[field]?.targets));
+    return Object.keys(local).length ? {...local, ...(after || {})} : after;
+  }
+  // A workspace is an effective view, not a replacement for personal defaults.
+  // Persist only fields explicitly changed since the last view was applied.
+  // This also works in portable/private windows without a configuration server.
+  function createPreferences(key, normalize, workspaceKeys = [], transientKeys = []) {
+    const read = () => {
+      try { const value = JSON.parse(storage.getItem(key) || '{}'); return object(value) ? value : {}; }
+      catch (_) { return {}; }
+    };
+    const value = normalize(read());
+    const allowed = new Set(Object.keys(value)), transient = new Set(transientKeys);
+    const workspace = workspaceKeys.filter(field => allowed.has(field));
+    let effective = clone(value);
+    observe(key, JSON.stringify(value));
+    function observeEffective(keys = Object.keys(value)) {
+      for (const field of keys) effective[field] = clone(value[field]);
+    }
+    function save() {
+      const before = read(), next = clone(before);
+      let changed = false;
+      for (const field of allowed) {
+        if (transient.has(field) || equal(effective[field], value[field])) continue;
+        next[field] = clone(value[field]); changed = true;
+      }
+      if (changed) {
+        observe(key, JSON.stringify(before));
+        storage.setItem(key, JSON.stringify(next));
+      }
+      observeEffective();
+      return changed;
+    }
+    function update(patch, {persist = true} = {}) {
+      if (!object(patch)) return;
+      // Old module callers may still send retired keys. Ignore them as the
+      // normalizer did before; never let them re-enter persisted preferences.
+      const known = Object.fromEntries(Object.entries(patch).filter(([field]) => allowed.has(field)));
+      Object.assign(value, normalize({...value, ...known}));
+      if (persist) save(); else observeEffective();
+    }
+    function restoreWorkspace(patch) {
+      const defaults = normalize(read());
+      const restored = normalize({...defaults, ...Object.fromEntries(workspace
+        .filter(field => object(patch) && Object.hasOwn(patch, field)).map(field => [field, patch[field]]))});
+      for (const field of workspace) value[field] = clone(restored[field]);
+      observeEffective();
+    }
+    return {value, save, update, restoreWorkspace, observe: observeEffective, defaults: () => normalize(read())};
+  }
   function collect(snapshot) {
     const migrated = new Set(snapshot.migrations || []), sections = {};
     for (const [key, rule] of Object.entries(registry)) {
@@ -110,9 +201,10 @@
     registry = snapshot.registry || {}; view = clone(snapshot.sections || {}); observed = {}; send = transport;
     transfer=snapshot.transfer||transfer;
     if(!send){try{view=fill(view,JSON.parse(rawGet('msw.config.offline.v1')||'{}'));}catch(_){}}
-    const legacy = collect(snapshot);
-    if (!rawGet(backupKey)) rawSet(backupKey, JSON.stringify(legacy));
-    view = fill(view, legacy);
+    const original = collect(snapshot);
+    if (!rawGet(backupKey)) rawSet(backupKey, JSON.stringify(original));
+    const legacy = migrateSections(original);
+    view = fill(migrateSections(view), legacy);
     try { queue = JSON.parse(rawGet(pendingKey) || '[]'); if(!Array.isArray(queue))queue=[]; } catch (_) { queue = []; }
     // Pending edits are never replayed blindly over another window's values.
     for (const op of queue) put(view, op.path, op.delete ? undefined : op.value);
@@ -161,7 +253,8 @@
     if(result.snapshot)adopt(result.snapshot);
     return result;
   }
-  global.MSWConfig = {storage, connect, flush, diff, observe, update, request, adopt,
+  global.MSWConfig = {storage, connect, flush, diff, observe, update, request, adopt, createPreferences,
+    migrateSections, exportValue, validateFields, preserveLocalFields,
     get snapshot(){return {sections:clone(view),registry:clone(registry),transfer:clone(transfer)};},
     get connected() { return !!send; }, get ready() { return ready; }, notice: ''};
   if (global.MSW_CONFIG_BOOTSTRAP) {

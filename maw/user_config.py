@@ -15,6 +15,7 @@ from pathlib import Path
 
 from maw.app_paths import SOURCE_ROOT, default_app_data_root, default_env_path
 from maw.launcher_projects import _registry_file_lock
+from maw.settings_fields import FIELDS, migrate_sections, validate_fields
 
 FORMAT = 'msw-config'
 VERSION = 1
@@ -64,6 +65,8 @@ for key in ('MAW_GUI_LAST_MODEL', 'MAW_GUI_LAST_LANGUAGE', 'MAW_GUI_ZOOM_PERCENT
                          path=['launcher', key], apply='next-open')
 # The module-choice cache has a different shape and is migrated by LauncherApi.
 SERVER_KEYS = frozenset(('auto_open_last_project', 'saved_workspaces', 'preset_workspaces', 'active_workspace_name'))
+for _key, _fields in FIELDS.items():
+    REGISTRY[_key]['fields'] = _fields
 
 
 def config_path(env_path=None):
@@ -133,6 +136,7 @@ def validate(sections):
     if not isinstance(sections, dict) or set(sections) - {'browser', 'launcher', 'server', 'subtitlePresets', 'speakerSchemes', 'assStyles', 'defaults'}:
         raise ValueError('不支持的配置分类')
     _safe_json(sections)
+    validate_fields(sections)
     if len(json.dumps(sections, ensure_ascii=False, allow_nan=False).encode()) > LIMIT:
         raise ValueError('配置超过 4 MB')
     for section, allowed in [('browser', REGISTRY), ('launcher', ENV_KEYS), ('server', SERVER_KEYS)]:
@@ -217,9 +221,28 @@ class UserConfig:
         validate(data.get('sections'))
         return data
 
-    def snapshot(self):
+    def snapshot(self, *, migrate=True):
         from maw.config_transfer import metadata
+        if migrate:
+            self.migrate_preferences()
         return {**self.read(), 'registry': REGISTRY, 'transfer': metadata()}
+
+    def migrate_preferences(self):
+        """Atomic, idempotent cleanup; retain the original as the normal backup."""
+        if not self.path.exists():
+            return
+        with _registry_file_lock(self.path):
+            before = self.read()
+            sections = migrate_sections(before['sections'])
+            if sections != before['sections']:
+                after = copy.deepcopy(before)
+                after['sections'] = sections
+                after['migrations'] = sorted(set(after.get('migrations', [])) | {'settings-fields:v1'})
+                digest = hashlib.sha256(json.dumps(before['sections'], sort_keys=True).encode()).hexdigest()[:20]
+                backup = self.path.parent / 'config-migration-backups' / f'fields-v1-{digest}.mswconfig'
+                if not backup.exists():
+                    _atomic(backup, before)
+                self._write(before, after)
 
     def _write(self, before, after):
         validate(after['sections'])
@@ -261,6 +284,7 @@ class UserConfig:
                     markers.add(f'browser:{path[0]}:{path[1]}')
             if conflicts:
                 raise ConfigConflict(conflicts)
+            after['sections'] = migrate_sections(after['sections'])
             after['applied'] = applied[-4096:]
             after['migrations'] = sorted(markers)
             if before['sections'] != after['sections'] or before.get('applied', []) != after['applied'] or before.get('migrations', []) != after['migrations']:
@@ -270,6 +294,8 @@ class UserConfig:
     def migrate(self, values, source):
         """Fill missing leaves once per source key. Never overwrite or resurrect deletions."""
         validate(values)
+        original_values = values
+        values = migrate_sections(values)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with _registry_file_lock(self.path):
             before = self.read()
@@ -293,10 +319,10 @@ class UserConfig:
                     markers.add(marker)
             after['migrations'] = sorted(markers)
             if after != before:
-                digest = hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()[:20]
+                digest = hashlib.sha256(json.dumps(original_values, sort_keys=True).encode()).hexdigest()[:20]
                 backup = self.path.parent / 'config-migration-backups' / (digest + '.mswconfig')
                 if not backup.exists():
-                    _atomic(backup, dict(format=FORMAT, version=VERSION, revision=0, sections=values))
+                    _atomic(backup, dict(format=FORMAT, version=VERSION, revision=0, sections=original_values))
                 self._write(before, after)
             return {**after, 'registry': REGISTRY}
 

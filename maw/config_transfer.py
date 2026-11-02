@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import uuid
+from maw.settings_fields import FIELDS, migrate_sections, export_value, validate_fields
 from datetime import datetime, timezone
 
 from maw.user_config import (FORMAT, VERSION, LIMIT, MISSING, REGISTRY, ENV_KEYS, SERVER_KEYS,
@@ -39,12 +40,14 @@ def paths(category):
     return result
 
 
-def select(sections, categories):
+def select(sections, categories, *, public_fields=True):
     selected = {}
     for category in categories:
         for path in paths(category):
             value = _get(sections, path)
             if value is not MISSING:
+                if public_fields and path[0] == 'browser':
+                    value = export_value(path[1], value)
                 if path[0] == 'server' and path[-1] in ('saved_workspaces', 'preset_workspaces'):
                     value = {name: {key: item for key, item in workspace.items() if key != 'navigation'}
                              for name, workspace in value.items()}
@@ -64,8 +67,9 @@ def category_list(raw):
 
 
 def package(sections, categories):
+    validate(sections)
     return dict(format=FORMAT, version=VERSION, kind='preferences', categories=list(categories),
-                sections=select(sections, categories))
+                sections=select(migrate_sections(sections), categories))
 
 
 def parse(raw):
@@ -97,8 +101,11 @@ def parse(raw):
             if not isinstance(rows, list) or len(rows) > maximum or any(not isinstance(row, dict) or not isinstance(row.get('id'), str) for row in rows):
                 raise ValueError('ASS 样式库条目无效')
         normalize_ass_style_library(ass)
-    if raw['sections'] != select(raw['sections'], raw['categories']):
+    if raw['sections'] != select(raw['sections'], raw['categories'], public_fields=False):
         raise ValueError('配置包含未选分类、内部标记或未登记字段')
+    validate_fields(raw['sections'], importing=True)
+    raw = copy.deepcopy(raw)
+    raw['sections'] = select(migrate_sections(raw['sections']), raw['categories'])
     if len(json.dumps(raw, ensure_ascii=False, allow_nan=False).encode()) > LIMIT:
         raise ValueError('配置文件超过 4 MB')
     if raw['kind'] == 'workspace':
@@ -206,6 +213,15 @@ def prepare(before, raw, categories, policy):
                     new = public_plan({})
                 else:
                     new = {'enabled': True, 'interval': 300, 'limit': 20}
+            if path[0] == 'browser' and path[1] in FIELDS and isinstance(old, dict):
+                # Public imports cannot reset machine migration state or the
+                # legacy inputs still needed when opening an old project.
+                local = {key: value for key, value in old.items()
+                         if not FIELDS[path[1]].get(key, {}).get('exportable')
+                         and not FIELDS[path[1]].get(key, {}).get('retired')
+                         and not FIELDS[path[1]].get(key, {}).get('targets')}
+                if local:
+                    new = {**local, **({} if new is MISSING else new)}
             _put(after, path, new)
             if path[0] == 'server' and path[-1] in ('saved_workspaces', 'preset_workspaces') and new is not MISSING:
                 for name, value in new.items():
@@ -247,7 +263,7 @@ def commit(store, raw, payload, *, label='导入前'):
         if preview['errors']:
             raise ValueError('；'.join(preview['errors']))
         if not preview['changed']:
-            return dict(snapshot=store.snapshot(), changed=False)
+            return dict(snapshot=store.snapshot(migrate=False), changed=False)
         snapshots = history(store)
         snapshots.append(dict(id=uuid.uuid4().hex, created=datetime.now(timezone.utc).isoformat(), label=label,
                               package=package(before['sections'], list(CATEGORIES))))
@@ -264,7 +280,7 @@ def commit(store, raw, payload, *, label='导入前'):
                     markers.add('browser:' + ':'.join(rule['path'][:2]))
         after['migrations'] = sorted(markers)
         store._write(before, after)
-        return dict(snapshot=store.snapshot(), changed=True)
+        return dict(snapshot=store.snapshot(migrate=False), changed=True)
 
 
 def request(store, payload):

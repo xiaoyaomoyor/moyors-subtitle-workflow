@@ -807,56 +807,62 @@
     return next;
   }
 
-  function readSettings() {
-    try {
-      const parsed = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(SETTINGS_KEY) || '{}');
-      const layoutData = normalizeLayoutData({
-        preset: parsed.layout,
-        splitPercent: parsed.splitPercent,
-        columnPercent: parsed.layoutColumnPercent,
-        rows: parsed.layoutRows,
-        tree: parsed.layoutTree,
-      });
-      return {
-        ...DEFAULT_SETTINGS,
-        mode: ['basic', 'multi'].includes(parsed.mode) ? parsed.mode : DEFAULT_SETTINGS.mode,
-        layout: layoutData.preset,
-        visibleSeconds: ZOOM_PRESETS.includes(Number(parsed.visibleSeconds))
-          ? Number(parsed.visibleSeconds) : DEFAULT_SETTINGS.visibleSeconds,
-        secondsPerRow: ROW_PRESETS.includes(Number(parsed.secondsPerRow))
-          ? Number(parsed.secondsPerRow) : DEFAULT_SETTINGS.secondsPerRow,
-        rowHeight: ROW_HEIGHT_PRESETS.includes(Number(parsed.rowHeight))
-          ? Number(parsed.rowHeight) : DEFAULT_SETTINGS.rowHeight,
-        side: parsed.side === 'right' ? 'right' : 'left',
-        splitPercent: layoutData.splitPercent,
-        layoutColumnPercent: layoutData.columnPercent,
-        layoutRows: layoutData.rows,
-        layoutTree: layoutData.tree,
-        hiddenModules: layoutData.hiddenModules,
-        layoutEditing: false,
-        waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
-        waveformScaleAuto: true,
-        followSourceGain: parsed.followSourceGain === true,
-        disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
-        showTrackHeads: parsed.showTrackHeads ?? (parsed.showGroupBadges !== false),
-        hoverDetails: parsed.hoverDetails === true,
-        dragPlayhead: parsed.dragPlayhead !== false,
-        spectralColor: parsed.spectralColor === true,
-      };
-    } catch (_) {
-      return {
-        ...DEFAULT_SETTINGS,
-        layoutTree: cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE),
-      };
-    }
+  function normalizeWaveformSettings(parsed = {}) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) parsed = {};
+    const layoutData = normalizeLayoutData({
+      preset: parsed.layout,
+      splitPercent: parsed.splitPercent,
+      columnPercent: parsed.layoutColumnPercent,
+      rows: parsed.layoutRows,
+      hiddenModules: parsed.hiddenModules,
+      tree: parsed.layoutTree,
+    });
+    return {
+      ...DEFAULT_SETTINGS,
+      mode: ['basic', 'multi'].includes(parsed.mode) ? parsed.mode : DEFAULT_SETTINGS.mode,
+      layout: layoutData.preset,
+      visibleSeconds: ZOOM_PRESETS.includes(Number(parsed.visibleSeconds))
+        ? Number(parsed.visibleSeconds) : DEFAULT_SETTINGS.visibleSeconds,
+      secondsPerRow: ROW_PRESETS.includes(Number(parsed.secondsPerRow))
+        ? Number(parsed.secondsPerRow) : DEFAULT_SETTINGS.secondsPerRow,
+      rowHeight: ROW_HEIGHT_PRESETS.includes(Number(parsed.rowHeight))
+        ? Number(parsed.rowHeight) : DEFAULT_SETTINGS.rowHeight,
+      side: parsed.side === 'right' ? 'right' : 'left',
+      splitPercent: layoutData.splitPercent,
+      layoutColumnPercent: layoutData.columnPercent,
+      layoutRows: layoutData.rows,
+      layoutTree: layoutData.tree,
+      hiddenModules: layoutData.hiddenModules,
+      layoutEditing: false,
+      waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
+      waveformScaleAuto: true,
+      followSourceGain: parsed.followSourceGain === true,
+      disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
+      showTrackHeads: parsed.showTrackHeads ?? (parsed.showGroupBadges !== false),
+      hoverDetails: parsed.hoverDetails === true,
+      dragPlayhead: parsed.dragPlayhead !== false,
+      spectralColor: parsed.spectralColor === true,
+    };
   }
-
+  const preferenceStates = new WeakMap();
+  function readSettings() {
+    if (window.MSWConfig?.createPreferences) {
+      const state = window.MSWConfig.createPreferences(SETTINGS_KEY, normalizeWaveformSettings, [], ['layoutEditing']);
+      preferenceStates.set(state.value, state);
+      return state.value;
+    }
+    try { return normalizeWaveformSettings(JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
+    catch (_) { return normalizeWaveformSettings(); }
+  }
+  function observeSettings(settings, keys) {
+    preferenceStates.get(settings)?.observe(keys);
+  }
   function saveSettings(settings) {
     try {
-      (globalThis.MSWConfig?.storage || localStorage).setItem(SETTINGS_KEY, JSON.stringify(settings));
-    } catch (_) {
-      // file:// privacy modes may reject localStorage; the editor still works.
-    }
+      const state = preferenceStates.get(settings);
+      if (state) state.save();
+      else (globalThis.MSWConfig?.storage || localStorage).setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch (_) { /* Portable/private windows retain their effective values. */ }
   }
 
   function decodePayload(payload) {
@@ -2347,6 +2353,7 @@
       const builtin = BUILTIN_WORKSPACES[workspaceId];
       if (!builtin) return;
       const normalized = normalizeLayoutData(builtin);
+      Object.assign(this.settings, preferenceStates.get(this.settings)?.defaults() || readSettings());
       this.settings.layout = normalized.preset;
       if (normalized.waveformMode) this.settings.mode = normalized.waveformMode;
       if (normalized.waveformSettings) Object.assign(this.settings, normalized.waveformSettings);
@@ -2357,7 +2364,7 @@
       this.settings.layoutEditing = false;
       // 预设布局固定展示全部四个模块：清掉标签/关闭留下的隐藏状态。
       this.settings.hiddenModules = ['assets', 'properties'];
-      saveSettings(this.settings);
+      observeSettings(this.settings);
       this.applyLayout();
       this.render();
     }
@@ -3280,18 +3287,9 @@
 
     restoreLayoutHistorySnapshot(snapshot) {
       if (!snapshot || !snapshot.layout) return false;
-      const layout = normalizeLayoutData(snapshot.layout);
-      this.settings.layout = layout.preset;
-      if (layout.waveformMode) this.settings.mode = layout.waveformMode;
-      // 兜底给出 waveformScaleAuto：工程完全没有 waveformSettings 时，必须显式
-      // 回到「未决定」，否则 Object.assign 不写这个键会让上一个工程的 false 残留。
-      Object.assign(this.settings, { waveformScale: 1 }, layout.waveformSettings || { waveformScaleAuto: true });
-      this.settings.splitPercent = layout.splitPercent;
-      this.settings.layoutColumnPercent = layout.columnPercent;
-      this.settings.layoutRows = layout.rows;
-      this.settings.layoutTree = layout.tree;
-      this.settings.layoutEditing = layout.preset === 'custom' && !!snapshot.layoutEditing;
-      saveSettings(this.settings);
+      this.setLayoutData(snapshot.layout, {render: false});
+      this.settings.layoutEditing = this.settings.layout === 'custom' && !!snapshot.layoutEditing;
+      observeSettings(this.settings);
       this.applyLayout();
       this.render();
       return true;
@@ -3303,8 +3301,15 @@
       this.setStatus('已恢复默认工作区');
     }
 
-    setLayoutData(value, { render = true, persist = true } = {}) {
-      const layout = normalizeLayoutData(value);
+    setLayoutData(value, { render = true, persist = false } = {}) {
+      // Reset omitted fields to personal defaults, never to the previous project.
+      const defaults = preferenceStates.get(this.settings)?.defaults() || readSettings();
+      Object.assign(this.settings, defaults);
+      const layout = normalizeLayoutData(value || {
+        preset: defaults.layout, waveformMode: defaults.mode, splitPercent: defaults.splitPercent,
+        columnPercent: defaults.layoutColumnPercent, rows: defaults.layoutRows,
+        tree: defaults.layoutTree, hiddenModules: defaults.hiddenModules,
+      });
       this.settings.layout = layout.preset;
       if (layout.waveformMode) this.settings.mode = layout.waveformMode;
       // 兜底给出 waveformScaleAuto：工程完全没有 waveformSettings 时，必须显式
@@ -3317,7 +3322,7 @@
       this.settings.hiddenModules = [...layout.hiddenModules];
       this.settings.layoutEditing = false;
       if (persist) saveSettings(this.settings);
-      else window.MSWConfig?.observe(SETTINGS_KEY, JSON.stringify(this.settings));
+      else observeSettings(this.settings);
       this.applyLayout();
       if (render) this.render();
     }
@@ -3325,6 +3330,8 @@
     focusWaveform() {
       this.pane.focus({ preventScroll: true });
     }
+
+    observeSettings(keys) { observeSettings(this.settings, keys); }
 
     sourcePreviewGainDb() {
       return window.MSWE?.resolve('audio-timeline')?.sourceGainDb() || 0;
@@ -3398,6 +3405,7 @@
       ) ?? waveformScaleForPeak(this.peakReference, this.settings.rowHeight);
       if (fitted === null) return false;
       this.settings.waveformScale = fitted;
+      observeSettings(this.settings, ['waveformScale', 'waveformScaleAuto']);
       // 自动值刻意不写 saveSettings()：localStorage 里的振幅是浏览器全局偏好，
       // 为当前素材拟合的值不该污染下一个工程。
       this.renderWaveformScaleLabel();

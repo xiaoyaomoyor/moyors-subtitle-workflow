@@ -83,3 +83,32 @@ test('imported defaults survive subsequent one-field edits in the still-open UI'
   assert.equal(batch.changes.length,1);assert.equal(batch.changes[0].path.at(-1),'cueListShowTime');
   assert.equal(JSON.parse(config.storage.getItem(key)).seekStepMs,2750);
 });
+
+for (const online of [false, true]) test(`scoped preferences isolate project defaults and imports (${online ? 'server' : 'portable'})`, async()=>{
+  const {config}=client(), calls=[];
+  await config.connect(snapshot({theme:'dark',cueListShowTime:true}), online ? async p=>{calls.push(p);return {};} : null);
+  const normalize=value=>({theme:'dark',cueListShowTime:true,mediaSeekStepMs:3000,...value});
+  const prefs=config.createPreferences(key,normalize,['cueListShowTime']);
+  prefs.restoreWorkspace({cueListShowTime:false});
+  prefs.update({mediaSeekStepMs:2500});
+  assert.deepEqual(JSON.parse(config.storage.getItem(key)),{theme:'dark',cueListShowTime:true,mediaSeekStepMs:2500});
+  assert.equal(prefs.value.cueListShowTime,false);
+  prefs.restoreWorkspace(null);
+  assert.equal(prefs.value.cueListShowTime,true);
+  config.adopt(snapshot({theme:'light',cueListShowTime:false,mediaSeekStepMs:1500}));
+  prefs.update({mediaSeekStepMs:1000});
+  assert.deepEqual(JSON.parse(config.storage.getItem(key)),{theme:'light',cueListShowTime:false,mediaSeekStepMs:1000});
+  prefs.update({project_style:{},splitAutoSubmit:true});
+  assert.equal(JSON.parse(config.storage.getItem(key)).project_style,undefined);
+  assert.equal(JSON.parse(config.storage.getItem(key)).splitAutoSubmit,undefined);
+  await config.flush();
+  if(online)assert.deepEqual(calls.filter(p=>p.action==='patch').flatMap(p=>p.changes.map(c=>c.path.at(-1))),['mediaSeekStepMs','mediaSeekStepMs']);
+});
+
+test('automatic amplitude and session layout flags are never saved with an unrelated change',async()=>{
+  const {config}=client(); await config.connect(snapshot({waveformScale:2,hoverDetails:false}),null);
+  const prefs=config.createPreferences(key,v=>({waveformScale:1,hoverDetails:false,layoutEditing:false,...v}),[],['layoutEditing']);
+  prefs.value.waveformScale=7;prefs.observe(['waveformScale']);
+  prefs.value.layoutEditing=true;prefs.value.hoverDetails=true;prefs.save();
+  assert.deepEqual(JSON.parse(config.storage.getItem(key)),{waveformScale:2,hoverDetails:true});
+});

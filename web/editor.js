@@ -1065,117 +1065,6 @@ function clampCueMoveStepMs(value) {
     Math.max(CUE_MOVE_STEP_MIN_MS, Number.isFinite(rounded) ? rounded : DEFAULT_CUE_MOVE_STEP_MS),
   );
 }
-const DEFAULT_EDITOR_SETTINGS = {
-  splitKey: 'enter',
-  splitUseWordTimestamps: true,
-  // 主字幕拆分类型手动指定偏好：word / continuous / null（跟随工程与检测）。
-  mainSplitModeOverride: null,
-  // 拆分弹窗中选完所有需要确认的断点后自动提交。
-  splitAutoSubmit: true,
-  overlayEnabled: true,
-  // 多重字幕开启时，副字幕预览默认自动显示。
-  extensionOverlayEnabled: true,
-  // ASS 字幕模式只改变播放器预览，默认关闭以保持原有 CSS 预览。
-  assMode: false,
-  // 多重字幕开启时使用的波形行高度；关闭多重字幕后恢复「配置」中的高度。
-  multiSubtitleRowHeight: 168,
-  flatTrackSettingsMigrated: false,
-  exportStartAtZero: false,
-  cueListShowIndex: true,
-  cueListShowTime: true,
-  cueListShowSticker: true,
-  cueListShowCharcount: true,
-  cueListPairLayout: 'columns',
-  // 播放跟随偏好；手动浏览的临时暂停单独保存在 cueListScroll。
-  cueListFollowPlayback: true,
-  // 字幕列表是否隐藏禁用字幕。
-  cueListHideDisabled: true,
-  // 字数过滤与字数标记使用的字符阈值（0 = 不过滤）。
-  cueListCharcountThreshold: 0,
-  cueEditorShowNavigation: false,
-  cueEditorShowTimeActions: false,
-  cueEditorShowSticker: false,
-  // 当前字幕编辑区按 Esc 时，是否放弃文本改动并恢复编辑前内容。
-  cueEditorCancelOnEscape: false,
-  cueEditorSplitMoreActions: false,
-  cueEditorSplitAutoClose: true,
-  ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
-  ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
-  selectGroupMembers: false,
-  speakerAutoFollow: false,
-  // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
-  mergeJoinText: '',
-  // 拼合字幕：相邻间隔不超过该毫秒值时延长字幕时长并拼合（0 表示不处理间隔）。
-  autoMergeGapMs: 200,
-  // 拼合字幕：backward 向前拓展（默认，后方字幕起点前拓）/ forward 向后拓展（前方字幕终点后延）。
-  autoMergeSnapDirection: 'backward',
-  autoMergeSnapGaps: true,
-  autoMergeStateMode: 'union',
-  // 拼合字幕：中文少于 N 个字 / 英文少于 N 个词的字幕并入相邻字幕。
-  autoMergeShortCount: 3,
-  // 拼合字幕：是否吸收过短字幕（默认开启；关闭后只拼合间隔）。
-  autoMergeAbsorbShort: true,
-  // 拼合字幕：previous 向前吸收（默认，并入上一条）/ next 向后吸收（并入下一条）。
-  autoMergeAbsorbDirection: 'previous',
-  // 按颜色导出 SRT：统一导出先选择一个 SRT 文件名作为前缀。
-  exportColorUnified: true,
-  // 自动保存仅对绑定工程的 localhost 服务器版生效。
-  autoSaveProject: true,
-  autoSaveIntervalSeconds: 30,
-  // 表情包预览：在视频画面内渲染当前时间的表情包（默认关闭）。
-  stickerOverlayEnabled: false,
-  // 表情包 OTIO：保留用户偏好的原始素材引用 / 便携文件夹模式。
-  stickerOtioExportMode: 'original',
-  otioExportIncludeSrt: true,
-  otioExportIncludeStickers: true,
-  otioExportIncludeMarkers: true,
-  // 字幕单击行为：默认选中并跳转；select-and-play 额外在暂停时开始播放。
-  clickBehavior: 'select-and-seek',
-  // 波形字幕块的跳转目标，默认使用鼠标所在位置；字幕列表点击始终跳转到字幕开头。
-  clickTarget: 'pointer',
-  // 播放中通过鼠标点击跳转后是否暂停；默认保持原来的继续播放行为。
-  pauseOnMouseClick: false,
-  keyboardOperationReference: 'pointer',
-  // J/K/L 播放控制：direction 为倒放/停止/正放，speed 保留旧的慢速/重置/倍速行为。
-  jklPlaybackMode: 'direction',
-  // 媒体控制按钮与无选中字幕时左右方向键的跳转幅度。
-  mediaSeekStepMs: DEFAULT_MEDIA_SEEK_STEP_MS,
-  mediaSeekStepFrames: 1,
-  // 选中字幕后用方向键 / A-D 微调时间的幅度。
-  cueMoveStepMs: DEFAULT_CUE_MOVE_STEP_MS,
-  cueMoveStepFrames: 1,
-  // 帧模式下是否让波形鼠标指针吸附到最近帧（默认开启）；时间码分隔符默认使用冒号。
-  timelineSnapToFrame: true,
-  timelineTimecodeSeparator: ':',
-  // 鼠标位置自动预览：暂停时指针在波形上移动即把画面定位到指针时间（默认关闭）。
-  hoverSeekPreview: false,
-  // 是否默认让同轨相邻字幕随边界调整一起联动；Alt 始终临时反转该行为。
-  autoSnapAdjacentCues: true,
-  // 娱乐彩蛋：成功拆分时的音效与刀光反馈，并把分割工具图标换成 🔪。
-  ninjaMode: false,
-  mergeTapeEffect: false,
-  // 字幕忍者的拆分音效开关；忍者开关开启后才在设置中显示。
-  ninjaSound: true,
-  // 字幕忍者的可选视觉反馈；忍者开关开启后才在设置中显示。
-  ninjaSlashEffect: true,
-  // 刀光长度：视口高度百分比（默认 80，范围 20–400）。
-  ninjaSlashLengthPercent: 80,
-  // 刀光随机旋转幅度：0 度完全垂直，N 度表示在 [-N, N] 内随机倾斜（默认 6，范围 0–60）。
-  ninjaSlashRotateAmplitude: 6,
-  // 多重字幕拖动时是否把另一条轨道的起止边界加入吸附目标。
-  crossTrackSnap: true,
-  // 选中主/副字幕时，是否同时选中绑定的另一条字幕。
-  selectBoundSubtitlePair: false,
-  // G 绑定后是否自动把副字幕时间范围同步到主字幕（等同随后按 H）。
-  multiSubtitleAutoSyncDuration: true,
-  // 多重字幕波形是否显示主/副轨道编号徽标。
-  // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
-  theme: 'dark',
-  // 波形形状来源：reapeaks（默认，有 .ReaPeaks 缓存时用其最细 wave 层，缺数据自动回退自研）/ self（自研 1000Hz 重采样缓存）。
-  waveShapeSource: 'reapeaks',
-  assetLibraryShowSearch: true,
-  subtitleAvoidControls: true,
-};
 const SUBTITLE_FONT_SIZE_MIN = 12;
 const SUBTITLE_FONT_SIZE_MAX = 96;
 const SUBTITLE_FONT_FAMILY_MAX_LENGTH = 128;
@@ -1208,29 +1097,13 @@ const SUBTITLE_FONT_FAMILY_CSS = Object.freeze({
   sans: 'Arial, "Segoe UI", sans-serif',
 });
 
-function readEditorSettings() {
-  let saved = {};
-  try { saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(EDITOR_SETTINGS_KEY) || '{}'); } catch (_) { /* invalid storage */ }
-  return EDITOR_SETTINGS_UTILS.normalizeEditorSettings({
-    ...saved,
-    cueListFollowPlayback: saved.cueListFollowPlayback !== false,
-    cueListShowIndex: saved.cueListShowIndex !== false,
-    cueListShowTime: saved.cueListShowTime !== false,
-    cueListShowSticker: saved.cueListShowSticker !== false,
-    cueListShowCharcount: saved.cueListShowCharcount !== false,
-    cueEditorShowTimeActions: saved.cueEditorShowTimeActions === true,
-    cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
-    cueEditorShowSticker: saved.cueEditorShowSticker === true,
-    cueEditorCancelOnEscape: saved.cueEditorCancelOnEscape === true,
-    cueEditorSplitMoreActions: saved.cueEditorSplitMoreActions === true,
-    cueEditorSplitAutoClose: saved.cueEditorSplitAutoClose !== false,
-    autoSnapAdjacentCues: saved.autoSnapAdjacentCues !== false,
-    stickerOtioExportMode: saved.stickerOtioExportMode === 'portable' ? 'portable' : 'original',
-    otioExportIncludeSrt: saved.otioExportIncludeSrt !== false,
-    otioExportIncludeStickers: saved.otioExportIncludeStickers !== false,
-    otioExportIncludeMarkers: saved.otioExportIncludeMarkers !== false,
-  });
-}
+const EDITOR_DISPLAY_KEYS = Object.freeze([
+  'cueListShowIndex', 'cueListShowTime', 'cueListShowSticker', 'cueListShowCharcount',
+  'cueEditorShowNavigation', 'cueEditorShowTimeActions', 'cueEditorShowSticker',
+]);
+const editorPreferences = window.MSWConfig.createPreferences(
+  EDITOR_SETTINGS_KEY, EDITOR_SETTINGS_UTILS.normalizeEditorSettings, EDITOR_DISPLAY_KEYS,
+);
 
 const normalizeMultiSubtitleRowHeight = EDITOR_SETTINGS_UTILS.normalizeMultiSubtitleRowHeight;
 const normalizeClickBehavior = EDITOR_SETTINGS_UTILS.normalizeClickBehavior;
@@ -1252,15 +1125,12 @@ const clampGapRemoveLeadMs = (value, fallback) => {
   return Math.min(2000, Math.max(0, Number.isFinite(numeric) ? Math.round(numeric) : fallback));
 };
 
-function saveEditorSettings(settings) {
-  try {
-    (globalThis.MSWConfig?.storage || localStorage).setItem(EDITOR_SETTINGS_KEY, JSON.stringify(settings));
-  } catch (_) {
-    // file:// 隐私模式可能拒绝 localStorage；本次页面仍保持可用。
-  }
+function saveEditorSettings() {
+  try { editorPreferences.save(); }
+  catch (_) { /* Portable/private windows retain the current effective values. */ }
 }
 
-const EDITOR_SETTINGS = readEditorSettings();
+const EDITOR_SETTINGS = editorPreferences.value;
 // Migrate before the waveform component saves its normalized defaults. Existing
 // waveform height wins; the retired bilingual height is only a fallback.
 if(productionFlatMode()&&!EDITOR_SETTINGS.flatTrackSettingsMigrated) {
@@ -1974,7 +1844,9 @@ function snapshotAssetRemoval(assetId, label) {
 }
 function pushLayoutUndo(label, snapshot) {
   if (!snapshot) return;
-  editorHistory.push(EDITOR_SETTINGS_UTILS.buildHistoryRecord('layout', label, snapshot));
+  editorHistory.push(EDITOR_SETTINGS_UTILS.buildHistoryRecord('layout', label, {
+    ...snapshot, editorDisplay: getEditorDisplaySettings(),
+  }));
   updateUndoRedoButtons();
 }
 function pushGapRemoveUndo(label, { captureTimeRanges = false } = {}) {
@@ -1991,32 +1863,21 @@ function pushPreviewUndo(label, preview) {
 }
 function snapshotPreviewState() {
   return {
-    overlay: !!overlayToggle.checked,
     subtitle: { ...getPreviewGeometry(), ...getSubtitleAppearance() },
-    extensionOverlay: !!extensionOverlayToggle?.checked,
     extensionSubtitle: { ...getStoredExtensionSubtitleAppearance() },
     sticker: { ...getStickerGeometry() },
     speakerPalette: structuredClone(DATA.preview?.speaker_palette),
     speakerLabelsVisible: DATA.preview?.speaker_labels_visible,
-    speakerExport: { exportSpeakerLabels: EDITOR_SETTINGS.exportSpeakerLabels,
-      exportSpeakerLabelsExplicit: EDITOR_SETTINGS.exportSpeakerLabelsExplicit },
   };
 }
 function applyPreviewState(state) {
-  if (!state || typeof state.overlay !== 'boolean') return;
-  overlayToggle.checked = state.overlay;
-  updateEditorSettings({ overlayEnabled: state.overlay });
-  if (typeof state.extensionOverlay === 'boolean' && extensionOverlayToggle) {
-    extensionOverlayToggle.checked = state.extensionOverlay && multiSubtitleVisible();
-    updateEditorSettings({ extensionOverlayEnabled: state.extensionOverlay });
-  }
+  if (!state || typeof state !== 'object') return;
   if (state.subtitle) setPreviewGeometry(state.subtitle, { markDirty: true, replaceAppearance: true });
   if (state.extensionSubtitle) restoreExtensionSubtitleAppearance(state.extensionSubtitle, { markDirty: true });
   if (state.sticker) setStickerGeometry(state.sticker, { markDirty: true });
   if(state.speakerPalette){DATA.preview.speaker_palette=structuredClone(state.speakerPalette);rebuildEditorColorPalette();if(typeof fixedPreviewInvalidate==='function')fixedPreviewInvalidate();}
   if(typeof state.speakerLabelsVisible==='boolean')DATA.preview.speaker_labels_visible=state.speakerLabelsVisible;else delete DATA.preview.speaker_labels_visible;
   window.dispatchEvent(new Event('msw:speakers-changed'));
-  if (state.speakerExport) { updateEditorSettings(state.speakerExport); syncSpeakerControls(); }
   refreshPreviewGeometryEditable();
   update();
 }
@@ -2032,7 +1893,7 @@ function snapshotCurrentForKind(kind, label, sourceRecord = null) {
   if (kind === 'asset-removal') return snapshotAssetRemoval(sourceRecord.assetId, label);
   if (kind === 'layout') {
     return EDITOR_SETTINGS_UTILS.buildHistoryRecord(
-      'layout', label, waveformEditor?.getLayoutHistorySnapshot?.() || null,
+      'layout', label, {...waveformEditor?.getLayoutHistorySnapshot?.(), editorDisplay: getEditorDisplaySettings()},
     );
   }
   if (kind === 'gap_remove') {
@@ -2164,6 +2025,7 @@ function applyHistoryRecord(record) {
       return false;
     }
     DATA.workspace = waveformEditor.getLayoutData();
+    applyEditorDisplaySettings(record.layout.editorDisplay);
     return true;
   }
   if (record.kind === 'gap_remove') {
@@ -2728,12 +2590,11 @@ function resetCuePanelEditState() {
 
 function updateEditorSettings(patch) {
   const previousFollow = EDITOR_SETTINGS.cueListFollowPlayback;
-  Object.assign(EDITOR_SETTINGS, patch);
+  editorPreferences.update(patch);
   if (previousFollow !== EDITOR_SETTINGS.cueListFollowPlayback) queueMicrotask(() => {
     if (EDITOR_SETTINGS.cueListFollowPlayback) resumeCueListFollowing();
     else interruptCueListFollowing();
   });
-  saveEditorSettings(EDITOR_SETTINGS);
   // 外观相关键变化时写穿到服务器（仅服务器版；见下方「外观偏好跟服务器走」）。
   if (APPEARANCE_SETTINGS_KEYS.some((key) => key in patch)) scheduleAppearanceSync();
 }
@@ -3978,23 +3839,12 @@ function applyCueEditorDisplaySettings() {
   cuePanel.classList.toggle('hide-cue-editor-sticker', !EDITOR_SETTINGS.cueEditorShowSticker);
 }
 
-const EDITOR_DISPLAY_KEYS = [
-  'cueListShowIndex', 'cueListShowTime', 'cueListShowSticker', 'cueListShowCharcount',
-  'cueEditorShowNavigation', 'cueEditorShowTimeActions', 'cueEditorShowSticker',
-];
-
 function getEditorDisplaySettings() {
   return Object.fromEntries(EDITOR_DISPLAY_KEYS.map((key) => [key, EDITOR_SETTINGS[key]]));
 }
 
 function applyEditorDisplaySettings(value) {
-  if (!value || typeof value !== 'object') return;
-  const patch = {};
-  EDITOR_DISPLAY_KEYS.forEach((key) => {
-    if (typeof value[key] === 'boolean') patch[key] = value[key];
-  });
-  if (!Object.keys(patch).length) return;
-  updateEditorSettings(patch);
+  editorPreferences.restoreWorkspace(value);
   applyCueListDisplaySettings();
   applyCueEditorDisplaySettings();
 }
@@ -4149,8 +3999,7 @@ const waveformShapeSourceSelect = document.getElementById('waveform-shape-source
 if (waveformShapeSourceSelect) {
   waveformShapeSourceSelect.value = EDITOR_SETTINGS.waveShapeSource;
   waveformShapeSourceSelect.addEventListener('change', () => {
-    EDITOR_SETTINGS.waveShapeSource = waveformShapeSourceSelect.value === 'reapeaks' ? 'reapeaks' : 'self';
-    saveEditorSettings(EDITOR_SETTINGS);
+    updateEditorSettings({waveShapeSource: waveformShapeSourceSelect.value === 'reapeaks' ? 'reapeaks' : 'self'});
     if (waveformEditor) { waveformEditor.refreshMediaReadout(); waveformEditor.render(); }
   });
 }
@@ -5205,9 +5054,6 @@ function applyExtensionSubtitleBackgroundAlphaInput({ finalize = false } = {}) {
 extensionSubtitleBackgroundAlphaInput?.addEventListener('input', () => applyExtensionSubtitleBackgroundAlphaInput());
 extensionSubtitleBackgroundAlphaInput?.addEventListener('change', () => applyExtensionSubtitleBackgroundAlphaInput({ finalize: true }));
 extensionOverlayToggle?.addEventListener('change', () => {
-  const previous = snapshotPreviewState();
-  previous.extensionOverlay = !extensionOverlayToggle.checked;
-  pushPreviewUndo('切换副字幕预览', previous);
   updateEditorSettings({ extensionOverlayEnabled: extensionOverlayToggle.checked });
   refreshPreviewGeometryEditable();
   update();
@@ -15749,10 +15595,6 @@ refreshPreviewGeometryEditable();
 
 bindPlayerEvents(player);
 overlayToggle.addEventListener('change', () => {
-  // change 触发时 checked 已是新值；其它预览样式和副字幕开关仍从当前快照保留。
-  const previous = snapshotPreviewState();
-  previous.overlay = !overlayToggle.checked;
-  pushPreviewUndo('切换字幕预览', previous);
   updateEditorSettings({ overlayEnabled: overlayToggle.checked });
   refreshPreviewGeometryEditable();
   if (!overlayToggle.checked) overlayEl.classList.add('hidden');
@@ -17962,6 +17804,7 @@ function configureServerWorkspaceLibrary() {
     const {waveformScale, waveformScaleAuto} = waveformEditor.settings;
     waveformEditor.setLayoutData(getSavedPresetWorkspaces()[currentBuiltinWorkspaceName], {render: false});
     Object.assign(waveformEditor.settings, {waveformScale, waveformScaleAuto});
+    waveformEditor.observeSettings(['waveformScale', 'waveformScaleAuto']);
     waveformEditor.setLoudnessStats(DATA.loudness, {render: false});
     waveformEditor.render();
     if (workspacePresetSelect) workspacePresetSelect.value = currentBuiltinWorkspaceName;
