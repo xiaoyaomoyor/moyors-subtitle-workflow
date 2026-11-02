@@ -80,12 +80,14 @@ test('mode, amplitude and visibility controls still affect the waveform and surv
 });
 
 test('shared help supports click, keyboard dismissal and changing shortcut reference without toggling settings', async ({page}) => {
+  const hoverDetails = await page.locator('#waveform-hover-details').isChecked();
   await help(page, '#waveform-hover-details').click();
   await expect(page.locator('#msw-option-help')).toContainText('起止时间和时长');
-  await expect(page.locator('#waveform-hover-details')).not.toBeChecked();
+  await expect(page.locator('#waveform-hover-details')).toBeChecked({checked:hoverDetails});
   await page.keyboard.press('Escape');
   await expect(page.locator('#msw-option-help')).toBeHidden();
   await expect(page.locator('#wave-settings-modal')).toBeVisible();
+  await page.locator('#keyboard-operation-reference').selectOption('pointer');
   await help(page, '#keyboard-operation-reference').focus();
   await expect(page.locator('#msw-option-help')).toContainText('鼠标所在波形位置');
   await page.keyboard.press('Escape');

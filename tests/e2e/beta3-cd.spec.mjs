@@ -19,7 +19,7 @@ test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await s
 
 test('speaker settings preview and SRT are undoable and leave source text untouched',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await toggleEditorSettings(page);await page.locator('.settings-nav-item[data-settings-category="subtitle-speakers"]').click();
+  await page.evaluate(()=>setProjectSettingsPanelOpen(true,'subtitle-speakers'));
   const row=page.locator('#speaker-palette-rows tr[data-speaker-id="red"]');
   await row.locator('td:nth-child(2) input').fill('Alice');await row.locator('td:nth-child(2) input').press('Tab');
   await row.locator('select').selectOption('speaker');
@@ -34,8 +34,9 @@ test('speaker settings preview and SRT are undoable and leave source text untouc
 test('disk version preserves dirty edits without saving and restores an unsaved copy',async({page})=>{
   const before=readFileSync(projectPath,'utf8');
   await page.evaluate(()=>{DATA.segments[0].text='Unsaved version';DATA.segments[0]._dirty=true;renderAll();});
-  await toggleEditorSettings(page);await page.locator('.settings-nav-item[data-settings-category="save"]').click();
-  await page.locator('#project-version-create').click();await expect(page.locator('#project-version-status')).toContainText('磁盘版本已创建');
+  await page.evaluate(()=>document.getElementById('project-recovery-open').click());
+  await expect(page.locator('#project-recovery-modal')).toHaveClass(/show/);
+  await page.locator('#project-version-create').click();await expect(page.locator('#project-version-operation-status')).toContainText('磁盘版本已创建');
   expect(readFileSync(projectPath,'utf8')).toBe(before);expect(await page.evaluate(()=>hasUnsavedProjectChanges())).toBe(true);
   await page.locator('#project-version-list').click();await expect(page.locator('#project-recovery-list button')).toHaveCount(1);
   await page.locator('#project-recovery-list button').click();await expect(page.locator('#project-recovery-modal')).not.toHaveClass(/show/);
@@ -43,22 +44,22 @@ test('disk version preserves dirty edits without saving and restores an unsaved 
   expect(await page.evaluate(()=>SERVER_CONFIG.canSave)).toBe(false);expect(readFileSync(projectPath,'utf8')).toBe(before);
 });
 
-test('Doubao resource hotwords and OpenAI diarize settings reach server recipes',async({page})=>{
+test('Doubao and OpenAI call settings reach the server without depending on success toasts',async({page})=>{
+  const save=async()=>{
+    const response=page.waitForResponse(r=>r.url().endsWith('/asr-settings')&&r.request().method()==='POST');
+    await page.locator('#msw-asr-save-settings').click();const r=await response;
+    expect(r.ok()).toBe(true);expect((await r.json()).ok).not.toBe(false);return r.request().postDataJSON().provider;
+  };
   await page.evaluate(()=>MSWE.resolve('asr').open());
-  await expect(page.locator('#msw-asr-providerId option[value="doubao"]')).toHaveCount(1);
   await page.locator('#msw-asr-providerId').selectOption('doubao');await page.locator('#msw-asr-modelId').selectOption('volc.bigasr.auc_idle');
   await page.locator('#msw-asr-settings details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));
-  await page.locator('#msw-asr-doubaoHotwords').fill('MSW\nSubtitle');await page.locator('#msw-asr-save-settings').click();
-  await expect(page.locator('#msw-asr-message')).toContainText('识别设置已保存');
+  await page.locator('#msw-asr-doubaoHotwords').fill('MSW\nSubtitle');expect((await save()).doubaoHotwords).toBe('MSW\nSubtitle');
   await page.locator('#msw-asr-providerId').selectOption('openai');await page.locator('#msw-asr-modelId').selectOption('gpt-4o-transcribe');
   await expect(page.locator('#msw-asr-openaiHint')).toContainText('没有可靠');await expect(page.locator('#msw-asr-start')).toBeDisabled();
   await page.locator('#msw-asr-modelId').selectOption('gpt-4o-transcribe-diarize');await expect(page.locator('#msw-asr-openaiDiarize')).toBeChecked();
-  await expect(page.locator('#msw-asr-openaiPrompt')).toBeHidden();await page.locator('#msw-asr-save-settings').click();
-  await expect(page.locator('#msw-asr-message')).toContainText('识别设置已保存');
-  await page.locator('#msw-asr-modelId').selectOption('whisper-1');
-  await page.locator('#msw-asr-openaiKeywords').evaluate(node=>{node.value='stale hidden keywords';});
-  await page.locator('#msw-asr-save-settings').click();
-  await expect(page.locator('#msw-asr-message')).toContainText('识别设置已保存');
+  await expect(page.locator('#msw-asr-openaiPrompt')).toBeHidden();expect((await save()).openaiDiarize).toBe(true);
+  await page.locator('#msw-asr-modelId').selectOption('whisper-1');await page.locator('#msw-asr-openaiKeywords').evaluate(node=>{node.value='stale hidden keywords';});
+  expect((await save()).openaiKeywords).toBe('');
 });
 
 test('clicking an open processing panel brings it above settings with modal tier preserved',async({page})=>{
@@ -68,21 +69,15 @@ test('clicking an open processing panel brings it above settings with modal tier
   expect(levels[0]).toBeGreaterThan(levels[1]);expect(levels[2]).toBeGreaterThan(levels[0]);
 });
 
-test('track swap preserves groups and bindings with a single undo and hides disabled extension controls',async({page})=>{
-  const before=await page.evaluate(()=>{
-    DATA.multi_subtitle={enabled:true,tracks:[{id:'ext',language:'en',segments:[{id:'x',start:0,end:500,text:'One'},{id:'y',start:500,end:1000,text:'Two'}]}],
-      bindings:[{id:'bind',track_id:'ext',main_segment_ids:['cue-a'],extension_segment_ids:['x','y']}]};
-    renderAll();return JSON.stringify({segments:DATA.segments,multi:DATA.multi_subtitle});
-  });
+test('native track display swap preserves cues, colors and bindings with one undo',async({page})=>{
+  const stable=model=>({...model,cues:[...model.cues].sort((a,b)=>a.id.localeCompare(b.id))});
+  await page.evaluate(()=>applyCanonicalProject({segments:[{id:'a',start:0,end:1000,text:'One',color:{name:'red',start:0,end:1000},items:[]}],multi_subtitle:{enabled:true,tracks:[{id:'ext',segments:[{id:'b',start:0,end:1000,text:'一',color:{name:'red',start:0,end:1000},items:[]}]}],bindings:[{id:'pair',track_id:'ext',main_segment_ids:['a'],extension_segment_ids:['b']}]}},'swap.mosp'));
+  const before=await page.evaluate(()=>JSON.parse(buildJson()));
   expect(await page.evaluate(()=>swapMainAndExtensionSubtitles())).toBe(true);
-  expect(await page.evaluate(()=>DATA.segments.map(s=>MULTI_SUBTITLE_UTILS.effectiveColorName(s,DATA.segments)))).toEqual(['red','red']);
-  expect(await page.evaluate(()=>DATA.multi_subtitle.bindings[0].main_segment_ids)).toEqual(['x','y']);
-  await page.evaluate(()=>performUndo());
-  const restored=await page.evaluate(()=>({ids:DATA.segments.map(s=>s.id),bound:DATA.multi_subtitle.bindings[0].main_segment_ids}));
-  expect(restored).toEqual({ids:['cue-a'],bound:['cue-a']});expect(before).toContain('cue-a');
-  await page.evaluate(()=>{DATA.multi_subtitle.enabled=false;renderAll();});
-  await expect(page.locator('#multi-subtitle-extension-language-mode')).toBeHidden();
-  expect(await page.evaluate(()=>DATA.multi_subtitle.tracks[0].segments.length)).toBe(2);
+  const after=await page.evaluate(()=>JSON.parse(buildJson()));
+  expect(stable(after.subtitles)).toEqual(stable(before.subtitles));expect(after.subtitle_view.secondary_cue_ids).not.toEqual(before.subtitle_view.secondary_cue_ids);
+  await page.evaluate(()=>performUndo());const restored=await page.evaluate(()=>JSON.parse(buildJson()));
+  expect(restored.subtitles).toEqual(before.subtitles);expect(restored.subtitle_view).toEqual(before.subtitle_view);
 });
 
 test('onboarding completion survives a different server port and can be replayed',async({page,browser})=>{

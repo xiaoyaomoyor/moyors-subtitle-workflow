@@ -20,7 +20,7 @@ test.beforeEach(async({page})=>{
 });
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 const byText=(p,text)=>p.subtitles.cues.find(c=>c.content.text===text);
-async function settings(page){await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.getByRole('button',{name:'说话人色系',exact:true}).click();}
+async function settings(page){await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.locator('#editor-settings-nav [data-settings-category=general]').click();}
 async function menu(page,index,extension=false){
   await page.evaluate(({index,extension})=>showContextMenu(500,200,index,null,extension?getActiveExtensionTrack():null),{index,extension});
   await page.locator('#ctxmenu').getByText('标记字幕',{exact:true}).hover();

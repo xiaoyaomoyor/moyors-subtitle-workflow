@@ -168,7 +168,8 @@ __WAVEFORM_CSS__
       <button type="button" class="dropdown-item" id="cue-delete" role="menuitem" disabled title="删除选中的字幕"><span>删除</span> <kbd class="menu-kbd">Del</kbd></button>
       <div class="dropdown-separator"></div>
       <div class="menu-group-title">配置</div>
-      <button type="button" class="dropdown-item" id="editor-settings-toggle" role="menuitem" aria-expanded="false" aria-controls="editor-settings-modal" title="打开全局设置窗口">全局设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="editor-settings-toggle" role="menuitem" aria-expanded="false" aria-controls="editor-settings-modal" title="打开编辑器设置">编辑器设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
+      <button type="button" class="dropdown-item" id="project-settings-toggle" role="menuitem" aria-expanded="false" aria-controls="project-settings-modal" title="打开项目设置">项目设置<svg class="menu-window-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11"/></svg></button>
     </div>
   </div>
 
@@ -1031,8 +1032,8 @@ __WAVEFORM_CSS__
       <h4 class="help-title">基础操作</h4>
       <section class="help-subgroup">
         <h5 class="help-subtitle">版本与说话人</h5>
-        <p>设置 → 保存：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。</p>
-        <p>全局设置 → 说话人色系：配置随工程保存。右键“标记字幕”或按 1–9 标记，0 清除；属性列表选择“说话人”可调整外观及动画，单条设置优先。播放器设置控制预览名称，导出名称独立选择，不改动正文或配音。</p>
+        <p>文件 → 恢复记录：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。自动备份规则在编辑器设置 → 保存与备份中调整。</p>
+        <p>项目设置 → 说话人：配置随工程保存。右键“标记字幕”或按 1–9 标记，0 清除；属性列表选择“说话人”可调整外观及动画，单条设置优先。播放器设置控制预览名称，导出名称独立选择，不改动正文或配音。</p>
         <p>“名称语言”可为同一说话人填写不同语言的名字；轨道右键设置“轨道语言”，预览和导出据此显示。译名留空使用默认名称，交换列表左右列不会改变名字。</p>
       </section>
       <section class="help-subgroup">
@@ -1202,7 +1203,7 @@ __WAVEFORM_CSS__
           <span><kbd>Shift+D</kbd> 将字幕终点贴到后一条开头</span>
         </div>
         <span class="help-note">注：微调幅度可在
-          <button type="button" class="help-inline-action" id="help-open-keyboard-settings" data-help-open-editor-settings aria-controls="editor-settings-panel">⚙️全局设置</button>
+          <button type="button" class="help-inline-action" id="help-open-keyboard-settings" data-help-open-editor-settings aria-controls="editor-settings-panel">编辑器设置</button>
           「通用操作」中调节，默认 50ms</span>
       </section>
     </section>
@@ -1330,18 +1331,28 @@ __WAVEFORM_CSS__
   </section>
 </div>
 
-<!-- 全局设置：UE 项目设置式可拖拽工具窗（左侧分类 + 顶部搜索，与其他工具窗交互一致） -->
+<!-- 设置：按编辑器与项目归属分开的可拖拽工具窗（左侧分类 + 顶部搜索，与其他工具窗交互一致） -->
+<aside class="gap-remove-panel editor-settings-panel" id="project-settings-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="project-settings-title">
+  <header class="gap-remove-panel-header" id="project-settings-drag-handle">
+    <div class="gap-remove-heading"><span class="gap-remove-eyebrow">设置</span><h3 id="project-settings-title">项目设置</h3></div>
+    <div class="gap-remove-header-actions"><input type="text" id="project-settings-search" class="settings-modal-search editor-settings-search" placeholder="搜索项目设置…" autocomplete="off" aria-label="搜索项目设置"><button type="button" id="project-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭项目设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
+  </header>
+  <p class="settings-scope-note">随当前工程保存；修改可撤销，不改变其他工程。</p>
+  <div class="settings-modal-body" id="project-settings-panel"><nav class="settings-modal-nav" id="project-settings-nav" aria-label="项目设置分类"></nav><div class="settings-modal-content" id="project-settings-content"></div></div>
+</aside>
+
 <aside class="gap-remove-panel editor-settings-panel" id="editor-settings-modal" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="editor-settings-title">
   <header class="gap-remove-panel-header" id="editor-settings-drag-handle">
     <div class="gap-remove-heading">
       <span class="gap-remove-eyebrow">设置</span>
-      <h3 id="editor-settings-title">全局设置</h3>
+      <h3 id="editor-settings-title">编辑器设置</h3>
     </div>
     <div class="gap-remove-header-actions">
       <input type="text" id="editor-settings-search" class="settings-modal-search editor-settings-search" placeholder="搜索设置…" autocomplete="off" aria-label="搜索设置">
-      <button type="button" id="editor-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭全局设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+      <button type="button" id="editor-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭编辑器设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
+  <p class="settings-scope-note">用于当前编辑器，随用户配置保存；不会覆盖工程内容。</p>
   <div class="settings-modal-body" id="editor-settings-panel">
       <nav class="settings-modal-nav" id="editor-settings-nav" aria-label="设置分类"></nav>
       <div class="settings-modal-content" id="editor-settings-content">
@@ -1865,7 +1876,7 @@ __WAVEFORM_CSS__
             <label class="ass-style-color-field">描边<input type="color" id="ass-style-outline-color" data-ass-style-field="outlineColor"></label>
             <label class="ass-style-field">描边宽度<input type="number" id="ass-style-outline" data-ass-style-field="outline" min="0" max="100" step="1"></label>
           </div>
-          <small class="editor-settings-hint">有颜色的字幕会使用对应颜色覆盖主色/描边，取决于 <button type="button" class="ass-style-settings-link" id="ass-style-settings-link" title="打开全局设置中的字幕样式">字幕样式</button> 中的设置。</small>
+          <small class="editor-settings-hint">有颜色的字幕会使用对应颜色覆盖主色/描边，取决于 <button type="button" class="ass-style-settings-link" id="ass-style-settings-link" title="打开属性列表中的字幕样式">字幕样式</button> 中的设置。</small>
         </section>
         <section class="ass-style-form-section ass-style-extended-section" aria-labelledby="ass-style-extended-heading">
           <div class="ass-style-subheading" id="ass-style-extended-heading">拓展样式</div>

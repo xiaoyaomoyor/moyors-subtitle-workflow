@@ -41,11 +41,11 @@ _register('msw.translation.call.v1 maw.launcher.llm.prompts maw.launcher.alignme
 _register('msw.assets.columns msw.assets.showPlayer msw.assets.showChanges msw.waveform.auto', 'editor', 'text')
 _register('moy.asr.editor.onboarding.v1', 'onboarding', 'text')
 _register('moy.asr.editor.hideDisabledFlipped.v1 moy.asr.editor.charcountMigrated.v1', 'migration', 'text', False)
-_register('moy.asr.gap_remove.advanced_open.v1 moy.asr.gap_remove.disable_open.v1 msw.editor.settings.category.v1', 'panels', 'text')
+_register('moy.asr.gap_remove.advanced_open.v1 moy.asr.gap_remove.disable_open.v1 msw.editor.settings.category.v1 msw.project.settings.category.v1', 'panels', 'text')
 _register('''moy.asr.gap_remove.panel.v1 moy.asr.help.panel.v1 moy.asr.help.panel.size.v1
     moy.asr.auto_merge.panel.v2 moy.asr.subtitle_extend.panel.v1 moy.asr.editor.editorSettingsPanel.pos.v1
     moy.asr.ass_style.window.v1 moy.asr.editor.mediaSettingsPanel.pos.v1 moy.asr.editor.waveSettingsPanel.pos.v1
-    moy.asr.editor.subtitleScalePanel.pos.v2 msw.subtitleCleanup.position.v1 msw.cueEditorSettings.pos.v1
+    moy.asr.editor.subtitleScalePanel.pos.v2 msw.subtitleCleanup.position.v1 msw.cueEditorSettings.pos.v1 msw.project.settings.position.v1
     moy.asr.editor.cueListSettingsPanel.pos.v1 msw.translation.panel.position''', 'panels')
 _register('MSW_SETTINGS_TAB_V1 MSW_LAUNCHER_PAGE MSW_TOOLS_PAGE_TOOL_V1 MSW_LAUNCHER_LOG_CARD_V1', 'launcher', 'text')
 _register('MSW_HOME_GROUPS_V2', 'launcher')

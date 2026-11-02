@@ -201,29 +201,32 @@
   }
   el('project-recovery-open').addEventListener('click',()=>void showRecovery());
   el('project-version-list').addEventListener('click',()=>void showRecovery(true));
+  function versionStatus(message){
+    for(const id of ['project-version-status','project-version-operation-status'])if(el(id))el(id).textContent=message;
+  }
   async function createVersion(manual=false) {
     if(!available())return;
-    if(recovering||!host.config.canSave){if(manual)el('project-version-status').textContent=t('请先另存为工程，再创建磁盘版本');return;}
-    if(versionBusy||working||host.saving()||global.MSWE.resolve('processing-host')?.isEditing?.()){if(manual)el('project-version-status').textContent=t('当前正在编辑或保存，请稍后创建版本');return;}
+    if(recovering||!host.config.canSave){if(manual)versionStatus(t('请先另存为工程，再创建磁盘版本'));return;}
+    if(versionBusy||working||host.saving()||global.MSWE.resolve('processing-host')?.isEditing?.()){if(manual)versionStatus(t('当前正在编辑或保存，请稍后创建版本'));return;}
     if(!manual&&(!versionSettings.enabled||Date.now()-lastVersion<versionSettings.interval*1000))return;
     versionBusy=true;const generation=host.generation;
     try{
       const result=await request('version-create',{project:host.snapshot(),backupOnly:true,...host.config.processingContext});
       if(generation!==host.generation)return;
-      lastVersion=Date.now();el('project-version-status').textContent=result.warning||t(result.deduplicated?'内容未变化，已保留现有版本':'磁盘版本已创建')+' · '+result.name;
-    }catch(error){lastVersion=Date.now();el('project-version-status').textContent=t('磁盘版本备份失败')+' · '+error.message;}
+      lastVersion=Date.now();versionStatus(result.warning||t(result.deduplicated?'内容未变化，已保留现有版本':'磁盘版本已创建')+' · '+result.name);
+    }catch(error){lastVersion=Date.now();versionStatus(t('磁盘版本备份失败')+' · '+error.message);}
     finally{versionBusy=false;}
   }
   function versionControls(){for(const key of ['enabled','interval','limit']){const node=el('project-version-'+key);if(key==='enabled')node.checked=versionSettings[key];else node.value=versionSettings[key];}}
   el('project-version-create').addEventListener('click',()=>void createVersion(true));
   el('project-version-configure').addEventListener('click',async()=>{
-    try{const result=await request('version-settings',{enabled:el('project-version-enabled').checked,interval:Number(el('project-version-interval').value),limit:Number(el('project-version-limit').value)});versionSettings=result.settings;versionControls();el('project-version-status').textContent=t('备份设置已保存');}
-    catch(error){el('project-version-status').textContent=error.message;}
+    try{const result=await request('version-settings',{enabled:el('project-version-enabled').checked,interval:Number(el('project-version-interval').value),limit:Number(el('project-version-limit').value)});versionSettings=result.settings;versionControls();versionStatus(t('备份设置已保存'));}
+    catch(error){versionStatus(error.message);}
   });
-  el('project-version-directory').addEventListener('click',async()=>{try{await request('version-directory',{binding:host.config.processingContext?.binding});}catch(error){el('project-version-status').textContent=error.message;}});
+  el('project-version-directory').addEventListener('click',async()=>{try{await request('version-directory',{binding:host.config.processingContext?.binding});}catch(error){versionStatus(error.message);}});
   if(available()){
     el('project-version-settings').hidden=false;
-    request('version-settings').then(result=>{versionSettings=result.settings;versionControls();}).catch(error=>{el('project-version-status').textContent=error.message;});
+    request('version-settings').then(result=>{versionSettings=result.settings;versionControls();}).catch(error=>{versionStatus(error.message);});
     setInterval(()=>void createVersion(),15000);
   }
   el('project-recovery-close').addEventListener('click', () => { if (!working) recoveryModal.classList.remove('show'); });

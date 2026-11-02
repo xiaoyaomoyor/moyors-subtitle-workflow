@@ -18,7 +18,7 @@ test('portable speaker scheme import stays separate from project and subsequent 
   });
   expect(imported.sections.speakerSchemes.schemes[0].rows[0].names['zh-hans']).toBe('艾尔文');
   expect(await page.evaluate(()=>JSON.stringify(DATA))).toBe(original);
-  await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.getByRole('button',{name:'说话人色系',exact:true}).click();
+  await page.evaluate(()=>setProjectSettingsPanelOpen(true,'subtitle-speakers'));
   await page.locator('#speaker-scheme-select').selectOption('series');await page.locator('#speaker-scheme-open').click();
   await page.locator('#speaker-scheme-add-missing').check();await expect(page.locator('#speaker-scheme-plan')).toHaveText('更新 0 人 · 新增 1 人');
   await page.locator('#speaker-scheme-apply').click();expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows.at(-1).name)).toBe('Erwyn');

@@ -2,7 +2,9 @@
 
 对应六阶段方案的第 1–4 阶段。导入导出入口、分类与生效规则见 [配置管理](CONFIGURATION_MANAGEMENT.md)。公共接口为 Python `maw.user_config.UserConfig` 与浏览器 `MSWConfig.storage`；登记表 `maw/user_config.py::REGISTRY` 同时提供给启动器和编辑器，不分别维护两份浏览器键名清单。
 
-2026-11-02 的窗口拆分盘点见 [编辑器设置与项目设置：归属和分类](SETTINGS_OWNERSHIP.md)。阶段 2 已落实保存隔离和旧字段迁移，见 [实施记录](TEST_FEEDBACK_SETTINGS_MIGRATION_20261102.md)；两个窗口的入口与布局仍留待后续阶段。
+2026-11-02 的窗口拆分盘点见 [编辑器设置与项目设置：归属和分类](SETTINGS_OWNERSHIP.md)。阶段 2 已落实保存隔离和旧字段迁移，见 [实施记录](TEST_FEEDBACK_SETTINGS_MIGRATION_20261102.md)；阶段 3 已提供独立的编辑器设置／项目设置窗口，见 [双窗口实施记录](TEST_FEEDBACK_SETTINGS_WINDOWS_20261102.md)。
+
+项目设置窗口新增 `msw.project.settings.category.v1` 和 `msw.project.settings.position.v1`，作为个人面板状态接入公共配置。第一次使用从旧窗口位置及项目分类继承初值，此后独立记忆；不会写入项目内容或撤销记录。编辑器窗口沿用原有键。
 
 ## 唯一保存来源
 

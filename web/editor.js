@@ -1794,6 +1794,8 @@ function snapshotSegments() {
   // _dirty 也保留，恢复后能再次导出"工程文件"时正确标记；多字幕数据与主轨
   // 必须处于同一条记录中，绑定/成对删除/联动拆分才能原子撤销。
   const snapshot = EDITOR_SETTINGS_UTILS.buildSegmentsHistorySnapshot(DATA.segments, getMultiSubtitleState(), getOverlayTrack());
+  snapshot.timebase = { ...projectTimebase() };
+  snapshot.timelineFpsManuallySet = timelineFpsManuallySet;
   snapshot.msw = window.MSWProject.clone(DATA.msw ?? null);
   if (layerMode()) snapshot.subtitle_layers = structuredClone(DATA.subtitle_layers);
   if (fixedTrackMode()) snapshot.subtitle_tracks = structuredClone(DATA.subtitle_tracks);
@@ -1875,7 +1877,7 @@ function applyPreviewState(state) {
   if (state.subtitle) setPreviewGeometry(state.subtitle, { markDirty: true, replaceAppearance: true });
   if (state.extensionSubtitle) restoreExtensionSubtitleAppearance(state.extensionSubtitle, { markDirty: true });
   if (state.sticker) setStickerGeometry(state.sticker, { markDirty: true });
-  if(state.speakerPalette){DATA.preview.speaker_palette=structuredClone(state.speakerPalette);rebuildEditorColorPalette();if(typeof fixedPreviewInvalidate==='function')fixedPreviewInvalidate();}
+  if(state.speakerPalette){DATA.preview.speaker_palette=structuredClone(state.speakerPalette);rebuildEditorColorPalette();syncSpeakerControls();if(typeof fixedPreviewInvalidate==='function')fixedPreviewInvalidate();}
   if(typeof state.speakerLabelsVisible==='boolean')DATA.preview.speaker_labels_visible=state.speakerLabelsVisible;else delete DATA.preview.speaker_labels_visible;
   window.dispatchEvent(new Event('msw:speakers-changed'));
   refreshPreviewGeometryEditable();
@@ -2049,6 +2051,11 @@ function applyHistoryRecord(record) {
   // 视口属于本次撤销动作，不随历史快照恢复。
   const cueListAnchor = captureCueListRenderAnchor();
   const previousWaveformStructure = multiSubtitleWaveformStructureKey();
+  if(snapshot.timebase){
+    DATA.timebase=normalizeTimelineTimebase(snapshot.timebase);
+    timelineFpsManuallySet=snapshot.timelineFpsManuallySet===true;
+    refreshTimelineSettingsUi();
+  }
   DATA.segments.length = 0;
   (snapshot.segments || []).forEach(s => DATA.segments.push(s));
   DATA.multi_subtitle = snapshot.multi_subtitle || {
@@ -2882,7 +2889,33 @@ const editorSettingsFloatingPanel = createFloatingPanel({
   panel: editorSettingsModal,
   dragHandle: document.getElementById('editor-settings-drag-handle'),
   positionKey: EDITOR_SETTINGS_PANEL_POSITION_KEY,
+  manageButton: document.getElementById('editor-settings-toggle'),
 });
+const projectSettingsModal = document.getElementById('project-settings-modal');
+const PROJECT_SETTINGS_PANEL_POSITION_KEY = 'msw.project.settings.position.v1';
+try {
+  const storage=globalThis.MSWConfig?.storage||localStorage;
+  if(!storage.getItem(PROJECT_SETTINGS_PANEL_POSITION_KEY)){
+    const old=storage.getItem(EDITOR_SETTINGS_PANEL_POSITION_KEY);
+    if(old)storage.setItem(PROJECT_SETTINGS_PANEL_POSITION_KEY,old);
+  }
+} catch (_) { /* Optional panel position; never touches project content. */ }
+const projectSettingsFloatingPanel = createFloatingPanel({
+  panel: projectSettingsModal,
+  dragHandle: document.getElementById('project-settings-drag-handle'),
+  positionKey: PROJECT_SETTINGS_PANEL_POSITION_KEY,
+  manageButton: document.getElementById('project-settings-toggle'),
+});
+function setProjectSettingsPanelOpen(open,category) {
+  if(!open){projectSettingsFloatingPanel.close();return;}
+  projectSettingsFloatingPanel.open();
+  settingsWindowsContent.refresh();projectSettingsNavigation.refresh();
+  if(category)projectSettingsNavigation.activate(category);
+  window.dispatchEvent(new Event('msw:settings-opened'));
+  document.getElementById('project-settings-search')?.focus();
+}
+document.getElementById('project-settings-toggle')?.addEventListener('click',()=>setProjectSettingsPanelOpen(!projectSettingsFloatingPanel.isOpen()));
+document.getElementById('project-settings-close')?.addEventListener('click',()=>setProjectSettingsPanelOpen(false));
 
 const ASS_STYLE_WINDOW_POSITION_KEY = 'moy.asr.ass_style.window.v1';
 let assStyleManagerSelection = { kind: 'style', id: 'ass' };
@@ -3527,7 +3560,7 @@ function isEditorSettingsOpen() {
 }
 function openEditorSettingsAtTab(tab) {
   if (tab === 'editor-settings-tab-subtitle-style') setSubtitlePreviewSettingsPanelOpen(true);
-  else setEditorSettingsPanelOpen(true);
+  else {setEditorSettingsPanelOpen(true);activateEditorSettingsCategory(document.querySelector('#editor-settings-content [data-settings-category="general"]'));}
 }
 function setEditorSettingsPanelOpen(open) {
   if (!editorSettingsModal) return;
@@ -4795,6 +4828,8 @@ function setTimelineTimebase(patch = {}) {
     refreshTimelineSettingsUi();
     return;
   }
+  commitProcessingEdits();
+  pushUndo('调整项目时间基准', { captureView: true });
   if (hasFpsPatch) timelineFpsManuallySet = true;
   // 先按旧时间基准把当前工程的双份时间值同步，再决定新 FPS 下是否保留帧号。
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: current.unit === 'frames' });
@@ -23343,206 +23378,31 @@ if (menubarProjectWrap && projectDetailCard) {
 updateProjectDetailCard();
 refreshClipboardMenuState();
 
-// === 全局设置窗口：左侧分类导航 + 顶部搜索 ===
-const editorSettingsSearchInput = document.getElementById('editor-settings-search');
-const editorSettingsNavEl = document.getElementById('editor-settings-nav');
-const editorSettingsCategories = [...document.querySelectorAll('#editor-settings-content .settings-category')];
-const EDITOR_SETTINGS_CATEGORY_KEY = 'msw.editor.settings.category.v1';
-let activeSettingsCategory = null;
-try {
-  const savedCategory = (globalThis.MSWConfig?.storage || localStorage).getItem(EDITOR_SETTINGS_CATEGORY_KEY);
-  activeSettingsCategory = editorSettingsCategories.find(category => category.dataset.settingsCategory === savedCategory) || null;
-} catch (_) { /* Browser storage may be unavailable. */ }
-
-function settingsCategoryLabel(category) {
-  return category.querySelector('.settings-category-header, .editor-settings-title')?.textContent?.trim() || '';
-}
-
-function buildEditorSettingsNav() {
-  if (!editorSettingsNavEl) return;
-  editorSettingsNavEl.replaceChildren();
-  // 「全部」置顶：所有分类连续展示，各分类标题只在全部模式下显示。
-  const allButton = document.createElement('button');
-  allButton.type = 'button';
-  allButton.className = 'settings-nav-item';
-  allButton.dataset.settingsCategory = 'all';
-  allButton.textContent = '全部';
-  allButton.addEventListener('click', () => {
-    if (editorSettingsSearchInput?.value) {
-      editorSettingsSearchInput.value = '';
-      applyEditorSettingsSearch('');
-    }
-    activateEditorSettingsCategory(null);
-  });
-  editorSettingsNavEl.appendChild(allButton);
-  editorSettingsCategories.forEach((category) => {
-    // 内容整体被应用逻辑隐藏的分类（如无保存目标时的「保存」）不进导航。
-    const visibleSubGroup = category.querySelector('.editor-settings-sub-group:not([hidden])');
-    if (!visibleSubGroup) {
-      category.hidden = true;
-      category.dataset.unavailable = 'true';
-      return;
-    }
-    delete category.dataset.unavailable;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'settings-nav-item';
-    button.dataset.settingsCategory = category.dataset.settingsCategory || '';
-    button.textContent = settingsCategoryLabel(category);
-    button.addEventListener('click', () => {
-      if (editorSettingsSearchInput?.value) {
-        editorSettingsSearchInput.value = '';
-        applyEditorSettingsSearch('');
-      }
-      activateEditorSettingsCategory(category);
-    });
-    editorSettingsNavEl.appendChild(button);
-    // 含多个子分区的分类带 › 箭头（UE 式）：仅在该分类激活时展开二级导航。
-    const subsections = [...category.querySelectorAll(':scope .settings-subsection')];
-    if (subsections.length > 1 || category.dataset.settingsCategory === 'environment') {
-      const caret = document.createElement('span');
-      caret.className = 'settings-nav-caret';
-      caret.setAttribute('aria-hidden', 'true');
-      caret.textContent = '›';
-      button.appendChild(caret);
-      subsections.forEach((subsection) => {
-        const title = subsection.querySelector('.settings-subsection-title')?.textContent?.trim();
-        if (!title) return;
-        const sub = document.createElement('button');
-        sub.type = 'button';
-        sub.className = 'settings-nav-item settings-nav-subitem';
-        sub.dataset.settingsCategory = category.dataset.settingsCategory || '';
-        sub.textContent = title;
-        sub.addEventListener('click', () => {
-          if (editorSettingsSearchInput?.value) {
-            editorSettingsSearchInput.value = '';
-            applyEditorSettingsSearch('');
-          }
-          activateEditorSettingsCategory(category);
-          requestAnimationFrame(() => {
-            subsection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          });
-        });
-        editorSettingsNavEl.appendChild(sub);
-      });
-    }
-  });
-}
-
-// category 为 null 时表示「全部」模式：所有分类连续展示并显示分类标题。
-function activateEditorSettingsCategory(category) {
-  if (category?.dataset.unavailable === 'true') category = null;
-  activeSettingsCategory = category || null;
-  try { (globalThis.MSWConfig?.storage || localStorage).setItem(EDITOR_SETTINGS_CATEGORY_KEY, category?.dataset.settingsCategory || 'all'); } catch (_) {}
-  const showAll = !category;
-  document.getElementById('editor-settings-content')?.classList.toggle('show-all-categories', showAll);
-  editorSettingsCategories.forEach((other) => {
-    if (other.dataset.unavailable === 'true') return;
-    other.hidden = showAll ? false : other !== category;
-  });
-  // UE 式：子分类只在所属分类激活时显示，父项箭头随展开旋转（无子分类的项没有箭头）。
-  const navButtons = [...(editorSettingsNavEl?.querySelectorAll('.settings-nav-item') || [])];
-  const expandedCategories = new Set(
-    navButtons
-      .filter((button) => !button.classList.contains('settings-nav-subitem')
-        && !showAll
-        && button.dataset.settingsCategory === category.dataset.settingsCategory
-        && button.querySelector('.settings-nav-caret'))
-      .map((button) => button.dataset.settingsCategory),
-  );
-  navButtons.forEach((button) => {
-    const isChild = button.classList.contains('settings-nav-subitem');
-    const matches = showAll
-      ? button.dataset.settingsCategory === 'all'
-      : button.dataset.settingsCategory === category.dataset.settingsCategory;
-    button.classList.toggle('active', !isChild && matches);
-    button.setAttribute('aria-current', String(!isChild && matches));
-    if (isChild) button.hidden = !expandedCategories.has(button.dataset.settingsCategory);
-    else button.classList.toggle('open', expandedCategories.has(button.dataset.settingsCategory));
-  });
-}
-
-// 搜索只通过 .search-hidden 类收起行，绝不改写 hidden 属性，
-// 避免与「自动保存间隔」「忍者彩蛋子项」等应用管理的隐藏态互相踩踏。
-function applyEditorSettingsSearch(query) {
-  const normalized = query.trim().toLowerCase();
-  const content = document.getElementById('editor-settings-content');
-  if (!normalized) {
-    editorSettingsCategories.forEach((category) => {
-      category.querySelectorAll('.search-hidden').forEach((row) => row.classList.remove('search-hidden'));
-      if (category.dataset.unavailable === 'true') category.hidden = true;
-      else category.hidden = activeSettingsCategory ? category !== activeSettingsCategory : false;
-    });
-    content?.classList.toggle('show-all-categories', !activeSettingsCategory);
-    return;
-  }
-  // 搜索时跨分类平铺结果，并显示分类标题便于区分。
-  content?.classList.add('show-all-categories');
-  editorSettingsCategories.forEach((category) => {
-    let categoryMatchCount = 0;
-    const categoryHit = settingsCategoryLabel(category).toLowerCase().includes(normalized);
-    // 无子分区（如外观）的分类直接以子组行作为可搜索单元。
-    const subsections = category.querySelectorAll('.settings-subsection');
-    const searchScopes = subsections.length
-      ? subsections
-      : category.querySelectorAll('.editor-settings-sub-group').length
-        ? [category]
-        : [];
-    searchScopes.forEach((subsection) => {
-      let matchCount = 0;
-      const rowScope = subsections.length
-        ? subsection.querySelectorAll('.editor-settings-sub-group > *')
-        : subsection.querySelectorAll('.editor-settings-sub-group > *');
-      rowScope.forEach((row) => {
-        if (row.classList.contains('editor-settings-title')) return;
-        const rowText = `${row.textContent || ''}\n${row.getAttribute('title') || ''}`.toLowerCase();
-        const hit = (categoryHit || rowText.includes(normalized)) && !row.hidden;
-        row.classList.toggle('search-hidden', !hit);
-        if (hit) matchCount += 1;
-      });
-      subsection.classList.toggle('search-hidden', matchCount === 0);
-      categoryMatchCount += matchCount;
-    });
-    if (category.dataset.unavailable === 'true') category.hidden = true;
-    else category.hidden = categoryMatchCount === 0;
-  });
-  editorSettingsNavEl?.querySelectorAll('.settings-nav-item').forEach((button) => {
-    button.classList.remove('active');
-    button.setAttribute('aria-current', 'false');
-  });
-}
-
-function resetEditorSettingsSearch() {
-  buildEditorSettingsNav();
-  if (editorSettingsSearchInput?.value) {
-    editorSettingsSearchInput.value = '';
-  }
-  applyEditorSettingsSearch('');
-  activateEditorSettingsCategory(activeSettingsCategory);
-}
-
-editorSettingsNavEl?.addEventListener('keydown', event => {
-  const button = event.target.closest('.settings-nav-item');
-  if (!button) return;
-  const buttons = [...editorSettingsNavEl.querySelectorAll('.settings-nav-item:not([hidden])')];
-  const index = buttons.indexOf(button);
-  if (index < 0) return;
-  let target;
-  if (event.key === 'ArrowDown') target = buttons[(index + 1) % buttons.length];
-  else if (event.key === 'ArrowUp') target = buttons[(index - 1 + buttons.length) % buttons.length];
-  else if (event.key === 'Home') target = buttons[0];
-  else if (event.key === 'End') target = buttons.at(-1);
-  else return;
-  event.preventDefault(); event.stopPropagation();
-  target.click(); target.focus(); target.scrollIntoView({ block: 'nearest' });
+// Single-source controls are classified after their handlers have been wired.
+const settingsWindowsContent=MSWSettingsWindows.assemble({
+  openProject: category=>setProjectSettingsPanelOpen(true,category),
+  openProperties: id=>{setProjectSettingsPanelOpen(false);setEditorSettingsPanelOpen(false);if(id)MSWSubtitleStyle.editTrack(id);else MSWSubtitleStyle.open('track');},
+  openPlayer: ()=>{setEditorSettingsPanelOpen(false);setProjectSettingsPanelOpen(false);setSubtitlePreviewSettingsPanelOpen(true);},
+  openWave: ()=>{setEditorSettingsPanelOpen(false);setWaveformSettingsPanelOpen(true);},
+  openCue: ()=>{setEditorSettingsPanelOpen(false);cueEditorSettingsFloatingPanel.open();},
+  openList: ()=>{setEditorSettingsPanelOpen(false);cueListSettingsFloatingPanel.open();},
+  openAssets: ()=>{setProjectSettingsPanelOpen(false);waveformEditor.activateModuleTab('assets');},
+  openGaps: ()=>{setProjectSettingsPanelOpen(false);document.getElementById('gap-remove-manage')?.click();},
+  openWorkspaces: ()=>{setEditorSettingsPanelOpen(false);document.querySelector('[data-menubar-item="window"] > button')?.click();},
+  describe: ()=>{
+    // Overview reads the current operation view; never serialize/validate the
+    // entire project just because a settings window is open during editing.
+    const tracks=gapSubtitleTracks().map(t=>({id:t.id,name:t.name,language:t.language,locked:t.locked,enabled:t.enabled,count:t.cues.length}));
+    return {tracks,cues:tracks.reduce((sum,t)=>sum+t.count,0),media:DATA.media?.path||(typeof DATA.media==='string'?DATA.media:''),audio:DATA.msw?.audio_clips?.length||0};
+  },
 });
-
-editorSettingsSearchInput?.addEventListener('input', () => {
-  applyEditorSettingsSearch(editorSettingsSearchInput.value);
-});
-buildEditorSettingsNav();
-// 恢复上次分类；未知或当前不可用的分类回退到「全部」。
-activateEditorSettingsCategory(activeSettingsCategory);
+const editorSettingsNavigation=MSWSettingsWindows.navigation('editor-settings');
+const projectSettingsNavigation=MSWSettingsWindows.navigation('project-settings');
+function activateEditorSettingsCategory(category){
+  if(category?.closest('#project-settings-content')){setProjectSettingsPanelOpen(true,category.dataset.settingsCategory);return;}
+  editorSettingsNavigation.activate(category);
+}
+function resetEditorSettingsSearch(){editorSettingsNavigation.refresh();}
 
 // === 设置类弹窗的通用关闭（遮罩点击 / 捕获阶段 Esc） ===
 // 全局设置是可拖拽工具窗（createFloatingPanel 自带 Esc 关闭），无遮罩点击关闭。

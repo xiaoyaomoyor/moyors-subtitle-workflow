@@ -20,8 +20,11 @@ test('normal editor splits legacy settings among existing panels with compact co
  await expect(page.locator('#multi-subtitle-settings-dropdown')).toBeHidden();
  await expect(page.locator('#overlay-track-controls')).toBeHidden();
  await page.evaluate(()=>cueEditorSettingsFloatingPanel.open());
+ await expect(page.locator('#project-track-settings-shortcut')).toBeVisible();
+ await page.locator('#project-track-settings-shortcut').click();
  await expect(page.locator('#track-split-track')).toBeVisible();
  await expect(page.locator('#track-split-mode')).toHaveValue('word');
+ await page.evaluate(()=>{setProjectSettingsPanelOpen(false);cueEditorSettingsFloatingPanel.open();});
  await expect(page.locator('#track-select-bound')).not.toBeChecked();
  await expect(page.locator('#track-bind-sync')).toBeChecked();
  await page.locator('#track-select-bound').check();await page.locator('#track-bind-sync').uncheck();
@@ -35,12 +38,12 @@ test('normal editor splits legacy settings among existing panels with compact co
 
 test('track split mode is independent of list side, survives save/reopen and can be undone',async({page})=>{
  const before=await snap(page),[main,secondary]=before.subtitles.tracks;
- await page.evaluate(()=>cueEditorSettingsFloatingPanel.open());
+ await page.evaluate(()=>setProjectSettingsPanelOpen(true,'time-tracks'));
  await page.locator('#track-split-track').selectOption(secondary.id);await page.locator('#track-split-mode').selectOption('word');
  let saved=await snap(page);expect(saved.subtitles.tracks.map(t=>t.split_mode)).toEqual(['word','word']);
  await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles.tracks.find(t=>t.id===secondary.id).split_mode).toBe('continuous');
  await page.locator('#track-split-mode').selectOption('auto');saved=await snap(page);
- await page.evaluate(p=>{applyCanonicalProject(p,'reopened.mosp');cueEditorSettingsFloatingPanel.close();cueListSettingsFloatingPanel.open();},saved);
+ await page.evaluate(p=>{applyCanonicalProject(p,'reopened.mosp');setProjectSettingsPanelOpen(false);cueListSettingsFloatingPanel.open();},saved);
  await page.locator('#cue-list-swap-sides').click();const swapped=await snap(page);
  expect(byId(swapped.subtitles.cues)).toEqual(byId(saved.subtitles.cues));expect(swapped.subtitles.bindings).toEqual(saved.subtitles.bindings);
  expect(await page.evaluate(()=>getExtensionSubtitleSplitMode(getActiveExtensionTrack(),getActiveExtensionTrack().segments[0]))).toBe('word');
@@ -60,15 +63,15 @@ test('waveform height no longer changes when tracks or paired visibility change'
  expect(result).toEqual({added:80,collapsed:80,migrated:true});
 });
 
-test('new binding uses first selected cue as reference and sync preference applies atomically',async({page})=>{
+test('paired tracks use the main cue as reference regardless of click order and sync atomically',async({page})=>{
  const before=await snap(page);before.subtitles.bindings=[];
  await page.evaluate(p=>{applyCanonicalProject(p,'unbound.mosp');EDITOR_SETTINGS.selectBoundSubtitlePair=false;},before);
  await page.locator('.multi-cue-column.extension .time').click();
  await page.locator('.multi-cue-column.main .time').click({modifiers:['Control']});
  await page.keyboard.press('g');
- const after=await snap(page),secondary=before.subtitles.cues.find(c=>c.content.text==='甲乙丙丁');
- expect(after.subtitles.bindings).toHaveLength(1);expect(after.subtitles.bindings[0].source_id).toBe(secondary.id);
- expect(after.subtitles.cues.every(c=>c.content.start===200&&c.content.end===4200)).toBe(true);
+ const after=await snap(page),main=before.subtitles.cues.find(c=>c.content.text==='alpha beta gamma delta');
+ expect(after.subtitles.bindings).toHaveLength(1);expect(after.subtitles.bindings[0].source_id).toBe(main.id);
+ expect(after.subtitles.cues.every(c=>c.content.start===0&&c.content.end===4000)).toBe(true);
  await page.keyboard.press('Control+z');expect(byId((await snap(page)).subtitles.cues)).toEqual(byId(before.subtitles.cues));
  await page.evaluate(()=>{EDITOR_SETTINGS.multiSubtitleAutoSyncDuration=false;});
  await page.locator('.multi-cue-column.main .time').click();await page.locator('.multi-cue-column.extension .time').click({modifiers:['Control']});
@@ -94,7 +97,7 @@ test('old disabled secondary stays disabled after migration and settings do not 
  const p=fixture();p.multi_subtitle.enabled=false;
  await page.evaluate(p=>applyCanonicalProject(p,'old-disabled.mosp'),p);
  const saved=await snap(page);expect(saved.subtitles.tracks[1].enabled).toBe(false);
- await page.evaluate(()=>cueEditorSettingsFloatingPanel.open());
+ await page.evaluate(()=>setProjectSettingsPanelOpen(true,'time-tracks'));
  await page.locator('#track-split-track').selectOption(saved.subtitles.tracks[1].id);
  await expect(page.locator('#track-split-mode')).toHaveValue('continuous');
  await page.locator('#track-split-mode').selectOption('word');

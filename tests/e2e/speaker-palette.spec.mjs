@@ -21,7 +21,7 @@ test.beforeEach(async({page})=>{
   await page.evaluate(()=>{player.pause();updateEditorSettings({autoSaveProject:false});});
 });
 test.afterEach(async()=>{await server?.stop();});
-async function settings(page){await page.evaluate(()=>setEditorSettingsPanelOpen(true));await page.getByRole('button',{name:'说话人色系',exact:true}).click();}
+async function settings(page){await page.evaluate(()=>setProjectSettingsPanelOpen(true,'subtitle-speakers'));}
 
 test('language visibility controls names independently, survives reopen and obeys preview master',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -47,7 +47,7 @@ test('language visibility controls names independently, survives reopen and obey
   await expect(page.locator('#speaker-palette-rows tr[data-speaker-id="all"] input[type=checkbox]')).toHaveJSProperty('indeterminate',true);
   await page.locator('#speaker-name-language').selectOption('zh-hans');await expect(flags).toBeChecked();
   await page.screenshot({path:join(dir,'speaker-name-visibility.png')});
-  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await page.evaluate(()=>setProjectSettingsPanelOpen(false));
   await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('康迪：')),null,{timeout:20000});
   const rendered=await page.evaluate(async()=>({srt:buildSrt(),ass:await fixedAssDocument(),texts:MSWSubtitleRenderer.geometry.map(r=>r.text)}));
   expect(rendered.srt).not.toContain('Condi：');expect(rendered.srt).toContain('康迪：你好');
@@ -130,7 +130,7 @@ test('speaker schemes carry names and appearance across projects with explicit m
     expect(applied.preview.speaker_palette.rows[1]).toMatchObject({id:'green',name:'Erwyn',names:{'zh-hans':'艾尔文'},color:'#33aa44',scheme_ref:{scheme_id:scheme.id,person_id:scheme.rows[0].id}});
     await target.evaluate(()=>performUndo());expect(await target.evaluate(()=>DATA.preview.speaker_palette)).toEqual(before.preview.speaker_palette);
     await target.evaluate(()=>performRedo());expect(await target.evaluate(()=>DATA.preview.speaker_palette)).toEqual(applied.preview.speaker_palette);
-    await target.evaluate(()=>setEditorSettingsPanelOpen(false));
+    await target.evaluate(()=>setProjectSettingsPanelOpen(false));
     await target.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('艾尔文：')),null,{timeout:20000});
     const ass=await target.evaluate(()=>fixedAssDocument());expect(ass).toContain('Erwyn：');expect(ass).toContain('艾尔文：');expect(ass).toContain('EFCDAB');
     await target.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);expect(await target.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
@@ -172,7 +172,7 @@ test('localized speaker names follow physical languages through UI, preview, SRT
   await expect(name).toHaveValue('');await expect(name).toHaveAttribute('placeholder','Erwyn');
   await name.fill('艾尔文');await name.press('Tab');
   await page.screenshot({path:join(dir,'localized-names.png')});
-  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await page.evaluate(()=>setProjectSettingsPanelOpen(false));
   await expect(page.locator('.waveform-cue-block[data-track="main"][data-idx="0"]').first()).toHaveAttribute('title',/^Erwyn：Hello/);
   await expect(page.locator('.waveform-cue-block[data-track="extension"][data-ext-idx="0"]').first()).toHaveAttribute('title',/^艾尔文：你好/);
   await page.waitForFunction(()=>!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('艾尔文：')),null,{timeout:20000});
@@ -210,7 +210,7 @@ test('localized speaker names follow physical languages through UI, preview, SRT
 test('track presets yield to speaker colors and manual cue overrides in properties and ASS',async({page})=>{
   await settings(page);
   await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('stroke');
-  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await page.evaluate(()=>setProjectSettingsPanelOpen(false));
   await page.evaluate(()=>{
     const p=MSWE.resolve('processing-host').exportProject();
     for(const c of p.subtitles.cues)c.content.color={name:'green',start:c.content.start,end:c.content.end};
@@ -240,7 +240,7 @@ test('project speaker table extends beyond five, marks from menu and saves renam
   await expect(rows).toHaveCount(10);const ninth=rows.nth(9);
   await ninth.locator('td:nth-child(2) input').fill('九号');await ninth.locator('td:nth-child(2) input').press('Tab');
   await ninth.locator('select').selectOption('text');
-  await page.evaluate(()=>{setEditorSettingsPanelOpen(false);selectOnly(0);});await page.locator('.player-stage').click({position:{x:10,y:10}});
+  await page.evaluate(()=>{setProjectSettingsPanelOpen(false);selectOnly(0);});await page.locator('.player-stage').click({position:{x:10,y:10}});
   await page.keyboard.press('9');
   expect(await page.evaluate(()=>DATA.segments[0].color.name)).toBe('speaker-9');
   await expect(page.locator('.waveform-cue-block[data-idx="0"]').first()).toHaveAttribute('title',/^九号：Hello 世界/);
@@ -336,7 +336,7 @@ test('speaker properties inherit across tracks, preserve cue overrides, undo and
 test('speaker properties show palette defaults and report overrides without losing the base mode',async({page})=>{
   await settings(page);
   await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('stroke');
-  await page.evaluate(()=>{setEditorSettingsPanelOpen(false);selectOnly(0);MSWSubtitleStyle.open('cue');});
+  await page.evaluate(()=>{setProjectSettingsPanelOpen(false);selectOnly(0);MSWSubtitleStyle.open('cue');});
   await page.locator('#style-edit-scope').selectOption('speaker');
   await page.locator('#style-speaker-target').selectOption('green');
   await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
@@ -344,7 +344,7 @@ test('speaker properties show palette defaults and report overrides without losi
   expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].mode)).toBe('stroke');
   await settings(page);
   await expect(page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select')).toHaveValue('properties');
-  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await page.evaluate(()=>setProjectSettingsPanelOpen(false));
   await page.locator('#style-inherit-appearance').click();
   await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
   await expect(page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select')).toHaveValue('stroke');
@@ -354,7 +354,7 @@ test('speaker properties show palette defaults and report overrides without losi
   const motion=await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation);
   await settings(page);
   await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('text');
-  await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  await page.evaluate(()=>setProjectSettingsPanelOpen(false));
   await expect(page.locator('#style-field-primaryColor')).toHaveValue('#66bb6a');
   expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].style)).toBeUndefined();
   expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation)).toEqual(motion);
@@ -363,7 +363,7 @@ test('speaker properties show palette defaults and report overrides without losi
 test('speaker palette is the default preset and can restore inherited appearance without removing animation',async({page})=>{
   await settings(page);
   await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('stroke');
-  await page.evaluate(()=>{setEditorSettingsPanelOpen(false);selectOnly(0);MSWSubtitleStyle.open('cue');});
+  await page.evaluate(()=>{setProjectSettingsPanelOpen(false);selectOnly(0);MSWSubtitleStyle.open('cue');});
   await page.locator('#style-edit-scope').selectOption('speaker');
   await page.locator('#style-speaker-target').selectOption('green');
   const preset=page.locator('#style-project-preset');
@@ -396,7 +396,7 @@ test('master row, per-speaker separators, native preview, export name choice and
   expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows.map(r=>r.mode))).toEqual(Array(5).fill('speaker'));
   await page.getByRole('textbox',{name:'SP1 分隔符',exact:true}).fill(' / ');
   await page.getByRole('textbox',{name:'SP1 分隔符',exact:true}).press('Tab');
-  await page.evaluate(()=>{setEditorSettingsPanelOpen(false);selectOnly(0);assignColor([0],'yellow');seekFromWaveform(.5);});
+  await page.evaluate(()=>{setProjectSettingsPanelOpen(false);selectOnly(0);assignColor([0],'yellow');seekFromWaveform(.5);});
   await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWSubtitleRenderer.geometry.some(r=>r.text.startsWith('SP1 / ')),null,{timeout:45000});
   const result=await page.evaluate(async()=>{
     const host=MSWE.resolve('processing-host');
