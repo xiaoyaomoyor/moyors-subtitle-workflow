@@ -2,12 +2,14 @@
 
 对应六阶段方案的第 1–4 阶段。导入导出入口、分类与生效规则见 [配置管理](CONFIGURATION_MANAGEMENT.md)。公共接口为 Python `maw.user_config.UserConfig` 与浏览器 `MSWConfig.storage`；登记表 `maw/user_config.py::REGISTRY` 同时提供给启动器和编辑器，不分别维护两份浏览器键名清单。
 
+2026-11-02 的窗口拆分盘点见 [编辑器设置与项目设置：归属和分类](SETTINGS_OWNERSHIP.md)。该文补充逐字段归属、工作区与个人默认的混合写入问题及后续验收条件；当前入口尚未拆分，不能把分类方案当作已上线行为。
+
 ## 唯一保存来源
 
 | 配置／数据 | 内容及默认来源 | 保存来源 | 可迁移导出 | 生效时间 |
 | --- | --- | --- | --- | --- |
 | 编辑与播放偏好 | 切分、拼合、列表、字幕编辑器、快捷键步长、预览避让、试听、彩蛋、自动保存；`web/editor-utils.js::DEFAULT_EDITOR_SETTINGS` 与 `normalizeEditorSettings` | 公共库 `browser.moy.asr.editor.settings.v1` | 是 | 当前窗口即时；其他窗口重开后读取 |
-| 波形与默认布局 | 模式、每行时长、高度、轨道头、悬停、拖动播放头、频谱颜色、Dock 布局；`web/waveform.js::DEFAULT_SETTINGS/readSettings` | 公共库 `browser.moy.asr.waveform.settings.v1` | 是 | 同上；载入工程布局不改用户默认 |
+| 波形与默认布局 | 模式、每行时长、高度、轨道头、悬停、拖动播放头、频谱颜色、Dock 布局；`web/waveform.js::DEFAULT_SETTINGS/readSettings` | 公共库 `browser.moy.asr.waveform.settings.v1`；工程另保存工作区快照 | 是 | 当前窗口应用；工程恢复与用户默认的写入隔离仍需完善，见设置拆分盘点 S01／S02 |
 | 界面主题 | 内置主题选择、颜色、用户主题、颜色暂存；`web/editor.js` 主题定义和规范化 | 公共库 editor settings、customThemes、themeCustomColors | 是 | 当前窗口即时 |
 | 编辑器语言 | `web/editor-i18n.js::normalizeLanguage`，默认中文 | 公共库 `browser.mawe.language` | 是 | 当前窗口即时 |
 | 独立预览样式选择 | `web/msw-project-style-ui.js` 的 proof 状态，默认跟随工程 | 公共库 `browser.msw.subtitle-proof.v1` | 是，须检查预设依赖 | 下次预览；不修改工程样式 |
@@ -30,7 +32,7 @@
 | TTS 引擎与配方 | 各引擎 recipe、语速、音色引用；各 `maw/msw/*tts.py` 的 DEFAULT_RECIPE / normalize | 公共库 `defaults.tts` 保存公共参数；专用库保留账号音色、连接与参考音频 | 是，仅公共参数及配方库 | 下一次合成；本轮保持专用读写 |
 | 模型与工具环境 | ffmpeg、模型缓存、运行时／服务地址、设备、安装状态、本地 ASR 模型路径 | `.env` 环境字段、runtime manifests、TTS service settings、`msw.local-asr-options` | 默认不导出 | 工具重启或下一次运行，以模块规则为准 |
 | 凭据与账号资源 | API Key、鉴权、业务空间、账号音色、参考音频、模型连接验证 | `.env`／专用账号资源库 | 不进入普通配置文件；本轮不迁移 | 下一次连接 |
-| 媒体缓存 | mopeaks、quapeaks、ReaPeaks、代理、字体缓存 | 原缓存目录／媒体 sidecar | 否 | 可重建；第五阶段统一 |
+| 媒体缓存 | mopeaks、quapeaks、ReaPeaks、代理、字体缓存 | 原缓存目录／媒体 sidecar | 否 | 可重建；波形缓存已按既有第五阶段规则统一，不属于可迁移偏好 |
 
 第二阶段统一浏览器偏好；第三阶段增加 `defaults` 公共参数适配。原处理接口继续使用，公共参数从统一库覆盖，连接／资源仍留在专用库。旧文件保留，不作为已迁移字段的反向覆盖来源。
 
@@ -65,7 +67,7 @@
 - 旧环境文件只迁移 `ENV_KEYS` 明确列出的 GUI 偏好，不复制整个环境。旧密钥、工具路径保持原用途。以后修改这些 GUI 偏好只写公共库；手改旧 `.env` GUI 行不再覆盖已迁移值，显式进程环境变量仍可临时覆盖。
 - 原始旧文件保留。`config-migration-backups/*.mswconfig` 保存非敏感迁移输入；浏览器 `msw.config.legacy.v1` 保存登记项的迁移快照。浏览器项目草稿不进入这些快照。
 - 所有写入使用操作系统文件锁、同目录临时文件、flush/fsync 和原子替换；`.mswconfig.bak` 是上一次成功覆盖前的版本。遇到损坏或未知版本拒绝覆盖，不静默重置个人设置。
-- 客户端提交改动字段及旧值，服务器合并不同字段。同一字段冲突时拒绝整个批次，并在右上角提示；本地 `msw.config.conflict.*` 保留被拒绝的改动。刷新读取已保存值后可重新调整。配置管理提供导入前快照回退；被拒绝的窗口改动继续保留在本机恢复副本中。
+- 客户端提交改动字段及旧值，服务器合并不同字段。同一字段冲突时拒绝整个批次，并在右上角提示；本地 `msw.config.conflict.*` 保留被拒绝的改动。刷新读取已保存值后可重新调整。导入前快照作为内部保护保留，配置管理不提供公开回退按钮；被拒绝的窗口改动继续保留在本机恢复副本中。
 - 断网／服务重启时改动留在 `msw.config.pending.v1`，恢复后重试；操作 ID 防止“服务器已保存但响应丢失”造成重复应用。尚未保存时离开页面会触发浏览器离开确认。
 - 便携 HTML 没有本机服务时继续使用浏览器本地配置，不能宣称跨浏览器自动同步。第三阶段的独立配置文件用于离线搬运。
 - 其他已打开的窗口不会强行切换主题、布局或任务选项；新打开／刷新读取公共库。旧窗口只发送实际改动，同字段冲突要求刷新，避免热更新正在编辑的工程。
@@ -74,7 +76,7 @@
 
 不复制一份默认值到存储层。缺省值仍由上表对应规范化函数产生；登记表只记录归属、编码、可导出性与生效时机。新增偏好必须登记后才能经公共配置接口迁移，未知浏览器键继续走本地存储，服务端拒绝未知分类／键。修改某个默认值应同时修改原模块的 defaults/normalize 与其测试。
 
-具体浏览器键及分类见本文件下方自动盘点；编辑器和波形字段在原默认常量中逐项定义，避免文档副本与运行时默认发生漂移。
+具体浏览器键及分类见下方登记清单；编辑器和波形字段在原默认常量中逐项定义。设置拆分盘点中的逐字段默认仅为注明版本的核对快照，不作为第二份运行时默认来源。
 
 ## 浏览器登记项
 
@@ -119,6 +121,7 @@
 | `MSW_LAUNCHER_LOG_CARD_V1` | launcher | text | `browser / MSW_LAUNCHER_LOG_CARD_V1` |
 | `MSW_HOME_GROUPS_V2` | launcher | json | `browser / MSW_HOME_GROUPS_V2` |
 | `msw.subtitle-presets.v1` | subtitlePresets | json | `subtitlePresets / presets` |
+| `msw.speaker-schemes.v1` | speakerSchemes | json | `speakerSchemes` |
 | `moy.asr.ass.styles.v1` | assStyles | json | `assStyles` |
 | `MAW_GUI_LAST_MODEL` | launcher | text | `launcher / MAW_GUI_LAST_MODEL` |
 | `MAW_GUI_LAST_LANGUAGE` | launcher | text | `launcher / MAW_GUI_LAST_LANGUAGE` |
