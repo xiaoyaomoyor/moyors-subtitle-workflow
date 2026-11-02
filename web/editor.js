@@ -2890,6 +2890,7 @@ const editorSettingsFloatingPanel = createFloatingPanel({
   dragHandle: document.getElementById('editor-settings-drag-handle'),
   positionKey: EDITOR_SETTINGS_PANEL_POSITION_KEY,
   manageButton: document.getElementById('editor-settings-toggle'),
+  bindManageButton: false,
 });
 const projectSettingsModal = document.getElementById('project-settings-modal');
 const PROJECT_SETTINGS_PANEL_POSITION_KEY = 'msw.project.settings.position.v1';
@@ -2905,6 +2906,7 @@ const projectSettingsFloatingPanel = createFloatingPanel({
   dragHandle: document.getElementById('project-settings-drag-handle'),
   positionKey: PROJECT_SETTINGS_PANEL_POSITION_KEY,
   manageButton: document.getElementById('project-settings-toggle'),
+  bindManageButton: false,
 });
 function setProjectSettingsPanelOpen(open,category,target) {
   if(!open){projectSettingsFloatingPanel.close();return;}
@@ -5700,7 +5702,7 @@ function clearAllGaps() {
 
 // 可拖动非模态工具窗（移除静音空隙 / 拼合字幕共用模式）：
 // 负责显示/隐藏、工具栏按钮 active 态、标题栏拖动与位置持久化、窗口缩放回钳、Esc 关闭。
-function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, positionKey, onOpen, onClose }) {
+function createFloatingPanel({ panel, dragHandle, manageButton, bindManageButton = true, anchorButton, positionKey, onOpen, onClose }) {
   if (!panel) return { open() {}, close() {}, toggle() {}, isOpen: () => false };
   let drag = null;
 
@@ -5830,7 +5832,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
   });
   dragHandle?.addEventListener('pointerup', finishDrag);
   dragHandle?.addEventListener('pointercancel', finishDrag);
-  manageButton?.addEventListener('click', toggle);
+  if(bindManageButton)manageButton?.addEventListener('click', toggle);
   window.addEventListener('resize', () => {
     if (!isOpen()) return;
     const rect = panel.getBoundingClientRect();
@@ -23395,7 +23397,11 @@ const settingsWindowsContent=MSWSettingsWindows.assemble({
   openList: ()=>{setEditorSettingsPanelOpen(false);cueListSettingsFloatingPanel.open();},
   openAssets: ()=>{setProjectSettingsPanelOpen(false);waveformEditor.activateModuleTab('assets');},
   openGaps: ()=>{setProjectSettingsPanelOpen(false);document.getElementById('gap-remove-manage')?.click();},
-  openWorkspaces: ()=>{setEditorSettingsPanelOpen(false);document.querySelector('[data-menubar-item="window"] > button')?.click();},
+  openWorkspaces: ()=>{
+    setEditorSettingsPanelOpen(false);
+    setMenubarItemOpen(document.querySelector('[data-menubar-item="window"]'),true);
+    document.getElementById('workspace-preset-toggle')?.focus();
+  },
   describe: ()=>{
     // Overview reads the current operation view; never serialize/validate the
     // entire project just because a settings window is open during editing.

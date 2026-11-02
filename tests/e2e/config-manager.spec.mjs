@@ -61,7 +61,7 @@ test('editor import previews, isolates categories, preserves project and rolls b
     await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();
     await expect(page.locator('#config-preview-result')).toContainText('界面与编辑操作');await expect(page.locator('#config-apply')).toBeEnabled();
     expect(await page.evaluate(()=>EDITOR_SETTINGS.mediaSeekStepMs)).toBe(1000);
-    await page.locator('#config-apply').click();await expect(page.locator('#config-message')).toContainText('配置已保存');
+    await page.locator('#config-apply').click();await expect(page.locator('#config-message')).toContainText('配置已导入');
     expect(await page.evaluate(()=>JSON.stringify(DATA))).toBe(before);
     expect(await page.evaluate(()=>EDITOR_SETTINGS.mediaSeekStepMs)).toBe(1000);
     expect(await page.evaluate(()=>JSON.parse(MSWConfig.storage.getItem('moy.asr.editor.settings.v1')).mediaSeekStepMs)).toBe(2750);
@@ -92,7 +92,8 @@ test('stale previews and invalid files cannot change settings',async({page})=>{
     await upload(page,file({browser:{'mawe.language':'en'}}));await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();
     await expect(page.locator('#config-apply')).toBeEnabled();
     await page.evaluate(async()=>{MSWConfig.storage.setItem('msw.assets.columns','2');await MSWConfig.flush();});
-    await page.locator('#config-apply').click();await expect(page.locator('#config-message')).toContainText('其他窗口');
+    await page.locator('#config-apply').click();await expect(page.locator('#config-message')).toContainText('配置预览已过期');
+    await expect(page.locator('#config-apply')).toBeDisabled();
     await expect(page.locator('#config-apply')).toBeDisabled();
     await page.locator('#config-file').setInputFiles({name:'Bad.mswconfig',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(file({browser:{'moy.asr.editor.settings.v1':{password:'test-only'}}})))});
     await expect(page.locator('#config-message')).toContainText('凭据');await expect(page.locator('#config-apply')).toBeDisabled();
@@ -115,7 +116,7 @@ test('portable editor transfers browser preferences and named legacy workspace',
   await upload(page,ws,'Sample.workspace.json');await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();await expect(page.locator('#config-apply')).toBeEnabled();await page.locator('#config-apply').click();
   expect(await page.evaluate(()=>MSWConfig.snapshot.sections.server.saved_workspaces.Sample.schema)).toBe('moy.asr.editor.workspace.v1');
   await upload(page,file({browser:{'moy.asr.editor.settings.v1':{mediaSeekStepMs:3250,theme:'light'}}}));await page.locator('#config-policy').selectOption('replace');await page.locator('#config-preview').click();await page.locator('#config-apply').click();
-  await expect(page.locator('#config-message')).toContainText('配置已保存');await page.locator('#editor-settings-close').click();await page.reload();await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);
+  await expect(page.locator('#config-message')).toContainText('配置已导入');await page.locator('#editor-settings-close').click();await page.reload();await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready);
   expect(await page.evaluate(()=>EDITOR_SETTINGS.mediaSeekStepMs)).toBe(3250);await open(page);await page.setViewportSize({width:560,height:760});
   const size=await page.locator('.msw-config-manager').evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth}));expect(size.scroll).toBeLessThanOrEqual(size.width);
   await page.screenshot({path:'output/config-manager-light-small.png'});

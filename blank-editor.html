@@ -8670,7 +8670,7 @@
               <div class="color-actions-row">
                 <button type="button" id="interface-colors-reset" title="清除全部自定义颜色，恢复当前主题预设的默认">恢复主题默认颜色</button>
               </div>
-              <small class="editor-settings-hint">任一颜色都可以单独覆盖当前主题；自定义颜色即时生效并保存在本机，随「窗口 → 界面配置」导出/导入。字幕色不影响播放器画面内的预览字幕样式（那属于媒体播放器设置）。</small>
+              <small class="editor-settings-hint">界面配色随用户配置保存；在“配置管理”中导入或导出。画面内字幕外观请在属性列表调整。</small>
             </div>
           </div>
         </div>
@@ -23310,6 +23310,7 @@ export default MawDynamicCaptions;
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
     '编辑器设置': 'Editor settings', '项目设置': 'Project settings',
+    '配置管理': 'Configuration', '工作区布局': 'Workspace layout',
     '编辑说话人外观': 'Edit speaker appearance', '轨道规则': 'Track rules', '未指定': 'Unspecified',
     '轨道设置；右键进行轨道操作': 'Track settings; right-click for actions',
     '文件 → 恢复记录：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。自动备份规则在编辑器设置 → 保存与备份中调整。': 'File → Recovery: create or restore disk versions. Save a recovered copy as a new project and retain source media separately. Set automatic backups in Editor settings → Saving and backups.',
@@ -23328,7 +23329,9 @@ export default MawDynamicCaptions;
     '轨道文字切分 → 项目设置': 'Track text splitting → Project settings', '说话人预览 → 媒体播放器设置': 'Speaker preview → Media player settings',
     '调整模块的显示与播放习惯；预览样式不改变导出样式。': 'Adjust module display and playback preferences. Preview styles do not change export styles.',
     '外观、位置和动画在属性列表中调整；保留轨道、说话人及单条字幕的覆盖关系。': 'Edit appearance, position and animation in Properties. Track, speaker and cue overrides are preserved.',
-    '处理与导出默认值在各自工具中调整；应用方案后，当前工程保存自己的设置。': 'Set processing and export defaults in their tools. Applied presets are saved with the current project.',
+    '预设和方案可跨工程复用，应用后工程保存独立副本。处理与导出默认值在各自工具中调整。': 'Reuse presets across projects. Each project saves its applied copy. Set processing and export defaults in their tools.',
+    '只更新所选分类，预设与方案可立即选择。界面偏好在重新打开编辑器页面后生效，处理参数用于下次任务；当前工程和运行中的任务保持不变。': 'Only selected categories are updated. Presets are available immediately. Reopen the editor page to load interface preferences; processing defaults apply to future tasks. The current project and running tasks are unchanged.',
+    '配置已导入，预设与方案已更新。界面偏好在重新打开编辑器页面后生效；当前工程与任务保持不变。': 'Configuration imported and presets updated. Reopen the editor page to load interface preferences. The current project and tasks are unchanged.',
     '界面配色随用户配置保存；在“配置管理”中导入或导出。画面内字幕外观请在属性列表调整。': 'Interface colors are saved in user configuration. Import or export them in Configuration. Edit video subtitle appearance in Properties.',
     '仅所选字幕': 'Selected cues only', '来源已删除': 'Source deleted', '应用后：': 'After applying: ',
     '目标字幕已改变，草稿已保留': 'Target text changed; your draft is preserved.',
@@ -25606,7 +25609,7 @@ export default MawDynamicCaptions;
     '添加静音区段；': 'add a silent region; ', '添加恢复区段': 'add a restored region',
     '「边界与中键」可同时使用两种操作。': '“Boundary and middle” enables both operations.',
     '具体操作取决于': 'The exact behavior depends on',
-    '「通用操作」中的「空隙区段操作方式」，其中「边界与中键」可同时使用两套操作。': '“Gap region operation” under “General” in Global settings; “Boundary and middle” enables both operation sets.',
+    '「通用操作」中的「空隙区段操作方式」，其中「边界与中键」可同时使用两套操作。': '“Gap region operation” under “Editing” in Editor settings; “Boundary and middle” enables both operation sets.',
     '仅在拖动边界模式生效': 'Only active in Boundary drag mode',
     '仅在中键拖动模式生效': 'Only active in Middle-button drag mode',
     '点击「生成静音空隙」按当前参数扫描并替换检测结果': 'Click “Generate silence gaps” to scan with the current parameters and replace the detection results',
@@ -25693,7 +25696,7 @@ export default MawDynamicCaptions;
     '将字幕起点贴到前一条结尾': 'Snap the subtitle start to the previous end',
     '将字幕终点贴到后一条开头': 'Snap the subtitle end to the next start',
     '注：微调幅度可在': 'Note: Adjust the fine-tuning amount in',
-    '「通用操作」中调节，默认 50ms': 'under “General” in Global settings; the default is 50 ms',
+    '「通用操作」中调节，默认 50ms': 'under “Editing” in Editor settings; the default is 50 ms',
     '其他': 'Other',
     '字幕编辑使用的时间单位；切换为帧后，拖动、方向键和 A/D 微调都按帧执行': 'Time unit used for subtitle editing; after switching to frames, dragging, arrow keys, and A/D fine-tuning operate frame by frame',
     '帧时间基准的帧率；帧模式会按此 FPS 保存并显示帧时间码': 'Frame rate for the frame timebase; frame mode saves and displays frame timecodes at this FPS',
@@ -36653,9 +36656,9 @@ document.addEventListener('DOMContentLoaded',()=>{new ResizeObserver(()=>{if(fix
     for(const [id,label,action] of [['media','媒体播放器',host.openPlayer],['wave','波形显示器',host.openWave],['cue','字幕编辑器',host.openCue],['list','字幕列表',host.openList]])link(displayTools,label+'设置',action,'settings-open-'+id);
     const previewHint=text(document.createElement('p'),'调整模块的显示与播放习惯；预览样式不改变导出样式。');previewHint.className='editor-settings-hint';displayTools.append(previewHint);
     const schemes=group(defaults,'方案与工具默认值');schemes.classList.add('settings-shortcuts');
-    link(schemes,'字幕样式预设',()=>host.openProperties());link(schemes,'说话人方案',()=>host.openProject('subtitle-speakers'));
-    link(schemes,'工作区',()=>host.openWorkspaces());
-    const note=text(document.createElement('p'),'处理与导出默认值在各自工具中调整；应用方案后，当前工程保存自己的设置。');note.className='editor-settings-hint';schemes.append(note);
+    link(schemes,'字幕样式预设',()=>host.openProperties(),'settings-open-style-presets');link(schemes,'说话人方案',()=>host.openProject('subtitle-speakers'),'settings-open-speaker-schemes');
+    link(schemes,'工作区布局',()=>host.openWorkspaces(),'settings-open-workspaces');
+    const note=text(document.createElement('p'),'预设和方案可跨工程复用，应用后工程保存独立副本。处理与导出默认值在各自工具中调整。');note.className='editor-settings-hint';schemes.append(note);
     // History actions belong to the existing recovery tool, not backup policy.
     const history=document.createElement('div');history.className='msw-processing-actions';history.id='project-history-actions';
     for(const id of ['project-version-create','project-version-directory','project-version-list'])if($(id))history.append($(id));
@@ -36663,8 +36666,6 @@ document.addEventListener('DOMContentLoaded',()=>{new ResizeObserver(()=>{if(fix
     const historyStatus=document.createElement('p');historyStatus.id='project-version-operation-status';historyStatus.className='msw-save-note';historyStatus.setAttribute('role','status');history.after(historyStatus);
     editor.replaceChildren(appearance,editing,display,save,environment,defaults,current('configuration'),current('ninja'));
     const obsolete=editing.querySelector('.split-language-type-field');if(obsolete)obsolete.hidden=true;
-    const appearanceHints=appearance.querySelectorAll('.editor-settings-hint');
-    for(const hint of appearanceHints)if(hint.textContent.includes('窗口 → 界面配置'))hint.textContent='界面配色随用户配置保存；在“配置管理”中导入或导出。画面内字幕外观请在属性列表调整。';
     let summaryKey='';
     function focusTarget({trackId,speakerId}={}){
       if(trackId){
@@ -39649,6 +39650,7 @@ const editorSettingsFloatingPanel = createFloatingPanel({
   dragHandle: document.getElementById('editor-settings-drag-handle'),
   positionKey: EDITOR_SETTINGS_PANEL_POSITION_KEY,
   manageButton: document.getElementById('editor-settings-toggle'),
+  bindManageButton: false,
 });
 const projectSettingsModal = document.getElementById('project-settings-modal');
 const PROJECT_SETTINGS_PANEL_POSITION_KEY = 'msw.project.settings.position.v1';
@@ -39664,6 +39666,7 @@ const projectSettingsFloatingPanel = createFloatingPanel({
   dragHandle: document.getElementById('project-settings-drag-handle'),
   positionKey: PROJECT_SETTINGS_PANEL_POSITION_KEY,
   manageButton: document.getElementById('project-settings-toggle'),
+  bindManageButton: false,
 });
 function setProjectSettingsPanelOpen(open,category,target) {
   if(!open){projectSettingsFloatingPanel.close();return;}
@@ -42459,7 +42462,7 @@ function clearAllGaps() {
 
 // 可拖动非模态工具窗（移除静音空隙 / 拼合字幕共用模式）：
 // 负责显示/隐藏、工具栏按钮 active 态、标题栏拖动与位置持久化、窗口缩放回钳、Esc 关闭。
-function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, positionKey, onOpen, onClose }) {
+function createFloatingPanel({ panel, dragHandle, manageButton, bindManageButton = true, anchorButton, positionKey, onOpen, onClose }) {
   if (!panel) return { open() {}, close() {}, toggle() {}, isOpen: () => false };
   let drag = null;
 
@@ -42589,7 +42592,7 @@ function createFloatingPanel({ panel, dragHandle, manageButton, anchorButton, po
   });
   dragHandle?.addEventListener('pointerup', finishDrag);
   dragHandle?.addEventListener('pointercancel', finishDrag);
-  manageButton?.addEventListener('click', toggle);
+  if(bindManageButton)manageButton?.addEventListener('click', toggle);
   window.addEventListener('resize', () => {
     if (!isOpen()) return;
     const rect = panel.getBoundingClientRect();
@@ -60154,7 +60157,11 @@ const settingsWindowsContent=MSWSettingsWindows.assemble({
   openList: ()=>{setEditorSettingsPanelOpen(false);cueListSettingsFloatingPanel.open();},
   openAssets: ()=>{setProjectSettingsPanelOpen(false);waveformEditor.activateModuleTab('assets');},
   openGaps: ()=>{setProjectSettingsPanelOpen(false);document.getElementById('gap-remove-manage')?.click();},
-  openWorkspaces: ()=>{setEditorSettingsPanelOpen(false);document.querySelector('[data-menubar-item="window"] > button')?.click();},
+  openWorkspaces: ()=>{
+    setEditorSettingsPanelOpen(false);
+    setMenubarItemOpen(document.querySelector('[data-menubar-item="window"]'),true);
+    document.getElementById('workspace-preset-toggle')?.focus();
+  },
   describe: ()=>{
     // Overview reads the current operation view; never serialize/validate the
     // entire project just because a settings window is open during editing.
@@ -68550,6 +68557,15 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     finally {if(generation===host.generation)panel.inert=false;}
   }
   $('style-retry').onclick=()=>void initialize();
+  // Importing a preset library updates choices, not the project's applied
+  // snapshots. Do not run project migration or reset the current edit target.
+  global.addEventListener('msw:config-adopted',()=>{
+    const next=JSON.parse(global.MSWConfig.storage.getItem('msw.subtitle-presets.v1')||'[]')
+      .filter(s=>!/^legacy-(profile|style|srt-burn)/.test(s.id||''));
+    if(JSON.stringify(library)===JSON.stringify(next))return;
+    library=next;cancelAction();
+    if(ready){rebuild();sync();syncExport();}
+  });
   global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';editScope='cue';speakerId='';fixedPositionScope='cue';lastSelectionKey='';lastCueSelection='';positionDrafts.clear();void initialize();});
   global.addEventListener('msw:speakers-changed',()=>{if(ready){rebuild();sync();refresh();}});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
@@ -70483,7 +70499,7 @@ document.addEventListener('keydown', (event) => {
       <p><strong>工程文件（.mosp）：</strong>保存字幕、时间、轨道与绑定、工程样式和说话人、音频贴片与空隙、工程布局及上次保存的播放位置。媒体仅保存引用，原视频、音频及素材文件需一并保留。</p>
       <p><strong>配置文件（.mswconfig）：</strong>仅导出勾选分类的个人设置，如主题、布局、编辑与播放偏好、样式预设、说话人方案、识别／翻译／配音参数和工程备份规则；不包含工程字幕和媒体。说话人方案需在工程中确认对应后应用，不自动替换现有说话人。</p>
       <p><strong>不导出：</strong>密钥、账号与私人音色、文件路径、最近工程、任务记录、备份文件和波形缓存。</p>
-      <p><strong>导入后：</strong>只更新所选分类，不改动当前工程或运行中的任务；界面设置重开窗口后生效，处理参数用于下一次任务。</p></details></div>
+      <p><strong>导入后：</strong>只更新所选分类，预设与方案可立即选择。界面偏好在重新打开编辑器页面后生效，处理参数用于下次任务；当前工程和运行中的任务保持不变。</p></details></div>
       <footer><button id="config-export" type="button">导出 .mswconfig</button><button id="config-preview" type="button" hidden>预览变更</button><button id="config-apply" type="button" hidden disabled>确认应用</button></footer>`;
     (embeddedHost||document.body).append(dialog);
     if(!embeddedHost){$('close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
@@ -70512,8 +70528,10 @@ document.addEventListener('keydown', (event) => {
     });
     $('apply').onclick=()=>run(async()=>{
       if(!preview)return;
-      const result=await request({...preview.payload,revision:preview.result.revision,token:preview.result.token,action:'import'});
-      invalidate();message(result.changed?'配置已保存。请重开窗口使用新的界面设置；当前工程与任务保持不变。':'配置相同，无需更改。');
+      let result;
+      try{result=await request({...preview.payload,revision:preview.result.revision,token:preview.result.token,action:'import'});}
+      catch(error){if(error.message.includes('配置预览已过期'))invalidate();throw error;}
+      invalidate();message(result.changed?'配置已导入，预设与方案已更新。界面偏好在重新打开编辑器页面后生效；当前工程与任务保持不变。':'配置相同，无需更改。');
     });
   }
   async function initialize(){

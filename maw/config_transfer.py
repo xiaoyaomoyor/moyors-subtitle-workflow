@@ -259,7 +259,7 @@ def commit(store, raw, payload, *, label='导入前'):
         before = store.read()
         after_sections, preview = prepare(before, raw, payload.get('categories'), payload.get('policy'))
         if payload.get('revision') != preview['revision'] or payload.get('token') != preview['token']:
-            raise ConfigConflict([['配置预览已过期，请重新预览']])
+            raise ConfigConflict([['配置预览已过期，请重新预览']], '配置预览已过期，请重新预览；文件和所选分类已保留')
         if preview['errors']:
             raise ValueError('；'.join(preview['errors']))
         if not preview['changed']:

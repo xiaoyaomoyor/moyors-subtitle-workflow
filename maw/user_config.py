@@ -195,9 +195,9 @@ def _atomic(path, value):
 
 
 class ConfigConflict(ValueError):
-    def __init__(self, paths):
+    def __init__(self, paths, message='配置已在其他窗口更新；本窗口改动已保留，请刷新后重试'):
         self.paths = paths
-        super().__init__('配置已在其他窗口更新；本窗口改动已保留，请刷新后重试')
+        super().__init__(message)
 
 
 class UserConfig:

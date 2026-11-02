@@ -53,9 +53,9 @@
     for(const [id,label,action] of [['media','媒体播放器',host.openPlayer],['wave','波形显示器',host.openWave],['cue','字幕编辑器',host.openCue],['list','字幕列表',host.openList]])link(displayTools,label+'设置',action,'settings-open-'+id);
     const previewHint=text(document.createElement('p'),'调整模块的显示与播放习惯；预览样式不改变导出样式。');previewHint.className='editor-settings-hint';displayTools.append(previewHint);
     const schemes=group(defaults,'方案与工具默认值');schemes.classList.add('settings-shortcuts');
-    link(schemes,'字幕样式预设',()=>host.openProperties());link(schemes,'说话人方案',()=>host.openProject('subtitle-speakers'));
-    link(schemes,'工作区',()=>host.openWorkspaces());
-    const note=text(document.createElement('p'),'处理与导出默认值在各自工具中调整；应用方案后，当前工程保存自己的设置。');note.className='editor-settings-hint';schemes.append(note);
+    link(schemes,'字幕样式预设',()=>host.openProperties(),'settings-open-style-presets');link(schemes,'说话人方案',()=>host.openProject('subtitle-speakers'),'settings-open-speaker-schemes');
+    link(schemes,'工作区布局',()=>host.openWorkspaces(),'settings-open-workspaces');
+    const note=text(document.createElement('p'),'预设和方案可跨工程复用，应用后工程保存独立副本。处理与导出默认值在各自工具中调整。');note.className='editor-settings-hint';schemes.append(note);
     // History actions belong to the existing recovery tool, not backup policy.
     const history=document.createElement('div');history.className='msw-processing-actions';history.id='project-history-actions';
     for(const id of ['project-version-create','project-version-directory','project-version-list'])if($(id))history.append($(id));
@@ -63,8 +63,6 @@
     const historyStatus=document.createElement('p');historyStatus.id='project-version-operation-status';historyStatus.className='msw-save-note';historyStatus.setAttribute('role','status');history.after(historyStatus);
     editor.replaceChildren(appearance,editing,display,save,environment,defaults,current('configuration'),current('ninja'));
     const obsolete=editing.querySelector('.split-language-type-field');if(obsolete)obsolete.hidden=true;
-    const appearanceHints=appearance.querySelectorAll('.editor-settings-hint');
-    for(const hint of appearanceHints)if(hint.textContent.includes('窗口 → 界面配置'))hint.textContent='界面配色随用户配置保存；在“配置管理”中导入或导出。画面内字幕外观请在属性列表调整。';
     let summaryKey='';
     function focusTarget({trackId,speakerId}={}){
       if(trackId){

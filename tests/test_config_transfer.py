@@ -41,7 +41,7 @@ class TransferTests(unittest.TestCase):
         preview = self.store.request(dict(action='preview', **req))
         self.assertEqual(before, self.store.path.read_bytes())
         self.store.update(['launcher', 'MAW_GUI_THEME'], 'light')
-        with self.assertRaises(ConfigConflict):
+        with self.assertRaisesRegex(ConfigConflict, '配置预览已过期，请重新预览'):
             self.store.request(dict(action='import', **req, token=preview['token'], revision=preview['revision']))
         self.assertEqual(self.store.read()['sections']['browser']['mawe.language'], 'zh')
 

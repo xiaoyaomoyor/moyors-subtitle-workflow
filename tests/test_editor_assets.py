@@ -66,6 +66,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "msw-subtitle-tracks-editor.js",
                 "msw-subtitle-layers-editor.js",
                 "msw-track-preview.js",
+                "msw-settings-windows.js",
                 "editor.js",
                 "msw-media.js",
                 "msw-media-analysis.js",
@@ -284,8 +285,9 @@ class EditorAssetContractTests(unittest.TestCase):
         self.assertIn("stickerOtioExportMode.value = available", script)
         self.assertIn("? EDITOR_SETTINGS.stickerOtioExportMode", script)
         self.assertIn(": 'original'", script)
-        self.assertIn("stickerOtioExportMode: 'original'", script)
-        self.assertIn("saved.stickerOtioExportMode === 'portable' ? 'portable' : 'original'", script)
+        settings = (ROOT / "web" / "editor-utils.js").read_text(encoding="utf-8")
+        self.assertIn("stickerOtioExportMode: 'original'", settings)
+        self.assertIn("savedSettings.stickerOtioExportMode === 'portable' ? 'portable' : 'original'", settings)
         self.assertIn("updateEditorSettings({ stickerOtioExportMode: stickerOtioExportMode.value })", script)
         # 便携导出能力只在服务器渲染绑定工程时开启；浏览器句柄工程不被服务器
         # 跟踪，解除保存时必须一并关闭，避免把导出写到服务器旧工程目录。

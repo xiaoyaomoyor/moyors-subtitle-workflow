@@ -20,7 +20,7 @@
 
 ## 扩展与开发
 
-- [编辑器设置与项目设置归属](SETTINGS_OWNERSHIP.md)：设置窗口拆分的阶段 1 盘点、逐字段清单与迁移边界；当前入口尚未改变。
+- [编辑器设置与项目设置](SETTINGS_OWNERSHIP.md)：两个窗口的入口、保存归属、预设应用和配置导入生效规则；附六阶段实施记录与逐字段清单。
 - [配置存储清单](CONFIGURATION_INVENTORY.md)、[配置导入与导出](CONFIGURATION_MANAGEMENT.md)。
 - [字幕轨道重设计](PLAN_SUBTITLE_TRACKS_20261009.md)：阶段 1–5 已实施；固定轨道默认启用，旧工程保留排布，首次保存升级前备份。
 - [固定轨道处理与输出验收](TEST_FEEDBACK_SUBTITLE_TRACK_FLOW_20261009.md)：识别／翻译／配音、组合预设、保存备份、SRT／ASS 和真实视频烧录。

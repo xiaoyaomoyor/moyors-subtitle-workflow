@@ -826,6 +826,15 @@
     finally {if(generation===host.generation)panel.inert=false;}
   }
   $('style-retry').onclick=()=>void initialize();
+  // Importing a preset library updates choices, not the project's applied
+  // snapshots. Do not run project migration or reset the current edit target.
+  global.addEventListener('msw:config-adopted',()=>{
+    const next=JSON.parse(global.MSWConfig.storage.getItem('msw.subtitle-presets.v1')||'[]')
+      .filter(s=>!/^legacy-(profile|style|srt-burn)/.test(s.id||''));
+    if(JSON.stringify(library)===JSON.stringify(next))return;
+    library=next;cancelAction();
+    if(ready){rebuild();sync();syncExport();}
+  });
   global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';editScope='cue';speakerId='';fixedPositionScope='cue';lastSelectionKey='';lastCueSelection='';positionDrafts.clear();void initialize();});
   global.addEventListener('msw:speakers-changed',()=>{if(ready){rebuild();sync();refresh();}});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});

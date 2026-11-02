@@ -182,7 +182,7 @@
       <p><strong>工程文件（.mosp）：</strong>保存字幕、时间、轨道与绑定、工程样式和说话人、音频贴片与空隙、工程布局及上次保存的播放位置。媒体仅保存引用，原视频、音频及素材文件需一并保留。</p>
       <p><strong>配置文件（.mswconfig）：</strong>仅导出勾选分类的个人设置，如主题、布局、编辑与播放偏好、样式预设、说话人方案、识别／翻译／配音参数和工程备份规则；不包含工程字幕和媒体。说话人方案需在工程中确认对应后应用，不自动替换现有说话人。</p>
       <p><strong>不导出：</strong>密钥、账号与私人音色、文件路径、最近工程、任务记录、备份文件和波形缓存。</p>
-      <p><strong>导入后：</strong>只更新所选分类，不改动当前工程或运行中的任务；界面设置重开窗口后生效，处理参数用于下一次任务。</p></details></div>
+      <p><strong>导入后：</strong>只更新所选分类，预设与方案可立即选择。界面偏好在重新打开编辑器页面后生效，处理参数用于下次任务；当前工程和运行中的任务保持不变。</p></details></div>
       <footer><button id="config-export" type="button">导出 .mswconfig</button><button id="config-preview" type="button" hidden>预览变更</button><button id="config-apply" type="button" hidden disabled>确认应用</button></footer>`;
     (embeddedHost||document.body).append(dialog);
     if(!embeddedHost){$('close').onclick=()=>{if(!busy)dialog.close();};dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
@@ -211,8 +211,10 @@
     });
     $('apply').onclick=()=>run(async()=>{
       if(!preview)return;
-      const result=await request({...preview.payload,revision:preview.result.revision,token:preview.result.token,action:'import'});
-      invalidate();message(result.changed?'配置已保存。请重开窗口使用新的界面设置；当前工程与任务保持不变。':'配置相同，无需更改。');
+      let result;
+      try{result=await request({...preview.payload,revision:preview.result.revision,token:preview.result.token,action:'import'});}
+      catch(error){if(error.message.includes('配置预览已过期'))invalidate();throw error;}
+      invalidate();message(result.changed?'配置已导入，预设与方案已更新。界面偏好在重新打开编辑器页面后生效；当前工程与任务保持不变。':'配置相同，无需更改。');
     });
   }
   async function initialize(){
