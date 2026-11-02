@@ -410,7 +410,7 @@ test('master row, per-speaker separators, native preview, export name choice and
   await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.segments[0].color)).toBeFalsy();
 });
 
-test('multi-track marking changes only selected identities, respects locking and undoes once',async({page})=>{
+test('multi-track marking updates established followers, respects locking and undoes once',async({page})=>{
   const state=await page.evaluate(()=>{
     const F=MSWFlatSubtitles;let p=MSWE.resolve('processing-host').exportProject();
     const [a,b]=p.subtitles.cues;
@@ -427,7 +427,7 @@ test('multi-track marking changes only selected identities, respects locking and
     assignColor(indices,'yellow');
     return {a:a.id,b:b.id,colors,undone,locked:DATA.segments.map(c=>MULTI_SUBTITLE_UTILS.effectiveColorName(c,DATA.segments))};
   });
-  expect(state.colors).toEqual({[state.a]:'blue',[state.b]:'red','extra-cue':'blue'});
+  expect(state.colors).toEqual({[state.a]:'blue',[state.b]:'blue','extra-cue':'blue'});
   expect(state.undone).toEqual(state.locked);expect(state.undone.filter(Boolean)).toEqual(['red','red']);
 });
 

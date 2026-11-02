@@ -3107,6 +3107,7 @@
     splitTrimSymbols: [...DEFAULT_SPLIT_TRIM_SYMBOLS],
     overlayEnabled: true, extensionOverlayEnabled: true, assMode: false, multiSubtitleRowHeight: 168, flatTrackSettingsMigrated: false,
     subtitleColorPaletteEnabled: false,
+    speakerAutoFollow: false,
     exportStartAtZero: false, cueListShowIndex: true, cueListShowTime: true,
     cueListShowSticker: true, cueListShowCharcount: true, cueListFollowPlayback: true,
     cueListPairLayout: 'columns',
@@ -3176,6 +3177,7 @@
       assMode: savedSettings.assMode === true,
       // 自定义五色开关：关闭时一律使用内置色值（自定义值保留以便再次开启）。
       subtitleColorPaletteEnabled: savedSettings.subtitleColorPaletteEnabled === true,
+      speakerAutoFollow: savedSettings.speakerAutoFollow === true,
       multiSubtitleRowHeight: EDITOR_SETTING_ROW_HEIGHTS.includes(Number(savedSettings.multiSubtitleRowHeight))
         ? Number(savedSettings.multiSubtitleRowHeight) : 168,
       flatTrackSettingsMigrated: savedSettings.flatTrackSettingsMigrated === true,

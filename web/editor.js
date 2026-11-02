@@ -1102,6 +1102,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   ttsDraftClearOnSuccess: true, ttsDraftSplitLines: true, ttsDraftSplitMode: 'off',
   ttsDraftSplitPunctuation: '。！？!?；;', ttsDraftSplitLimit: 100,
   selectGroupMembers: false,
+  speakerAutoFollow: false,
   // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
   mergeJoinText: '',
   // 拼合字幕：相邻间隔不超过该毫秒值时延长字幕时长并拼合（0 表示不处理间隔）。
@@ -2427,6 +2428,7 @@ const cueEditorShowTimeActionsToggle = document.getElementById('cue-editor-show-
 const cueEditorShowStickerToggle = document.getElementById('cue-editor-show-sticker');
 const cueEditorCancelOnEscapeToggle = document.getElementById('cue-editor-cancel-on-escape');
 const selectGroupMembersToggle = document.getElementById('select-group-members');
+const speakerAutoFollowToggle = document.getElementById('speaker-auto-follow');
 const ninjaModeToggle = document.getElementById('ninja-mode');
 const ninjaSoundToggle = document.getElementById('ninja-sound');
 const ninjaSoundField = document.getElementById('ninja-sound-field');
@@ -3671,6 +3673,7 @@ function setEditorSettingsPanelOpen(open) {
     return;
   }
   editorSettingsFloatingPanel.open();
+  if(speakerAutoFollowToggle)speakerAutoFollowToggle.checked=EDITOR_SETTINGS.speakerAutoFollow===true;
   editorSettingsToggle?.classList.add('active');
   editorSettingsToggle?.setAttribute('aria-expanded', 'true');
   resetEditorSettingsSearch();
@@ -4104,6 +4107,7 @@ overlayToggle.checked = EDITOR_SETTINGS.overlayEnabled;
 if (extensionOverlayToggle) extensionOverlayToggle.checked = false;
 exportStartAtZeroToggle.checked = EDITOR_SETTINGS.exportStartAtZero;
 if (selectGroupMembersToggle) selectGroupMembersToggle.checked = EDITOR_SETTINGS.selectGroupMembers;
+if (speakerAutoFollowToggle) speakerAutoFollowToggle.checked = EDITOR_SETTINGS.speakerAutoFollow === true;
 if (exportColorUnifiedToggle) exportColorUnifiedToggle.checked = EDITOR_SETTINGS.exportColorUnified;
 if (autoSaveProjectToggle) autoSaveProjectToggle.checked = EDITOR_SETTINGS.autoSaveProject;
 if (autoSaveIntervalInput) autoSaveIntervalInput.value = String(EDITOR_SETTINGS.autoSaveIntervalSeconds);
@@ -4744,6 +4748,9 @@ exportStartAtZeroToggle?.addEventListener('change', () => {
 });
 selectGroupMembersToggle?.addEventListener('change', () => {
   updateEditorSettings({ selectGroupMembers: selectGroupMembersToggle.checked });
+});
+speakerAutoFollowToggle?.addEventListener('change', () => {
+  updateEditorSettings({ speakerAutoFollow: speakerAutoFollowToggle.checked });
 });
 exportColorUnifiedToggle?.addEventListener('change', () => {
   updateEditorSettings({ exportColorUnified: exportColorUnifiedToggle.checked });
@@ -6979,8 +6986,8 @@ function reindexCueRow(row,main,extension,track,mainIndex,extIndex) {
       else if(label.textContent!==text)label.textContent=text;
       const indexLabel=node.querySelector('.index');if(indexLabel.title!==text)indexLabel.title=text;
     }
-    // Unchanged colors need no repaint; index-based references do.
-    if(cue.color_ref)updateCueColorPresentation(node,node.querySelector('.color-bar'),cue);
+    // Unchanged direct colors need no repaint; live and canonical references do.
+    if(speakerColorReference(cue))updateCueColorPresentation(node,node.querySelector('.color-bar'),cue);
     if(cue.sticker||cue.sticker_ref)updateCueStickerPresentation(node,node.querySelector('.sticker-slot'),cue,index,{extensionTrack:kind==='extension'?track:null});
   }
   row.classList.remove('selected');
@@ -7530,6 +7537,11 @@ cuePanelSticker?.addEventListener('contextmenu', (event) => {
 });
 cuePanelSplit?.addEventListener('click', splitCuePanelAtCursor);
 
+function speakerColorReference(segment) {
+  // Cross-display references are materialized by the live adapter, but remain
+  // references in the saved project. Do not present them as independent marks.
+  return segment?.color_ref || DATA.subtitle_tracks?.flat_context?.markers?.[segment?.id]?.color?.ref || null;
+}
 function updateCueColorPresentation(el, colorBar, seg) {
   if (!el || !colorBar || !seg) return;
 
@@ -7540,16 +7552,26 @@ function updateCueColorPresentation(el, colorBar, seg) {
       if (!colorBar.classList.contains('is-ref')) return;
       event.stopPropagation();
       const row = colorBar.closest('.multi-cue-column, .cue');
-      const headIndex = Number(colorBar.dataset.colorRefHeadIdx);
+      let headIndex = Number(colorBar.dataset.colorRefHeadIdx);
+      let isExtension = row?.dataset.extIdx != null && row?.dataset.idx == null;
+      let extensionTrack = getActiveExtensionTrack();
+      const headId = colorBar.dataset.colorRefCueId;
+      if (headId) {
+        headIndex = DATA.segments.findIndex(c => c.id === headId);
+        isExtension = headIndex < 0;
+        if (isExtension) {
+          extensionTrack = getMultiSubtitleState().tracks.find(t => t.segments.some(c => c.id === headId));
+          headIndex = extensionTrack?.segments.findIndex(c => c.id === headId) ?? -1;
+        }
+      }
       if (!Number.isInteger(headIndex) || headIndex < 0) return;
-      const isExtension = row?.dataset.extIdx != null && row?.dataset.idx == null;
-      const head = container.querySelector(
-        isExtension ? `.cue[data-ext-idx="${headIndex}"]` : `.cue[data-idx="${headIndex}"]`,
-      );
-      if (!head) return;
-      scrollCueToCenter(head);
-      if (isExtension) selectOnlyExtension(headIndex);
+      if (isExtension) selectOnlyExtension(headIndex, extensionTrack);
       else selectOnly(headIndex);
+      const head = container.querySelector(
+        isExtension ? `.cue[data-ext-idx="${headIndex}"], .multi-cue-column[data-ext-idx="${headIndex}"]`
+          : `.cue[data-idx="${headIndex}"], .multi-cue-column[data-main-idx="${headIndex}"]`,
+      );
+      if (head) scrollCueToCenter(head);
     });
     colorBar.dataset.colorRefHandlerBound = 'true';
   }
@@ -7559,28 +7581,31 @@ function updateCueColorPresentation(el, colorBar, seg) {
   colorBar.style.removeProperty('cursor');
   colorBar.removeAttribute('title');
   delete colorBar.dataset.colorRefHeadIdx;
+  delete colorBar.dataset.colorRefCueId;
   el.classList.remove('has-color');
   el.style.removeProperty('--color-bar');
 
-  if (seg.color) {
+  const ref = speakerColorReference(seg);
+  if (seg.color && !ref) {
     const value = COLOR_BY_NAME[seg.color.name] ? colorValue(seg.color.name) : seg.color.value || '#777';
     colorBar.classList.add('has-color');
     colorBar.style.setProperty('--color-bar', value);
     el.classList.add('has-color');
     el.style.setProperty('--color-bar', value);
-    colorBar.title = `颜色：${seg.color.name}`;
-  } else if (seg.color_ref) {
-    const headIndex = Number(seg.color_ref.headIdx);
+    colorBar.title = `说话人：${COLOR_BY_NAME[seg.color.name]?.label || seg.color.name}（独立标记）`;
+  } else if (ref) {
+    const headIndex = Number(ref.headIdx);
     const isExtension = el.dataset.extIdx != null && el.dataset.idx == null && el.dataset.mainIdx == null;
     const segments = isExtension ? getActiveExtensionTrack()?.segments : DATA.segments;
-    const colorName = segments?.[headIndex]?.color?.name || seg.color_ref.name;
-    const value = COLOR_BY_NAME[colorName]?.value || segments?.[headIndex]?.color?.value || '#777';
+    const colorName = seg.color?.name || segments?.[headIndex]?.color?.name || ref.name;
+    const value = COLOR_BY_NAME[colorName]?.value || seg.color?.value || segments?.[headIndex]?.color?.value || '#777';
     colorBar.classList.add('is-ref');
     colorBar.style.setProperty('--color-bar', value);
     colorBar.dataset.colorRefHeadIdx = String(headIndex);
+    if (ref.cue_id) colorBar.dataset.colorRefCueId = ref.cue_id;
     el.classList.add('has-color');
     el.style.setProperty('--color-bar', value);
-    colorBar.title = `↑ 属于第 ${headIndex + 1} 条的颜色${colorName ? `（${colorName}）` : ''}`;
+    colorBar.title = `跟随说话人：${COLOR_BY_NAME[colorName]?.label || colorName || ''}（点击定位来源）`;
     colorBar.style.cursor = 'pointer';
   }
 }
@@ -15751,6 +15776,7 @@ function speakerCueLanguage(cue,role='main',trackId=null) {
 }
 document.getElementById('speaker-name-language').onchange=event=>{speakerNameLanguage=event.target.value;syncSpeakerControls();};
 function syncSpeakerControls() {
+  if(speakerAutoFollowToggle)speakerAutoFollowToggle.checked=EDITOR_SETTINGS.speakerAutoFollow===true;
   const palette=window.MSWSpeaker.ensure(DATA),body=document.getElementById('speaker-palette-rows');
   if(!body)return;
   const choices=window.MSWSpeaker.languageOptions(DATA),picker=document.getElementById('speaker-name-language');
@@ -20383,48 +20409,16 @@ function expandStickerTime(idxs) {
 }
 
 // === 标记颜色 ===
-// 数据结构与表情包同构：head 持完整 color，后续条持 color_ref（仅 name + headIdx）
-// 单选 → 设为 head；多选 → 第一条为 head，时间跨整个范围，后续为 ref
-function colorGroupHeadIndex(idx) {
-  const segment = DATA.segments[idx];
-  if (!segment) return -1;
-
-  const refHeadIdx = Number(segment.color_ref?.headIdx);
-  if (segment.color_ref
-      && Number.isInteger(refHeadIdx)
-      && refHeadIdx >= 0
-      && refHeadIdx < DATA.segments.length
-      && refHeadIdx !== idx
-      && DATA.segments[refHeadIdx]?.color) {
-    return refHeadIdx;
-  }
-
-  if (!segment.color) return -1;
-  return DATA.segments.some((candidate, candidateIdx) => (
-    candidateIdx !== idx
-    && candidate?.color_ref
-    && Number(candidate.color_ref.headIdx) === idx
-  )) ? idx : -1;
-}
-
-function detachColorFromGroup(idx) {
-  const segment = DATA.segments[idx];
-  const headIdx = colorGroupHeadIndex(idx);
-  const groupColor = headIdx >= 0 ? DATA.segments[headIdx]?.color : null;
-  if (!segment || !groupColor) return false;
-
-  // 先复制颜色；拆分组时原 head 的时间范围可能会被收缩。
-  const detachedColor = {
-    ...groupColor,
-    start: segment.start,
-    end: segment.end,
-  };
-  pushUndo('从颜色组中脱离');
-  splitGroupsAtCutPoints(new Set([idx]), 'color', 'color_ref');
-  segment.color = detachedColor;
-  segment.color_ref = null;
-  refreshColorAssignmentUi();
-  return true;
+// Canonical references use stable cue IDs. headIdx exists only in the live view.
+function independentSpeakerMarks(indices, track = null) {
+  if (productionFlatMode()) return assignLinkedSpeakerColor(indices, null, track, {independent:true});
+  const rows=track?.segments||DATA.segments, targets=[...new Set(indices)].filter(i=>rows[i]?.color_ref);
+  if(!targets.length||!fixedCanEdit(targets.map(i=>rows[i]),track?'extension':'main',track?.id))return;
+  pushUndo('独立标记');
+  for(const i of targets){const row=rows[i],color=rows[row.color_ref.headIdx]?.color;
+    if(color){row.color={...color,start:row.start,end:row.end};delete row.color_ref;}}
+  if(track)markMultiSubtitleDirty();
+  refreshColorAssignmentUi();scheduleAutoSaveFlush();
 }
 
 function snapshotCueMarkers(changes,label) {
@@ -20449,7 +20443,7 @@ function finishCueMarkerChange(changes) {
   fixedPreviewInvalidate();projectImportDirty=true;updateUndoRedoButtons();
   refreshColorAssignmentUi(new Set(changes.map(c=>c.id)));scheduleAutoSaveFlush();
 }
-function assignLinkedSpeakerColor(indices, name, track = null) {
+function assignLinkedSpeakerColor(indices, name, track = null, { independent = false } = {}) {
   if(name&&!COLOR_BY_NAME[name])return;
   const segments=track?.segments||DATA.segments,role=track?'extension':'main';
   const ids=[...new Set(indices)].filter(i=>segments[i]).map(i=>fixedRef(segments[i],role,track?.id).cue_id);
@@ -20457,7 +20451,9 @@ function assignLinkedSpeakerColor(indices, name, track = null) {
   try {
     if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
     commitProcessingEdits();
-    const before=window.MSWProductionProject.toProject(window.AsrEditorUtils.stripInlineCaches(DATA)),next=window.MSWFlatEditing.setColor(before,ids,name);
+    const before=window.MSWProductionProject.toProject(window.AsrEditorUtils.stripInlineCaches(DATA));
+    const next=independent?window.MSWFlatEditing.independentColor(before,ids)
+      :window.MSWFlatEditing.setColor(before,ids,name,{follow:EDITOR_SETTINGS.speakerAutoFollow===true});
     const oldById=new Map(before.subtitles.cues.map(c=>[c.id,c.content]));
     const nextById=new Map(next.subtitles.cues.map(c=>[c.id,c.content]));
     const live=new Map();
@@ -20471,7 +20467,7 @@ function assignLinkedSpeakerColor(indices, name, track = null) {
     // The canonical transaction has validated bindings and locks. Apply its
     // marker changes in place: no cue replacement, selection reset or list rebuild.
     if(!fixedLastContent||fixedLastContentKey!==fixedContentKey())fixedLastContent=fixedContent();
-    editorHistory.push(snapshotCueMarkers(changes,name?'标记说话人':'清除说话人标记'));
+    editorHistory.push(snapshotCueMarkers(changes,independent?'独立标记':name?'标记说话人':'清除标记'));
     const markers=DATA.subtitle_tracks.flat_context.markers;
     for(const {id,content,field} of changes) {
       const {c,rows,index}=live.get(id),ref=content[field+'_ref'];
@@ -20549,7 +20545,7 @@ function clearOverlayColorOnTargets(idxs) {
   if (!overlay) return;
   const targets = [...new Set(idxs)].filter((index) => Number.isInteger(index) && overlay.segments[index]);
   if (!targets.length) return;
-  pushUndo('清除颜色');
+  pushUndo('清除标记');
   targets.forEach((index) => {
     const segment = overlay.segments[index];
     if (!segment) return;
@@ -20585,7 +20581,7 @@ function removeColorCascade(idx) {
 function clearColorOnTargets(idxs) {
   if(productionFlatMode())return assignLinkedSpeakerColor(idxs,null);
   if(!fixedCanEdit(idxs.map(i=>DATA.segments[i]),'main'))return;
-  pushUndo('清除颜色');
+  pushUndo('清除标记');
   // 一次性切除所有目标 idx，触发组拆分
   splitGroupsAtCutPoints(new Set(idxs), 'color', 'color_ref');
   refreshColorAssignmentUi();
@@ -21420,7 +21416,7 @@ function copySelectedSubtitlesToAssets() {
   } catch(error) {flashHint(error.message,'warning');}
 }
 
-function appendSpeakerMarkMenu(assign) {
+function appendSpeakerMarkMenu(assign, { independent = null } = {}) {
   const row=document.createElement('div');row.className='speaker-mark-picker';
   const label=document.createElement('div');label.className='item';label.textContent='说话人颜色';
   const hint=document.createElement('kbd');hint.textContent='1~9';label.append(hint);row.append(label);
@@ -21431,7 +21427,7 @@ function appendSpeakerMarkMenu(assign) {
     button.textContent=typeof Intl.Segmenter==='function'?[...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(name)][0]?.segment||'':Array.from(name)[0]||'';
     button.style.color=(.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2])>.179?'#111111':'#ffffff';
     button.onclick=e=>{e.stopPropagation();ctxmenu.classList.remove('show');assign(c.name);};swatches.append(button);});row.append(swatches);
-  ctxAppendExpandableSettings('标记字幕',[{node:row},{label:'清除颜色',action:()=>assign(null)}]);
+  ctxAppendExpandableSettings('标记字幕',[{node:row},...(independent?[{label:'独立标记',action:independent}]:[]),{label:'清除标记',action:()=>assign(null)}]);
 }
 function appendSubtitleExtendedActions() {
   if(productionFlatMode())ctxAppendSettingsEntry('字幕属性',()=>window.MSWSubtitleStyle?.open('cue'));
@@ -21444,7 +21440,7 @@ function appendSubtitleExtendedActions() {
 function assignExtensionColor(indices, name, track) {
   if(productionFlatMode())return assignLinkedSpeakerColor(indices,name,track);
   if (!fixedCanEdit(indices.map(i => track.segments[i]), 'extension', track.id)) return;
-  pushUndo(name ? '标记颜色' : '清除颜色');
+  pushUndo(name ? '标记说话人' : '清除标记');
   splitGroupsAtCutPoints(new Set(indices), 'color', 'color_ref', track.segments);
   for (const i of indices) {
     const cue = track.segments[i];
@@ -21495,7 +21491,10 @@ function showContextMenu(x, y, idx, waveformTimeMs = null, track = null) {
   }
 
   function addColorSubmenu(targets) {
-    appendSpeakerMarkMenu(name=>track?assignExtensionColor(targets,name,track):name?assignColor(targets,name):clearColorOnTargets(targets));
+    const hasReference = targets.some(i => speakerColorReference(segments[i]));
+    appendSpeakerMarkMenu(name=>track?assignExtensionColor(targets,name,track):name?assignColor(targets,name):clearColorOnTargets(targets), {
+      independent:hasReference?()=>independentSpeakerMarks(targets,track):null,
+    });
   }
 
   if (!isMulti) {
@@ -21526,9 +21525,6 @@ function showContextMenu(x, y, idx, waveformTimeMs = null, track = null) {
       }, { danger: true });
     }
     addColorSubmenu(targetIdxs);
-    if (!track && colorGroupHeadIndex(idx) >= 0) {
-      addItem('从颜色组中脱离', '', () => detachColorFromGroup(idx));
-    }
     addSep();
     // 组 3：状态与删除
     addItem(

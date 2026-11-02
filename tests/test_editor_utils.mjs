@@ -1461,9 +1461,12 @@ test('translates timeline timebase settings to English', () => {
   );
 });
 
-test('translates the new color-group action to English', () => {
-  assert.equal(i18n.translateText('从颜色组中脱离', 'en'), 'Detach from color group');
-  assert.equal(i18n.translateText('已从颜色组中脱离', 'en'), 'Detached from color group');
+test('speaker follow is opt-in and the independent/clear actions have English labels', () => {
+  assert.equal(helpers.normalizeEditorSettings({}).speakerAutoFollow,false);
+  assert.equal(helpers.normalizeEditorSettings({speakerAutoFollow:'true'}).speakerAutoFollow,false);
+  assert.equal(helpers.normalizeEditorSettings({speakerAutoFollow:true}).speakerAutoFollow,true);
+  assert.equal(i18n.translateText('独立标记', 'en'), 'Make mark independent');
+  assert.equal(i18n.translateText('清除标记', 'en'), 'Clear mark');
 });
 
 test('translates OTIOZ export labels, mode hints and dynamic messages to English', () => {

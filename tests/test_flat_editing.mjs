@@ -118,10 +118,12 @@ test('frame projections stay consistent after move and linked split',()=>{
   assert.ok(halves.subtitles.cues.every(c=>c.content.start_frame===Math.round(c.content.start/40)));
   assert.equal(core.validate(halves),true);
 });
-test('color edits detach external references and do not recolor unselected captions',()=>{
+test('established speaker references follow recoloring even with automatic creation off; clearing preserves them',()=>{
   let p=core.unbind(base(),'binding'),id=p.subtitles.cues[0].id;p=edit.transaction(p,n=>{edit.cue(n,id).content.color={name:'red'};edit.cue(n,'b').content.color_ref={cue_id:id,name:'red'};});
-  const changed=edit.setColor(p,[id],'blue');assert.equal(edit.cue(changed,'b').content.color.name,'red');assert.equal(edit.cue(changed,id).content.color.name,'blue');
-  assert.equal(edit.cue(edit.setColor(changed,[id],null),id).content.color,undefined);
+  const changed=edit.setColor(p,[id],'blue');assert.deepEqual(edit.cue(changed,'b').content.color_ref,{cue_id:id,name:'blue'});assert.equal(edit.cue(changed,id).content.color.name,'blue');
+  const cleared=edit.setColor(changed,[id],null);
+  assert.equal(edit.cue(cleared,id).content.color,undefined);
+  assert.equal(edit.cue(cleared,'b').content.color.name,'blue');assert.equal(edit.cue(cleared,'b').content.color_ref,undefined);
 });
 
 test('speaker marking and clearing propagate from either bound side, atomically and with one undo',()=>{
@@ -144,8 +146,8 @@ test('speaker marking and clearing propagate from either bound side, atomically 
   });
   const colored=edit.setColor(withReference,['b'],'blue');
   assert.equal(edit.cue(colored,id).content.color.name,'blue');
-  assert.equal(edit.cue(colored,'outside').content.color.name,'red');
-  assert.equal(edit.cue(colored,'outside').content.color_ref,undefined);
+  assert.equal(edit.cue(colored,'outside').content.color,undefined);
+  assert.deepEqual(edit.cue(colored,'outside').content.color_ref,{cue_id:id,name:'blue'});
 });
 test('merge honors per-track separators and refuses inconsistent relation direction',()=>{
   let p=base(),first=p.subtitles.cues[0];p=edit.addCue(p,first.track_id,'next',2000,3000,'again');p=edit.addCue(p,'translation','next-zh',2000,3000,'再见');

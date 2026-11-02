@@ -94,13 +94,47 @@
   }
   function updateRanges(p,changes,options) {return updateRangesInternal(p,changes,options);}
   function setDisabled(p,ids,disabled) {return transaction(p,n=>{editable(n,ids);for(const id of ids)cue(n,id).content.disabled=disabled;});}
-  function setColor(p,ids,name) {return transaction(p,n=>{
+  function independentColor(p,ids) {return transaction(p,n=>{
+    const targets=new Set(ids);
+    for(const b of body(n).bindings)if(targets.has(b.source_id)||targets.has(b.target_id)){targets.add(b.source_id);targets.add(b.target_id);}
+    editable(n,[...targets]);
+    for(const id of targets){const c=cue(n,id);if(c.content.color_ref){c.content.color=copy(marker(n,c,'color'));c.content.color.start=c.content.start;c.content.color.end=c.content.end;delete c.content.color_ref;}}
+  });}
+  function setColor(p,ids,name,{follow=false}={}) {return transaction(p,n=>{
+    const cues=new Map(body(n).cues.map(c=>[c.id,c])),tracks=new Map(body(n).tracks.map(t=>[t.id,t])),partners=new Map();
+    for(const b of body(n).bindings){partners.set(b.source_id,b.target_id);partners.set(b.target_id,b.source_id);}
     const targets=new Set(ids);
     for(const link of body(n).bindings)if(targets.has(link.source_id)||targets.has(link.target_id)){
       targets.add(link.source_id);targets.add(link.target_id);
     }
-    editable(n,[...targets]);detachReferences(n,targets);
+    editable(n,[...targets]);
+    // Explicitly established references keep following even when automatic
+    // creation is switched off. Clearing a head preserves its other members.
+    for(const c of cues.values())if(!targets.has(c.id)&&targets.has(c.content.color_ref?.cue_id)) {
+      if(tracks.get(c.track_id).locked)fail('跟随字幕位于锁定轨道，请先解锁');
+      if(name)c.content.color_ref={...c.content.color_ref,name};
+      else {c.content.color=copy(marker(n,c,'color'));c.content.color.start=c.content.start;c.content.color.end=c.content.end;delete c.content.color_ref;}
+    }
     for(const id of targets){const c=cue(n,id).content;delete c.color;delete c.color_ref;if(name)c.color={name,start:c.start,end:c.end};}
+    if(!follow||!name)return;
+    const lanes=new Map();
+    for(const c of cues.values()){if(!lanes.has(c.track_id))lanes.set(c.track_id,[]);lanes.get(c.track_id).push(c);}
+    const planned=new Map();
+    for(const rows of lanes.values()) {
+      rows.sort((a,b)=>a.content.start-b.content.start||a.content.end-b.content.end||a.id.localeCompare(b.id));
+      let head=null;
+      for(const c of rows) {
+        if(targets.has(c.id)){head=c;continue;}
+        if(!head)continue;
+        const pair=cues.get(partners.get(c.id));
+        if(c.content.color||tracks.get(c.track_id).locked||pair&&(pair.content.color||tracks.get(pair.track_id).locked)) {head=null;continue;}
+        planned.set(c.id,head.id);
+        if(pair){const pairedHead=cues.get(partners.get(head.id));planned.set(pair.id,pairedHead?.track_id===pair.track_id?pairedHead.id:head.id);}
+      }
+    }
+    for(const [id,head] of planned)if(!targets.has(id)) {
+      const c=cues.get(id).content;delete c.color;c.color_ref={cue_id:head,name};
+    }
   });}
   function remove(p,ids) {return transaction(p,n=>{
     const removed=new Set(ids),links=body(n).bindings.filter(b=>removed.has(b.source_id)||removed.has(b.target_id));
@@ -282,6 +316,6 @@
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,appearanceFields,animationFields,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,appearanceFields,animationFields,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,independentColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

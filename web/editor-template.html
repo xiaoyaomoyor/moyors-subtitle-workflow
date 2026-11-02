@@ -1099,7 +1099,7 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">快捷功能</h5>
         <div class="help-category">
-          <span class="help-important"><kbd>1~9</kbd> 分配颜色 <kbd>0</kbd> 清除颜色</span>
+          <span class="help-important"><kbd>1~9</kbd> 标记说话人 <kbd>0</kbd> 清除标记</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>T</kbd> 分配表情包</span>
         </div>
@@ -1625,7 +1625,9 @@ __WAVEFORM_CSS__
         <div class="editor-settings-group settings-category" data-settings-category="subtitle-speakers">
           <div class="settings-category-header">说话人色系</div>
           <div class="editor-settings-sub-group" id="speaker-label-settings">
-            <p class="editor-settings-hint">配置随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。</p>
+            <label class="toggle editor-settings-item"><input type="checkbox" id="speaker-auto-follow">后方字幕自动跟随说话人<span class="msw-help-anchor" id="speaker-auto-follow-help"></span></label>
+            <p hidden data-help-for="speaker-auto-follow-help">标记时，同轨后方字幕跟随当前说话人，遇到明确标记或锁定内容停止。绑定字幕联动；关闭后保留已有跟随，可用“独立标记”解除。</p>
+            <p class="editor-settings-hint">说话人表随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。</p>
             <label class="speaker-name-language">名称语言<select id="speaker-name-language" aria-label="名称语言"></select><span class="msw-help-anchor" id="speaker-name-language-help"></span></label>
             <p hidden data-help-for="speaker-name-language-help">未填写名称的语言跟随默认显示开关；已填写的默认显示。各语言可单独勾选，预览还需开启“预览说话人”。</p>
             <div class="speaker-palette-scroll"><table class="speaker-palette-table"><thead><tr><th scope="col">序号</th><th scope="col">说话人名称</th><th scope="col">显示</th><th scope="col">指定颜色</th><th scope="col">着色模式</th><th scope="col">分隔符</th></tr></thead><tbody id="speaker-palette-rows"></tbody></table></div>
@@ -2147,7 +2149,7 @@ __WAVEFORM_CSS__
         <span class="cue-editor-key-hint"><kbd>H</kbd> 按参考字幕对齐</span>
         <span class="cue-editor-key-hint"><kbd>Alt+点击</kbd> 空隙启用/禁用</span>
         <span class="cue-editor-key-hint"><kbd>Shift+滚轮</kbd> 调整振幅</span>
-        <span class="cue-editor-key-hint"><kbd>1~9</kbd>/<kbd>0</kbd> 分配/清除颜色</span>
+        <span class="cue-editor-key-hint"><kbd>1~9</kbd>/<kbd>0</kbd> 分配/清除标记</span>
       </div>
       <div class="toolbar waveform-toolbar">
       <span class="waveform-tool-switch" role="group" aria-label="波形工具">
