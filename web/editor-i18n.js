@@ -10,6 +10,8 @@
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
     '编辑器设置': 'Editor settings', '项目设置': 'Project settings',
+    '编辑说话人外观': 'Edit speaker appearance', '轨道规则': 'Track rules', '未指定': 'Unspecified',
+    '轨道设置；右键进行轨道操作': 'Track settings; right-click for actions',
     '文件 → 恢复记录：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。自动备份规则在编辑器设置 → 保存与备份中调整。': 'File → Recovery: create or restore disk versions. Save a recovered copy as a new project and retain source media separately. Set automatic backups in Editor settings → Saving and backups.',
     '打开编辑器设置': 'Open editor settings', '打开项目设置': 'Open project settings',
     '关闭编辑器设置': 'Close editor settings', '关闭项目设置': 'Close project settings',

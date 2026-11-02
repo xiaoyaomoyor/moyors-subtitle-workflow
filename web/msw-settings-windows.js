@@ -66,6 +66,16 @@
     const appearanceHints=appearance.querySelectorAll('.editor-settings-hint');
     for(const hint of appearanceHints)if(hint.textContent.includes('窗口 → 界面配置'))hint.textContent='界面配色随用户配置保存；在“配置管理”中导入或导出。画面内字幕外观请在属性列表调整。';
     let summaryKey='';
+    function focusTarget({trackId,speakerId}={}){
+      if(trackId){
+        const select=$('track-split-track');
+        if([...select.options].some(o=>o.value===trackId)){select.value=trackId;select.dispatchEvent(new Event('change'));select.focus();}
+      }
+      if(speakerId){
+        const row=[...$('speaker-palette-rows').rows].find(r=>r.dataset.speakerId===speakerId);
+        row?.querySelector('input')?.focus({preventScroll:true});row?.scrollIntoView({block:'nearest'});
+      }
+    }
     function refresh(){
       if(!$('project-settings-modal').classList.contains('show'))return;
       const info=host.describe(),english=global.MSWE_I18N?.language==='en',key=JSON.stringify([english,info]);
@@ -77,15 +87,19 @@
         const detail=english
           ? `${track.count} cues · ${track.language||'Auto language'}${track.locked?' · Locked':''}${track.enabled===false?' · Disabled':''}`
           : `${track.count} 条字幕 · ${track.language||'自动语言'}${track.locked?' · 已锁定':''}${track.enabled===false?' · 已禁用':''}`;
-        row.append(text(document.createElement('strong'),track.name),text(document.createElement('span'),detail));tracks.append(row);
+        row.dataset.trackId=track.id;
+        const name=link(row,track.name,()=>focusTarget({trackId:track.id}));
+        name.title=english?'Track settings; right-click for actions':'轨道设置；右键进行轨道操作';
+        name.addEventListener('contextmenu',event=>{event.preventDefault();event.stopPropagation();host.trackMenu(track.id,event.clientX,event.clientY);});
+        row.append(text(document.createElement('span'),detail));tracks.append(row);
         link(styleTracks,track.name,()=>host.openProperties(track.id));
       }
       const path=text(document.createElement('p'),info.media||'尚未导入媒体');path.className='settings-resource-path';media.append(path);
       media.append(text(document.createElement('p'),english?`Subtitle cues: ${info.cues} · Audio clips: ${info.audio}`:`字幕块：${info.cues} · 音频贴片：${info.audio}`));
     }
-    for(const event of ['msw:project-replaced','msw:project-changed','msw:subtitles-changed'])global.addEventListener(event,refresh);
+    for(const event of ['msw:project-replaced','msw:project-changed','msw:subtitles-changed','msw:assets-changed','msw:audio-changed','msw:media-changed'])global.addEventListener(event,refresh);
     document.addEventListener('mawe:languagechange',refresh);
-    return {refresh};
+    return {refresh,focusTarget};
   }
   function navigation(prefix){
     const root=$(prefix+'-content'),nav=$(prefix+'-nav'),input=$(prefix+'-search');

@@ -127,12 +127,22 @@ function productionSyncSettings() {
   if(JSON.stringify([...select.options].map(o=>[o.value,o.textContent]))!==JSON.stringify(tracks.map(t=>[t.id,t.name])))select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
   select.value=productionSplitTrackId||'';
   const track=tracks.find(t=>t.id===productionSplitTrackId);mode.value=track?.split_mode||'auto';mode.disabled=!track||track.locked;
+  const language=document.getElementById('track-project-language');
+  const languages=MSWSpeaker.languageOptions(DATA);
+  languages[0][1]='未指定';
+  if(JSON.stringify([...language.options].map(o=>[o.value,o.text]))!==JSON.stringify(languages))language.replaceChildren(...languages.map(([id,name])=>new Option(name,id)));
+  language.value=MSWSpeaker.language(track?.language);language.disabled=!track||track.locked;
   for(const [id,key] of [['track-select-bound','selectBoundSubtitlePair'],['track-bind-sync','multiSubtitleAutoSyncDuration'],['wave-cross-track-snap','crossTrackSnap']])document.getElementById(id).checked=Boolean(EDITOR_SETTINGS[key]);
   document.getElementById('cue-list-swap-sides').disabled=!DATA.segments.length&&!getActiveExtensionTrack()?.segments.length;
 }
 document.getElementById('track-split-track')?.addEventListener('change',event=>{productionSplitTrackId=event.target.value;productionSyncSettings();});
 document.getElementById('track-split-mode')?.addEventListener('change',event=>{
   if(['auto','word','continuous'].includes(event.target.value))fixedUpdateTrack(productionSplitTrackId,{split_mode:event.target.value});
+  productionSyncSettings();
+});
+document.getElementById('track-project-language')?.addEventListener('change',event=>{
+  const track=DATA.subtitle_tracks.tracks.find(t=>t.id===productionSplitTrackId);
+  if(track&&!track.locked&&track.language!==event.target.value)fixedUpdateTrack(track.id,{language:event.target.value});
   productionSyncSettings();
 });
 for(const [id,key] of [['track-select-bound','selectBoundSubtitlePair'],['track-bind-sync','multiSubtitleAutoSyncDuration'],['wave-cross-track-snap','crossTrackSnap']])document.getElementById(id)?.addEventListener('change',event=>updateEditorSettings({[key]:event.target.checked}));

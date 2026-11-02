@@ -2906,13 +2906,14 @@ const projectSettingsFloatingPanel = createFloatingPanel({
   positionKey: PROJECT_SETTINGS_PANEL_POSITION_KEY,
   manageButton: document.getElementById('project-settings-toggle'),
 });
-function setProjectSettingsPanelOpen(open,category) {
+function setProjectSettingsPanelOpen(open,category,target) {
   if(!open){projectSettingsFloatingPanel.close();return;}
   projectSettingsFloatingPanel.open();
   settingsWindowsContent.refresh();projectSettingsNavigation.refresh();
   if(category)projectSettingsNavigation.activate(category);
   window.dispatchEvent(new Event('msw:settings-opened'));
   document.getElementById('project-settings-search')?.focus();
+  if(target)settingsWindowsContent.focusTarget(target);
 }
 document.getElementById('project-settings-toggle')?.addEventListener('click',()=>setProjectSettingsPanelOpen(!projectSettingsFloatingPanel.isOpen()));
 document.getElementById('project-settings-close')?.addEventListener('click',()=>setProjectSettingsPanelOpen(false));
@@ -15670,7 +15671,7 @@ function syncSpeakerControls() {
   if(!body)return;
   const choices=window.MSWSpeaker.languageOptions(DATA),picker=document.getElementById('speaker-name-language');
   if(!choices.some(([code])=>code===speakerNameLanguage))speakerNameLanguage='';
-  const key=JSON.stringify([palette,speakerNameLanguage,choices]);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
+  const key=JSON.stringify([mswProjectGeneration,palette,speakerNameLanguage,choices]);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
   picker.replaceChildren(...choices.map(([code,label])=>new Option(label,code)));picker.value=speakerNameLanguage;
   const titles=['不着色','字幕填充色','字幕描边色','字幕背景框色','说话人名称色'];
   const create=(entry,index)=>{
@@ -15717,6 +15718,14 @@ function syncSpeakerControls() {
         }
         speakerPaletteChanged();
       };td.append(input);tr.append(td);
+      if(field==='name'&&entry){
+        const action=document.createElement('button');action.type='button';action.className='speaker-style-action msw-style-icon';
+        action.title='编辑说话人外观';action.setAttribute('aria-label',entry.name+' 编辑说话人外观');
+        action.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg>';
+        const generation=mswProjectGeneration;
+        action.onclick=()=>{if(generation===mswProjectGeneration&&window.MSWSubtitleStyle?.editSpeaker(entry.id)){setProjectSettingsPanelOpen(false);setEditorSettingsPanelOpen(false);}};
+        const field=document.createElement('div');field.className='speaker-name-field';field.append(input,action);td.append(field);
+      }
     }body.append(tr);
   };
   create(null,0);palette.rows.forEach((entry,i)=>create(entry,i+1));
@@ -18913,7 +18922,9 @@ function applyCanonicalProject(data, filename) {
   applyExtensionSubtitleAppearance(DATA.preview?.extension_subtitle);
   setStickerGeometry(getStickerGeometry(), { markDirty: false });
   refreshPreviewGeometryEditable();
-  if (data.sticker_root) STICKER_ROOT = data.sticker_root;
+  const nextStickerRoot=typeof data.sticker_root==='string'?data.sticker_root:'';
+  if(STICKER_ROOT!==nextStickerRoot){STICKERS.length=0;stickerAssetRevision+=1;}
+  STICKER_ROOT=nextStickerRoot;
   DATA.segments.length = 0;
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
@@ -20005,17 +20016,7 @@ function setStickerRootModalOpen(open) {
   stickerRootReturnFocus = null;
 }
 
-document.getElementById('sticker-root-confirm')?.addEventListener('click', () => {
-  const newRoot = stickerRootInput.value.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-  STICKER_ROOT = newRoot;
-  updateStickerExportButtons();
-  stickerRootModal.classList.remove('show');
-  stickerRootReturnFocus?.focus();
-  stickerRootReturnFocus = null;
-  // 重新渲染所有 cue 让 sticker URL 用新根目录拼接
-  renderAll();
-  flashHint(newRoot ? `根目录已更新` : '已清空根目录', 'success');
-});
+window.addEventListener('msw:project-changed',()=>{setStickerRootModalOpen(false);setStickerRootStatus('');});
 
 function flashStickerRootHint(message, type) {
   stickerRootHintCard?.remove();
@@ -20031,7 +20032,7 @@ document.getElementById('sticker-root-btn')?.addEventListener('click', () => {
   stickerRootInput.value = STICKER_ROOT || '';
   setStickerRootStatus(stickerRootServerEnabled
     ? (STICKER_ROOT
-      ? `当前路径已读取 ${Number(SERVER_CONFIG.initialStickerCount) || STICKERS.length} 张图片。可输入 Windows、macOS 或 Linux 绝对路径。`
+      ? `当前路径已读取 ${STICKERS.length} 张图片。可输入 Windows、macOS 或 Linux 绝对路径。`
       : '请输入绝对路径，例如 C:\\Media\\Stickers、/Users/name/Stickers 或 /home/name/Stickers。')
     : '仅 Server 编辑器可以读取和验证表情包绝对路径。');
   setStickerRootModalOpen(true);
@@ -20064,6 +20065,7 @@ stickerRootModal?.addEventListener('keydown', (event) => {
 stickerRootRead.addEventListener('click', async () => {
   if (!stickerRootServerEnabled || stickerRootRead.disabled) return;
   const path = stickerRootInput.value.trim();
+  const generation=mswProjectGeneration;
   stickerRootHintCard?.remove();
   stickerRootHintCard = null;
   stickerRootRead.disabled = true;
@@ -20076,6 +20078,7 @@ stickerRootRead.addEventListener('click', async () => {
       body: JSON.stringify({ requestToken: SERVER_CONFIG.requestToken, path }),
     });
     const result = await response.json().catch(() => ({}));
+    if(generation!==mswProjectGeneration)return;
     if (!response.ok || !result.ok) throw new Error(result.error || `服务器返回 ${response.status}`);
     STICKERS.splice(0, STICKERS.length, ...result.stickers);
     STICKER_ROOT = result.root;
@@ -20084,15 +20087,17 @@ stickerRootRead.addEventListener('click', async () => {
     stickerAssetRevision += 1;
     projectImportDirty = true;
     renderAll();
+    updateStickerExportButtons();scheduleAutoSaveFlush();
     setStickerRootStatus(`路径有效，已读取 ${result.count} 张图片。`);
     flashStickerRootHint(`表情包根目录已更新，读取 ${result.count} 张图片`, 'success');
   } catch (error) {
+    if(generation!==mswProjectGeneration)return;
     setStickerRootStatus(`读取失败：${error.message || error}。当前有效根目录和表情包保持不变。`);
     flashStickerRootHint(`表情包根目录读取失败：${error.message || error}`, 'warning');
   } finally {
     stickerRootRead.disabled = false;
     stickerRootInput.disabled = false;
-    stickerRootInput.focus();
+    if(generation===mswProjectGeneration&&stickerRootModal.classList.contains('show'))stickerRootInput.focus();
   }
 });
 
@@ -23379,9 +23384,11 @@ updateProjectDetailCard();
 refreshClipboardMenuState();
 
 // Single-source controls are classified after their handlers have been wired.
+let settingsTrackCountOwners=null,settingsTrackCounts=new Map();
 const settingsWindowsContent=MSWSettingsWindows.assemble({
   openProject: category=>setProjectSettingsPanelOpen(true,category),
   openProperties: id=>{setProjectSettingsPanelOpen(false);setEditorSettingsPanelOpen(false);if(id)MSWSubtitleStyle.editTrack(id);else MSWSubtitleStyle.open('track');},
+  trackMenu: (id,x,y)=>{const track=DATA.subtitle_tracks?.tracks.find(t=>t.id===id);if(track)fixedTrackMenu(track,x,y);},
   openPlayer: ()=>{setEditorSettingsPanelOpen(false);setProjectSettingsPanelOpen(false);setSubtitlePreviewSettingsPanelOpen(true);},
   openWave: ()=>{setEditorSettingsPanelOpen(false);setWaveformSettingsPanelOpen(true);},
   openCue: ()=>{setEditorSettingsPanelOpen(false);cueEditorSettingsFloatingPanel.open();},
@@ -23392,7 +23399,10 @@ const settingsWindowsContent=MSWSettingsWindows.assemble({
   describe: ()=>{
     // Overview reads the current operation view; never serialize/validate the
     // entire project just because a settings window is open during editing.
-    const tracks=gapSubtitleTracks().map(t=>({id:t.id,name:t.name,language:t.language,locked:t.locked,enabled:t.enabled,count:t.cues.length}));
+    const owners=fixedOwners();
+    if(owners!==settingsTrackCountOwners){settingsTrackCountOwners=owners;settingsTrackCounts=new Map();for(const id of owners.values())settingsTrackCounts.set(id,(settingsTrackCounts.get(id)||0)+1);}
+    const languages=new Map(MSWSpeaker.languageOptions(DATA));
+    const tracks=DATA.subtitle_tracks.tracks.map(t=>({id:t.id,name:t.name,language:t.language?languages.get(MSWSpeaker.language(t.language)):null,locked:t.locked,enabled:t.enabled,count:settingsTrackCounts.get(t.id)||0}));
     return {tracks,cues:tracks.reduce((sum,t)=>sum+t.count,0),media:DATA.media?.path||(typeof DATA.media==='string'?DATA.media:''),audio:DATA.msw?.audio_clips?.length||0};
   },
 });

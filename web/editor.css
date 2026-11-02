@@ -5305,6 +5305,9 @@
 .speaker-palette-table td { padding:0; }
 .speaker-palette-table input[type=text], .speaker-palette-table select { width:100%; min-width:0; box-sizing:border-box; }
 .speaker-palette-table td:nth-child(2) { min-width:100px; }
+.speaker-name-field { display:grid; grid-template-columns:minmax(100px,1fr) 30px; gap:4px; align-items:center; }
+.speaker-palette-table .speaker-style-action { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; min-height:0; padding:5px; }
+.msw-property-settings-link { margin-left:auto; flex:none; }
 .speaker-palette-table :is(td,th):nth-child(3) { width:36px; text-align:center; }
 .speaker-palette-table input[type=checkbox] { width:15px; height:15px; min-height:0; padding:0; margin:0; accent-color:var(--accent); vertical-align:middle; cursor:pointer; }
 .speaker-palette-table td:nth-child(4) { width:58px; }

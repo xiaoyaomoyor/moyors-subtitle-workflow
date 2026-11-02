@@ -143,6 +143,15 @@
   };
   const scopeBar=document.createElement('div');scopeBar.className='msw-properties-scope';
   scopeBar.innerHTML='<select id="style-edit-scope" aria-label="属性对象"></select><select id="style-speaker-target" aria-label="说话人对象" hidden></select><span id="style-selection-label"></span>';
+  const projectSettingsLink=document.createElement('button');projectSettingsLink.type='button';projectSettingsLink.id='style-project-settings-open';projectSettingsLink.className='msw-style-icon msw-property-settings-link';
+  projectSettingsLink.title='项目设置';projectSettingsLink.setAttribute('aria-label','项目设置');
+  projectSettingsLink.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>';scopeBar.append(projectSettingsLink);
+  projectSettingsLink.onclick=()=>{
+    if(fixedPositionEditing)fixedStopPositioning(false);
+    if(speakerScope())setProjectSettingsPanelOpen(true,'subtitle-speakers',{speakerId:speaker()?.id});
+    else {const rows=selectedRows(),ids=new Set(rows.map(r=>r.subtitle_track_id));
+      setProjectSettingsPanelOpen(true,'time-tracks',{trackId:cueScope()?(ids.size===1?[...ids][0]:null):fixedStyleTarget()?.id});}
+  };
   const general=$('style-general'),basicFields=$('style-basic-fields'),presetRow=panel.querySelector('.msw-style-selectors');
   general.insertBefore(scopeBar,basicFields);
   scopeBar.insertBefore(tabs,$('style-selection-label'));
@@ -427,12 +436,18 @@
     return readProperties(rebuildControls);
   }
   function rebuildControls() {
+    // An explicit target that was removed must not silently become the next
+    // track/person. Project switches clear the target before initialization.
+    if((editScope==='track'&&fixedStyleTrackId&&!fixedStyleTarget())||
+      (editScope==='speaker'&&speakerId&&!speakers().some(r=>r.id===speakerId))){
+      editScope='cue';fixedPositionScope='cue';speakerId='';fixedStyleTrackId='';
+    }
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
     fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name])],proof.mode);
     if(!$('style-preview-mode').value){proof.mode='project';$('style-preview-mode').value='project';persistProof();}
     if(productionFlatMode()&&!fixedStyleTarget()){
       const tracks=host.data.subtitle_tracks.tracks,occupied=new Set(host.data.subtitle_tracks.assignments.map(a=>a.subtitle_track_id));
-      fixedStyleTrackId=(tracks.find(t=>!t.secondary_for&&(occupied.has(t.id)||tracks.some(s=>s.secondary_for===t.id&&occupied.has(s.id))))||tracks[0]).id;role='main';
+      fixedStyleTrackId=(tracks.find(t=>!t.secondary_for&&(occupied.has(t.id)||tracks.some(s=>s.secondary_for===t.id&&occupied.has(s.id))))||tracks[0])?.id||'';role='main';
     }
     const track=fixedTrackMode()?fixedStyleTarget():null;
     $('style-track-controls').hidden=!fixedTrackMode()||productionFlatMode();
@@ -607,7 +622,18 @@
   }
   function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
   $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
-  function editTrack(id,show=true){cancelAction();message('');editScope='track';fixedPositionScope='track';fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(show)open('track');}
+  function editTrack(id,show=true){
+    const track=host.data.subtitle_tracks?.tracks.find(t=>t.id===id);if(!track)return false;
+    if(fixedPositionEditing)fixedStopPositioning(false);
+    commitProcessingEdits();cancelAction();message('');editScope='track';fixedPositionScope='track';fixedStyleTrackId=id;fixedPositionRef=null;
+    if(productionFlatMode())role=track.secondary_for?'secondary':'main';
+    if(show)open('track');else {rebuild();sync();}return true;
+  }
+  function editSpeaker(id){
+    if(!speakers().some(r=>r.id===id))return false;
+    if(fixedPositionEditing)fixedStopPositioning(false);
+    commitProcessingEdits();cancelAction();message('');speakerId=id;role='main';open('speaker');return true;
+  }
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
@@ -761,7 +787,7 @@
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
-  global.MSWSubtitleStyle={currentPreview,editTrack,open,propertiesVisible,syncSelection:()=>{
+  global.MSWSubtitleStyle={currentPreview,editTrack,editSpeaker,open,propertiesVisible,syncSelection:()=>{
     if(!ready)return;
     const ids=[...fixedPositionSelectedIds()].sort();
     if(!speakerScope()&&!fixedPositionEditing&&ids.length&&JSON.stringify(ids)!==lastCueSelection){editScope='cue';fixedPositionScope='cue';}
@@ -800,7 +826,7 @@
     finally {if(generation===host.generation)panel.inert=false;}
   }
   $('style-retry').onclick=()=>void initialize();
-  global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';void initialize();});
+  global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';editScope='cue';speakerId='';fixedPositionScope='cue';lastSelectionKey='';lastCueSelection='';positionDrafts.clear();void initialize();});
   global.addEventListener('msw:speakers-changed',()=>{if(ready){rebuild();sync();refresh();}});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
   global.addEventListener('msw:subtitles-changed',()=>{if(ready){if(fixedTrackMode())rebuild();sync();}});

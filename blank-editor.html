@@ -5595,6 +5595,9 @@
 .speaker-palette-table td { padding:0; }
 .speaker-palette-table input[type=text], .speaker-palette-table select { width:100%; min-width:0; box-sizing:border-box; }
 .speaker-palette-table td:nth-child(2) { min-width:100px; }
+.speaker-name-field { display:grid; grid-template-columns:minmax(100px,1fr) 30px; gap:4px; align-items:center; }
+.speaker-palette-table .speaker-style-action { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; min-height:0; padding:5px; }
+.msw-property-settings-link { margin-left:auto; flex:none; }
 .speaker-palette-table :is(td,th):nth-child(3) { width:36px; text-align:center; }
 .speaker-palette-table input[type=checkbox] { width:15px; height:15px; min-height:0; padding:0; margin:0; accent-color:var(--accent); vertical-align:middle; cursor:pointer; }
 .speaker-palette-table td:nth-child(4) { width:58px; }
@@ -7455,9 +7458,10 @@
           </div>
 
     <section class="settings-panel-section cue-editor-settings-section" data-flat-settings hidden>
-      <span class="settings-panel-title" id="track-split-title">文字切分</span>
+      <span class="settings-panel-title" id="track-split-title">轨道规则</span>
       <span hidden data-help-for="track-split-title">按单词：适合英语等以空格分词的文字；按字符：适合中文、日文。用于切分边界、字数统计与合并连接方式，按轨道保存在工程中；不会改动已有文字，也不控制画面换行。</span>
       <label class="settings-panel-item"><span>作用轨道</span><select id="track-split-track" aria-label="文字切分作用轨道"></select></label>
+      <label class="settings-panel-item"><span>轨道语言</span><select id="track-project-language" aria-label="轨道语言"></select></label>
       <label class="settings-panel-item"><span>切分方式</span><select id="track-split-mode"><option value="auto">自动判断</option><option value="word">按单词</option><option value="continuous">按字符</option></select></label>
     </section>
     <section class="settings-panel-section cue-editor-settings-section" data-flat-settings hidden>
@@ -23306,6 +23310,8 @@ export default MawDynamicCaptions;
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
     '编辑器设置': 'Editor settings', '项目设置': 'Project settings',
+    '编辑说话人外观': 'Edit speaker appearance', '轨道规则': 'Track rules', '未指定': 'Unspecified',
+    '轨道设置；右键进行轨道操作': 'Track settings; right-click for actions',
     '文件 → 恢复记录：创建或恢复磁盘版本；恢复后请另存为，原视频需单独保留。自动备份规则在编辑器设置 → 保存与备份中调整。': 'File → Recovery: create or restore disk versions. Save a recovered copy as a new project and retain source media separately. Set automatic backups in Editor settings → Saving and backups.',
     '打开编辑器设置': 'Open editor settings', '打开项目设置': 'Open project settings',
     '关闭编辑器设置': 'Close editor settings', '关闭项目设置': 'Close project settings',
@@ -34769,12 +34775,22 @@ function productionSyncSettings() {
   if(JSON.stringify([...select.options].map(o=>[o.value,o.textContent]))!==JSON.stringify(tracks.map(t=>[t.id,t.name])))select.replaceChildren(...tracks.map(t=>new Option(t.name,t.id)));
   select.value=productionSplitTrackId||'';
   const track=tracks.find(t=>t.id===productionSplitTrackId);mode.value=track?.split_mode||'auto';mode.disabled=!track||track.locked;
+  const language=document.getElementById('track-project-language');
+  const languages=MSWSpeaker.languageOptions(DATA);
+  languages[0][1]='未指定';
+  if(JSON.stringify([...language.options].map(o=>[o.value,o.text]))!==JSON.stringify(languages))language.replaceChildren(...languages.map(([id,name])=>new Option(name,id)));
+  language.value=MSWSpeaker.language(track?.language);language.disabled=!track||track.locked;
   for(const [id,key] of [['track-select-bound','selectBoundSubtitlePair'],['track-bind-sync','multiSubtitleAutoSyncDuration'],['wave-cross-track-snap','crossTrackSnap']])document.getElementById(id).checked=Boolean(EDITOR_SETTINGS[key]);
   document.getElementById('cue-list-swap-sides').disabled=!DATA.segments.length&&!getActiveExtensionTrack()?.segments.length;
 }
 document.getElementById('track-split-track')?.addEventListener('change',event=>{productionSplitTrackId=event.target.value;productionSyncSettings();});
 document.getElementById('track-split-mode')?.addEventListener('change',event=>{
   if(['auto','word','continuous'].includes(event.target.value))fixedUpdateTrack(productionSplitTrackId,{split_mode:event.target.value});
+  productionSyncSettings();
+});
+document.getElementById('track-project-language')?.addEventListener('change',event=>{
+  const track=DATA.subtitle_tracks.tracks.find(t=>t.id===productionSplitTrackId);
+  if(track&&!track.locked&&track.language!==event.target.value)fixedUpdateTrack(track.id,{language:event.target.value});
   productionSyncSettings();
 });
 for(const [id,key] of [['track-select-bound','selectBoundSubtitlePair'],['track-bind-sync','multiSubtitleAutoSyncDuration'],['wave-cross-track-snap','crossTrackSnap']])document.getElementById(id)?.addEventListener('change',event=>updateEditorSettings({[key]:event.target.checked}));
@@ -36650,6 +36666,16 @@ document.addEventListener('DOMContentLoaded',()=>{new ResizeObserver(()=>{if(fix
     const appearanceHints=appearance.querySelectorAll('.editor-settings-hint');
     for(const hint of appearanceHints)if(hint.textContent.includes('窗口 → 界面配置'))hint.textContent='界面配色随用户配置保存；在“配置管理”中导入或导出。画面内字幕外观请在属性列表调整。';
     let summaryKey='';
+    function focusTarget({trackId,speakerId}={}){
+      if(trackId){
+        const select=$('track-split-track');
+        if([...select.options].some(o=>o.value===trackId)){select.value=trackId;select.dispatchEvent(new Event('change'));select.focus();}
+      }
+      if(speakerId){
+        const row=[...$('speaker-palette-rows').rows].find(r=>r.dataset.speakerId===speakerId);
+        row?.querySelector('input')?.focus({preventScroll:true});row?.scrollIntoView({block:'nearest'});
+      }
+    }
     function refresh(){
       if(!$('project-settings-modal').classList.contains('show'))return;
       const info=host.describe(),english=global.MSWE_I18N?.language==='en',key=JSON.stringify([english,info]);
@@ -36661,15 +36687,19 @@ document.addEventListener('DOMContentLoaded',()=>{new ResizeObserver(()=>{if(fix
         const detail=english
           ? `${track.count} cues · ${track.language||'Auto language'}${track.locked?' · Locked':''}${track.enabled===false?' · Disabled':''}`
           : `${track.count} 条字幕 · ${track.language||'自动语言'}${track.locked?' · 已锁定':''}${track.enabled===false?' · 已禁用':''}`;
-        row.append(text(document.createElement('strong'),track.name),text(document.createElement('span'),detail));tracks.append(row);
+        row.dataset.trackId=track.id;
+        const name=link(row,track.name,()=>focusTarget({trackId:track.id}));
+        name.title=english?'Track settings; right-click for actions':'轨道设置；右键进行轨道操作';
+        name.addEventListener('contextmenu',event=>{event.preventDefault();event.stopPropagation();host.trackMenu(track.id,event.clientX,event.clientY);});
+        row.append(text(document.createElement('span'),detail));tracks.append(row);
         link(styleTracks,track.name,()=>host.openProperties(track.id));
       }
       const path=text(document.createElement('p'),info.media||'尚未导入媒体');path.className='settings-resource-path';media.append(path);
       media.append(text(document.createElement('p'),english?`Subtitle cues: ${info.cues} · Audio clips: ${info.audio}`:`字幕块：${info.cues} · 音频贴片：${info.audio}`));
     }
-    for(const event of ['msw:project-replaced','msw:project-changed','msw:subtitles-changed'])global.addEventListener(event,refresh);
+    for(const event of ['msw:project-replaced','msw:project-changed','msw:subtitles-changed','msw:assets-changed','msw:audio-changed','msw:media-changed'])global.addEventListener(event,refresh);
     document.addEventListener('mawe:languagechange',refresh);
-    return {refresh};
+    return {refresh,focusTarget};
   }
   function navigation(prefix){
     const root=$(prefix+'-content'),nav=$(prefix+'-nav'),input=$(prefix+'-search');
@@ -39635,13 +39665,14 @@ const projectSettingsFloatingPanel = createFloatingPanel({
   positionKey: PROJECT_SETTINGS_PANEL_POSITION_KEY,
   manageButton: document.getElementById('project-settings-toggle'),
 });
-function setProjectSettingsPanelOpen(open,category) {
+function setProjectSettingsPanelOpen(open,category,target) {
   if(!open){projectSettingsFloatingPanel.close();return;}
   projectSettingsFloatingPanel.open();
   settingsWindowsContent.refresh();projectSettingsNavigation.refresh();
   if(category)projectSettingsNavigation.activate(category);
   window.dispatchEvent(new Event('msw:settings-opened'));
   document.getElementById('project-settings-search')?.focus();
+  if(target)settingsWindowsContent.focusTarget(target);
 }
 document.getElementById('project-settings-toggle')?.addEventListener('click',()=>setProjectSettingsPanelOpen(!projectSettingsFloatingPanel.isOpen()));
 document.getElementById('project-settings-close')?.addEventListener('click',()=>setProjectSettingsPanelOpen(false));
@@ -52399,7 +52430,7 @@ function syncSpeakerControls() {
   if(!body)return;
   const choices=window.MSWSpeaker.languageOptions(DATA),picker=document.getElementById('speaker-name-language');
   if(!choices.some(([code])=>code===speakerNameLanguage))speakerNameLanguage='';
-  const key=JSON.stringify([palette,speakerNameLanguage,choices]);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
+  const key=JSON.stringify([mswProjectGeneration,palette,speakerNameLanguage,choices]);if(body.dataset.value===key)return;body.dataset.value=key;body.replaceChildren();
   picker.replaceChildren(...choices.map(([code,label])=>new Option(label,code)));picker.value=speakerNameLanguage;
   const titles=['不着色','字幕填充色','字幕描边色','字幕背景框色','说话人名称色'];
   const create=(entry,index)=>{
@@ -52446,6 +52477,14 @@ function syncSpeakerControls() {
         }
         speakerPaletteChanged();
       };td.append(input);tr.append(td);
+      if(field==='name'&&entry){
+        const action=document.createElement('button');action.type='button';action.className='speaker-style-action msw-style-icon';
+        action.title='编辑说话人外观';action.setAttribute('aria-label',entry.name+' 编辑说话人外观');
+        action.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg>';
+        const generation=mswProjectGeneration;
+        action.onclick=()=>{if(generation===mswProjectGeneration&&window.MSWSubtitleStyle?.editSpeaker(entry.id)){setProjectSettingsPanelOpen(false);setEditorSettingsPanelOpen(false);}};
+        const field=document.createElement('div');field.className='speaker-name-field';field.append(input,action);td.append(field);
+      }
     }body.append(tr);
   };
   create(null,0);palette.rows.forEach((entry,i)=>create(entry,i+1));
@@ -55642,7 +55681,9 @@ function applyCanonicalProject(data, filename) {
   applyExtensionSubtitleAppearance(DATA.preview?.extension_subtitle);
   setStickerGeometry(getStickerGeometry(), { markDirty: false });
   refreshPreviewGeometryEditable();
-  if (data.sticker_root) STICKER_ROOT = data.sticker_root;
+  const nextStickerRoot=typeof data.sticker_root==='string'?data.sticker_root:'';
+  if(STICKER_ROOT!==nextStickerRoot){STICKERS.length=0;stickerAssetRevision+=1;}
+  STICKER_ROOT=nextStickerRoot;
   DATA.segments.length = 0;
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
@@ -56734,17 +56775,7 @@ function setStickerRootModalOpen(open) {
   stickerRootReturnFocus = null;
 }
 
-document.getElementById('sticker-root-confirm')?.addEventListener('click', () => {
-  const newRoot = stickerRootInput.value.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-  STICKER_ROOT = newRoot;
-  updateStickerExportButtons();
-  stickerRootModal.classList.remove('show');
-  stickerRootReturnFocus?.focus();
-  stickerRootReturnFocus = null;
-  // 重新渲染所有 cue 让 sticker URL 用新根目录拼接
-  renderAll();
-  flashHint(newRoot ? `根目录已更新` : '已清空根目录', 'success');
-});
+window.addEventListener('msw:project-changed',()=>{setStickerRootModalOpen(false);setStickerRootStatus('');});
 
 function flashStickerRootHint(message, type) {
   stickerRootHintCard?.remove();
@@ -56760,7 +56791,7 @@ document.getElementById('sticker-root-btn')?.addEventListener('click', () => {
   stickerRootInput.value = STICKER_ROOT || '';
   setStickerRootStatus(stickerRootServerEnabled
     ? (STICKER_ROOT
-      ? `当前路径已读取 ${Number(SERVER_CONFIG.initialStickerCount) || STICKERS.length} 张图片。可输入 Windows、macOS 或 Linux 绝对路径。`
+      ? `当前路径已读取 ${STICKERS.length} 张图片。可输入 Windows、macOS 或 Linux 绝对路径。`
       : '请输入绝对路径，例如 C:\\Media\\Stickers、/Users/name/Stickers 或 /home/name/Stickers。')
     : '仅 Server 编辑器可以读取和验证表情包绝对路径。');
   setStickerRootModalOpen(true);
@@ -56793,6 +56824,7 @@ stickerRootModal?.addEventListener('keydown', (event) => {
 stickerRootRead.addEventListener('click', async () => {
   if (!stickerRootServerEnabled || stickerRootRead.disabled) return;
   const path = stickerRootInput.value.trim();
+  const generation=mswProjectGeneration;
   stickerRootHintCard?.remove();
   stickerRootHintCard = null;
   stickerRootRead.disabled = true;
@@ -56805,6 +56837,7 @@ stickerRootRead.addEventListener('click', async () => {
       body: JSON.stringify({ requestToken: SERVER_CONFIG.requestToken, path }),
     });
     const result = await response.json().catch(() => ({}));
+    if(generation!==mswProjectGeneration)return;
     if (!response.ok || !result.ok) throw new Error(result.error || `服务器返回 ${response.status}`);
     STICKERS.splice(0, STICKERS.length, ...result.stickers);
     STICKER_ROOT = result.root;
@@ -56813,15 +56846,17 @@ stickerRootRead.addEventListener('click', async () => {
     stickerAssetRevision += 1;
     projectImportDirty = true;
     renderAll();
+    updateStickerExportButtons();scheduleAutoSaveFlush();
     setStickerRootStatus(`路径有效，已读取 ${result.count} 张图片。`);
     flashStickerRootHint(`表情包根目录已更新，读取 ${result.count} 张图片`, 'success');
   } catch (error) {
+    if(generation!==mswProjectGeneration)return;
     setStickerRootStatus(`读取失败：${error.message || error}。当前有效根目录和表情包保持不变。`);
     flashStickerRootHint(`表情包根目录读取失败：${error.message || error}`, 'warning');
   } finally {
     stickerRootRead.disabled = false;
     stickerRootInput.disabled = false;
-    stickerRootInput.focus();
+    if(generation===mswProjectGeneration&&stickerRootModal.classList.contains('show'))stickerRootInput.focus();
   }
 });
 
@@ -60108,9 +60143,11 @@ updateProjectDetailCard();
 refreshClipboardMenuState();
 
 // Single-source controls are classified after their handlers have been wired.
+let settingsTrackCountOwners=null,settingsTrackCounts=new Map();
 const settingsWindowsContent=MSWSettingsWindows.assemble({
   openProject: category=>setProjectSettingsPanelOpen(true,category),
   openProperties: id=>{setProjectSettingsPanelOpen(false);setEditorSettingsPanelOpen(false);if(id)MSWSubtitleStyle.editTrack(id);else MSWSubtitleStyle.open('track');},
+  trackMenu: (id,x,y)=>{const track=DATA.subtitle_tracks?.tracks.find(t=>t.id===id);if(track)fixedTrackMenu(track,x,y);},
   openPlayer: ()=>{setEditorSettingsPanelOpen(false);setProjectSettingsPanelOpen(false);setSubtitlePreviewSettingsPanelOpen(true);},
   openWave: ()=>{setEditorSettingsPanelOpen(false);setWaveformSettingsPanelOpen(true);},
   openCue: ()=>{setEditorSettingsPanelOpen(false);cueEditorSettingsFloatingPanel.open();},
@@ -60121,7 +60158,10 @@ const settingsWindowsContent=MSWSettingsWindows.assemble({
   describe: ()=>{
     // Overview reads the current operation view; never serialize/validate the
     // entire project just because a settings window is open during editing.
-    const tracks=gapSubtitleTracks().map(t=>({id:t.id,name:t.name,language:t.language,locked:t.locked,enabled:t.enabled,count:t.cues.length}));
+    const owners=fixedOwners();
+    if(owners!==settingsTrackCountOwners){settingsTrackCountOwners=owners;settingsTrackCounts=new Map();for(const id of owners.values())settingsTrackCounts.set(id,(settingsTrackCounts.get(id)||0)+1);}
+    const languages=new Map(MSWSpeaker.languageOptions(DATA));
+    const tracks=DATA.subtitle_tracks.tracks.map(t=>({id:t.id,name:t.name,language:t.language?languages.get(MSWSpeaker.language(t.language)):null,locked:t.locked,enabled:t.enabled,count:settingsTrackCounts.get(t.id)||0}));
     return {tracks,cues:tracks.reduce((sum,t)=>sum+t.count,0),media:DATA.media?.path||(typeof DATA.media==='string'?DATA.media:''),audio:DATA.msw?.audio_clips?.length||0};
   },
 });
@@ -67827,6 +67867,15 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   };
   const scopeBar=document.createElement('div');scopeBar.className='msw-properties-scope';
   scopeBar.innerHTML='<select id="style-edit-scope" aria-label="属性对象"></select><select id="style-speaker-target" aria-label="说话人对象" hidden></select><span id="style-selection-label"></span>';
+  const projectSettingsLink=document.createElement('button');projectSettingsLink.type='button';projectSettingsLink.id='style-project-settings-open';projectSettingsLink.className='msw-style-icon msw-property-settings-link';
+  projectSettingsLink.title='项目设置';projectSettingsLink.setAttribute('aria-label','项目设置');
+  projectSettingsLink.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>';scopeBar.append(projectSettingsLink);
+  projectSettingsLink.onclick=()=>{
+    if(fixedPositionEditing)fixedStopPositioning(false);
+    if(speakerScope())setProjectSettingsPanelOpen(true,'subtitle-speakers',{speakerId:speaker()?.id});
+    else {const rows=selectedRows(),ids=new Set(rows.map(r=>r.subtitle_track_id));
+      setProjectSettingsPanelOpen(true,'time-tracks',{trackId:cueScope()?(ids.size===1?[...ids][0]:null):fixedStyleTarget()?.id});}
+  };
   const general=$('style-general'),basicFields=$('style-basic-fields'),presetRow=panel.querySelector('.msw-style-selectors');
   general.insertBefore(scopeBar,basicFields);
   scopeBar.insertBefore(tabs,$('style-selection-label'));
@@ -68111,12 +68160,18 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     return readProperties(rebuildControls);
   }
   function rebuildControls() {
+    // An explicit target that was removed must not silently become the next
+    // track/person. Project switches clear the target before initialization.
+    if((editScope==='track'&&fixedStyleTrackId&&!fixedStyleTarget())||
+      (editScope==='speaker'&&speakerId&&!speakers().some(r=>r.id===speakerId))){
+      editScope='cue';fixedPositionScope='cue';speakerId='';fixedStyleTrackId='';
+    }
     const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
     fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name])],proof.mode);
     if(!$('style-preview-mode').value){proof.mode='project';$('style-preview-mode').value='project';persistProof();}
     if(productionFlatMode()&&!fixedStyleTarget()){
       const tracks=host.data.subtitle_tracks.tracks,occupied=new Set(host.data.subtitle_tracks.assignments.map(a=>a.subtitle_track_id));
-      fixedStyleTrackId=(tracks.find(t=>!t.secondary_for&&(occupied.has(t.id)||tracks.some(s=>s.secondary_for===t.id&&occupied.has(s.id))))||tracks[0]).id;role='main';
+      fixedStyleTrackId=(tracks.find(t=>!t.secondary_for&&(occupied.has(t.id)||tracks.some(s=>s.secondary_for===t.id&&occupied.has(s.id))))||tracks[0])?.id||'';role='main';
     }
     const track=fixedTrackMode()?fixedStyleTarget():null;
     $('style-track-controls').hidden=!fixedTrackMode()||productionFlatMode();
@@ -68291,7 +68346,18 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
   }
   function cancelAction(){pendingAction=null;$('style-save-form').hidden=true;$('style-delete-confirm').hidden=true;}
   $('style-track-layout').onchange=()=>{cancelAction();fixedSetPresentation($('style-track-layout').value);rebuild();sync();refresh();};
-  function editTrack(id,show=true){cancelAction();message('');editScope='track';fixedPositionScope='track';fixedStyleTrackId=id;fixedPositionRef=null;if(productionFlatMode()&&fixedStyleTarget())role=fixedStyleTarget().secondary_for?'secondary':'main';rebuild();sync();if(show)open('track');}
+  function editTrack(id,show=true){
+    const track=host.data.subtitle_tracks?.tracks.find(t=>t.id===id);if(!track)return false;
+    if(fixedPositionEditing)fixedStopPositioning(false);
+    commitProcessingEdits();cancelAction();message('');editScope='track';fixedPositionScope='track';fixedStyleTrackId=id;fixedPositionRef=null;
+    if(productionFlatMode())role=track.secondary_for?'secondary':'main';
+    if(show)open('track');else {rebuild();sync();}return true;
+  }
+  function editSpeaker(id){
+    if(!speakers().some(r=>r.id===id))return false;
+    if(fixedPositionEditing)fixedStopPositioning(false);
+    commitProcessingEdits();cancelAction();message('');speakerId=id;role='main';open('speaker');return true;
+  }
   $('style-track-target').onchange=()=>editTrack($('style-track-target').value,false);
   $('style-position-scope').onchange=()=>{fixedPositionScope=$('style-position-scope').value;fixedPreviewInvalidate();sync();refresh();};
   $('style-position-drag').onclick=()=>fixedStartPositioning();
@@ -68445,7 +68511,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     const target=host.subtitlePreviewTarget();
     return {style:proof.mode==='project'?projectStyle():S.normalize(find(proof.mode)||S.defaults()),target,scope:proof.mode==='project'?'project':'proof',label:proof.mode==='project'?'工程字幕样式':'仅影响预览'};
   }
-  global.MSWSubtitleStyle={currentPreview,editTrack,open,propertiesVisible,syncSelection:()=>{
+  global.MSWSubtitleStyle={currentPreview,editTrack,editSpeaker,open,propertiesVisible,syncSelection:()=>{
     if(!ready)return;
     const ids=[...fixedPositionSelectedIds()].sort();
     if(!speakerScope()&&!fixedPositionEditing&&ids.length&&JSON.stringify(ids)!==lastCueSelection){editScope='cue';fixedPositionScope='cue';}
@@ -68484,7 +68550,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     finally {if(generation===host.generation)panel.inert=false;}
   }
   $('style-retry').onclick=()=>void initialize();
-  global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';void initialize();});
+  global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';editScope='cue';speakerId='';fixedPositionScope='cue';lastSelectionKey='';lastCueSelection='';positionDrafts.clear();void initialize();});
   global.addEventListener('msw:speakers-changed',()=>{if(ready){rebuild();sync();refresh();}});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
   global.addEventListener('msw:subtitles-changed',()=>{if(ready){if(fixedTrackMode())rebuild();sync();}});
