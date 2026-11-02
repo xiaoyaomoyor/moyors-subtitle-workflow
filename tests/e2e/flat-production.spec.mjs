@@ -437,7 +437,7 @@ test('copy/paste and subtitle assets keep independent tracks and paired cards',a
   await page.keyboard.press('Control+z');expect((await snap(page)).subtitles.cues).toHaveLength(4);
 });
 
-for(const method of ['ctrl','menu'])test(`normal empty physical track creates through ${method}`,async({page})=>{
+for(const method of ['ctrl','menu','n'])test(`normal empty physical track creates through ${method}`,async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.evaluate(p=>{applyCanonicalProject(p,'empty.mosp');waveformEditor.settings.mode='multi';waveformEditor.settings.secondsPerRow=10;
     waveformEditor.settings.rowHeight=140;waveformEditor.render();updateEditorSettings({clickBehavior:'select-only',autoSaveProject:false});},fixture());
@@ -450,15 +450,101 @@ for(const method of ['ctrl','menu'])test(`normal empty physical track creates th
       y:r.bottom-(parseFloat(row.style.getPropertyValue('--audio-lane-space'))||0)-7-lane*waveformEditor.subtitleGeometry().pitch-waveformEditor.subtitleGeometry().height/2};
   },{target,time});
   const a=await point(1500),b=await point(2500);await page.mouse.move(a.x,a.y);
+  const historyBefore=await page.evaluate(()=>editorHistory.undoLength());
   if(method==='ctrl') {
     await page.keyboard.down('Control');await page.mouse.down();await page.mouse.move(b.x,b.y,{steps:5});
     await expect(page.locator('.waveform-create-preview')).toHaveAttribute('data-subtitle-track-id',target);
     await page.mouse.up();await page.keyboard.up('Control');
-  } else {await page.mouse.click(a.x,a.y,{button:'right'});await page.locator('#ctxmenu .item').filter({hasText:'创建字幕'}).click();}
+  } else if(method==='n') {await page.keyboard.press('n');}
+  else {await page.mouse.click(a.x,a.y,{button:'right'});await page.locator('#ctxmenu .item').filter({hasText:'创建字幕'}).click();}
   const after=await snap(page),added=after.subtitles.cues.filter(c=>!before.subtitles.cues.some(a=>a.id===c.id));
   expect(added).toHaveLength(1);expect(added[0].track_id).toBe(target);expect(Math.abs(added[0].content.start-1500)).toBeLessThan(30);
   expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
-  await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(before.subtitles);expect(errors).toEqual([]);
+  expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(historyBefore+1);
+  await expect(page.locator('#cue-panel-text')).toBeFocused();
+  await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.keyboard.press('Control+Shift+z');
+  expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  expect(errors).toEqual([]);
+});
+
+async function prepareCreationHistory(page, trackIndex=0) {
+  await page.evaluate(p=>{
+    applyCanonicalProject(p,'creation-history.mosp');
+    updateEditorSettings({clickBehavior:'select-only',autoSaveProject:false});
+    waveformEditor.settings.mode='multi';waveformEditor.settings.secondsPerRow=10;
+    waveformEditor.settings.rowHeight=170;waveformEditor.render();
+  },fixture());
+  return (await snap(page)).subtitles.tracks[trackIndex].id;
+}
+async function createWithN(page,trackId) {
+  const point=await trackPoint(page,trackId,5000);
+  await page.mouse.move(point.x,point.y);await page.keyboard.press('n');
+  await expect(page.locator('#cue-panel-text')).toBeFocused();
+}
+
+for(const trackIndex of [0,1])test(`new cue on physical track ${trackIndex} undoes once after editing an older cue`,async({page})=>{
+  const trackId=await prepareCreationHistory(page,trackIndex);
+  const original=await snap(page);
+  await page.evaluate(()=>selectOnly(0));
+  await page.locator('#cue-panel-text').fill('Keep this earlier edit');
+  await page.locator('#cue-panel-text').blur();
+  const before=await snap(page);
+  await createWithN(page,trackId);
+  const after=await snap(page);
+  expect(after.subtitles.cues).toHaveLength(3);
+  expect(after.subtitles.cues.find(c=>!before.subtitles.cues.some(b=>b.id===c.id)).track_id).toBe(trackId);
+  await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.keyboard.press('Control+y');
+  expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles).toEqual(original.subtitles);
+});
+
+test('typing in a new cue retains native text undo and redo before project undo',async({page})=>{
+  const trackId=await prepareCreationHistory(page),before=await snap(page);
+  await createWithN(page,trackId);
+  const blank=await snap(page),input=page.locator('#cue-panel-text');
+  await page.keyboard.insertText('Fresh text');
+  await expect(input).toHaveValue('Fresh text');
+  await page.keyboard.press('Control+z');
+  await expect(input).toHaveValue('');
+  expect((await snap(page)).subtitles.cues).toHaveLength(blank.subtitles.cues.length);
+  await page.keyboard.press('Control+Shift+z');
+  await expect(input).toHaveValue('Fresh text');
+  await input.blur();
+  await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles).toEqual(blank.subtitles);
+  await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+});
+
+test('creation undo ignores composition and cancelled shortcuts and leaves other inputs alone',async({page})=>{
+  const trackId=await prepareCreationHistory(page);
+  await createWithN(page,trackId);
+  const after=await snap(page);
+  const allowed=await page.locator('#cue-panel-text').evaluate(input=>{
+    const composing=new KeyboardEvent('keydown',{key:'z',ctrlKey:true,isComposing:true,bubbles:true,cancelable:true});
+    input.dispatchEvent(composing);
+    input.addEventListener('keydown',event=>event.preventDefault(),{once:true});
+    const cancelled=new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true});
+    input.dispatchEvent(cancelled);
+    return !composing.defaultPrevented && cancelled.defaultPrevented;
+  });
+  expect(allowed).toBe(true);
+  expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.evaluate(()=>{updateEditorSettings({cueEditorShowTimeActions:true});applyCueEditorDisplaySettings();});
+  const timing=page.locator('#cue-panel-start');
+  await timing.focus();await expect(timing).toBeFocused();await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.locator('#cue-panel-text').focus();
+  await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles.cues).toHaveLength(after.subtitles.cues.length-1);
 });
 
 test('normal subtitle import, column swap and track replacement preserve other physical tracks',async({page})=>{

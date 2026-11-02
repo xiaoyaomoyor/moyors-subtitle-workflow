@@ -38698,9 +38698,9 @@ function performRedo() {
   updateUndoRedoButtons();
 }
 // modal 或文本输入聚焦时不触发全局撤销/重做（让浏览器/输入框自己处理）
-function historyGuarded() {
+function historyGuarded({ ignoreInput = null } = {}) {
   const a = document.activeElement;
-  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) {
+  if (a && a !== ignoreInput && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) {
     return true;
   }
   return stickerModal.classList.contains('show')
@@ -39142,6 +39142,10 @@ let currentCuePanelTrackId = null;
 let cuePanelUndoPushed = false;
 let cuePanelUndoRecord = null;
 let cuePanelTextEditSnapshot = null;
+// Focus alone (including automatic focus after creation) is not a text edit.
+// Keep native undo/redo ownership after any input, even if native undo has
+// returned to the original text. Reset only on a new focus/target session.
+let cuePanelTextHasInput = false;
 let cuePanelCanceling = false;
 let editorSettingsPanelFrame = 0;
 
@@ -43539,6 +43543,7 @@ function setCuePanelTarget(kind, index, trackId = null) {
   currentCuePanelKind = nextKind;
   currentCuePanelIdx = nextIndex;
   currentCuePanelTrackId = nextTrackId;
+  cuePanelTextHasInput = false;
   resetCuePanelEditState();
   renderCurrentCuePanel();
 }
@@ -43766,6 +43771,7 @@ function restoreDirtyFlag(target, value) {
 }
 
 function captureCuePanelTextEditSnapshot() {
+  cuePanelTextHasInput = false;
   const target = getCurrentCuePanelTarget();
   if (!target || !cuePanelText) {
     cuePanelTextEditSnapshot = null;
@@ -43927,6 +43933,7 @@ function refreshCuePanelTextContent(target) {
   else waveformEditor?.refreshCueLabel(target.index);
 }
 cuePanelText?.addEventListener('input', () => {
+  cuePanelTextHasInput = true;
   const target = getCurrentCuePanelTarget();
   if (!target) return;
   if (!fixedCanEdit([target.segment], target.kind, target.trackId)) { cuePanelText.value = target.segment.text; return; }
@@ -49867,10 +49874,15 @@ document.addEventListener('keydown', (e) => {
   const isY = e.key === 'y' || e.key === 'Y';
   if (!isZ && !isY) return;
   if (!(e.ctrlKey || e.metaKey)) return;
+  if (e.defaultPrevented || e.isComposing || e.altKey) return;
   const isRedo = isY || e.shiftKey;
-  // 编辑文本时让浏览器自己处理 input 内的撤销/重做
-  if (historyGuarded()) return;
+  const pristineCueText = document.activeElement === cuePanelText
+    && !cuePanelTextHasInput && !cuePanelUndoPushed && !!getCurrentCuePanelTarget();
+  // An untouched cue editor delegates to project history. Once the user types,
+  // leave native text history alone, including redo after returning to empty.
+  if (historyGuarded({ ignoreInput: pristineCueText ? cuePanelText : null })) return;
   e.preventDefault();
+  if (pristineCueText) cuePanelText.blur();
   if (isRedo) performRedo();
   else performUndo();
 });

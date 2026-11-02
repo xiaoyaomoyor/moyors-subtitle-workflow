@@ -663,7 +663,11 @@ test('current-cue text keeps the list and waveform labels in sync through undo a
   const waveformLabel = waveformCue.locator('.waveform-cue-label');
   const listText = page.locator('.cue[data-idx="0"] .text');
   const panelText = page.locator('#cue-panel-text');
-  const overlayText = page.locator('#msw-layer-preview .msw-layer-preview-text[data-role=main]');
+  // Flat tracks use the fixed-position fallback or the loaded libass document;
+  // the old layer preview is no longer the active subtitle surface.
+  const previewTexts = () => page.evaluate(() => window.MSWSubtitleRenderer?.status === 'libass'
+    ? MSWSubtitleRenderer.geometry.filter(row => row.role === 'main').map(row => row.text)
+    : [...document.querySelectorAll('#fixed-subtitle-preview [data-role="main"] .fixed-subtitle-text')].map(el => el.textContent));
   const undo = page.locator('#undo-btn');
   const redo = page.locator('#redo-btn');
 
@@ -682,23 +686,25 @@ test('current-cue text keeps the list and waveform labels in sync through undo a
   await expect(panelText).toHaveValue('Alpha');
   await expect(listText).toHaveText('Alpha');
   await expect(waveformLabel).toHaveText('Alpha');
-  await expect(overlayText).toHaveText('Alpha');
+  await expect.poll(previewTexts).toContain('Alpha');
 
   await panelText.fill('Alpha revised');
   await expect(listText).toHaveText('Alpha revised');
   await expect(waveformLabel).toHaveText('Alpha revised');
-  await expect(overlayText).toHaveText('Alpha revised');
+  await expect.poll(previewTexts).toContain('Alpha revised');
 
   await panelText.blur();
   await expect(undo).toBeEnabled();
   await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect(listText).toHaveText('Alpha');
   await expect(waveformLabel).toHaveText('Alpha');
+  await expect.poll(previewTexts).toContain('Alpha');
   await expect(redo).toBeEnabled();
 
   await clickMenubarItem(page, '编辑', 'redo-btn');
   await expect(listText).toHaveText('Alpha revised');
   await expect(waveformLabel).toHaveText('Alpha revised');
+  await expect.poll(previewTexts).toContain('Alpha revised');
 });
 
 test('current-cue Escape behavior follows the operation setting', async ({ page }) => {
