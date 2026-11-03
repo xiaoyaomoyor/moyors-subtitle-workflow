@@ -160,7 +160,7 @@ class PrefabPlanTests(unittest.TestCase):
         plan["enabled"] = True
         plan["steps"] = [{"id": "translate", "enabled": True, "providerId": "deepseek", "target": "en", "customPrompt": ""}]
 
-        def fake_complete(_settings: object, _prompt: str, cues: list[dict[str, object]]) -> dict[str, object]:
+        def fake_complete(_settings: object, _prompt: str, cues: list[dict[str, object]], **_kwargs) -> dict[str, object]:
             return {"groups": [{"id": str(cue["id"]), "text": f"EN:{cue['text']}"} for cue in cues]}
 
         llm_settings = {"deepseek": {"apiKey": "key", "baseUrl": "https://example.test", "model": "m", "verified": "1"}}

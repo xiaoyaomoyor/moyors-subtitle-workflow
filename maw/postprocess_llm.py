@@ -6,10 +6,14 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import math
+import random
 import re
 import ssl
+import time
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from email.utils import parsedate_to_datetime
 from typing import Final
 from urllib.parse import urlparse
 
@@ -48,6 +52,7 @@ class LlmClientError(RuntimeError):
     status_code: int | None = None
     diagnostic: str = ""
     operation: str = ""
+    retry_after_seconds: float | None = None
 
     def __post_init__(self) -> None:
         # LLM errors cross the GUI bridge and may be copied into logs or an
@@ -64,6 +69,9 @@ class LlmClientError(RuntimeError):
 LlmDelta = Callable[[str, str], None]
 REASONING_MODES: Final[frozenset[str]] = frozenset({"auto", "off", "low", "medium", "high", "max"})
 MAX_RESPONSE_ATTEMPTS: Final[int] = 2
+MAX_TRANSIENT_RETRIES: Final[int] = 3
+MAX_RETRY_DELAY: Final[float] = 60.0
+TRANSIENT_HTTP_STATUSES: Final[frozenset[int]] = frozenset({408, 429, 500, 502, 503, 504})
 CONNECTION_TEST_READ_TIMEOUT: Final[int] = 90
 MAX_PROVIDER_DIAGNOSTIC_CHARS: Final[int] = 240
 _REASONING_ALIASES: Final[dict[str, str]] = {
@@ -116,16 +124,23 @@ def complete_subtitle_groups(
     cues: list[dict[str, JsonValue]],
     *,
     on_delta: LlmDelta | None = None,
+    on_retry: Callable[[int, float, int], None] | None = None,
+    retry_wait: Callable[[float], None] | None = None,
 ) -> dict[str, JsonValue]:
     """Call one OpenAI-compatible chat endpoint and return its JSON object.
 
     When ``on_delta`` is provided, the response is consumed as an SSE stream.
     The callback receives ``("reasoning", text)`` or ``("content", text)``
     events, while the returned value is still parsed only after the complete
-    JSON content has arrived.
+    JSON content has arrived. Temporary HTTP failures share three extra
+    attempts across format repairs; ``retry_wait`` may interrupt backoff by
+    raising the caller's cancellation exception. Connection probes stay single-shot.
     """
     _chat_endpoint(settings.base_url)
     last_error = "LLM response did not pass the local JSON protocol."
+    # Share one transport retry budget across JSON repair attempts, rather
+    # than multiplying the budgets whenever the model returns malformed JSON.
+    transient_retries = 0
     for attempt in range(MAX_RESPONSE_ATTEMPTS):
         if attempt:
             if on_delta is not None:
@@ -135,7 +150,28 @@ def complete_subtitle_groups(
             prompt = _retry_prompt(system_prompt, last_error)
         else:
             prompt = system_prompt
-        body = _request_completion(settings, prompt, cues, on_delta=on_delta)
+        while True:
+            try:
+                body = _request_completion(settings, prompt, cues, on_delta=on_delta)
+                break
+            except LlmClientError as error:
+                if not _is_transient_response(error):
+                    raise
+                if transient_retries >= MAX_TRANSIENT_RETRIES:
+                    raise replace(error, message=f"{error.message} 临时服务错误已重试 {transient_retries} 次，本批尚未完成。") from error
+                if error.retry_after_seconds is not None and error.retry_after_seconds > MAX_RETRY_DELAY:
+                    raise replace(error, message=f"{error.message} 服务端要求等待超过 {MAX_RETRY_DELAY:g} 秒，请稍后继续本批处理。") from error
+                delay = max(2.0 ** (transient_retries + 1), error.retry_after_seconds or 0.0)
+                delay = min(MAX_RETRY_DELAY, delay + random.uniform(0.0, 0.5))
+                transient_retries += 1
+                if on_retry is not None:
+                    assert error.status_code is not None
+                    on_retry(transient_retries, delay, error.status_code)
+                # Pipeline callers provide a cancellable wait. No response
+                # text from this failed attempt is applied to the project.
+                (retry_wait or time.sleep)(delay)
+                if on_delta is not None:
+                    on_delta("reset", "")
         content = _response_content(body)
         try:
             parsed = json.loads(_strip_json_fence(content))
@@ -158,6 +194,33 @@ def complete_subtitle_groups(
                                  category="response_format", operation="completion")
         return parsed
     raise AssertionError("LLM response retry loop did not return or raise")
+
+
+def _is_transient_response(error: LlmClientError) -> bool:
+    if error.category != "provider_response" or error.status_code not in TRANSIENT_HTTP_STATUSES:
+        return False
+    # A 429 may report exhausted credit/daily quota rather than a short rate
+    # limit. Retrying these explicit billing/quota failures cannot help.
+    detail = f"{error.diagnostic} {error.message}".lower()
+    return not any(marker in detail for marker in (
+        "insufficient_quota", "quota_exceeded", "quota exhausted", "quota exceeded",
+        "daily quota", "per day", "per_day", "perday", "billing", "insufficient balance",
+        "credit balance", "payment required", "余额不足", "额度耗尽", "欠费",
+    ))
+
+
+def _retry_after_seconds(response: requests.Response) -> float | None:
+    raw = response.headers.get("Retry-After")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        seconds = float(raw)
+    except ValueError:
+        try:
+            seconds = parsedate_to_datetime(raw).timestamp() - time.time()
+        except (ValueError, TypeError, OverflowError):
+            return None
+    return max(0.0, seconds) if math.isfinite(seconds) else None
 
 
 def _request_completion(
@@ -199,16 +262,16 @@ def _request_completion(
                 **({"stream": True} if streaming else {}),
             )
             try:
-                response.raise_for_status()
-            except HTTPError as error:
-                raise _provider_response_error(response, settings=settings, operation="completion") from error
-            if streaming:
                 try:
+                    response.raise_for_status()
+                except HTTPError as error:
+                    raise _provider_response_error(response, settings=settings, operation="completion") from error
+                if streaming:
                     body = _read_stream_response(response, on_delta, settings=settings)
-                finally:
-                    response.close()
-            else:
-                body = response.json()
+                else:
+                    body = response.json()
+            finally:
+                response.close()
     except LlmClientError:
         raise
     except JSONDecodeError as error:
@@ -730,6 +793,7 @@ def _provider_response_error(
         status_code=status_code,
         diagnostic=diagnostic,
         operation=operation,
+        retry_after_seconds=_retry_after_seconds(response),
     )
 
 

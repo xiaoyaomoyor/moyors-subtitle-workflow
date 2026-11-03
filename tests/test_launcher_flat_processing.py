@@ -96,7 +96,7 @@ class NativePipelineTests(unittest.TestCase):
             plan = {'enabled': True, 'outputSemantics': 'separate-v2', 'exportBilingualSrt': True,
                     'outputDirectory': str(root / 'out'), 'trackScope': {'sourceTrackId': source_id, 'targetTrackId': 'new'},
                     'steps': [{'id': 'translate', 'enabled': True, 'target': 'zh', 'providerId': 'deepseek', 'mergeBilingual': True}]}
-            def complete(_settings, _prompt, cues):
+            def complete(_settings, _prompt, cues, **_kwargs):
                 return {'groups': [{'id': c['id'], 'source': c['text'], 'text': '你好世界。'} for c in cues]}
             with patch('maw.postprocess_pipeline.complete_subtitle_groups', side_effect=complete):
                 result = run_postprocess_pipeline(plan, media_path=root / 'movie.mp4', project_path=source,
@@ -250,7 +250,7 @@ class NativeStepTests(unittest.TestCase):
                 return run_ocr_dedup(request, **kwargs, recognizer=lambda _: [('Note', .99)],
                                     frame_extractor=lambda *a: True, image_loader=lambda _: FakeImage())
             for operation in ('match', 'proofread', 'resegment', 'ocr'):
-                def complete(_settings, _prompt, cues):
+                def complete(_settings, _prompt, cues, **_kwargs):
                     return {'groups': [{'id': c['id'], 'text': text} for c in cues
                                        for text in (['Part one', 'Part two'] if operation == 'resegment' else ['Edited note'])]}
                 with self.subTest(operation=operation), patch('maw.postprocess_pipeline.complete_subtitle_groups', side_effect=complete), patch('maw.postprocess_pipeline.run_ocr_dedup', side_effect=ocr):

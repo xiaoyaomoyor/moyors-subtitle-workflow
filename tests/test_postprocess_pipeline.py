@@ -55,7 +55,7 @@ class PostprocessPipelineTests(unittest.TestCase):
         disk_full = False
         create_temp = tempfile.mkstemp
 
-        def complete(_settings, _prompt, cues):
+        def complete(_settings, _prompt, cues, **_kwargs):
             nonlocal disk_full
             disk_full = True
             return {"groups": [{"id": cue["id"], "text": "Translation " + cue["id"]} for cue in cues]}
@@ -94,7 +94,7 @@ class PostprocessPipelineTests(unittest.TestCase):
         workspace = self.root / ("d" * padding)
         step = {"id": "translate", "enabled": True, "providerId": "deepseek", "target": "en"}
 
-        def complete(_settings, _prompt, cues):
+        def complete(_settings, _prompt, cues, **_kwargs):
             return {"groups": [{"id": cue["id"], "text": "Translation " + cue["id"]} for cue in cues]}
 
         with mock.patch.dict(os.environ, {"MSW_GUI_LANG": "zh"}), mock.patch(
@@ -356,7 +356,7 @@ class PostprocessPipelineTests(unittest.TestCase):
         )
         requested_cues: list[list[str]] = []
 
-        def fake_complete(_settings: object, _prompt: str, cues: list[dict[str, object]]) -> dict[str, object]:
+        def fake_complete(_settings: object, _prompt: str, cues: list[dict[str, object]], **_kwargs) -> dict[str, object]:
             requested_cues.append([str(cue["id"]) for cue in cues])
             return {
                 "groups": [
@@ -773,7 +773,7 @@ class PostprocessPipelineTests(unittest.TestCase):
             {"id": "proofread", "enabled": True, "providerId": "custom", "model": "proofreader", "reasoningMode": "low"},
             {"id": "translate", "enabled": True, "providerId": "custom", "model": "translator", "reasoningMode": "high", "target": "en"})
         seen = []
-        def complete(settings, _prompt, cues):
+        def complete(settings, _prompt, cues, **_kwargs):
             seen.append((settings.model, settings.reasoning_mode, settings.api_key))
             self.env_path.write_text("MAW_POSTPROCESS_CUSTOM_API_KEY=changed\nMAW_POSTPROCESS_CUSTOM_MODEL=changed\n", encoding="utf-8")
             return {"groups": [{"id": c["id"], "text": c["text"] if settings.model == "proofreader" else "Translated " + c["id"]} for c in cues]}
@@ -796,7 +796,7 @@ class PostprocessPipelineTests(unittest.TestCase):
         error = raised.exception
         self.env_path.write_text("MAW_POSTPROCESS_CUSTOM_API_KEY=changed\nMAW_POSTPROCESS_CUSTOM_MODEL=changed\n", encoding="utf-8")
         seen = []
-        def complete(settings, _prompt, cues):
+        def complete(settings, _prompt, cues, **_kwargs):
             seen.append((settings.model, settings.reasoning_mode, settings.api_key))
             return {"groups": [{"id": c["id"], "text": "Translated " + c["id"]} for c in cues]}
         with mock.patch("maw.postprocess_pipeline.complete_subtitle_groups", side_effect=complete):

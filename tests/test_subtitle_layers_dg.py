@@ -149,7 +149,7 @@ class ProductionLayersTests(unittest.TestCase):
         project=bilingual()
         snapshot={'project_id':'project-test','project_schema':project['schema'],'track_id':None,'entries':[{'source':c,'target':None,'binding_id':None} for c in project['segments']]}
         checked=validate_snapshot(snapshot)
-        def complete(settings,prompt,cues):
+        def complete(settings,prompt,cues,**_kwargs):
             return {'groups':[{'source_ids':[c['id']],'text':'Translation '+c['text']} for c in cues]}
         with patch('maw.msw.jobs.complete_subtitle_groups',side_effect=complete):
             result=translate_snapshot(checked,'en','',SETTINGS,threading.Event(),lambda *_:None)

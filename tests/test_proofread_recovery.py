@@ -138,7 +138,7 @@ class ProofreadRecoveryTests(unittest.TestCase):
             settings = {'proofread': {'model': 'test', 'apiKey': 'test-only-secret', 'baseUrl': 'https://example.test', 'verified': '1'}}
             args = dict(media_path=root / 'media.mp4', project_path=source, srt_path=root / 'input.srt', env_path=env,
                         ffmpeg_path=None, cancel_event=Event(), llm_settings=settings)
-            def interrupted(_settings, prompt, cues):
+            def interrupted(_settings, prompt, cues, **_kwargs):
                 if cues[0]['id'] == 'c0041':
                     raise LlmClientError('offline', category='network')
                 return corrected(cues)
@@ -150,7 +150,7 @@ class ProofreadRecoveryTests(unittest.TestCase):
             self.assertTrue(cache.is_file())
             self.assertNotIn('test-only-secret', cache.read_text(encoding='utf-8'))
             calls = []
-            def complete(_settings, prompt, cues):
+            def complete(_settings, prompt, cues, **_kwargs):
                 calls.append(cues[0]['id'])
                 return corrected(cues)
             with patch('maw.postprocess_pipeline.complete_subtitle_groups', side_effect=complete):

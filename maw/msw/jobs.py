@@ -93,7 +93,10 @@ def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: Llm
 
     def complete(system_prompt, cues):
         check()
-        result = complete_subtitle_groups(settings, system_prompt, cues)
+        def retry_wait(seconds):
+            cancel.wait(seconds)
+            check()
+        result = complete_subtitle_groups(settings, system_prompt, cues, retry_wait=retry_wait)
         check()
         return result
 

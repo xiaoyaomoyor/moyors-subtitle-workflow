@@ -71,7 +71,7 @@ class ProcessingTests(unittest.TestCase):
 
     def test_snapshot_processing_uses_launcher_protocol_and_preserves_real_ids(self):
         original = snapshot()
-        def complete(settings, prompt, cues):
+        def complete(settings, prompt, cues, **_kwargs):
             self.assertEqual(settings, SETTINGS)
             return {'groups': [{'source_ids': [cue['id']], 'text': '译文 ' + cue['text']} for cue in cues]}
         with patch('maw.msw.jobs.complete_subtitle_groups', side_effect=complete):
@@ -98,7 +98,7 @@ class ProcessingTests(unittest.TestCase):
         data = snapshot()
         data['entries'][0]['source'].update(id='c0002', text='你好，今天真好。')
         data['entries'][1]['source'].update(id='c0001', text='Hello, how are you?')
-        def complete(settings, prompt, cues):
+        def complete(settings, prompt, cues, **_kwargs):
             self.assertEqual([cue['id'] for cue in cues], ['c0002'])
             return {'groups': [{'source_ids': ['c0002'], 'text': '你好，你好吗？'}]}
         with patch('maw.msw.jobs.complete_subtitle_groups', side_effect=complete):

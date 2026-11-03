@@ -133,7 +133,7 @@ class ProofreadPipelineTests(unittest.TestCase):
                 {'id': 'translate', 'enabled': True, 'providerId': 'zhipu', 'target': 'zh'}]}
             settings = {p: {'apiKey': 'test', 'baseUrl': 'https://example.test', 'model': p + '-model', 'verified': '1'}
                         for p in ('custom', 'zhipu')}
-            def complete(settings, prompt, cues):
+            def complete(settings, prompt, cues, **_kwargs):
                 if settings.provider_id == 'custom':
                     texts = [c['text'].replace('Helo', 'Hello') for c in cues]
                 else:
@@ -174,7 +174,7 @@ class ProofreadPipelineTests(unittest.TestCase):
                 'custom': {'apiKey': 'test-secret', 'baseUrl': 'https://generativelanguage.googleapis.com/v1beta/openai/',
                            'model': 'models/gemini-test', 'reasoningMode': 'low', 'verified': '1'},
                 'zhipu': {'apiKey': 'test-secret', 'baseUrl': 'https://example.test', 'model': 'translate-test', 'verified': '1'}}
-            def complete(settings, prompt, cues):
+            def complete(settings, prompt, cues, **_kwargs):
                 self.assertEqual(settings.model, 'models/gemini-test')
                 raise LlmClientError('offline', category='network')
             with patch('maw.postprocess_pipeline.complete_subtitle_groups', side_effect=complete) as llm:

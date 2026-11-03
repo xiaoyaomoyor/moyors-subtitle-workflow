@@ -94,7 +94,7 @@ class TranslationRecoveryTests(unittest.TestCase):
                         llm_settings={'deepseek': {'apiKey': 'synthetic-secret', 'baseUrl': 'https://example.test',
                                                   'model': 'test', 'verified': '1'}})
 
-            def fail_later(_settings, _prompt, cues):
+            def fail_later(_settings, _prompt, cues, **_kwargs):
                 if cues[0]['id'] == 'c0041':
                     raise LlmClientError('offline', category='network')
                 return translated(cues)
@@ -108,7 +108,7 @@ class TranslationRecoveryTests(unittest.TestCase):
             self.assertEqual(json.loads((run / 'manifest.json').read_text(encoding='utf-8'))['steps'][0]['status'], 'failed')
             calls = []
 
-            def complete(_settings, _prompt, cues):
+            def complete(_settings, _prompt, cues, **_kwargs):
                 calls.append(cues)
                 return translated(cues)
 

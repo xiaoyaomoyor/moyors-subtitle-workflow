@@ -42,6 +42,7 @@ from maw.postprocess_llm import (
     DEFAULT_REASONING_MODE,
     LlmSettings,
     complete_subtitle_groups,
+    MAX_TRANSIENT_RETRIES,
     llm_request_summary,
     normalize_reasoning_mode,
     preset_by_id,
@@ -830,6 +831,9 @@ def run_postprocess_pipeline(
             except PostprocessCancelled:
                 raise
             except Exception as error:
+                # Batch helpers add context to RuntimeErrors; preserve user
+                # cancellation even when it was raised during retry backoff.
+                _check_cancel(cancel_event)
                 raise PostprocessPipelineError(
                     f"后处理步骤 {step_id} 失败：{error}",
                     run_directory=run_directory,
@@ -1080,7 +1084,20 @@ def _run_step(
     def complete(prompt: str, cues: list[dict[str, JsonValue]]) -> Mapping[str, JsonValue]:
         _check_cancel(cancel_event)
         _emit(on_event, {"stage": "llm_request", "step": step_id, **llm_request_summary(settings)})
-        return complete_subtitle_groups(settings, prompt, cues)
+        def retry_wait(seconds: float) -> None:
+            cancel_event.wait(seconds)
+            _check_cancel(cancel_event)
+
+        def on_retry(attempt: int, seconds: float, status: int) -> None:
+            _check_cancel(cancel_event)
+            _emit(on_event, {"stage": "llm_retry", "step": step_id, "attempt": attempt,
+                             "maxRetries": MAX_TRANSIENT_RETRIES, "delaySeconds": round(seconds, 1),
+                             "statusCode": status, "firstCueId": cues[0]["id"] if cues else "",
+                             "lastCueId": cues[-1]["id"] if cues else ""})
+
+        result = complete_subtitle_groups(settings, prompt, cues, on_retry=on_retry, retry_wait=retry_wait)
+        _check_cancel(cancel_event)
+        return result
 
     def on_status(key: str, details: Mapping[str, int]) -> None:
         _check_cancel(cancel_event)

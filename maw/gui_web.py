@@ -4064,6 +4064,12 @@ class LauncherApi:
             self._emit({"type": "log", "message": f"[后处理] 已开始，共 {event.get('total', 0)} 步"})
         elif stage == "step_start":
             self._emit({"type": "log", "message": f"[后处理 {event.get('index', '?')}/{event.get('total', '?')}] {step}：开始"})
+        elif stage == "llm_retry":
+            self._emit({"type": "log", "message": (
+                f"[后处理] {step}（{event.get('firstCueId', '?')}–{event.get('lastCueId', '?')}）"
+                f"收到 HTTP {event.get('statusCode', '?')}，等待 {event.get('delaySeconds', '?')} 秒后重试"
+                f"（{event.get('attempt', '?')}/{event.get('maxRetries', '?')}）；仅重试本次请求。"
+            )})
         elif stage == "step_done":
             artifacts = " / ".join(
                 name
