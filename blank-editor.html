@@ -36427,9 +36427,10 @@ function fixedPositionSelectedIds() {
   const selection=processingSelection();return new Set([...selection.mainIds,...selection.extensionIds]);
 }
 function fixedPositionPreviewActive() {
-  return productionFlatMode()&&(fixedPositionEditing||fixedPositionScope==='cue'
-    &&document.getElementById('style-more')?.open
-    &&window.MSWSubtitleStyle?.propertiesVisible());
+  // Property editing always previews the real picture area, regardless of
+  // whether the target is a track, speaker or individual cue. Expanding a
+  // section or changing selection must not move the controls over the image.
+  return productionFlatMode()&&(fixedPositionEditing||window.MSWSubtitleStyle?.propertiesVisible());
 }
 function fixedSchedulePositionSelectionSync() {
   if(fixedSchedulePositionSelectionSync.pending)return;

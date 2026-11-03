@@ -111,7 +111,40 @@ test('playing hides controls, hovering restores avoidance; picture positioning d
   await expect.poll(()=>page.evaluate(()=>[...MSWPreviewControls.offsets.values()].every(v=>v===0))).toBe(true);await idle(page);
   const boxes=await page.evaluate(()=>({bar:document.getElementById('media-controls').getBoundingClientRect().toJSON(),stage:document.querySelector('.player-stage').getBoundingClientRect().toJSON()}));
   expect(boxes.bar.top).toBeGreaterThanOrEqual(boxes.stage.bottom-1);
-  await page.keyboard.press('Escape');await expect(page.locator('#media-controls')).not.toHaveClass(/media-controls-outside/);
+  await page.keyboard.press('Escape');await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
+  await page.evaluate(()=>waveformEditor.activateModuleTab('panel'));
+  await expect(page.locator('#media-controls')).not.toHaveClass(/media-controls-outside/);
+});
+
+test('property targets and collapsed sections share the same docked controls',async({page},info)=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const source=await page.evaluate(()=>({subtitles:JSON.parse(buildJson()).subtitles,ass:fixedAssDocument('both')}));
+  const track=await page.evaluate(()=>{
+    document.getElementById('style-more').open=false;
+    MSWSubtitleStyle.open('track');
+    return DATA.subtitle_tracks.tracks[0].id;
+  });
+  for(const target of [track,'cue','speaker',track]) {
+    await page.locator('#style-edit-scope').selectOption(target);
+    for(const expanded of [false,true]) {
+      await page.evaluate(expanded=>{document.getElementById('style-more').open=expanded;},expanded);
+      await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
+      await idle(page);
+      const boxes=await page.evaluate(()=>({bar:document.getElementById('media-controls').getBoundingClientRect().toJSON(),stage:document.querySelector('.player-stage').getBoundingClientRect().toJSON()}));
+      expect(boxes.bar.top).toBeGreaterThanOrEqual(boxes.stage.bottom-1);
+    }
+  }
+  await page.evaluate(()=>selectOnly(0));
+  await page.locator('#style-edit-scope').selectOption('cue');
+  await expect(page.locator('#media-controls')).toHaveClass(/media-controls-outside/);
+  await page.screenshot({path:info.outputPath('properties-controls-outside.png')});
+  // Leaving the inspector through its sibling tab must restore normal playback.
+  await page.evaluate(()=>waveformEditor.activateModuleTab('panel'));
+  await expect(page.locator('#subtitle-properties')).toBeHidden();
+  await expect(page.locator('#media-controls')).not.toHaveClass(/media-controls-outside/);
+  await idle(page);
+  expect(await page.evaluate(()=>({subtitles:JSON.parse(buildJson()).subtitles,ass:fixedAssDocument('both')}))).toEqual(source);
+  expect(errors).toEqual([]);
 });
 
 test('black borders, resized preview and hidden subtitles do not leave stale avoidance',async({page})=>{
