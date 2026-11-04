@@ -96,3 +96,51 @@ test('recoloring cannot indirectly modify a locked follower',()=>{
   p=edit.updateTrack(p,'other',{locked:true});const before=structuredClone(p);
   assert.throws(()=>edit.setColor(p,['a1'],'blue'),/锁定/);assert.deepEqual(p,before);
 });
+
+test('enabling backfills each existing speaker chronologically without changing marks or references',()=>{
+  let p=edit.setColor(fixture(),['a1'],'red');p=edit.setColor(p,['a4'],'blue');
+  content(p,'a3').color_ref={cue_id:'a4',name:'blue'}; // Already established, even if its source was moved.
+  p.subtitles.cues.reverse();const original=structuredClone(p),next=edit.fillColorFollow(p);
+  assert.equal(ref(next,'a2'),'a1');assert.equal(ref(next,'a3'),'a4');assert.equal(ref(next,'a5'),'a4');
+  for(const id of ['a0','a1','a4','b0','b1','b2'])assert.deepEqual(content(next,id),content(p,id));
+  assert.deepEqual(p,original);assert.deepEqual(edit.fillColorFollow(next),next);
+  const reopened=production.toProject(production.fromProject(next));
+  for(const c of next.subtitles.cues)assert.deepEqual(edit.cue(reopened,c.id),c);
+});
+
+test('backfill handles one-sided bound marks and preserves conflicting explicit speakers',()=>{
+  let p=fixture({paired:true});content(p,'b1').color={name:'red'};
+  content(p,'a4').color={name:'red'};content(p,'b4').color={name:'blue'};
+  const next=edit.fillColorFollow(p);
+  for(const id of ['a1','a2','b2','a3','b3'])assert.equal(content(next,id).color_ref.name,'red');
+  assert.equal(content(next,'a4').color.name,'red');assert.equal(content(next,'b4').color.name,'blue');
+  for(const id of ['a5','b5'])assert.equal(ref(next,id),undefined);
+  assert.deepEqual(next.subtitles.bindings,p.subtitles.bindings);
+});
+
+test('backfill stops at locked bound content and does not change locked sources or followers',()=>{
+  let p=edit.setColor(fixture(),['a1'],'red');p=core.bind(p,'a3','b3','barrier');
+  p=edit.updateTrack(p,'other',{locked:true});const next=edit.fillColorFollow(p);
+  assert.equal(ref(next,'a2'),'a1');
+  for(const id of ['a3','a4','a5','b0','b1','b2','b3'])assert.deepEqual(content(next,id),content(p,id));
+});
+
+test('backfill continues from a newly inherited bound side in one pass and remains idempotent',()=>{
+  let p=edit.setColor(fixture(),['a1'],'red');p=core.bind(p,'a2','b2','cross-pair');
+  const next=edit.fillColorFollow(p);
+  for(const id of ['a2','a3','b2','b3','b4','b5'])assert.equal(ref(next,id),'a1');
+  assert.equal(ref(next,'b1'),undefined);assert.deepEqual(edit.fillColorFollow(next),next);
+});
+
+test('new cue inherits the preceding source, including after a reference, without backfilling other cues',()=>{
+  let p=edit.setColor(fixture(),['a1'],'red');p=edit.setColor(p,['a4'],'blue');
+  content(p,'a2').color_ref={cue_id:'a1',name:'red'};
+  const trackId=edit.cue(p,'a1').track_id;
+  for(const [time,head] of [[900,null],[2900,'a1'],[4900,'a4']]) {
+    const created=edit.addCue(p,trackId,'new',time,time+100);
+    const next=edit.fillColorFollow(created,{ids:['new']});
+    assert.equal(ref(next,'new'),head||undefined);
+    for(const c of p.subtitles.cues)assert.deepEqual(edit.cue(next,c.id),c);
+    assert.equal(core.validate(next),true);
+  }
+});

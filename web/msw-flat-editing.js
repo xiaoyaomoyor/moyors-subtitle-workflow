@@ -136,6 +136,72 @@
       const c=cues.get(id).content;delete c.color;c.color_ref={cue_id:head,name};
     }
   });}
+  // Fill missing marks without recoloring explicit marks or rewiring existing
+  // references. Plan once for all tracks; newly created cues can opt in by ID.
+  function planColorFollow(p,{ids=null}={}) {
+    const wanted=ids&&new Set(ids);
+    const cues=new Map(body(p).cues.map(c=>[c.id,c])),tracks=new Map(body(p).tracks.map(t=>[t.id,t])),partners=new Map();
+    for(const b of body(p).bindings){partners.set(b.source_id,b.target_id);partners.set(b.target_id,b.source_id);}
+    const marked=c=>!!(c.content.color||c.content.color_ref);
+    const root=c=>c.content.color?c.id:c.content.color_ref?.cue_id;
+    const locked=c=>tracks.get(c.track_id)?.locked;
+    const blocked=c=>locked(c)||locked(cues.get(partners.get(c.id))||c);
+    const seeds=new Map(),lanes=new Map(),candidates=new Map(),planned=new Map(),edges=new Map();
+    const connect=(from,to)=>{
+      if(from&&!blocked(from)&&!blocked(to)&&!seeds.has(to.id)) {
+        if(!edges.has(from.id))edges.set(from.id,[]);
+        edges.get(from.id).push(to.id);
+      }
+    };
+    for(const c of cues.values()) {
+      if(marked(c))seeds.set(c.id,root(c));
+      if(!lanes.has(c.track_id))lanes.set(c.track_id,[]);
+      lanes.get(c.track_id).push(c);
+    }
+    // Older projects may mark only one side of a bound pair. The empty side
+    // inherits that actual speaker, never a different preceding speaker.
+    for(const b of body(p).bindings)for(const [id,other] of [[b.source_id,b.target_id],[b.target_id,b.source_id]]) {
+      if(!seeds.has(id)&&seeds.has(other)&&!blocked(cues.get(id)))seeds.set(id,seeds.get(other));
+    }
+    for(const rows of lanes.values()) {
+      rows.sort((a,b)=>a.content.start-b.content.start||a.content.end-b.content.end||a.id.localeCompare(b.id));
+      let head=null,previous=null;
+      for(const c of rows) {
+        if(blocked(c)){head=null;previous=null;continue;}
+        connect(previous,c);previous=c;
+        if(seeds.has(c.id))head=seeds.get(c.id);
+        if(head&&!marked(c)&&cues.get(head)?.content.color&&!locked(cues.get(head)))candidates.set(c.id,head);
+      }
+    }
+    for(const b of body(p).bindings){connect(cues.get(b.source_id),cues.get(b.target_id));connect(cues.get(b.target_id),cues.get(b.source_id));}
+    // A newly inherited bound side can seed later cues on its track too.
+    // Propagate at most twice per node (known speaker, then conflict), avoiding
+    // repeated whole-project passes across chains of bindings.
+    const states=new Map(),queue=[];
+    for(const [id,head] of seeds)if(!blocked(cues.get(id))&&cues.get(head)?.content.color&&!locked(cues.get(head))) {
+      states.set(id,{head,name:cues.get(head).content.color.name,conflict:false});queue.push(id);
+    }
+    for(let i=0;i<queue.length;i++) {
+      const state=states.get(queue[i]);
+      for(const id of edges.get(queue[i])||[]) {
+        const old=states.get(id);
+        if(!old){states.set(id,{...state});queue.push(id);}
+        else if(!old.conflict&&(state.conflict||old.name!==state.name)){old.conflict=true;queue.push(id);}
+      }
+    }
+    for(const c of cues.values()) {
+      if(marked(c)||blocked(c))continue;
+      // Conflicting existing speakers on the two lanes need an explicit choice.
+      const state=states.get(c.id);if(!state||state.conflict)continue;
+      const head=candidates.get(c.id)||state.head;
+      if(!wanted||wanted.has(c.id))planned.set(c.id,{cue_id:head,name:state.name});
+    }
+    return planned;
+  }
+  function fillColorFollow(p,options) {return transaction(p,n=>{
+    const plan=planColorFollow(n,options);
+    for(const c of body(n).cues)if(plan.has(c.id))c.content.color_ref=plan.get(c.id);
+  });}
   function remove(p,ids) {return transaction(p,n=>{
     const removed=new Set(ids),links=body(n).bindings.filter(b=>removed.has(b.source_id)||removed.has(b.target_id));
     editable(n,[...ids,...links.flatMap(b=>[b.source_id,b.target_id])]);detachReferences(n,removed);
@@ -316,6 +382,6 @@
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,appearanceFields,animationFields,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,independentColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,appearanceFields,animationFields,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,planColorFollow,fillColorFollow,independentColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

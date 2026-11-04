@@ -45,7 +45,7 @@ test('default off; actual settings, palette, hollow menu, clear and undo share o
   await menu(page,1,true);await page.locator('#ctxmenu button[data-speaker="red"]').click();
   const marked=await snap(page);
   for(const [root,child] of [['Line 1','Line 2'],['第 1 行','第 2 行']])expect(byText(marked,child).content.color_ref.cue_id).toBe(byText(marked,root).id);
-  expect(byText(marked,'Line 4').content.color.name).toBe('blue');expect(byText(marked,'Line 5').content.color).toBeUndefined();
+  expect(byText(marked,'Line 4').content.color.name).toBe('blue');expect(byText(marked,'Line 5').content.color_ref.name).toBe('blue');
   expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+1);
   await expect(page.locator('.multi-cue-column[data-main-idx="2"] .color-bar')).toHaveClass(/is-ref/);
   await expect(page.locator('.multi-cue-column[data-ext-idx="2"] .color-bar')).toHaveClass(/is-ref/);
@@ -63,6 +63,44 @@ test('default off; actual settings, palette, hollow menu, clear and undo share o
   expect(errors).toEqual([]);
 });
 
+test('enabling fills old marks once, preserves selection and can undo without disabling the preference',async({page})=>{
+  await page.evaluate(()=>{updateEditorSettings({speakerAutoFollow:false});assignColor([1],'red');assignColor([4],'blue');selectOnly(2);});
+  const before=await snap(page),history=await page.evaluate(()=>editorHistory.undoLength());
+  await settings(page);await page.locator('#speaker-auto-follow').check();
+  const after=await snap(page);
+  for(const [text,source] of [['Line 2','Line 1'],['第 2 行','第 1 行'],['Line 5','Line 4']])
+    expect(byText(after,text).content.color_ref.cue_id).toBe(byText(after,source).id);
+  expect(await page.evaluate(()=>[...selectedIdxs])).toEqual([2]);
+  expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+1);
+  await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await expect(page.locator('#speaker-auto-follow')).toBeChecked();
+  await page.evaluate(()=>performRedo());expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.locator('#speaker-auto-follow').uncheck();
+  expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.locator('#speaker-auto-follow').check();
+  expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+1);
+});
+
+for(const role of ['main','extension'])test(`new ${role} cue follows its physical track and creation undoes once`,async({page})=>{
+  await page.evaluate(()=>{updateEditorSettings({speakerAutoFollow:false});assignColor([1],'red');assignColor([4],'blue');});
+  await settings(page);await page.locator('#speaker-auto-follow').check();await page.evaluate(()=>setEditorSettingsPanelOpen(false));
+  const before=await snap(page),source=byText(before,role==='main'?'Line 1':'第 1 行');
+  const count=await page.evaluate(()=>editorHistory.undoLength());
+  await page.evaluate(({role,owner})=>layerCreateCue(2800,2950,role,owner),{role,owner:source.track_id});
+  const after=await snap(page),created=after.subtitles.cues.find(c=>!before.subtitles.cues.some(b=>b.id===c.id));
+  expect(created.content.color_ref).toEqual({cue_id:source.id,name:'red'});
+  expect(created.track_id).toBe(source.track_id);
+  expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(count+1);
+  await expect(page.locator('#cue-panel-text')).toBeFocused();await page.keyboard.press('Control+z');
+  expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.keyboard.press('Control+y');expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.evaluate(p=>applyCanonicalProject(p,'reopened.mosp'),after);
+  expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.evaluate(({role,owner})=>{updateEditorSettings({speakerAutoFollow:false});layerCreateCue(4300,4450,role,owner);},{role,owner:source.track_id});
+  const disabled=await snap(page),plain=disabled.subtitles.cues.find(c=>!after.subtitles.cues.some(b=>b.id===c.id));
+  expect(plain.content.color_ref).toBeUndefined();expect(plain.content.color).toBeUndefined();
+});
+
 test('cross-display references remain hollow and can be made independent',async({page})=>{
   await page.evaluate(()=>{
     const p=JSON.parse(buildJson()),head=p.subtitles.cues.find(c=>c.content.text==='Line 1'),target=p.subtitles.cues.find(c=>c.content.text==='第 2 行');
@@ -73,6 +111,22 @@ test('cross-display references remain hollow and can be made independent',async(
   const before=await snap(page);await menu(page,2,true);await page.locator('#ctxmenu').getByText('独立标记',{exact:true}).click();
   expect(byText(await snap(page),'第 2 行').content.color.name).toBe('red');
   await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(before.subtitles);
+});
+
+test('new cue follows an existing cross-display reference and preserves its stable source on reopen',async({page})=>{
+  const owner=await page.evaluate(()=>{
+    const p=JSON.parse(buildJson()),head=p.subtitles.cues.find(c=>c.content.text==='Line 1'),target=p.subtitles.cues.find(c=>c.content.text==='第 2 行');
+    head.content.color={name:'red'};target.content.color_ref={cue_id:head.id,name:'red'};
+    applyCanonicalProject(p,'cross-new.mosp');updateEditorSettings({speakerAutoFollow:true});return target.track_id;
+  });
+  const before=await snap(page);
+  await page.evaluate(owner=>layerCreateCue(4300,4450,'extension',owner),owner);
+  const after=await snap(page),created=after.subtitles.cues.find(c=>!before.subtitles.cues.some(b=>b.id===c.id));
+  expect(created.content.color_ref).toEqual({cue_id:byText(before,'Line 1').id,name:'red'});
+  await page.keyboard.press('Control+z');expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.keyboard.press('Control+y');expect((await snap(page)).subtitles).toEqual(after.subtitles);
+  await page.evaluate(p=>applyCanonicalProject(p,'reopened-cross.mosp'),after);
+  expect((await snap(page)).subtitles).toEqual(after.subtitles);
 });
 
 test('follow references save to disk, reopen, and resolve names in SRT and ASS',async({page})=>{

@@ -8218,7 +8218,7 @@
       <button type="button" id="editor-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭编辑器设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
-  <p class="settings-scope-note">用于当前编辑器，随用户配置保存；不会覆盖工程内容。</p>
+  <p class="settings-scope-note">编辑器的操作与显示偏好，随用户配置保存。</p>
   <div class="settings-modal-body" id="editor-settings-panel">
       <nav class="settings-modal-nav" id="editor-settings-nav" aria-label="设置分类"></nav>
       <div class="settings-modal-content" id="editor-settings-content">
@@ -8503,7 +8503,7 @@
           <div class="settings-category-header">说话人色系</div>
           <div class="editor-settings-sub-group" id="speaker-label-settings">
             <label class="toggle editor-settings-item"><input type="checkbox" id="speaker-auto-follow">后方字幕自动跟随说话人<span class="msw-help-anchor" id="speaker-auto-follow-help"></span></label>
-            <p hidden data-help-for="speaker-auto-follow-help">标记时，同轨后方字幕跟随当前说话人，遇到明确标记或锁定内容停止。绑定字幕联动；关闭后保留已有跟随，可用“独立标记”解除。</p>
+            <p hidden data-help-for="speaker-auto-follow-help">开启时补齐已有标记后方的未标记字幕；新建字幕也跟随同轨前方说话人。保留明确标记与已有引用，锁定内容不变，绑定字幕联动。补齐可撤销；关闭保留已有跟随，可用“独立标记”解除。</p>
             <p class="editor-settings-hint">说话人表随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。</p>
             <label class="speaker-name-language">名称语言<select id="speaker-name-language" aria-label="名称语言"></select><span class="msw-help-anchor" id="speaker-name-language-help"></span></label>
             <p hidden data-help-for="speaker-name-language-help">未填写名称的语言跟随默认显示开关；已填写的默认显示。各语言可单独勾选，预览还需开启“预览说话人”。</p>
@@ -20244,6 +20244,72 @@ export default MawDynamicCaptions;
       const c=cues.get(id).content;delete c.color;c.color_ref={cue_id:head,name};
     }
   });}
+  // Fill missing marks without recoloring explicit marks or rewiring existing
+  // references. Plan once for all tracks; newly created cues can opt in by ID.
+  function planColorFollow(p,{ids=null}={}) {
+    const wanted=ids&&new Set(ids);
+    const cues=new Map(body(p).cues.map(c=>[c.id,c])),tracks=new Map(body(p).tracks.map(t=>[t.id,t])),partners=new Map();
+    for(const b of body(p).bindings){partners.set(b.source_id,b.target_id);partners.set(b.target_id,b.source_id);}
+    const marked=c=>!!(c.content.color||c.content.color_ref);
+    const root=c=>c.content.color?c.id:c.content.color_ref?.cue_id;
+    const locked=c=>tracks.get(c.track_id)?.locked;
+    const blocked=c=>locked(c)||locked(cues.get(partners.get(c.id))||c);
+    const seeds=new Map(),lanes=new Map(),candidates=new Map(),planned=new Map(),edges=new Map();
+    const connect=(from,to)=>{
+      if(from&&!blocked(from)&&!blocked(to)&&!seeds.has(to.id)) {
+        if(!edges.has(from.id))edges.set(from.id,[]);
+        edges.get(from.id).push(to.id);
+      }
+    };
+    for(const c of cues.values()) {
+      if(marked(c))seeds.set(c.id,root(c));
+      if(!lanes.has(c.track_id))lanes.set(c.track_id,[]);
+      lanes.get(c.track_id).push(c);
+    }
+    // Older projects may mark only one side of a bound pair. The empty side
+    // inherits that actual speaker, never a different preceding speaker.
+    for(const b of body(p).bindings)for(const [id,other] of [[b.source_id,b.target_id],[b.target_id,b.source_id]]) {
+      if(!seeds.has(id)&&seeds.has(other)&&!blocked(cues.get(id)))seeds.set(id,seeds.get(other));
+    }
+    for(const rows of lanes.values()) {
+      rows.sort((a,b)=>a.content.start-b.content.start||a.content.end-b.content.end||a.id.localeCompare(b.id));
+      let head=null,previous=null;
+      for(const c of rows) {
+        if(blocked(c)){head=null;previous=null;continue;}
+        connect(previous,c);previous=c;
+        if(seeds.has(c.id))head=seeds.get(c.id);
+        if(head&&!marked(c)&&cues.get(head)?.content.color&&!locked(cues.get(head)))candidates.set(c.id,head);
+      }
+    }
+    for(const b of body(p).bindings){connect(cues.get(b.source_id),cues.get(b.target_id));connect(cues.get(b.target_id),cues.get(b.source_id));}
+    // A newly inherited bound side can seed later cues on its track too.
+    // Propagate at most twice per node (known speaker, then conflict), avoiding
+    // repeated whole-project passes across chains of bindings.
+    const states=new Map(),queue=[];
+    for(const [id,head] of seeds)if(!blocked(cues.get(id))&&cues.get(head)?.content.color&&!locked(cues.get(head))) {
+      states.set(id,{head,name:cues.get(head).content.color.name,conflict:false});queue.push(id);
+    }
+    for(let i=0;i<queue.length;i++) {
+      const state=states.get(queue[i]);
+      for(const id of edges.get(queue[i])||[]) {
+        const old=states.get(id);
+        if(!old){states.set(id,{...state});queue.push(id);}
+        else if(!old.conflict&&(state.conflict||old.name!==state.name)){old.conflict=true;queue.push(id);}
+      }
+    }
+    for(const c of cues.values()) {
+      if(marked(c)||blocked(c))continue;
+      // Conflicting existing speakers on the two lanes need an explicit choice.
+      const state=states.get(c.id);if(!state||state.conflict)continue;
+      const head=candidates.get(c.id)||state.head;
+      if(!wanted||wanted.has(c.id))planned.set(c.id,{cue_id:head,name:state.name});
+    }
+    return planned;
+  }
+  function fillColorFollow(p,options) {return transaction(p,n=>{
+    const plan=planColorFollow(n,options);
+    for(const c of body(n).cues)if(plan.has(c.id))c.content.color_ref=plan.get(c.id);
+  });}
   function remove(p,ids) {return transaction(p,n=>{
     const removed=new Set(ids),links=body(n).bindings.filter(b=>removed.has(b.source_id)||removed.has(b.target_id));
     editable(n,[...ids,...links.flatMap(b=>[b.source_id,b.target_id])]);detachReferences(n,removed);
@@ -20424,7 +20490,7 @@ export default MawDynamicCaptions;
     step(direction,selection=[]){const from=direction==='undo'?this.undoStack:this.redoStack,to=direction==='undo'?this.redoStack:this.undoStack;if(!from.length)return null;
       const entry=from.pop();to.push({project:this.project,label:entry.label,selection:[...selection]});this.project=entry.project;return entry.selection;}
   }
-  const api={transaction,frame,cue,track,relation,partner,editable,updateText,appearanceFields,animationFields,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,independentColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
+  const api={transaction,frame,cue,track,relation,partner,editable,updateText,appearanceFields,animationFields,updateAppearance,updateAnimation,updateRanges,setDisabled,setColor,planColorFollow,fillColorFollow,independentColor,remove,updateTrack,deleteTrack,reorder,addCue,offsetAt,timeAt,nearestOffset,split,merge,batchMerge,editorView,History};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatEditing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
@@ -23318,7 +23384,7 @@ export default MawDynamicCaptions;
     '关闭编辑器设置': 'Close editor settings', '关闭项目设置': 'Close project settings',
     '搜索项目设置…': 'Search project settings…', '搜索项目设置': 'Search project settings', '项目设置分类': 'Project settings categories',
     '随当前工程保存；修改可撤销，不改变其他工程。': 'Saved with this project. Changes can be undone and do not affect other projects.',
-    '用于当前编辑器，随用户配置保存；不会覆盖工程内容。': 'Saved as editor preferences. Project content is not overwritten.',
+    '编辑器的操作与显示偏好，随用户配置保存。': 'Editor interaction and display preferences, saved in your user configuration.',
     '外观与语言': 'Appearance and language', '编辑操作': 'Editing', '显示与播放': 'Display and playback',
     '保存与备份': 'Saving and backups', '服务与环境': 'Services and environment', '默认值与方案': 'Defaults and presets',
     '时间与轨道': 'Time and tracks', '字幕与排布': 'Subtitles and layout', '媒体与资源': 'Media and resources',
@@ -24196,7 +24262,7 @@ export default MawDynamicCaptions;
     '分配/清除标记': 'Assign/Clear mark',
     '说话人表随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。': 'The speaker table is saved with the project. Row 0 edits all speakers; no coloring still keeps timeline marks.',
     '后方字幕自动跟随说话人': 'Following subtitles inherit the speaker',
-    '标记时，同轨后方字幕跟随当前说话人，遇到明确标记或锁定内容停止。绑定字幕联动；关闭后保留已有跟随，可用“独立标记”解除。': 'When marking, following subtitles on the same track inherit the speaker until an explicit mark or locked content. Bound subtitles update together. Turning this off preserves existing references; use Make mark independent to detach.',
+    '开启时补齐已有标记后方的未标记字幕；新建字幕也跟随同轨前方说话人。保留明确标记与已有引用，锁定内容不变，绑定字幕联动。补齐可撤销；关闭保留已有跟随，可用“独立标记”解除。': 'Enabling fills unmarked subtitles after existing speaker marks. New subtitles inherit the preceding speaker on their track. Explicit marks, existing references and locked content are preserved; bound subtitles update together. Filling can be undone. Turning this off keeps existing references; use Make mark independent to detach.',
     '译文写入': 'Translation destination',
     '生成／更新副字幕': 'Create / update secondary subtitles',
     '替换主字幕': 'Replace main subtitles',
@@ -35784,8 +35850,19 @@ function layerCreateCue(start, end, role = 'main', subtitleTrackId = fixedActive
     if (fixedTrackMode()) fixedStatus('当前轨道此处已有字幕，请改用其他轨道');
     else flashHint('此操作会新增字幕重叠，请先启用“允许字幕重叠”', 'warning'); return false;
   }
-  commitProcessingEdits(); pushUndo('创建字幕', { captureView: true });
+  commitProcessingEdits();
   const cue = { id: window.MSWProject.id('cue'), start, end, text: '', items: [], _dirty: true };
+  let inherited;
+  try { inherited=planNewCueSpeaker(cue,subtitleTrackId,cues); }
+  catch(error){fixedStatus(error.message);return false;}
+  pushUndo('创建字幕', { captureView: true });
+  if(inherited) {
+    if(inherited.color_ref)cue.color_ref=inherited.color_ref;
+    else {
+      cue.color=inherited.color;
+      DATA.subtitle_tracks.flat_context.markers[cue.id]={color:inherited.marker};
+    }
+  }
   if (fixedTrackMode()) fixedDraftOwners.set(cue, { owner: subtitleTrackId });
   cues.push(cue);
   clearSelection({ silent: true, commitCuePanel: false });
@@ -41400,7 +41477,19 @@ selectGroupMembersToggle?.addEventListener('change', () => {
   updateEditorSettings({ selectGroupMembers: selectGroupMembersToggle.checked });
 });
 speakerAutoFollowToggle?.addEventListener('change', () => {
-  updateEditorSettings({ speakerAutoFollow: speakerAutoFollowToggle.checked });
+  const enabled=speakerAutoFollowToggle.checked;
+  try {
+    if(enabled&&productionFlatMode()) {
+      if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+      commitProcessingEdits();
+      const before=MSWProductionProject.toProject(AsrEditorUtils.stripInlineCaches(DATA));
+      commitCueMarkerProject(before,MSWFlatEditing.fillColorFollow(before),'补齐说话人跟随');
+    }
+    updateEditorSettings({speakerAutoFollow:enabled});
+  } catch(error) {
+    speakerAutoFollowToggle.checked=EDITOR_SETTINGS.speakerAutoFollow===true;
+    fixedStatus(error.message);
+  }
 });
 exportColorUnifiedToggle?.addEventListener('change', () => {
   updateEditorSettings({ exportColorUnified: exportColorUnifiedToggle.checked });
@@ -57101,6 +57190,49 @@ function finishCueMarkerChange(changes) {
   fixedPreviewInvalidate();projectImportDirty=true;updateUndoRedoButtons();
   refreshColorAssignmentUi(new Set(changes.map(c=>c.id)));scheduleAutoSaveFlush();
 }
+function planNewCueSpeaker(cue,owner,rows) {
+  if(!productionFlatMode()||!EDITOR_SETTINGS.speakerAutoFollow)return null;
+  const project=MSWProductionProject.toProject(AsrEditorUtils.stripInlineCaches(DATA));
+  project.subtitles.cues.push({id:cue.id,track_id:owner,content:cue});
+  const ref=MSWFlatEditing.planColorFollow(project,{ids:[cue.id]}).get(cue.id);
+  if(!ref)return null;
+  for(const source of layerCore.tracks(DATA)) {
+    const index=source.segments.findIndex(c=>c.id===ref.cue_id);
+    if(index<0)continue;
+    if(source.segments===rows)return {color_ref:{headIdx:index,name:ref.name}};
+    const color=structuredClone(project.subtitles.cues.find(c=>c.id===ref.cue_id).content.color);
+    return {color,marker:{ref,value:structuredClone(color)}};
+  }
+  return null;
+}
+function commitCueMarkerProject(before,next,label) {
+  const oldById=new Map(before.subtitles.cues.map(c=>[c.id,c.content]));
+  const nextById=new Map(next.subtitles.cues.map(c=>[c.id,c.content]));
+  const live=new Map();
+  for(const rows of [DATA.segments,...getMultiSubtitleState().tracks.map(t=>t.segments)])rows.forEach((c,index)=>live.set(c.id,{c,rows,index}));
+  const changes=[];
+  for(const {id,content} of next.subtitles.cues)for(const field of ['color','sticker']) {
+    const old=oldById.get(id);
+    if(JSON.stringify([old[field],old[field+'_ref']])!==JSON.stringify([content[field],content[field+'_ref']]))changes.push({id,content,field});
+  }
+  if(!changes.length)return false;
+  // The canonical transaction has validated bindings and locks. Apply its
+  // marker changes in place: no cue replacement, selection reset or list rebuild.
+  if(!fixedLastContent||fixedLastContentKey!==fixedContentKey())fixedLastContent=fixedContent();
+  editorHistory.push(snapshotCueMarkers(changes,label));
+  const markers=DATA.subtitle_tracks.flat_context.markers;
+  for(const {id,content,field} of changes) {
+    const {c,rows,index}=live.get(id),ref=content[field+'_ref'];
+    delete c[field];delete c[field+'_ref'];if(markers[id])delete markers[id][field];
+    if(content[field])c[field]=structuredClone(content[field]);
+    if(ref) {
+      const head=live.get(ref.cue_id);
+      if(head.rows===rows&&head.index<index){c[field+'_ref']={...ref,headIdx:head.index};delete c[field+'_ref'].cue_id;}
+      else {c[field]=structuredClone(nextById.get(ref.cue_id)[field]);(markers[id]||={})[field]={ref:structuredClone(ref),value:structuredClone(c[field])};}
+    }
+  }
+  finishCueMarkerChange(changes);return true;
+}
 function assignLinkedSpeakerColor(indices, name, track = null, { independent = false } = {}) {
   if(name&&!COLOR_BY_NAME[name])return;
   const segments=track?.segments||DATA.segments,role=track?'extension':'main';
@@ -57112,32 +57244,7 @@ function assignLinkedSpeakerColor(indices, name, track = null, { independent = f
     const before=window.MSWProductionProject.toProject(window.AsrEditorUtils.stripInlineCaches(DATA));
     const next=independent?window.MSWFlatEditing.independentColor(before,ids)
       :window.MSWFlatEditing.setColor(before,ids,name,{follow:EDITOR_SETTINGS.speakerAutoFollow===true});
-    const oldById=new Map(before.subtitles.cues.map(c=>[c.id,c.content]));
-    const nextById=new Map(next.subtitles.cues.map(c=>[c.id,c.content]));
-    const live=new Map();
-    for(const rows of [DATA.segments,...getMultiSubtitleState().tracks.map(t=>t.segments)])rows.forEach((c,index)=>live.set(c.id,{c,rows,index}));
-    const changes=[];
-    for(const {id,content} of next.subtitles.cues)for(const field of ['color','sticker']) {
-      const old=oldById.get(id);
-      if(JSON.stringify([old[field],old[field+'_ref']])!==JSON.stringify([content[field],content[field+'_ref']]))changes.push({id,content,field});
-    }
-    if(!changes.length)return;
-    // The canonical transaction has validated bindings and locks. Apply its
-    // marker changes in place: no cue replacement, selection reset or list rebuild.
-    if(!fixedLastContent||fixedLastContentKey!==fixedContentKey())fixedLastContent=fixedContent();
-    editorHistory.push(snapshotCueMarkers(changes,independent?'独立标记':name?'标记说话人':'清除标记'));
-    const markers=DATA.subtitle_tracks.flat_context.markers;
-    for(const {id,content,field} of changes) {
-      const {c,rows,index}=live.get(id),ref=content[field+'_ref'];
-      delete c[field];delete c[field+'_ref'];if(markers[id])delete markers[id][field];
-      if(content[field])c[field]=structuredClone(content[field]);
-      if(ref) {
-        const head=live.get(ref.cue_id);
-        if(head.rows===rows&&head.index<index){c[field+'_ref']={...ref,headIdx:head.index};delete c[field+'_ref'].cue_id;}
-        else {c[field]=structuredClone(nextById.get(ref.cue_id)[field]);(markers[id]||={})[field]={ref:structuredClone(ref),value:structuredClone(c[field])};}
-      }
-    }
-    finishCueMarkerChange(changes);
+    commitCueMarkerProject(before,next,independent?'独立标记':name?'标记说话人':'清除标记');
   }catch(error){fixedStatus(error.message);}
 }
 function assignColor(idxs, colorName) {

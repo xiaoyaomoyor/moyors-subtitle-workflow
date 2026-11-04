@@ -134,8 +134,19 @@ function layerCreateCue(start, end, role = 'main', subtitleTrackId = fixedActive
     if (fixedTrackMode()) fixedStatus('当前轨道此处已有字幕，请改用其他轨道');
     else flashHint('此操作会新增字幕重叠，请先启用“允许字幕重叠”', 'warning'); return false;
   }
-  commitProcessingEdits(); pushUndo('创建字幕', { captureView: true });
+  commitProcessingEdits();
   const cue = { id: window.MSWProject.id('cue'), start, end, text: '', items: [], _dirty: true };
+  let inherited;
+  try { inherited=planNewCueSpeaker(cue,subtitleTrackId,cues); }
+  catch(error){fixedStatus(error.message);return false;}
+  pushUndo('创建字幕', { captureView: true });
+  if(inherited) {
+    if(inherited.color_ref)cue.color_ref=inherited.color_ref;
+    else {
+      cue.color=inherited.color;
+      DATA.subtitle_tracks.flat_context.markers[cue.id]={color:inherited.marker};
+    }
+  }
   if (fixedTrackMode()) fixedDraftOwners.set(cue, { owner: subtitleTrackId });
   cues.push(cue);
   clearSelection({ silent: true, commitCuePanel: false });

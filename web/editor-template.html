@@ -1353,7 +1353,7 @@ __WAVEFORM_CSS__
       <button type="button" id="editor-settings-close" class="gap-remove-close" title="关闭（Esc）" aria-label="关闭编辑器设置"><svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
     </div>
   </header>
-  <p class="settings-scope-note">用于当前编辑器，随用户配置保存；不会覆盖工程内容。</p>
+  <p class="settings-scope-note">编辑器的操作与显示偏好，随用户配置保存。</p>
   <div class="settings-modal-body" id="editor-settings-panel">
       <nav class="settings-modal-nav" id="editor-settings-nav" aria-label="设置分类"></nav>
       <div class="settings-modal-content" id="editor-settings-content">
@@ -1638,7 +1638,7 @@ __WAVEFORM_CSS__
           <div class="settings-category-header">说话人色系</div>
           <div class="editor-settings-sub-group" id="speaker-label-settings">
             <label class="toggle editor-settings-item"><input type="checkbox" id="speaker-auto-follow">后方字幕自动跟随说话人<span class="msw-help-anchor" id="speaker-auto-follow-help"></span></label>
-            <p hidden data-help-for="speaker-auto-follow-help">标记时，同轨后方字幕跟随当前说话人，遇到明确标记或锁定内容停止。绑定字幕联动；关闭后保留已有跟随，可用“独立标记”解除。</p>
+            <p hidden data-help-for="speaker-auto-follow-help">开启时补齐已有标记后方的未标记字幕；新建字幕也跟随同轨前方说话人。保留明确标记与已有引用，锁定内容不变，绑定字幕联动。补齐可撤销；关闭保留已有跟随，可用“独立标记”解除。</p>
             <p class="editor-settings-hint">说话人表随当前工程保存。第 0 行批量设置；不着色仍保留字幕块标记。</p>
             <label class="speaker-name-language">名称语言<select id="speaker-name-language" aria-label="名称语言"></select><span class="msw-help-anchor" id="speaker-name-language-help"></span></label>
             <p hidden data-help-for="speaker-name-language-help">未填写名称的语言跟随默认显示开关；已填写的默认显示。各语言可单独勾选，预览还需开启“预览说话人”。</p>

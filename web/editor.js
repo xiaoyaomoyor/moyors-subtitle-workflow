@@ -4639,7 +4639,19 @@ selectGroupMembersToggle?.addEventListener('change', () => {
   updateEditorSettings({ selectGroupMembers: selectGroupMembersToggle.checked });
 });
 speakerAutoFollowToggle?.addEventListener('change', () => {
-  updateEditorSettings({ speakerAutoFollow: speakerAutoFollowToggle.checked });
+  const enabled=speakerAutoFollowToggle.checked;
+  try {
+    if(enabled&&productionFlatMode()) {
+      if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
+      commitProcessingEdits();
+      const before=MSWProductionProject.toProject(AsrEditorUtils.stripInlineCaches(DATA));
+      commitCueMarkerProject(before,MSWFlatEditing.fillColorFollow(before),'补齐说话人跟随');
+    }
+    updateEditorSettings({speakerAutoFollow:enabled});
+  } catch(error) {
+    speakerAutoFollowToggle.checked=EDITOR_SETTINGS.speakerAutoFollow===true;
+    fixedStatus(error.message);
+  }
 });
 exportColorUnifiedToggle?.addEventListener('change', () => {
   updateEditorSettings({ exportColorUnified: exportColorUnifiedToggle.checked });
@@ -20340,6 +20352,49 @@ function finishCueMarkerChange(changes) {
   fixedPreviewInvalidate();projectImportDirty=true;updateUndoRedoButtons();
   refreshColorAssignmentUi(new Set(changes.map(c=>c.id)));scheduleAutoSaveFlush();
 }
+function planNewCueSpeaker(cue,owner,rows) {
+  if(!productionFlatMode()||!EDITOR_SETTINGS.speakerAutoFollow)return null;
+  const project=MSWProductionProject.toProject(AsrEditorUtils.stripInlineCaches(DATA));
+  project.subtitles.cues.push({id:cue.id,track_id:owner,content:cue});
+  const ref=MSWFlatEditing.planColorFollow(project,{ids:[cue.id]}).get(cue.id);
+  if(!ref)return null;
+  for(const source of layerCore.tracks(DATA)) {
+    const index=source.segments.findIndex(c=>c.id===ref.cue_id);
+    if(index<0)continue;
+    if(source.segments===rows)return {color_ref:{headIdx:index,name:ref.name}};
+    const color=structuredClone(project.subtitles.cues.find(c=>c.id===ref.cue_id).content.color);
+    return {color,marker:{ref,value:structuredClone(color)}};
+  }
+  return null;
+}
+function commitCueMarkerProject(before,next,label) {
+  const oldById=new Map(before.subtitles.cues.map(c=>[c.id,c.content]));
+  const nextById=new Map(next.subtitles.cues.map(c=>[c.id,c.content]));
+  const live=new Map();
+  for(const rows of [DATA.segments,...getMultiSubtitleState().tracks.map(t=>t.segments)])rows.forEach((c,index)=>live.set(c.id,{c,rows,index}));
+  const changes=[];
+  for(const {id,content} of next.subtitles.cues)for(const field of ['color','sticker']) {
+    const old=oldById.get(id);
+    if(JSON.stringify([old[field],old[field+'_ref']])!==JSON.stringify([content[field],content[field+'_ref']]))changes.push({id,content,field});
+  }
+  if(!changes.length)return false;
+  // The canonical transaction has validated bindings and locks. Apply its
+  // marker changes in place: no cue replacement, selection reset or list rebuild.
+  if(!fixedLastContent||fixedLastContentKey!==fixedContentKey())fixedLastContent=fixedContent();
+  editorHistory.push(snapshotCueMarkers(changes,label));
+  const markers=DATA.subtitle_tracks.flat_context.markers;
+  for(const {id,content,field} of changes) {
+    const {c,rows,index}=live.get(id),ref=content[field+'_ref'];
+    delete c[field];delete c[field+'_ref'];if(markers[id])delete markers[id][field];
+    if(content[field])c[field]=structuredClone(content[field]);
+    if(ref) {
+      const head=live.get(ref.cue_id);
+      if(head.rows===rows&&head.index<index){c[field+'_ref']={...ref,headIdx:head.index};delete c[field+'_ref'].cue_id;}
+      else {c[field]=structuredClone(nextById.get(ref.cue_id)[field]);(markers[id]||={})[field]={ref:structuredClone(ref),value:structuredClone(c[field])};}
+    }
+  }
+  finishCueMarkerChange(changes);return true;
+}
 function assignLinkedSpeakerColor(indices, name, track = null, { independent = false } = {}) {
   if(name&&!COLOR_BY_NAME[name])return;
   const segments=track?.segments||DATA.segments,role=track?'extension':'main';
@@ -20351,32 +20406,7 @@ function assignLinkedSpeakerColor(indices, name, track = null, { independent = f
     const before=window.MSWProductionProject.toProject(window.AsrEditorUtils.stripInlineCaches(DATA));
     const next=independent?window.MSWFlatEditing.independentColor(before,ids)
       :window.MSWFlatEditing.setColor(before,ids,name,{follow:EDITOR_SETTINGS.speakerAutoFollow===true});
-    const oldById=new Map(before.subtitles.cues.map(c=>[c.id,c.content]));
-    const nextById=new Map(next.subtitles.cues.map(c=>[c.id,c.content]));
-    const live=new Map();
-    for(const rows of [DATA.segments,...getMultiSubtitleState().tracks.map(t=>t.segments)])rows.forEach((c,index)=>live.set(c.id,{c,rows,index}));
-    const changes=[];
-    for(const {id,content} of next.subtitles.cues)for(const field of ['color','sticker']) {
-      const old=oldById.get(id);
-      if(JSON.stringify([old[field],old[field+'_ref']])!==JSON.stringify([content[field],content[field+'_ref']]))changes.push({id,content,field});
-    }
-    if(!changes.length)return;
-    // The canonical transaction has validated bindings and locks. Apply its
-    // marker changes in place: no cue replacement, selection reset or list rebuild.
-    if(!fixedLastContent||fixedLastContentKey!==fixedContentKey())fixedLastContent=fixedContent();
-    editorHistory.push(snapshotCueMarkers(changes,independent?'独立标记':name?'标记说话人':'清除标记'));
-    const markers=DATA.subtitle_tracks.flat_context.markers;
-    for(const {id,content,field} of changes) {
-      const {c,rows,index}=live.get(id),ref=content[field+'_ref'];
-      delete c[field];delete c[field+'_ref'];if(markers[id])delete markers[id][field];
-      if(content[field])c[field]=structuredClone(content[field]);
-      if(ref) {
-        const head=live.get(ref.cue_id);
-        if(head.rows===rows&&head.index<index){c[field+'_ref']={...ref,headIdx:head.index};delete c[field+'_ref'].cue_id;}
-        else {c[field]=structuredClone(nextById.get(ref.cue_id)[field]);(markers[id]||={})[field]={ref:structuredClone(ref),value:structuredClone(c[field])};}
-      }
-    }
-    finishCueMarkerChange(changes);
+    commitCueMarkerProject(before,next,independent?'独立标记':name?'标记说话人':'清除标记');
   }catch(error){fixedStatus(error.message);}
 }
 function assignColor(idxs, colorName) {
