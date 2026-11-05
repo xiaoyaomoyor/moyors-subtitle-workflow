@@ -40,6 +40,13 @@ def name_visible(row, locale=''):
     return True if any((row or {}).get('names', {}).get(k) for k in keys) else flags.get('', True)
 
 
+def _validate_style_settings(settings):
+    if 'style' in settings and not cue_style.valid(settings['style']) or 'animation' in settings and not subtitle_animation.valid(settings['animation']):
+        raise ValueError('说话人样式或动画参数无效')
+    if 'style_preset' in settings and (not isinstance(settings['style_preset'], str) or len(settings['style_preset']) > 160):
+        raise ValueError('说话人样式预设无效')
+
+
 def validate(value):
     if not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] != 1 or not isinstance(value.get('rows'), list) or not 1 <= len(value['rows']) <= 1024:
         raise ValueError('说话人色系必须包含 1–1024 个说话人')
@@ -73,10 +80,15 @@ def validate(value):
                 raise ValueError('说话人名称或分隔符无效')
         if not isinstance(row.get('mode'), str) or row['mode'] not in MODES or not isinstance(row.get('color'), str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', row['color']):
             raise ValueError('说话人颜色或着色模式无效')
-        if 'style' in row and not cue_style.valid(row['style']) or 'animation' in row and not subtitle_animation.valid(row['animation']):
-            raise ValueError('说话人样式或动画参数无效')
-        if 'style_preset' in row and (not isinstance(row['style_preset'], str) or len(row['style_preset']) > 160):
-            raise ValueError('说话人样式预设无效')
+        _validate_style_settings(row)
+        if 'role_styles' in row:
+            roles = row['role_styles']
+            if not isinstance(roles, dict) or not set(roles) <= {'main', 'secondary'}:
+                raise ValueError('说话人主副样式无效')
+            for settings in roles.values():
+                if not isinstance(settings, dict) or not set(settings) <= {'style', 'style_preset', 'animation'}:
+                    raise ValueError('说话人主副样式无效')
+                _validate_style_settings(settings)
     return value
 
 
@@ -93,10 +105,19 @@ def prefix(project, row, locale=''):
     return display_name(row, locale) + row['separator'] if (show if type(show) is bool else row['mode'] == 'speaker') and name_visible(row, locale) else ''
 
 
-def appearance(style, cue, row):
+def for_role(row, role='main'):
+    if not row:
+        return None
+    keys = ('style', 'style_preset', 'animation')
+    settings = row.get('role_styles', {}).get(role, {k: row[k] for k in keys if k in row})
+    return {**{k: v for k, v in row.items() if k not in keys}, **settings}
+
+
+def appearance(style, cue, row, role='main'):
     result = dict(style)
     if not row:
         return result
+    row = for_role(row, role)
     overrides = cue.get('subtitle_style') or {}
     field = {'text': 'primaryColor', 'stroke': 'outlineColor', 'background': 'backgroundColor'}.get(row['mode'])
     if field and field not in overrides:

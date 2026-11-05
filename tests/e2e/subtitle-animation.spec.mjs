@@ -269,14 +269,19 @@ test('track presets are role-specific, cues restore inheritance, and modes survi
 });
 
 test('cross-track preset edits preserve other effects and locks reject edits atomically',async({page})=>{
+  await page.evaluate(()=>{
+    let p=JSON.parse(buildJson());p=MSWFlatSubtitles.addTrack(p,{...p.subtitles.tracks[0],id:'another-main',display_number:undefined});
+    p.subtitles.cues.find(c=>c.content.text==='Second subtitle').track_id='another-main';
+    productionCommitProject(p,'cross-track main fixture',[p.subtitles.cues[0].id]);
+  });
   await page.locator('#style-animation').evaluate(el=>el.open=true);await page.locator('#motion-preset-fade').click();await idle(page);
-  await page.evaluate(()=>addExtensionToSelection(0));await expect(page.locator('#motion-preset-fade')).toHaveClass(/is-mixed/);
+  await page.evaluate(()=>addToSelection(1));await expect(page.locator('#motion-preset-fade')).toHaveClass(/is-mixed/);
   await page.locator('#motion-preset-blink').click();await rangeValue(page,'#motion-blink-period',32);
-  const p=await snap(page),a=p.subtitles.cues[0],b=p.subtitles.cues.find(c=>c.content.text==='Translation');
+  const p=await snap(page),a=p.subtitles.cues[0],b=p.subtitles.cues.find(c=>c.content.text==='Second subtitle');
   expect(a.content.subtitle_animation.effects.fade.enabled).toBe(true);expect(b.content.subtitle_animation.effects.fade).toBeUndefined();
   for(const c of [a,b])expect(c.content.subtitle_animation.effects.blink).toMatchObject({period:32,periodUnit:'percent'});
   await page.evaluate(()=>{
-    const p=JSON.parse(buildJson()),a=p.subtitles.cues[0],b=p.subtitles.cues.find(c=>c.content.text==='Translation');
+    const p=JSON.parse(buildJson()),a=p.subtitles.cues[0],b=p.subtitles.cues.find(c=>c.content.text==='Second subtitle');
     a.content.subtitle_animation.effects.blink.opacity=20;b.content.subtitle_animation.effects.blink.opacity=65;
     productionCommitProject(p,'mixed intensity',[a.id,b.id]);
   });
@@ -284,9 +289,9 @@ test('cross-track preset edits preserve other effects and locks reject edits ato
   const moved=await snap(page);
   expect(moved.subtitles.cues.map(c=>[c.id,c.content.start,c.content.end])).toEqual(p.subtitles.cues.map(c=>[c.id,c.content.start,c.content.end]));
   expect(moved.subtitles.cues[0].content.subtitle_animation.effects.blink).toMatchObject({end:99,opacity:20});
-  expect(moved.subtitles.cues.find(c=>c.content.text==='Translation').content.subtitle_animation.effects.blink).toMatchObject({end:99,opacity:65});
+  expect(moved.subtitles.cues.find(c=>c.content.text==='Second subtitle').content.subtitle_animation.effects.blink).toMatchObject({end:99,opacity:65});
   await page.keyboard.press('Delete');expect((await snap(page)).subtitles).toEqual(moved.subtitles);
-  await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks[1].locked=true;productionCommitProject(p,'lock',[p.subtitles.cues[0].id,p.subtitles.cues.find(c=>c.content.text==='Translation').id]);});
+  await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks.find(t=>t.id==='another-main').locked=true;productionCommitProject(p,'lock',[p.subtitles.cues[0].id,p.subtitles.cues.find(c=>c.content.text==='Second subtitle').id]);});
   await expect(page.locator('#motion-blink-period')).toHaveAttribute('aria-disabled','true');
 });
 

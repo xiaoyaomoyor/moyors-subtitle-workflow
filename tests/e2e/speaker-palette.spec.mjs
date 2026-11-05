@@ -278,7 +278,7 @@ test('speaker properties inherit across tracks, preserve cue overrides, undo and
   await expect(page.locator('#style-speaker-target')).toBeVisible();
   await expect(page.locator('#style-track-position')).toBeHidden();
   await page.locator('#style-field-fontSize').fill('80');await page.locator('#style-field-fontSize').press('Tab');
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].style.fontSize)).toBe(80);
+  expect(await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[0]).style.fontSize)).toBe(80);
   await expect(page.locator('[data-reset-style="fontSize"]')).toHaveClass(/is-overridden/);
   const rendered=await page.evaluate(async()=>{
     const project=MSWE.resolve('processing-host').exportProject();
@@ -286,19 +286,19 @@ test('speaker properties inherit across tracks, preserve cue overrides, undo and
   });
   expect(rendered.ass).toContain('80');expect(rendered.ass).toContain('55');
   await page.evaluate(()=>performUndo());
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].style)).toBeUndefined();
+  expect(await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[0]).style)).toBeUndefined();
   await page.locator('#style-field-fontSize').fill('80');await page.locator('#style-field-fontSize').press('Tab');
   await page.locator('#style-animation > summary').click();
   await page.locator('#motion-preset-fade').click();
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].animation.effects.fade.enabled)).toBe(true);
+  expect(await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[0]).animation.effects.fade.enabled)).toBe(true);
   await page.locator('#motion-inherit').click();
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].animation)).toBeUndefined();
+  expect(await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[0]).animation)).toBeUndefined();
   await page.locator('#style-project-preset').selectOption('default');
   await page.locator('#style-field-fontSize').fill('81');await page.locator('#style-field-fontSize').press('Tab');
   await page.locator('#style-reset').click();
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].style.fontSize)).toBe(await page.evaluate(()=>MSWProjectStyle.defaults().main.fontSize));
+  expect(await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[0]).style.fontSize)).toBe(await page.evaluate(()=>MSWProjectStyle.defaults().main.fontSize));
   await page.locator('#style-inherit-appearance').click();
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[0].style)).toBeUndefined();
+  expect(await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[0]).style)).toBeUndefined();
   await page.locator('#style-field-fontSize').fill('80');await page.locator('#style-field-fontSize').press('Tab');
   await page.locator('#style-save-as').click();await page.locator('#style-preset-name').fill('Speaker custom');await page.locator('#style-save-preset').click();
   await expect(page.locator('#style-project-preset option:checked')).toHaveText('Speaker custom');
@@ -320,7 +320,7 @@ test('speaker properties inherit across tracks, preserve cue overrides, undo and
   await page.locator('#style-preview-speakers').uncheck();
   await page.evaluate(()=>setSubtitlePreviewSettingsPanelOpen(false));
   expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
-  const disk=JSON.parse(readFileSync(project));expect(disk.preview.speaker_palette.rows[0].style.fontSize).toBe(80);expect(disk.preview.speaker_labels_visible).toBe(false);
+  const disk=JSON.parse(readFileSync(project));expect(disk.preview.speaker_palette.rows[0].role_styles.main.style.fontSize).toBe(80);expect(disk.preview.speaker_labels_visible).toBe(false);
   await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready);
   await page.evaluate(()=>MSWSubtitleStyle.open('cue'));
   await page.locator('#style-edit-scope').selectOption('speaker');
@@ -351,13 +351,13 @@ test('speaker properties show palette defaults and report overrides without losi
   await page.locator('#style-field-outline').fill('6');await page.locator('#style-field-outline').press('Tab');
   await page.locator('#style-animation > summary').click();
   await page.locator('#motion-preset-fade').click();
-  const motion=await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation);
+  const motion=await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[1]).animation);
   await settings(page);
   await page.locator('#speaker-palette-rows tr[data-speaker-id="green"] select').selectOption('text');
   await page.evaluate(()=>setProjectSettingsPanelOpen(false));
   await expect(page.locator('#style-field-primaryColor')).toHaveValue('#66bb6a');
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].style)).toBeUndefined();
-  expect(await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation)).toEqual(motion);
+  expect(await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[1]).style)).toBeUndefined();
+  expect(await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[1]).animation)).toEqual(motion);
 });
 
 test('speaker palette is the default preset and can restore inherited appearance without removing animation',async({page})=>{
@@ -372,11 +372,11 @@ test('speaker palette is the default preset and can restore inherited appearance
   await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
   await page.locator('#style-animation > summary').click();
   await page.locator('#motion-preset-fade').click();
-  const animation=await page.evaluate(()=>DATA.preview.speaker_palette.rows[1].animation);
+  const animation=await page.evaluate(()=>MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[1]).animation);
   await preset.selectOption('large');
   await expect(preset).toHaveValue('large');
   await preset.selectOption('speaker-palette');
-  const inherited=()=>page.evaluate(()=>{const r=DATA.preview.speaker_palette.rows[1];return {style:r.style,preset:r.style_preset,mode:r.mode,animation:r.animation};});
+  const inherited=()=>page.evaluate(()=>{const r=MSWSpeaker.forRole(DATA.preview.speaker_palette.rows[1]);return {style:r.style,preset:r.style_preset,mode:r.mode,animation:r.animation};});
   expect(await inherited()).toEqual({style:undefined,preset:undefined,mode:'stroke',animation});
   await expect(page.locator('#style-field-outlineColor')).toHaveValue('#66bb6a');
   await page.evaluate(()=>performUndo());await expect(preset).toHaveValue('large');

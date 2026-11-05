@@ -10,6 +10,26 @@ const context={window:{},TextDecoder,TextEncoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const utils=context.window.AsrEditorUtils;
 
+test('main and secondary speaker overrides retain legacy appearance and cue precedence independently',()=>{
+  const row={...speakers.row(0),mode:'stroke',style:{fontSize:64},animation:{schema:motion.schema,effects:{fade:{...motion.defaults().effects.fade,enabled:true}}}};
+  const base={fontSize:48,primaryColor:'#ffffff',outlineColor:'#000000'};
+  speakers.editRole(row,'secondary',s=>{s.style={fontSize:80};s.style_preset='local';});
+  assert.equal(speakers.appearance(base,{},row,'main').fontSize,64);
+  assert.equal(speakers.appearance(base,{},row,'secondary').fontSize,80);
+  assert.equal(speakers.appearance(base,{subtitle_style:{fontSize:55}},row,'secondary').fontSize,55);
+  speakers.editRole(row,'main',s=>{delete s.style;delete s.animation;});
+  assert.equal(speakers.appearance(base,{},row,'main').fontSize,48);
+  assert.equal(speakers.appearance(base,{},row,'main').outlineColor,row.color);
+  assert.equal(speakers.appearance(base,{},row,'main').animation,undefined);
+  assert.ok(speakers.appearance(base,{},row,'secondary').animation.effects.fade.enabled);
+  assert.ok(speakers.hasAppearance(row));speakers.clearAppearance(row);
+  assert.equal(speakers.hasAppearance(row),false);
+  assert.ok(speakers.roleSettings(row,'secondary').animation.effects.fade.enabled);
+  assert.ok(speakers.valid({version:1,rows:[row]}));
+  for(const role_styles of [null,[],{wrong:{}},{main:{unknown:1}},{secondary:{style:{fontSize:-1}}},{main:{role_styles:{}}}])
+    assert.equal(speakers.valid({version:1,rows:[{...row,role_styles}]}),false);
+});
+
 test('name visibility is per language, defaults on, and obeys preview and export masters',()=>{
   const row={...speakers.row(0),name:'Condi',names:{'zh-hans':'康迪'},mode:'speaker'};
   const project={preview:{speaker_palette:{version:1,rows:[row]},speaker_labels_visible:true}};

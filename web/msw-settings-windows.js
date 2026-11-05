@@ -29,6 +29,11 @@
     const follow=$('speaker-auto-follow').closest('label');
     const followGroup=group(editing,'说话人标记');followGroup.append(follow);
     const help=document.querySelector('[data-help-for="speaker-auto-follow-help"]');if(help)followGroup.append(help);
+    const oldBinding=$('track-select-bound').closest('section'),binding=group(editing,'绑定与联动');
+    for(const id of ['track-select-bound','track-bind-sync']){
+      const label=$(id).closest('label');label.className='toggle editor-settings-item';binding.append(label);
+    }
+    oldBinding.remove();
     const time=category(project,'time-tracks','时间与轨道');
     const timeline=editing.querySelector('[data-subsection="timebase"]');time.append(timeline);
     const timingPrefs=group(editing,'时间操作');

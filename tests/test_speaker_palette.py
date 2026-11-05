@@ -11,6 +11,36 @@ from maw.speaker import apply_speaker_colors, inherit_speaker_color
 
 
 class SpeakerPaletteTests(unittest.TestCase):
+    def test_role_styles_match_preview_export_and_preserve_legacy_and_cue_overrides(self):
+        p = self.project()
+        row = p['preview']['speaker_palette']['rows'][0]
+        row['style'] = {'fontSize': 64}
+        row['role_styles'] = {'secondary': {'style': {'fontSize': 82, 'outlineColor': '#abcdef'},
+            'animation': {'schema': animation.SCHEMA, 'effects': {'fade': {**animation.DEFINITIONS['fade'], 'enabled': True}}}}}
+        track = copy.deepcopy(p['subtitles']['tracks'][0])
+        track.update(id='secondary', secondary_for=p['subtitles']['tracks'][0]['id'])
+        track['style']['slot'] = 'secondary'
+        p['subtitles']['tracks'].append(track)
+        cue = copy.deepcopy(p['subtitles']['cues'][0])
+        cue.update(id='b', track_id='secondary')
+        p['subtitles']['cues'].append(cue)
+        validate(p)
+        rows = {r['cue_id']: r for r in layout(p)}
+        self.assertEqual(rows[p['subtitles']['cues'][0]['id']]['style']['fontSize'], 64)
+        self.assertEqual(rows['b']['style']['fontSize'], 82)
+        self.assertTrue(rows['b']['motion']['effects']['fade']['enabled'])
+        video = dict(width=640, height=360)
+        plan = dict(intervals=[dict(start_ms=0, end_ms=2000, output_start_ms=0)])
+        ass = preview_ass(dict(project=p, video=video, plan=plan))['ass']
+        self.assertEqual(ass, styled_ass(p, plan, 'both', video))
+        self.assertIn('EFCDAB', ass)
+        cue['content']['subtitle_style'] = {'fontSize': 52}
+        self.assertEqual(next(r for r in layout(p) if r['cue_id']=='b')['style']['fontSize'], 52)
+        for roles in [None, [], {'bad': {}}, {'main': {'unknown': 2}}, {'secondary': {'style': {'fontSize': -1}}}]:
+            row['role_styles'] = roles
+            with self.assertRaises(ValueError):
+                validate_palette(p['preview']['speaker_palette'])
+
     def test_language_visibility_preserves_text_and_color_and_obeys_master(self):
         from maw.msw.speaker_palette import name_visible, prefix
         p = self.project()

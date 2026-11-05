@@ -823,7 +823,7 @@ for (const width of [1280, 740, 420]) {
     await fixture(page);
     await openCueEditorSettings(page);
     const settings = page.locator('#cue-editor-settings-panel');
-    await expect(settings.locator('.settings-panel-title')).toHaveText(['显示与操作', '绑定与联动', '配音草稿', '联动切分']);
+    await expect(settings.locator('.settings-panel-title')).toHaveText(['显示与操作', '配音草稿', '联动切分']);
     await expect(settings.locator('#project-track-settings-shortcut')).toBeVisible();
     await expect(page.locator('#project-settings-content #track-split-track')).toHaveCount(1);
     await page.locator('#tts-draft-split').selectOption('both');

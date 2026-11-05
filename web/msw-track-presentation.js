@@ -58,7 +58,7 @@
         const vertical=Math.floor((row.style.alignment-1)/3);
         row.marginShift=(row.style.marginV-row.marginBase)*(vertical===2?1:vertical===0?-1:0);
         if(project.preview?.speaker_palette){const storage=row.role==='main'?project.segments:project.multi_subtitle?.tracks.find(t=>t.id===row.track_id)?.segments||[];
-          row.style=global.MSWSpeaker.appearance(row.style,row.cue,global.MSWSpeaker.profile(project,row.cue,storage[row.cue.color_ref?.headIdx]));}
+          row.style=global.MSWSpeaker.appearance(row.style,row.cue,global.MSWSpeaker.profile(project,row.cue,storage[row.cue.color_ref?.headIdx]),slot);}
         if(background.enabled(row.style))row.style.borderStyle=1;
         row.motion = motion.resolve(row.style.animation,row.cue.subtitle_animation);
         row.animations = own.animations;

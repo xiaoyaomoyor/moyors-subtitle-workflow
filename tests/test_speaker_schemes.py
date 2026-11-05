@@ -43,6 +43,17 @@ class SpeakerSchemeTests(unittest.TestCase):
             self.assertEqual(len(state['speakerSchemes']['schemes']),2)
             self.assertEqual(state['speakerSchemes']['schemes'][0]['rows'][0]['name'],'Erwyn' if policy=='keep' else 'changed')
 
+    def test_role_settings_survive_config_transfer_without_preset_dependencies(self):
+        data = library()
+        row = data['schemes'][0]['rows'][0]
+        row['role_styles'] = {'main': {}, 'secondary': {'style': {'fontSize': 77}}}
+        self.store.update(['speakerSchemes'], data)
+        raw = self.store.request(dict(action='export', categories=['speakerSchemes']))['package']
+        self.assertEqual(parse(raw)['sections']['speakerSchemes'], data)
+        row['role_styles']['secondary']['style_preset'] = 'local'
+        with self.assertRaises(ValueError):
+            validate(data)
+
     def test_strict_validation_and_project_provenance(self):
         for patch in ({'cue_id':'private'},{'style':{'fontSize':-1}},{'scheme_ref':{'scheme_id':'series','person_id':'person-1'}},{'names':{'zh':'bad'}}):
             invalid=library();invalid['schemes'][0]['rows'][0].update(patch)

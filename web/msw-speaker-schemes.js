@@ -5,13 +5,17 @@
   const clone=v=>JSON.parse(JSON.stringify(v));
   const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
   const signature=v=>JSON.stringify(canonical(v));
-  const fields=['name','names','name_visibility','color','mode','separator','style','animation'];
+  const fields=['name','names','name_visibility','color','mode','separator','style','animation','role_styles'];
   const identity=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,160}$/.test(v);
-  const describe=row=>Object.fromEntries(fields.filter(k=>row[k]!==undefined).map(k=>[k,clone(row[k])]));
+  const describe=row=>{
+    const result=Object.fromEntries(fields.filter(k=>row[k]!==undefined).map(k=>[k,clone(row[k])]));
+    for(const settings of Object.values(result.role_styles||{}))delete settings.style_preset;
+    return result;
+  };
   function validScheme(s){
     return s&&Object.keys(s).every(k=>['id','name','rows'].includes(k))&&identity(s.id)
       &&typeof s.name==='string'&&s.name.trim()&&s.name.length<=80&&!/[\u0000-\u001f\u007f]/.test(s.name)
-      &&speaker.valid({version:1,rows:s.rows})&&s.rows.every(r=>Object.keys(r).every(k=>k==='id'||fields.includes(k)));
+      &&speaker.valid({version:1,rows:s.rows})&&s.rows.every(r=>Object.keys(r).every(k=>k==='id'||fields.includes(k))&&Object.values(r.role_styles||{}).every(s=>s.style_preset===undefined));
   }
   function validate(library){
     if(!library||Object.keys(library).some(k=>!['version','schemes'].includes(k))||library.version!==1

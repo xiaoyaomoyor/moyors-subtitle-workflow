@@ -9,7 +9,7 @@ def validate(library):
             or not isinstance(library['schemes'], list) or len(library['schemes']) > 64):
         raise ValueError('说话人方案库无效（最多 64 个方案）')
     ids, names = set(), set()
-    fields = {'id', 'name', 'names', 'name_visibility', 'color', 'mode', 'separator', 'style', 'animation'}
+    fields = {'id', 'name', 'names', 'name_visibility', 'color', 'mode', 'separator', 'style', 'animation', 'role_styles'}
     for scheme in library['schemes']:
         if (not isinstance(scheme, dict) or set(scheme) != {'id', 'name', 'rows'}
                 or not isinstance(scheme['id'], str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,160}', scheme['id'])
@@ -17,6 +17,8 @@ def validate(library):
                 or len(scheme['name']) > 80 or re.search(r'[\x00-\x1f\x7f]', scheme['name']) or scheme['name'] in names):
             raise ValueError('说话人方案标识或名称无效')
         validate_palette({'version': 1, 'rows': scheme['rows']})
+        if any('style_preset' in settings for row in scheme['rows'] for settings in row.get('role_styles', {}).values()):
+            raise ValueError('说话人方案不能引用本机样式预设')
         if any(set(row) - fields for row in scheme['rows']):
             raise ValueError('说话人方案不能包含工程引用或未知字段')
         ids.add(scheme['id'])

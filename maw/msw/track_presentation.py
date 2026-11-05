@@ -189,7 +189,8 @@ def layout(project, width=1920):
                 row['color'] = cue.get('color') or (storage[head].get('color') if type(head) is int and 0<=head<len(storage) else {}) or {}
             if speakers is not None:
                 row['speaker'] = speakers.get(row['color'].get('name'))
-                row['style'] = speaker_palette.appearance(row['style'], cue, row['speaker'])
+                speaker_slot = index.tracks[row['subtitle_track_id']].get('style', {}).get('slot', 'main') if flat else slot
+                row['style'] = speaker_palette.appearance(row['style'], cue, row['speaker'], speaker_slot)
                 if background.enabled(row['style']):
                     row['style']['borderStyle'] = 1
                 prefix = speaker_palette.prefix(project, row['speaker'], index.tracks[row['subtitle_track_id']].get('language', ''))

@@ -61,6 +61,25 @@
     return '#'+[0,8,4].map(n=>{const k=(n+h/30)%12;return Math.round(255*(l-a*Math.max(-1,Math.min(k-3,9-k,1)))).toString(16).padStart(2,'0');}).join('');
   }
   const row=(i,id=defaults[i]?.[0]||'speaker-'+(i+1))=>({id,name:'SP'+(i+1),color:colorAt(i),mode:'none',separator:'：'});
+  const styleKeys=['style','style_preset','animation'];
+  const styleSettings=r=>Object.fromEntries(styleKeys.filter(k=>r?.[k]!==undefined).map(k=>[k,r[k]]));
+  const roleSettings=(profile,role='main')=>profile?.role_styles?.[role]??styleSettings(profile);
+  function forRole(profile,role='main') {
+    if(!profile)return null;
+    const result={...profile};for(const key of styleKeys)delete result[key];
+    return Object.assign(result,roleSettings(profile,role));
+  }
+  function editRole(profile,role,update) {
+    const settings=structuredClone(roleSettings(profile,role));update(settings);
+    (profile.role_styles||={})[role]=settings;
+  }
+  const hasAppearance=profile=>['main','secondary'].some(role=>Object.keys(roleSettings(profile,role).style||{}).length);
+  function clearAppearance(profile) {
+    for(const settings of [profile,...Object.values(profile.role_styles||{})]){delete settings.style;delete settings.style_preset;}
+  }
+  const validSettings=r=>!!r&&typeof r==='object'&&!Array.isArray(r)
+    &&(r.style===undefined||cueStyle()?.valid(r.style))&&(r.animation===undefined||motion()?.valid(r.animation))
+    &&(r.style_preset===undefined||typeof r.style_preset==='string'&&r.style_preset.length<=160);
   function valid(value) {
     return value?.version===1&&Array.isArray(value.rows)&&value.rows.length>=1&&value.rows.length<=1024
       &&new Set(value.rows.map(r=>r?.id)).size===value.rows.length&&value.rows.every(r=>r&&typeof r.id==='string'&&/^[a-zA-Z0-9_-]{1,160}$/.test(r.id)
@@ -72,8 +91,8 @@
         &&(r.name_visibility===undefined||r.name_visibility&&typeof r.name_visibility==='object'&&!Array.isArray(r.name_visibility)&&Object.keys(r.name_visibility).length<=65
           &&Object.entries(r.name_visibility).every(([k,v])=>k===language(k)&&typeof v==='boolean'))
         &&/^#[\da-f]{6}$/i.test(r.color)&&modes.includes(r.mode)&&typeof r.separator==='string'&&r.separator.length<=16&&!/[\u0000-\u001f\u007f]/.test(r.separator)
-        &&(r.style===undefined||cueStyle()?.valid(r.style))&&(r.animation===undefined||motion()?.valid(r.animation))
-        &&(r.style_preset===undefined||typeof r.style_preset==='string'&&r.style_preset.length<=160));
+        &&validSettings(r)&&(r.role_styles===undefined||r.role_styles&&typeof r.role_styles==='object'&&!Array.isArray(r.role_styles)
+          &&Object.entries(r.role_styles).every(([role,settings])=>['main','secondary'].includes(role)&&validSettings(settings)&&Object.keys(settings).every(k=>styleKeys.includes(k)))));
   }
   function ensure(project,legacyColors=null,discover=false) {
     project.preview||={};
@@ -118,8 +137,9 @@
     const show=project.preview?.speaker_label_export??project.preview?.speaker_labels_visible;
     return (typeof show==='boolean'?show:profile.mode==='speaker')&&nameVisible(profile,locale)?displayName(profile,locale)+profile.separator:'';
   }
-  function appearance(style,cue,profile) {
+  function appearance(style,cue,profile,role='main') {
     if(!profile)return {...style};
+    profile=forRole(profile,role);
     const result={...style},field={text:'primaryColor',stroke:'outlineColor',background:'backgroundColor'}[profile.mode];
     if(field&&!Object.hasOwn(cue?.subtitle_style||{},field))result[field]=profile.color;
     if(profile.mode==='background') {
@@ -130,7 +150,7 @@
     if(profile.animation)result.animation=motion().resolve(style.animation,profile.animation);
     return result;
   }
-  const api = { inherit,defaults,modes,languages,language,displayName,nameVisible,nameResolver,languageOptions,row,colorAt,valid,ensure,profile,prefix,appearance };
+  const api = { inherit,defaults,modes,languages,language,displayName,nameVisible,nameResolver,languageOptions,row,colorAt,valid,ensure,profile,prefix,appearance,roleSettings,forRole,editRole,hasAppearance,clearAppearance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSpeaker = api;
 })(typeof window !== 'undefined' ? window : globalThis);

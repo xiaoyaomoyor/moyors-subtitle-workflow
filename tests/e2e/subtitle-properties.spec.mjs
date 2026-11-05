@@ -22,6 +22,82 @@ test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await s
 async function idle(page){await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled),{timeout:30000}).toBe(true);}
 const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 
+test('bound cue properties switch physical roles without changing selection, including animation and position',async({page},info)=>{
+  test.setTimeout(120000);
+  await page.evaluate(()=>{updateEditorSettings({selectBoundSubtitlePair:true});selectOnly(0);});
+  const selection=()=>page.evaluate(()=>fixedSelectedRows().map(r=>r.cue_id).sort());
+  const ids=await selection();expect(ids).toHaveLength(2);
+  const main=(await snap(page)).subtitles.cues.find(c=>c.content.text==='First subtitle').id;
+  const secondary=(await snap(page)).subtitles.cues.find(c=>c.content.text==='Translation').id;
+  await expect(page.locator('#style-main')).toHaveAttribute('aria-pressed','true');
+  await page.locator('#style-field-fontSize').fill('70');await page.locator('#style-field-fontSize').blur();await idle(page);
+  await page.locator('#style-secondary').click();await expect(page.locator('#style-secondary')).toHaveAttribute('aria-pressed','true');
+  await page.locator('#style-field-fontSize').fill('83');await page.locator('#style-field-fontSize').blur();await idle(page);
+  await page.locator('#style-position-y').fill('45');await page.locator('#style-position-y').blur();await idle(page);
+  await page.locator('#style-animation').evaluate(n=>n.open=true);
+  await page.locator('#motion-preset-fade').click();await idle(page);
+  let cues=(await snap(page)).subtitles.cues;
+  expect(cues.find(c=>c.id===main).content.subtitle_style.fontSize).toBe(70);
+  expect(cues.find(c=>c.id===main).content.subtitle_animation).toBeUndefined();
+  expect(cues.find(c=>c.id===main).content.subtitle_position).toBeUndefined();
+  expect(cues.find(c=>c.id===secondary).content).toMatchObject({subtitle_style:{fontSize:83},subtitle_animation:{effects:{fade:{enabled:true}}}});
+  expect(cues.find(c=>c.id===secondary).content.subtitle_position.y).toBeCloseTo(.45,8);
+  expect(await selection()).toEqual(ids);
+  await page.evaluate(()=>performUndo());await idle(page);
+  expect((await snap(page)).subtitles.cues.find(c=>c.id===secondary).content.subtitle_animation).toBeUndefined();
+  await page.locator('#style-position-drag').click();
+  expect(await page.evaluate(()=>[...fixedPositionSession.ids])).toEqual([secondary]);
+  await page.keyboard.press('ArrowRight');await page.keyboard.press('Enter');await idle(page);
+  expect(await selection()).toEqual(ids);
+  // Switching the editor focus follows the clicked side; explicit property
+  // role switches do not themselves move that editor focus.
+  await page.evaluate(()=>selectOnlyExtension(0));await expect(page.locator('#style-secondary')).toHaveAttribute('aria-pressed','true');
+  await page.evaluate(()=>selectOnly(0));await expect(page.locator('#style-main')).toHaveAttribute('aria-pressed','true');
+  await page.evaluate(()=>selectOnlyExtension(0));await expect(page.locator('#style-secondary')).toHaveAttribute('aria-pressed','true');
+  expect(await selection()).toEqual(ids);
+  // A locked opposite side must not block the chosen side or be edited.
+  await page.evaluate(id=>fixedUpdateTrack(JSON.parse(buildJson()).subtitles.cues.find(c=>c.id===id).track_id,{locked:true}),main);
+  await expect(page.locator('#style-field-fontSize')).toBeEnabled();
+  await page.locator('#style-main').click();await expect(page.locator('#style-field-fontSize')).toBeDisabled();
+  await page.locator('#style-secondary').click();await expect(page.locator('#style-field-fontSize')).toHaveValue('83');
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('selected-secondary.png')});
+  const saved=await snap(page);expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+  await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready&&player.readyState>=2);await idle(page);
+  expect((await snap(page)).subtitles.cues).toEqual(saved.subtitles.cues);
+});
+
+test('speaker role targets preserve the old shared style and persist independent presets and animation',async({page},info)=>{
+  test.setTimeout(120000);
+  await page.evaluate(()=>{
+    const p=JSON.parse(buildJson());for(const c of p.subtitles.cues)c.content.color={name:'yellow',start:c.content.start,end:c.content.end};
+    productionCommitProject(p,'speaker role fixture');
+    const speaker=MSWSpeaker.ensure(DATA).rows[0];speaker.style={fontSize:66};speaker.mode='stroke';
+    speakerPaletteChanged();MSWSubtitleStyle.editSpeaker('yellow');
+  });await idle(page);
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('66');
+  await page.locator('#style-secondary').click();await expect(page.locator('#style-field-fontSize')).toHaveValue('66');
+  await page.locator('#style-project-preset').selectOption('large');
+  await page.locator('#style-field-fontSize').fill('84');await page.locator('#style-field-fontSize').blur();await idle(page);
+  await page.locator('#style-animation').evaluate(n=>n.open=true);await page.locator('#motion-preset-fade').click();await idle(page);
+  const values=()=>page.evaluate(()=>Object.fromEntries(['main','secondary'].map(r=>[r,MSWSpeaker.roleSettings(DATA.preview.speaker_palette.rows[0],r)])));
+  let roles=await values();expect(roles.main.style.fontSize).toBe(66);expect(roles.main.animation).toBeUndefined();expect(roles.secondary.style.fontSize).toBe(84);
+  expect(roles.secondary.animation.effects.fade.enabled).toBe(true);
+  const layout=await page.evaluate(()=>fixedPreviewLayout().layout.entries.map(e=>({text:e.cue.text,size:e.style.fontSize,fade:e.motion?.effects.fade.enabled})));
+  expect(layout.find(e=>e.text==='Translation')).toMatchObject({size:84,fade:true});
+  expect(layout.find(e=>e.text==='First subtitle').size).toBe(66);
+  await page.locator('#style-main').click();await expect(page.locator('#style-field-fontSize')).toHaveValue('66');
+  await page.locator('#style-project-preset').selectOption('speaker-palette');await idle(page);
+  roles=await values();expect(roles.main.style).toBeUndefined();expect(roles.secondary.style.fontSize).toBe(84);
+  await page.evaluate(()=>performUndo());await idle(page);await expect(page.locator('#style-field-fontSize')).toHaveValue('66');
+  await page.locator('#style-secondary').click();await expect(page.locator('#style-project-preset')).toHaveValue('large');
+  await page.locator('#subtitle-properties').screenshot({path:info.outputPath('speaker-secondary.png')});
+  const saved=await snap(page);expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+  await page.reload();await page.waitForFunction(()=>MSWSubtitleStyle?.ready&&player.readyState>=2);await idle(page);
+  await page.evaluate(()=>MSWSubtitleStyle.editSpeaker('yellow'));await page.locator('#style-secondary').click();
+  await expect(page.locator('#style-field-fontSize')).toHaveValue('84');
+  expect(await values()).toEqual({main:{style:{fontSize:66}},secondary:saved.preview.speaker_palette.rows[0].role_styles.secondary});
+});
+
 test('multiline text alignment keeps its anchor and matches preview, burn, undo and reopen',async({page},info)=>{
   test.setTimeout(120000);
   await page.evaluate(()=>{
@@ -104,17 +180,23 @@ test('Ctrl+D reserves the shortcut when empty, editing, or a context menu is ope
 async function field(page,name,value){if(name.endsWith('FontName'))await page.locator('#style-font-script').selectOption(name.replace('FontName',''));await page.locator('#style-field-'+name).fill(String(value));await page.locator('#style-field-'+name).blur();await idle(page);}
 
 test('single and cross-track edits preserve inheritance, binding, undo and reopen',async({page},info)=>{
+  await page.evaluate(()=>{
+    let p=JSON.parse(buildJson());p=MSWFlatSubtitles.addTrack(p,{...p.subtitles.tracks[0],id:'another-main',display_number:undefined});
+    p.subtitles.cues.find(c=>c.content.text==='Second subtitle').track_id='another-main';
+    productionCommitProject(p,'cross-track main selection',[p.subtitles.cues[0].id]);
+  });
   await expect(page.locator('#subtitle-properties')).toBeVisible();
   await expect(page.locator('#style-edit-scope')).toHaveValue('cue');
   const before=await snap(page);
   await field(page,'fontSize',80);
   let p=await snap(page);expect(p.subtitles.cues[0].content.subtitle_style).toEqual({fontSize:80});
   expect(p.subtitles.cues.slice(1)).toEqual(before.subtitles.cues.slice(1));expect(p.subtitles.bindings).toEqual(before.subtitles.bindings);
-  await page.evaluate(()=>addExtensionToSelection(0));
+  await page.evaluate(()=>addToSelection(1));
   await expect(page.locator('#style-field-fontSize')).toHaveValue('');
   await page.locator('#style-more').evaluate(el=>el.open=true);await page.locator('#style-field-italic').check();await idle(page);
   p=await snap(page);expect(p.subtitles.cues[0].content.subtitle_style).toEqual({fontSize:80,italic:true});
-  expect(p.subtitles.cues.find(c=>c.content.text==='Translation').content.subtitle_style).toEqual({italic:true});
+  expect(p.subtitles.cues.find(c=>c.content.text==='Second subtitle').content.subtitle_style).toEqual({italic:true});
+  expect(p.subtitles.cues.find(c=>c.content.text==='Translation').content.subtitle_style).toBeUndefined();
   await page.evaluate(()=>performUndo());await idle(page);
   expect((await snap(page)).subtitles.cues[0].content.subtitle_style).toEqual({fontSize:80});
   await page.evaluate(()=>performRedo());await idle(page);
@@ -188,6 +270,8 @@ print(json.dumps([bounds(p) for p in sys.argv[1:]]))`,preview,burn],{encoding:'u
 test('multi-cue presets use each role; overwriting one cue preserves the other preset slot',async({page})=>{
   await page.evaluate(()=>addExtensionToSelection(0));
   await page.locator('#style-project-preset').selectOption('large');await idle(page);
+  expect((await snap(page)).subtitles.cues.filter(c=>c.content.subtitle_style)).toHaveLength(1);
+  await page.locator('#style-main').click();await page.locator('#style-project-preset').selectOption('large');await idle(page);
   const applied=await snap(page),expected=await page.evaluate(()=>MSWProjectStyle.presets().find(p=>p.id==='large'));
   for(const c of applied.subtitles.cues.filter(c=>c.content.subtitle_style)){
     const slot=applied.subtitles.tracks.find(t=>t.id===c.track_id).style.slot;

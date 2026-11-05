@@ -14878,8 +14878,8 @@ function assPreviewMetrics() {
   };
 }
 
-function assPreviewStyleVariant(style, segment, segments, appearance) {
-  if(DATA.preview?.speaker_palette)return window.MSWSpeaker.appearance(style,segment,window.MSWSpeaker.profile(DATA,segment,segments?.[segment?.color_ref?.headIdx]));
+function assPreviewStyleVariant(style, segment, segments, appearance,role='main') {
+  if(DATA.preview?.speaker_palette)return window.MSWSpeaker.appearance(style,segment,window.MSWSpeaker.profile(DATA,segment,segments?.[segment?.color_ref?.headIdx]),role);
   // ASS 预览的颜色映射只跟随 ass_color_style；color_underline 只控制 CSS 预览。
   const colorName = segment
     ? MULTI_SUBTITLE_UTILS.effectiveColorName(segment, segments) : null;
@@ -15061,7 +15061,7 @@ function applyAssSubtitlePreview({ tMs, segment, extension, overlay, overlaySegm
   // 副字幕保留独立字体、对齐与边距，颜色标记与原文使用同一映射。
   const extensionStyleBase = assPreviewStyleVariant(window.AsrEditorUtils.assStyleForId(
     library, library.assignments?.assExtensionStyleId || 'ass-extension',
-  ), extension, extensionSegments, appearance);
+  ), extension, extensionSegments, appearance,'secondary');
   const extensionAlignment = assPreviewAlignment(extensionStyleBase.alignment);
   const extensionMargins = {
     left: Math.max(0, Number(extensionStyleBase.marginL) || 0) * metrics.scaleX,
@@ -15715,7 +15715,7 @@ function syncSpeakerControls() {
         input.title='属性调整表示此说话人有独立外观；选择普通模式恢复色系外观，保留动画。';
       }
       else {input=document.createElement('input');input.type=field==='color'?'color':'text';if(field!=='color')input.maxLength=field==='name'?64:16;}
-      const shown=r=>field==='name'&&speakerNameLanguage?r.names?.[speakerNameLanguage]||'':field==='mode'&&Object.keys(r.style||{}).length?'properties':r[field];
+      const shown=r=>field==='name'&&speakerNameLanguage?r.names?.[speakerNameLanguage]||'':field==='mode'&&MSWSpeaker.hasAppearance(r)?'properties':r[field];
       const values=palette.rows.map(shown),same=values.every(v=>v===values[0]);
       input.value=entry?shown(entry):same?values[0]:field==='color'?values[0]:'';
       if(field==='name'&&speakerNameLanguage)input.placeholder=entry.name;
@@ -15728,7 +15728,7 @@ function syncSpeakerControls() {
         for(const r of entry?[entry]:palette.rows){
           if(field==='name'&&speakerNameLanguage){r.names||={};if(value.trim())r.names[speakerNameLanguage]=value.trim();else delete r.names[speakerNameLanguage];if(!Object.keys(r.names).length)delete r.names;}
           else r[field]=field==='name'?value.trim():value;
-          if(field==='mode'){delete r.style;delete r.style_preset;}
+          if(field==='mode')MSWSpeaker.clearAppearance(r);
         }
         speakerPaletteChanged();
       };td.append(input);tr.append(td);

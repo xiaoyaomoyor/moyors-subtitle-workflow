@@ -24,12 +24,15 @@ test('normal editor splits legacy settings among existing panels with compact co
  await page.locator('#project-track-settings-shortcut').click();
  await expect(page.locator('#track-split-track')).toBeVisible();
  await expect(page.locator('#track-split-mode')).toHaveValue('word');
- await page.evaluate(()=>{setProjectSettingsPanelOpen(false);cueEditorSettingsFloatingPanel.open();});
+ await page.evaluate(()=>{setProjectSettingsPanelOpen(false);cueEditorSettingsFloatingPanel.close();setEditorSettingsPanelOpen(true);});
+ await page.locator('#editor-settings-nav [data-settings-category=general]').click();
+ await expect(page.locator('#cue-editor-settings-dropdown #track-select-bound')).toHaveCount(0);
+ await expect(page.locator('#editor-settings-content #track-select-bound')).toBeVisible();
  await expect(page.locator('#track-select-bound')).not.toBeChecked();
  await expect(page.locator('#track-bind-sync')).toBeChecked();
  await page.locator('#track-select-bound').check();await page.locator('#track-bind-sync').uncheck();
  await page.screenshot({path:info.outputPath('editor-settings.png')});
- await page.evaluate(()=>{cueEditorSettingsFloatingPanel.close();setWaveformSettingsPanelOpen(true);});
+ await page.evaluate(()=>{setEditorSettingsPanelOpen(false);setWaveformSettingsPanelOpen(true);});
  await expect(page.locator('#wave-cross-track-snap')).toBeVisible();
  await page.locator('#wave-cross-track-snap').uncheck();
  expect(await page.evaluate(()=>({pair:EDITOR_SETTINGS.selectBoundSubtitlePair,sync:EDITOR_SETTINGS.multiSubtitleAutoSyncDuration,snap:EDITOR_SETTINGS.crossTrackSnap}))).toEqual({pair:true,sync:false,snap:false});

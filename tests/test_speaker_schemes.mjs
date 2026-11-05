@@ -8,6 +8,18 @@ const ids=()=>{let n=0;return ()=>`person-${++n}`;};
 const palette=()=>({version:1,rows:[{...speakers.row(0),name:'Erwyn',names:{'zh-hans':'艾尔文'},mode:'stroke',style:{fontSize:60},animation:{schema:motion.schema,effects:{fade:{...motion.defaults().effects.fade,enabled:true}}}}, {...speakers.row(1),name:'Alice'}]});
 const capture=()=>core.capture(palette(),{id:'series',name:'团录',makeId:ids()});
 
+test('schemes preserve both speaker roles without local preset references',()=>{
+  const p=palette();speakers.editRole(p.rows[0],'secondary',s=>{s.style={fontSize:77};s.style_preset='local-only';});
+  speakers.editRole(p.rows[0],'main',s=>{delete s.style;});
+  const {scheme}=core.capture(p,{id:'roles',name:'主副样式',makeId:ids()});
+  assert.equal(scheme.rows[0].role_styles.secondary.style_preset,undefined);
+  const applied=core.apply(palette(),scheme,{yellow:scheme.rows[0].id}).palette;
+  assert.equal(speakers.forRole(applied.rows[0],'main').style,undefined);
+  assert.equal(speakers.forRole(applied.rows[0],'secondary').style.fontSize,77);
+  assert.ok(speakers.forRole(applied.rows[0],'secondary').animation.effects.fade.enabled);
+  scheme.rows[0].role_styles.secondary.style_preset='bad';assert.throws(()=>core.validate({version:1,schemes:[scheme]}));
+});
+
 test('capture is detached and includes full descriptions without project references or preset dependency',()=>{
   const p=palette();p.rows[0].name_visibility={en:false,'zh-hans':true};p.rows[0].style_preset='local-style';p.rows[0].private_project_field='ignored';const before=structuredClone(p);
   const result=core.capture(p,{id:'series',name:'团录',makeId:ids()});
