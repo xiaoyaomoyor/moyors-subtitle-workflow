@@ -5,6 +5,36 @@ import core from '../web/msw-flat-subtitles.js';
 import edit from '../web/msw-flat-editing.js';
 import production from '../web/msw-production-project.js';
 
+test('shake is bounded, repeatable, additive and retained beside custom curves',()=>{
+  let a=A.resolve(A.defaults(),A.authorPatch(A.defaults(),'shake',{type:'toggle',value:true},2000));
+  const at=t=>A.sample(a,t,2000);
+  for(const t of [-1,0,2000,2100])assert.deepEqual([at(t).x,at(t).y],[0,0]);
+  assert.notEqual(at(200).x,0);assert.deepEqual(at(200),at(200));
+  for(let t=0;t<2000;t+=7){assert.ok(Math.abs(at(t).x)<=6);assert.ok(Math.abs(at(t).y)<=6);}
+  const preset=structuredClone(a);a=A.resolve(a,A.authorPatch(a,'slide',{type:'toggle',value:true},2000));
+  const before=Array.from({length:101},(_,i)=>at(i*20));
+  a=A.resolve(a,A.authorPatch(a,'all',{type:'mode',value:'custom'},2000));
+  for(let i=0;i<=100;i++)for(const k of ['x','y'])assert.ok(Math.abs(at(i*20)[k]-before[i][k])<1e-6);
+  const key=A.authorPatch(a,'curves',{type:'playhead',channel:'y',time:240},2000);
+  assert.equal(key.effects.curves.channels.y[0].value,0); // no double-baked tremor
+  a=A.resolve(preset,A.authorPatch(preset,'all',{type:'timing',value:'ms'},2000));
+  assert.equal(a.effects.shake.endAnchor,'end');assert.equal(a.effects.shake.period,120);
+  for(const duration of [100,2000,8000]){
+    assert.equal(A.sample(a,duration,duration).x,0);assert.equal(A.sample(a,duration,duration).y,0);
+    assert.notEqual(A.sample(a,Math.min(50,duration/2),duration).x,0);
+  }
+  const saved=structuredClone(a.effects.shake);
+  a=A.resolve(a,A.authorPatch(a,'shake',{type:'toggle',value:false},2000));
+  a=A.resolve(a,A.authorPatch(a,'shake',{type:'toggle',value:true},2000));assert.deepEqual(a.effects.shake,saved);
+  a.effects.shake.direction='vertical';assert.equal(at(200).x,0);
+  const row={x:100,y:800,width:200,height:60,position:{x:.5,y:.8},motion:a};
+  assert.equal(A.envelope(row,1920).width,200);assert.equal(A.envelope(row,1920).height,72);
+  for(const [k,v] of [['direction','left'],['period',0],['amplitude',121],['periodUnit','seconds']]){
+    const bad=structuredClone(a);bad.effects.shake[k]=v;assert.equal(A.valid(bad),false);
+  }
+  assert.equal(A.normalize({schema:A.schema,effects:{}}).effects.shake.enabled,false);
+});
+
 test('special effects remain editable in custom mode without replacing curves or resetting parameters',()=>{
   let a=A.defaults();
   const apply=(name,action)=>a=A.resolve(a,A.authorPatch(a,name,action,2000));

@@ -18,6 +18,33 @@ def model(**effects):
 
 
 class SubtitleAnimationTests(unittest.TestCase):
+    def test_shake_clock_bounds_fragments_and_background_match_browser_and_export(self):
+        for direction in ('both','horizontal','vertical'):
+            a=model(shake=dict(enabled=True,unit='ms',start=0,end=0,endAnchor='end',period=120,periodUnit='ms',amplitude=18,direction=direction),
+                    curves=dict(enabled=True,channels={'x':[dict(time=0,value=30,easing='linear')]}))
+            a['mode']='custom'
+            for duration in (100,2000,7000):
+                times=list(range(0,duration,37))+[duration]
+                script="const A=require('./web/msw-subtitle-animation.js');console.log(JSON.stringify(JSON.parse(process.argv[2]).map(t=>A.sample(JSON.parse(process.argv[1]),t,+process.argv[3],4))))"
+                values=json.loads(subprocess.check_output(['node','-e',script,json.dumps(a),json.dumps(times),str(duration)],cwd=ROOT,text=True))
+                for t,expected in zip(times,values):
+                    for key,value in animation.sample(a,t,duration,4).items():self.assertAlmostEqual(value,expected[key],places=7)
+                cuts=animation.boundaries(a,duration,4)
+                self.assertEqual((cuts[0],cuts[-1]),(0,duration));self.assertLess(len(cuts),65)
+                self.assertEqual(animation.sample(a,duration,duration)['x'],30)
+            p=self.project(a);p['subtitles']['cues'][0]['content']['subtitle_style']={'backgroundShape':'rounded','backgroundColor':'#123456','backgroundOpacity':80}
+            flat.validate(p)
+            result=preview_ass(dict(project=p,video=dict(width=640,height=360)))['ass']
+            plan=dict(intervals=[dict(start_ms=0,end_ms=43200000,output_start_ms=0)])
+            self.assertEqual(result,styled_ass(p,plan,'both',dict(width=640,height=360)))
+            self.assertIn(r'\move(',result);self.assertIn(r'\p1',result)
+            style=layout(p)[0]['style']
+            full=list(animation.fragments(a,'ABCD',style,4000,0,4000,0,0,2))
+            cropped=list(animation.fragments(a,'ABCD',style,4000,240,600,0,0,2))
+            self.assertEqual(cropped,[f for f in full if f[0]>=240 and f[1]<=600])
+        with self.assertRaisesRegex(ValueError,'过多'):
+            animation.boundaries(model(shake=dict(enabled=True,period=80,periodUnit='ms')),43200000,4)
+
     def test_anchored_timing_matches_browser_and_preview_export_at_every_duration(self):
         script="""const A=require('./web/msw-subtitle-animation.js');let a=A.defaults();
         for(const name of ['fade','slide','transform','blink','typewriter'])a=A.resolve(a,A.authorPatch(a,name,{type:'toggle',value:true},2000));

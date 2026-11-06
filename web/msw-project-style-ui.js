@@ -444,7 +444,7 @@
       // an older animation validator. Diagnose that mismatch, not corrupt data.
       if(route==='subtitle-preview'&&/字幕动画.*无效参数/.test(result.error||'')){
         const capability=await request('capabilities').catch(()=>null);
-        if(capability&&!(capability.subtitleAnimation>=3))throw Error('编辑器服务仍使用旧版动画规则，请重启编辑器服务并刷新页面；当前动画设置已保留');
+        if(capability&&!(capability.subtitleAnimation>=4))throw Error('编辑器服务仍使用旧版动画规则，请重启编辑器服务并刷新页面；当前动画设置已保留');
       }
       throw Error(result.error||'样式请求失败');
     }

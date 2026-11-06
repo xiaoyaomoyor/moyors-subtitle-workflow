@@ -87,7 +87,9 @@ test('a refreshed frontend rejects a stale backend instead of displaying its old
     await route.fulfill({response,json:payload});
   });
   await page.goto(server.url);
-  await expect(page.locator('#subtitle-render-status')).toContainText('仅刷新页面无效');
+  await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready&&player.readyState>=2);
+  await page.evaluate(()=>{player.currentTime=1;MSWSubtitleRenderer.invalidate();});
+  await expect(page.locator('#subtitle-render-status')).toContainText('仅刷新页面无效',{timeout:30000});
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status)).toBe('approximate');
   await expect(page.locator('.JASSUB')).toHaveCount(0);
   await page.unroute('**/subtitle-preview');

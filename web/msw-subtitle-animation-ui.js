@@ -2,12 +2,13 @@
 (function(global){
   'use strict';
   const A=global.MSWSubtitleAnimation,clone=v=>JSON.parse(JSON.stringify(v));
-  const labels={fade:'淡入淡出',slide:'滑入滑出',blink:'闪烁',transform:'舒展',typewriter:'打字机',wave:'波动'};
+  const labels={fade:'淡入淡出',slide:'滑入滑出',blink:'闪烁',transform:'舒展',typewriter:'打字机',wave:'波动',shake:'原地震动'};
   const resetIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/></svg>';
   const inheritIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v11h13M14 11l4 4-4 4M9 4h11M9 8h11"/></svg>';
   const readout=v=>Math.round(v*10)/10;
   const parameters=(name,e)=>name==='blink'?
     [{key:'period',title:'循环间隔',min:e.periodUnit==='ms'?80:1,max:e.periodUnit==='ms'?Math.max(2000,e.period):100,lane:0,scale:e.periodUnit==='ms'?1000:1},{key:'opacity',title:'最低不透明度',min:0,max:100,lane:1}]:
+    name==='shake'?[{key:'amplitude',title:'震动强度',min:0,max:Math.max(30,e.amplitude),lane:0},{key:'period',title:'抖动间隔',min:e.periodUnit==='ms'?80:1,max:e.periodUnit==='ms'?Math.max(1000,e.period):100,lane:1,scale:e.periodUnit==='ms'?1000:1}]:
     name==='wave'?[{key:'amplitude',title:'振幅',min:0,max:Math.max(60,e.amplitude),lane:0},{key:'period',title:'循环周期',min:e.periodUnit==='ms'?200:5,max:e.periodUnit==='ms'?Math.max(3000,e.period):100,lane:1,scale:e.periodUnit==='ms'?1000:1}]:
     name==='transform'?[{key:'toScale',title:'缩放强度',min:1,max:Math.max(200,e.toScale),lane:0}]:name==='slide'?[{key:'distance',title:'滑动距离',min:0,max:Math.max(480,e.distance),lane:0}]:[];
   function create(root,{context,commit,message}){
@@ -38,6 +39,13 @@
       const section=document.createElement('section');section.id='motion-'+name;section.className='msw-motion-effect';section.hidden=true;
       section.innerHTML=`<div class="msw-motion-heading"><span${name==='wave'?' data-option-help="文字逐字上下起伏；波长是一轮波形包含的字数。背景保持整体。长句使用波动会增加渲染开销。"':''}>${label}</span>${['slide','wave'].includes(name)?`<select id="motion-${name}-direction" aria-label="${name==='wave'?'波动':'滑动'}方向"><option value="right">向右</option><option value="left">向左</option>${name==='slide'?'<option value="down">向下</option><option value="up">向上</option>':''}</select>`:''}${name==='wave'?'<label class="msw-wave-length">波长 <input id="motion-wave-wavelength" type="number" min="2" max="64" step="1" aria-label="波长（字）"> 字</label>':''}<button type="button" class="msw-style-icon" id="motion-${name}-reset" title="恢复${label}默认值" aria-label="恢复${label}默认值">${resetIcon}</button></div>
         <svg id="motion-${name}-graph" class="msw-motion-range-graph" preserveAspectRatio="none" role="group" aria-label="${label}时间区间"></svg>`;
+      if(name==='shake'){
+        section.querySelector('.msw-motion-heading span').dataset.optionHelp='整条字幕和背景围绕原位抖动，结束回到原位。间隔越小越快；可叠加基础变换或自定义动画。';
+        const direction=document.createElement('select');direction.id='motion-shake-direction';direction.ariaLabel='震动方向';
+        direction.innerHTML='<option value="both">双向</option><option value="horizontal">水平</option><option value="vertical">垂直</option>';
+        direction.onchange=()=>apply('shake',{type:'values',value:{direction:direction.value}});
+        section.querySelector('.msw-motion-heading').insertBefore(direction,section.querySelector('button'));
+      }
       $(special?'motion-special-controls':'motion-preset-controls').append(section);
       $('motion-'+name+'-reset').onclick=()=>apply(name,{type:'reset'});
       const graph=$('motion-'+name+'-graph');
@@ -105,7 +113,7 @@
           <title>${titles[i]} ${timeLabel(v,i)}</title></g>
           <text x="${x(v)}" y="${i%2&&(pair||x(v)-x(p[i-1])<100)?79:65}" text-anchor="${v/e._extent<.15?'start':v/e._extent>.85?'end':'middle'}">${timeLabel(v,i)}</text>`).join('')+
         scalar.map(({key,title,min,max,lane},i)=>{
-          const px=x(e[key]/max*e._extent),y=lane?32:24,summary=key==='toScale'?`缩放 100% → ${readout(e[key])}%`:key==='distance'?`距离 ${readout(e[key])} px`:key==='amplitude'?`振幅 ${readout(e[key])} px`:key==='period'?`${name==='wave'?'周期':'间隔'} ${e.periodUnit==='ms'?(e[key]/1000).toFixed(3)+' s':readout(e[key])+'%'}`:`不透明 ${readout(e[key])}%`;
+          const px=x(e[key]/max*e._extent),y=lane?32:24,summary=key==='toScale'?`缩放 100% → ${readout(e[key])}%`:key==='distance'?`距离 ${readout(e[key])} px`:key==='amplitude'?`${name==='shake'?'强度':'振幅'} ${readout(e[key])} px`:key==='period'?`${name==='wave'?'周期':'间隔'} ${e.periodUnit==='ms'?(e[key]/1000).toFixed(3)+' s':readout(e[key])+'%'}`:`不透明 ${readout(e[key])}%`;
           return `<g id="motion-${name}-${key}" class="motion-parameter-node" data-parameter="${key}" tabindex="${tab}" role="slider" aria-disabled="${off}" aria-label="${title}" aria-valuemin="${min}" aria-valuemax="${max}" aria-valuenow="${readout(e[key])}" aria-valuetext="${summary}">
             <path class="motion-parameter-stem" d="M${px} 18V38"/>
             <path class="motion-parameter-symbol" transform="translate(${px} ${y})" d="${lane?'M0-4L4 0L0 4L-4 0Z':'M-3-3H3V3H-3Z'}"/>
@@ -126,6 +134,7 @@
       timing.value=A.timingMode(first);timing.disabled=c.blocked;
       $('motion-slide-direction').value=first.effects.slide.direction;
       $('motion-wave-direction').value=first.effects.wave.direction;
+      $('motion-shake-direction').value=first.effects.shake.direction;
       $('motion-wave-wavelength').value=first.effects.wave.wavelength;
       inherit.hidden=!c.cue;inherit.disabled=c.blocked||!c.items.some(i=>i.override);
       inherit.title=inherit.ariaLabel=c.inheritLabel||'恢复轨道动画';

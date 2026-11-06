@@ -9,12 +9,13 @@
     transform:{enabled:false,unit:'percent',start:0,end:25,fromX:0,fromY:0,toX:0,toY:0,fromScale:85,toScale:100,fromRotation:0,toRotation:0,fromOpacity:100,toOpacity:100,easing:'smooth'},
     slide:{enabled:false,unit:'percent',start:0,in:15,out:15,end:100,direction:'right',distance:120},
     wave:{enabled:false,unit:'percent',start:0,end:100,amplitude:12,period:40,periodUnit:'percent',wavelength:8,direction:'right'},
+    shake:{enabled:false,unit:'percent',start:0,end:100,amplitude:6,period:6,periodUnit:'percent',direction:'both'},
     curves:{enabled:false,unit:'percent',channels:{}}
   };
   const channels={x:{label:'横向位移 (px)',min:-4096,max:4096,initial:0},y:{label:'纵向位移 (px)',min:-4096,max:4096,initial:0},
     scale:{label:'缩放 (%)',min:1,max:1000,initial:100},rotation:{label:'旋转 (°)',min:-360,max:360,initial:0},opacity:{label:'不透明度 (%)',min:0,max:100,initial:100}};
   const names=Object.keys(definitions),clone=v=>JSON.parse(JSON.stringify(v));
-  const specialNames=['typewriter','wave'];
+  const specialNames=['typewriter','wave','shake'];
   const object=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
   const timings=name=>name==='curves'?[]:name==='fade'?['in','out']:['start','end'];
   const anchor=p=>p.anchor||'start';
@@ -40,7 +41,7 @@
       if(name==='fade'&&Object.hasOwn(e,'start')!==Object.hasOwn(e,'end'))return false;
       for(const [k,v] of Object.entries(e)){
         if(k==='enabled'||k==='custom'){if(typeof v!=='boolean')return false;}
-        else if(k==='direction'){if(!(name==='wave'?['left','right']:['left','right','up','down']).includes(v))return false;}
+        else if(k==='direction'){if(!(name==='shake'?['both','horizontal','vertical']:name==='wave'?['left','right']:['left','right','up','down']).includes(v))return false;}
         else if(k==='unit'||k==='periodUnit'){if(!['percent','ms'].includes(v))return false;}
         else if(k==='easing'){if(!['linear','ease-in','ease-out','smooth'].includes(v))return false;}
         else if(k==='channels'){if(!validChannels(v,e.unit))return false;}
@@ -62,7 +63,7 @@
   function active(raw){
     if(!raw.mode)return raw;
     return {...raw,effects:Object.fromEntries(Object.entries(raw.effects).map(([key,e])=>[key,
-      (raw.mode==='custom'?(key==='curves'||key==='wave'||key==='typewriter'&&e.custom):key!=='curves')?e:{...e,enabled:false}]))};
+      (raw.mode==='custom'?(key==='curves'||key==='wave'||key==='shake'||key==='typewriter'&&e.custom):key!=='curves')?e:{...e,enabled:false}]))};
   }
   const authoringMode=raw=>raw.mode||(raw.effects.curves?.enabled&&Object.keys(raw.effects.curves.channels).length?'custom':'presets');
   // Snap within legal bounds, never across a neighbouring keyframe. If a very
@@ -164,7 +165,7 @@
   // conversion that cannot fit the editable curve budget instead of losing it.
   function curvesFromPresets(raw,duration=1000){
     if(timingMode(raw)==='ms')return anchoredCurves(raw,duration);
-    const a=normalize(raw);a.mode='presets';
+    const a=normalize(raw);a.mode='presets';a.effects.shake.enabled=false; // Retained separately, never baked into base curves twice.
     const {fade:f,blink:b,transform:t,slide:s}=a.effects,c={enabled:true,unit:'percent',channels:{}};
     const phase=e=>[ms(e,'start',duration),ms(e,'start',duration)+ms(e,'in',duration),ms(e,'end',duration)-ms(e,'out',duration),ms(e,'end',duration)];
     for(const [key,suffix] of [['opacity','Opacity'],['x','X'],['y','Y'],['scale','Scale'],['rotation','Rotation']]){
@@ -234,7 +235,8 @@
       else if(action.type==='playhead'){
         if(action.time<0||action.time>duration)throw Error('请将播放头移到所选字幕共同覆盖的时间内');
         const time=action.time*(c.unit==='percent'?100/duration:1),points=c.channels[action.channel]||[];
-        const value=sample(a,action.time,duration)[action.channel]*(action.channel==='opacity'?100:1);
+        const base=clone(a);base.effects.shake.enabled=false;
+        const value=sample(base,action.time,duration)[action.channel]*(action.channel==='opacity'?100:1);
         c.channels[action.channel]=sortPoints([...points.filter(p=>anchor(p)!=='start'||Math.abs(p.time-time)>.001),{time,value,easing:'linear',...(c.unit==='ms'?{anchor:'start'}:{})}]);c.enabled=true;patch.effects.curves=c;
       }
       else{
@@ -320,13 +322,13 @@
     }else if(unit==='ms'){
       for(const key of ['start','end','in','out'])if(Object.hasOwn(n,key))n[key]*=duration/100;
       if(name==='fade'&&!Object.hasOwn(n,'start'))Object.assign(n,{start:0,end:duration});
-      if(['fade','slide','blink','wave'].includes(name)){n.end=duration-n.end;n.endAnchor='end';}else n.endAnchor='start';
+      if(['fade','slide','blink','wave','shake'].includes(name)){n.end=duration-n.end;n.endAnchor='end';}else n.endAnchor='start';
     }else{
       const timed=clockEffect(n,duration);
       for(const key of ['start','end','in','out'])if(Object.hasOwn(timed,key))n[key]=timed[key]*100/duration;
       delete n.endAnchor;
     }
-    if(name==='blink'||name==='wave'){
+    if(name==='blink'||name==='wave'||name==='shake'){
       const period=n.period*(n.periodUnit==='percent'?duration/100:1);
       n.period=unit==='ms'?clamp(period,name==='wave'?200:80,60000):clamp(period*100/duration,name==='wave'?5:1,100);n.periodUnit=unit;
     }
@@ -361,7 +363,7 @@
     if(c.enabled&&c.channels[key]&&!(key==='opacity'&&f.enabled))return clone(c.channels[key]);
     const end=c.unit==='percent'?100:Math.min(60000,duration);
     const sampleAt=time=>{
-      const plain=clone(a);plain.effects.blink.enabled=false;
+      const plain=clone(a);plain.effects.blink.enabled=false;plain.effects.shake.enabled=false;
       return sample(plain,time*(c.unit==='percent'?duration/100:1),duration)[key]*(key==='opacity'?100:1);
     };
     const times=new Set([0,end]);
@@ -425,16 +427,18 @@
     if(c?.enabled)for(const [key,points] of Object.entries(c.channels)){
       const v=curveValue(points,time*(c.unit==='percent'?100/duration:1));if(key==='opacity')transformOpacity=v;else state[key]=v;
     }
+    const shake=shakeOffset(raw.effects.shake,time,duration);state.x+=shake.x;state.y+=shake.y;
     state.opacity*=transformOpacity/100;
     if(w.enabled)state.revealed=Math.floor(clamp((time-ms(w,'start',duration))/(ms(w,'end',duration)-ms(w,'start',duration)))*count+1e-7);
     return state;
   }
   function envelope(row,width){
-    const motion=row.motion?active(row.motion):null,t=motion?.effects.transform,c=motion?.effects.curves,slide=motion?.effects.slide,wave=motion?.effects.wave;if(!t?.enabled&&!c?.enabled&&!slide?.enabled&&!wave?.enabled)return row;
+    const motion=row.motion?active(row.motion):null,t=motion?.effects.transform,c=motion?.effects.curves,slide=motion?.effects.slide,wave=motion?.effects.wave,shake=motion?.effects.shake;if(!t?.enabled&&!c?.enabled&&!slide?.enabled&&!wave?.enabled&&!shake?.enabled)return row;
     const values=(key,suffix)=>c?.enabled&&c.channels[key]?c.channels[key].map(p=>p.value):t?.enabled?[t['from'+suffix],t['to'+suffix]]:[channels[key].initial];
     const scales=values('scale','Scale'),dx=values('x','X'),dy=values('y','Y'),rotations=values('rotation','Rotation');
     if(wave?.enabled)dy.push(Math.min(...dy)-wave.amplitude,Math.max(...dy)+wave.amplitude);
     if(slide?.enabled){const key=['left','right'].includes(slide.direction)?'x':'y';if(!(c?.enabled&&c.channels[key])){const v=key==='x'?dx:dy;v.push(Math.min(...v)-slide.distance,Math.max(...v)+slide.distance);}}
+    if(shake?.enabled)for(const [key,values] of [['horizontal',dx],['vertical',dy]])if(shake.direction==='both'||shake.direction===key)values.push(Math.min(...values)-shake.amplitude,Math.max(...values)+shake.amplitude);
     const ax=row.position.x*width,ay=row.position.y*1080,s=Math.max(...scales)/100;
     const corners=[[row.x-ax,row.y-ay],[row.x+row.width-ax,row.y-ay],[row.x-ax,row.y+row.height-ay],[row.x+row.width-ax,row.y+row.height-ay]];
     const radius=Math.max(...corners.map(([x,y])=>Math.hypot(x,y)))*s,rotate=rotations.some(Boolean);
@@ -448,6 +452,17 @@
     const add=v=>String(Math.round((Number(v)+delta)*10000)/10000);
     return text.replace(/\\t\(([\d.]+),([\d.]+),1,/g,(_,a,b)=>`\\t(${add(a)},${add(b)},1,`)
       .replace(/\\move\(([-\d.,]+)\)/g,(tag,args)=>{const values=args.split(',');if(values.length!==6)return tag;values[4]=add(values[4]);values[5]=add(values[5]);return `\\move(${values.join(',')})`;});
+  }
+  function shakeOffset(effect,elapsed,duration){
+    const zero={x:0,y:0};if(!effect?.enabled||!effect.amplitude)return zero;
+    const e=clockEffect(effect,duration),start=ms(e,'start',duration),end=Math.min(duration,ms(e,'end',duration));
+    if(elapsed<=start||elapsed>=end)return zero;
+    const step=Math.min(e.period*(e.periodUnit==='percent'?duration/100:1),(end-start)/2),i=Math.floor((elapsed-start)/step);
+    const left=start+i*step,right=Math.min(end,left+step),p=(elapsed-left)/(right-left);
+    // Integer sequence, not wall-clock randomness: seek, preview and export agree.
+    const point=n=>n===0||start+n*step>=end?zero:{x:((n*37+17)%101)/50-1,y:((n*61+43)%103)/51-1};
+    const a=point(i),b=point(i+1);
+    return {x:e.direction==='vertical'?0:(a.x+(b.x-a.x)*p)*e.amplitude,y:e.direction==='horizontal'?0:(a.y+(b.y-a.y)*p)*e.amplitude};
   }
   function waveOffset(effect,elapsed,duration,index){
     if(!effect?.enabled||!effect.amplitude)return 0;

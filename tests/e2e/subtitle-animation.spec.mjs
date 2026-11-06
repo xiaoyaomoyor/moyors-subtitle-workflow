@@ -25,7 +25,7 @@ test('basic and special groups keep independent controls, shared timing, undo an
   await page.evaluate(()=>addToSelection(1));
   await page.locator('#style-animation').evaluate(el=>el.open=true);
   await expect(page.locator('#motion-basic-presets button')).toHaveCount(5);
-  await expect(page.locator('#motion-special-presets button')).toHaveCount(2);
+  await expect(page.locator('#motion-special-presets button')).toHaveCount(3);
   await page.locator('#motion-preset-fade').click();
   await page.locator('#motion-preset-wave').click();
   await page.locator('#motion-wave-wavelength').fill('6');await page.locator('#motion-wave-wavelength').blur();
@@ -60,14 +60,45 @@ test('basic and special groups keep independent controls, shared timing, undo an
   await expect(page.locator('#motion-wave-graph')).toHaveAttribute('aria-disabled','true');
 });
 
-test('wave moves individual letters without layout jumps and matches ASS burn after seeking',async({page},info)=>{
-  await page.evaluate(()=>{
+test('shake controls preserve multi-cue edits, custom mode, undo and saved settings',async({page},info)=>{
+  await page.evaluate(()=>addToSelection(1));await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await page.locator('#motion-preset-shake').click();await rangeValue(page,'#motion-shake-amplitude',18);
+  await page.locator('#motion-timing').selectOption('ms');await rangeValue(page,'#motion-shake-period',160);
+  await page.locator('#motion-shake-direction').selectOption('horizontal');await idle(page);
+  const before=await snap(page);
+  await page.locator('#motion-preset-shake').click();await expect(page.locator('#motion-shake')).toBeHidden();
+  await page.locator('#motion-preset-shake').click();await idle(page);expect((await snap(page)).subtitles).toEqual(before.subtitles);
+  await page.locator('#motion-custom').click();await expect(page.locator('#motion-preset-shake')).toBeEnabled();
+  await expect(page.locator('#motion-shake-graph')).toBeVisible();
+  await page.locator('#motion-shake-reset').click();await idle(page);
+  await expect(page.locator('#motion-shake-amplitude')).toHaveAttribute('aria-valuenow','6');
+  await page.evaluate(()=>performUndo());await idle(page);
+  await expect(page.locator('#motion-shake-amplitude')).toHaveAttribute('aria-valuenow','18');
+  const saved=await snap(page),cues=saved.subtitles.cues.filter(c=>c.content.subtitle_animation);
+  expect(cues).toHaveLength(2);
+  for(const c of cues)expect(c.content.subtitle_animation).toMatchObject({mode:'custom',effects:{shake:{enabled:true,amplitude:18,period:160,periodUnit:'ms',endAnchor:'end',direction:'horizontal'}}});
+  expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);await page.reload();await idle(page);
+  expect((await snap(page)).subtitles).toEqual(saved.subtitles);
+  await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});await page.locator('#style-animation').evaluate(el=>el.open=true);
+  await page.evaluate(()=>Object.assign(document.getElementById('subtitle-properties').style,{position:'fixed',top:'20px',left:'10px',width:'320px',height:'760px',zIndex:'60'}));
+  await page.locator('#motion-shake').scrollIntoViewIfNeeded();
+  for(const theme of ['dark','light']){
+    await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+    expect(await page.locator('#subtitle-properties-content').evaluate(n=>n.scrollWidth<=n.clientWidth+1)).toBe(true);
+    await page.locator('#subtitle-properties').screenshot({path:info.outputPath('shake-'+theme+'.png')});
+  }
+  await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks[0].locked=true;productionCommitProject(p,'lock',[p.subtitles.cues[0].id]);});
+  await expect(page.locator('#motion-preset-shake')).toBeDisabled();
+});
+
+for(const effectName of ['wave','shake'])test(`${effectName} motion matches ASS burn after seeking`,async({page},info)=>{
+  await page.evaluate(effectName=>{
     const p=JSON.parse(buildJson()),cue=p.subtitles.cues[0];p.subtitles.cues=[cue];p.subtitles.bindings=[];
     cue.content.text='WAVE WAVE';cue.content.subtitle_style={fontName:'Arial',fontSize:96,primaryColor:'#ff0000',outline:0};
-    const a=MSWSubtitleAnimation.defaults();a.effects.wave={...a.effects.wave,enabled:true,amplitude:48,period:1000,periodUnit:'ms'};
+    const a=MSWSubtitleAnimation.defaults();a.effects[effectName]={...a.effects[effectName],enabled:true,amplitude:48,period:effectName==='wave'?1000:160,periodUnit:'ms'};
     cue.content.subtitle_animation=a;productionCommitProject(p,'wave pixels',[cue.id]);player.currentTime=.4;
     waveformEditor.activateModuleTab('panel');
-  });await idle(page);
+  },effectName);await idle(page);
   const payload=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{project:JSON.parse(buildJson()),target:'both',video:{width:640,height:360}}));
   writeFileSync(join(folder,'wave.ass'),payload.ass);
   const canvas=page.locator('.JASSUB'),box=await canvas.boundingBox(),shots=[];
@@ -87,8 +118,13 @@ def metrics(path):
  return [lo,hi,min(y for x,y in pts),max(y for x,y in pts),*[sum(b)/len(b) if b else 0 for b in bands]]
 print(json.dumps([metrics(p) for p in sys.argv[1:]]))`,...shots],{encoding:'utf8',windowsHide:true}));
   expect(points[0]).toEqual(points[4]);
-  expect(points[0].slice(0,2)).toEqual(points[2].slice(0,2));
-  expect(Math.max(...points[0].slice(4).map((v,i)=>Math.abs(v-points[2][i+4])))).toBeGreaterThan(4);
+  if(effectName==='wave'){
+    expect(points[0].slice(0,2)).toEqual(points[2].slice(0,2));
+    expect(Math.max(...points[0].slice(4).map((v,i)=>Math.abs(v-points[2][i+4])))).toBeGreaterThan(4);
+  }else{
+    expect(Math.abs(points[0][0]-points[2][0])).toBeGreaterThan(2);
+    expect(Math.abs((points[0][1]-points[0][0])-(points[2][1]-points[2][0]))).toBeLessThan(2);
+  }
   for(let i=0;i<points.length;i+=2)for(let j=0;j<points[i].length;j++)expect(Math.abs(points[i][j]-points[i+1][j])).toBeLessThan(3);
   await page.screenshot({path:info.outputPath('wave-video.png')});
 });
@@ -370,7 +406,7 @@ test('old running backend is distinguished from invalid animation data',async({p
   },project);
   // Current service advertises its validator version: genuine data errors stay visible.
   expect(await error()).toBe('平级字幕：字幕动画覆盖包含无效参数');
-  await page.route('**/capabilities',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,flatSubtitles:1})}));
+  await page.route('**/capabilities',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,flatSubtitles:1,subtitleAnimation:3})}));
   expect(await error()).toContain('重启编辑器服务并刷新页面');
   expect((await snap(page)).subtitles).toEqual(project.subtitles);
 });

@@ -11,6 +11,7 @@ DEFINITIONS = dict(
                    fromScale=85, toScale=100, fromRotation=0, toRotation=0, fromOpacity=100, toOpacity=100, easing='smooth'),
     slide=dict(enabled=False, unit='percent', start=0, **{'in':15, 'out':15}, end=100, direction='right', distance=120),
     wave=dict(enabled=False, unit='percent', start=0, end=100, amplitude=12, period=40, periodUnit='percent', wavelength=8, direction='right'),
+    shake=dict(enabled=False, unit='percent', start=0, end=100, amplitude=6, period=6, periodUnit='percent', direction='both'),
     curves=dict(enabled=False, unit='percent', channels={}))
 CHANNELS = dict(x=(-4096,4096), y=(-4096,4096), scale=(1,1000), rotation=(-360,360), opacity=(0,100))
 
@@ -56,7 +57,7 @@ def valid(raw):
             if key in ('enabled','custom'):
                 ok = type(value) is bool
             elif key == 'direction':
-                ok = value in (('left','right') if name == 'wave' else ('left','right','up','down'))
+                ok = value in (('both','horizontal','vertical') if name == 'shake' else ('left','right') if name == 'wave' else ('left','right','up','down'))
             elif key in ('unit','periodUnit'):
                 ok = value in ('percent', 'ms')
             elif key == 'easing':
@@ -101,7 +102,7 @@ def resolve(base=None, override=None):
 def active(raw):
     if 'mode' not in raw:
         return raw
-    return {**raw, 'effects':{key:effect if ((key in ('curves','wave') or key=='typewriter' and effect.get('custom')) if raw['mode']=='custom' else key!='curves') else {**effect,'enabled':False}
+    return {**raw, 'effects':{key:effect if ((key in ('curves','wave','shake') or key=='typewriter' and effect.get('custom')) if raw['mode']=='custom' else key!='curves') else {**effect,'enabled':False}
                              for key,effect in raw['effects'].items()}}
 
 
@@ -208,10 +209,32 @@ def sample(raw, elapsed, duration, count=0):
                 transform_opacity = value
             else:
                 state[key] = value
+    dx, dy = shake_offset(raw['effects'].get('shake'), time, duration)
+    state['x'] += dx
+    state['y'] += dy
     state['opacity'] *= transform_opacity/100
     if w['enabled']:
         state['revealed'] = math.floor(clamp((time-ms(w, 'start', duration))/(ms(w, 'end', duration)-ms(w, 'start', duration)))*count+1e-7)
     return state
+
+
+def shake_offset(effect, elapsed, duration):
+    if not effect or not effect['enabled'] or not effect['amplitude']:
+        return 0, 0
+    e = clock_effect(effect, duration)
+    start, end = ms(e, 'start', duration), min(duration, ms(e, 'end', duration))
+    if elapsed <= start or elapsed >= end:
+        return 0, 0
+    step = min(e['period']*(duration/100 if e['periodUnit']=='percent' else 1), (end-start)/2)
+    i = math.floor((elapsed-start)/step)
+    left = start+i*step
+    right = min(end, left+step)
+    p = (elapsed-left)/(right-left)
+    def point(n):
+        return (0, 0) if n == 0 or start+n*step >= end else (((n*37+17)%101)/50-1, ((n*61+43)%103)/51-1)
+    a, b = point(i), point(i+1)
+    return tuple(0 if e['direction']==blocked else (a[j]+(b[j]-a[j])*p)*e['amplitude']
+                 for j, blocked in enumerate(('vertical', 'horizontal')))
 
 
 def wave_offset(effect, elapsed, duration, index):
@@ -235,7 +258,7 @@ def boundaries(raw, duration, count):
     for name, effect in raw['effects'].items():
         if not effect['enabled']:
             continue
-        if name == 'wave' and not effect['amplitude']:
+        if name in ('wave','shake') and not effect['amplitude']:
             continue
         if name == 'curves':
             ratio = duration/100 if effect['unit'] == 'percent' else 1
@@ -268,12 +291,16 @@ def boundaries(raw, duration, count):
             step = max(10, min(40, period/16))
             ramp = min(period/4, (b-a)/2)
             cuts.update((a+ramp, b-ramp))
+        if name == 'shake':
+            step = min(effect['period']*(duration/100 if effect['periodUnit']=='percent' else 1), (min(b,duration)-a)/2)
+            if step <= 0:
+                continue
         end = min(b, duration)
         if name == 'transform' and effect['easing'] == 'linear':
             continue
         steps = math.ceil(max(0, end-a)/step)
         if steps > 4096:
-            raise ValueError('字幕动画生成片段过多，请缩短动画时段或增大闪烁间隔')
+            raise ValueError('字幕动画生成片段过多，请缩短动画时段或增大效果间隔')
         cuts.update(a+i*step for i in range(1, steps))
     result = sorted(t for t in cuts if 0 <= t <= duration)
     if len(result) > 4096:
