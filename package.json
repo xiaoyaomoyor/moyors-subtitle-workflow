@@ -5,7 +5,9 @@
   "description": "Dev-only browser regression tooling for MSW (Playwright). No production dependency.",
   "scripts": {
     "test": "playwright test --project=chromium",
-    "test:headed": "playwright test --project=chromium --headed"
+    "test:headed": "playwright test --project=chromium --headed",
+    "test:perf-tools": "node --test tests/test_performance_baseline.mjs",
+    "perf:editor": "node scripts/benchmark_editor.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

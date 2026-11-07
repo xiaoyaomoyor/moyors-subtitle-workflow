@@ -1,0 +1,2730 @@
+{
+  "schema": "msw.performance-summary.v1",
+  "note": "Reading summary only. Compare original per-scenario report.json files with the benchmark CLI.",
+  "columns": {
+    "latency": [
+      "median ms",
+      "maximum ms"
+    ],
+    "calls": [
+      "median count",
+      "maximum count",
+      "median ms",
+      "maximum ms"
+    ]
+  },
+  "createdAt": "2026-11-07T04:55:45.339Z",
+  "environment": {
+    "commit": "2fa90d7e75a0bafd234508f08cba86875f2d2991",
+    "node": "v24.19.0",
+    "python": "Python 3.11.16",
+    "ffmpeg": "ffmpeg version 8.1.2-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "platform": "win32",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900H",
+    "cpuThreads": 20,
+    "memoryBytes": 34070192128,
+    "headless": true,
+    "harnessHash": "d92bbba6fc9d3e439ca70e9626c6f8c200220087597db840f0383d0bcfc03dbd",
+    "fontInventoryHash": "3ed3ffac30743741d9ec14cf79c8ea1f07f701ce72e61ae0363a7d5476bdb6b9",
+    "browser": "151.0.7922.34"
+  },
+  "config": {
+    "repeats": 3,
+    "warmup": 1,
+    "idleMs": 6000,
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "video": {
+      "width": 640,
+      "height": 360,
+      "fps": 2,
+      "durationMs": 7200000
+    }
+  },
+  "scenarios": [
+    {
+      "name": "bound-1000",
+      "fixture": {
+        "version": 1,
+        "profile": "bound",
+        "count": 1000,
+        "durationMs": 7200000,
+        "bindings": 500,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "ca55ef767ce73b8928c270f83c9f681e79fcbfc3736275d5b6faca225221f5dd",
+        "destination": "s2",
+        "firstCue": "cue-0-main"
+      },
+      "status": "complete",
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 1381.7,
+        "domContentLoadedMs": 1266.7,
+        "editorReadyMs": 1403.1,
+        "previewReadyMs": 7140.3,
+        "reloadPreviewReadyMs": 1838.6
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [1.5,1.5],
+          "feedbackMs": [36.5,37.3],
+          "settledMs": [40.3,40.7],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [1.5,1.6],
+          "feedbackMs": [24.1,24.8],
+          "settledMs": [27.9,29.4],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [2.1,2.4],
+          "feedbackMs": [28.5,41.5],
+          "settledMs": [141.7,168.9],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [0.6,0.9],
+          "feedbackMs": [26.1,29.9],
+          "settledMs": [33.8,37.8],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [69.6,75.2],
+          "feedbackMs": [95.2,100.7],
+          "settledMs": [98.4,103.8],
+          "longestTaskMs": [74,79],
+          "calls": {
+            "fixedContentKey": [2,2,19.8,21.9],
+            "fixedAcceptEdit": [1,1,13.7,15.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.9,3.3],
+            "fixedSyncUI": [1,1,2,3.5],
+            "applyCueListDisplaySettings": [1,1,7.4,7.9],
+            "renderAll": [1,1,35.7,41.9]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [62.6,63.6],
+          "feedbackMs": [85.7,94],
+          "settledMs": [89.4,98.6],
+          "longestTaskMs": [69,69],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.3,1.8],
+            "fixedSyncUI": [1,1,1.8,3.9],
+            "applyCueListDisplaySettings": [1,1,7.9,9],
+            "renderAll": [1,1,42.5,46],
+            "fixedContentKey": [1,1,6.5,7]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [72.3,72.4],
+          "feedbackMs": [109.6,110.6],
+          "settledMs": [115.6,116],
+          "longestTaskMs": [79,82],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.9,2.1],
+            "fixedSyncUI": [1,1,3.5,3.6],
+            "applyCueListDisplaySettings": [1,1,10,10.4],
+            "renderAll": [1,1,58.1,58.3],
+            "fixedContentKey": [1,1,2.6,2.7]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [1.3,1.4],
+          "feedbackMs": [27.6,27.8],
+          "settledMs": [31,31.1],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [183.9,199.4],
+          "feedbackMs": [232.3,243.9],
+          "settledMs": [245.4,247.2],
+          "longestTaskMs": [198,215],
+          "calls": {
+            "fixedContentKey": [2,2,19,20.8],
+            "fixedAcceptEdit": [1,1,9.1,12.4],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1,1],
+            "fixedSyncUI": [1,1,2.6,2.7],
+            "applyCueListDisplaySettings": [1,1,50.9,51.9],
+            "renderAll": [1,1,115.1,119]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [99.2,99.4],
+          "feedbackMs": [129.6,130.9],
+          "settledMs": [134.2,135.6],
+          "longestTaskMs": [108,109],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,0.9,1],
+            "fixedSyncUI": [1,1,2,2.1],
+            "applyCueListDisplaySettings": [1,1,6.5,6.7],
+            "renderAll": [1,1,39,39.2],
+            "fixedContentKey": [1,1,6.4,6.5]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [104.7,181.8],
+          "feedbackMs": [150.1,258.3],
+          "settledMs": [154.2,266.3],
+          "longestTaskMs": [125,222],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.5,2.1],
+            "fixedSyncUI": [1,1,2.8,7.2],
+            "applyCueListDisplaySettings": [1,1,6.5,12.7],
+            "renderAll": [1,1,50.8,112.8],
+            "fixedContentKey": [1,1,8.7,15.7]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [188.3,205.9],
+          "feedbackMs": [272.7,295.6],
+          "settledMs": [277.5,298.8],
+          "longestTaskMs": [235,263],
+          "calls": {
+            "fixedContent": [3,3,18.6,28.5],
+            "fixedContentKey": [5,5,11.2,26.3],
+            "snapshotSegments": [1,1,3.8,4.3],
+            "fixedAcceptEdit": [2,2,13.7,28.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1,1.2],
+            "fixedSyncUI": [1,1,2.3,2.3],
+            "applyCueListDisplaySettings": [1,1,8.6,8.9],
+            "renderAll": [1,1,91.2,92.7]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [152.1,162.9],
+          "feedbackMs": [226.8,270.8],
+          "settledMs": [260.4,275.4],
+          "longestTaskMs": [198,229],
+          "calls": {
+            "fixedContent": [2,2,12.9,15.3],
+            "fixedContentKey": [3,3,8.4,9],
+            "snapshotSegments": [1,1,4,7.5],
+            "fixedAcceptEdit": [1,1,16.8,17.2],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.3,1.4],
+            "fixedSyncUI": [1,1,2.6,4],
+            "applyCueListDisplaySettings": [1,1,11.3,14.1],
+            "renderAll": [1,1,93.8,106.5]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [142.5,151.1],
+          "feedbackMs": [226.7,227.1],
+          "settledMs": [230,232.5],
+          "longestTaskMs": [199,203],
+          "calls": {
+            "fixedContent": [3,3,18.4,19.4],
+            "fixedContentKey": [4,4,16.5,18.4],
+            "snapshotSegments": [1,1,4.3,8.8],
+            "fixedAcceptEdit": [2,2,19.5,20.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.1,2.1],
+            "fixedSyncUI": [1,1,2.2,3],
+            "applyCueListDisplaySettings": [1,1,9.5,9.6],
+            "renderAll": [1,1,86,94.5]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [24,27.3],
+          "feedbackMs": [44,51.6],
+          "settledMs": [185.5,191.9],
+          "longestTaskMs": [0,0],
+          "calls": {
+            "fixedContent": [1,1,6.5,8.7],
+            "fixedContentKey": [1,1,1.5,1.6],
+            "snapshotSegments": [1,1,3.7,3.9]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [16.6,18.7],
+          "feedbackMs": [48.4,48.5],
+          "settledMs": [168.3,169.2],
+          "longestTaskMs": [0,0],
+          "calls": {
+            "fixedContentKey": [2,2,7.4,7.4],
+            "fixedAcceptEdit": [1,1,3.9,4.1]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [33.3,39.9],
+          "feedbackMs": [50.4,62.8],
+          "settledMs": [197.6,199.9],
+          "longestTaskMs": [0,0],
+          "calls": {
+            "fixedContentKey": [2,2,10.3,11.1],
+            "fixedAcceptEdit": [1,1,6,6.3]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [14.2,22.5],
+          "feedbackMs": [47.7,48.1],
+          "settledMs": [164.4,216],
+          "longestTaskMs": [0,70],
+          "calls": {
+            "fixedContentKey": [1,2,6.8,7.2],
+            "fixedAcceptEdit": [1,2,7.3,7.7],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,2.2]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [0.8,0.9],
+          "feedbackMs": [48,50.3],
+          "settledMs": [173.5,183.7],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [365.1,372.3],
+          "settledMs": [366.5,374],
+          "longestTaskMs": [74,75],
+          "calls": {
+            "beginCueDrag": [1,1,0.8,1.5],
+            "fixedContentKey": [2,2,8.6,10.5],
+            "fixedAcceptEdit": [1,1,4.9,7.3],
+            "moveCueDrag": [12,12,31.5,35.9],
+            "fixedTimingCheckpoint": [1,1,4.1,4.7],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.2,2.5],
+            "fixedSyncUI": [1,1,2.4,3.1],
+            "applyCueListDisplaySettings": [1,1,8.5,8.8],
+            "renderAll": [1,1,44.3,49.5],
+            "endCueDrag": [1,1,58,62.7]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [338.8,344.7],
+          "settledMs": [341.2,345.9],
+          "longestTaskMs": [58,64],
+          "calls": {
+            "beginCueDrag": [1,1,0.7,0.8],
+            "fixedContentKey": [2,2,7.1,8],
+            "fixedAcceptEdit": [1,1,3.9,4.1],
+            "moveCueDrag": [12,12,11,11.5],
+            "fixedTimingCheckpoint": [1,1,4,5.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.2,1.3],
+            "fixedSyncUI": [1,1,2.3,2.7],
+            "applyCueListDisplaySettings": [1,1,5.9,7.5],
+            "renderAll": [1,1,41,41.4],
+            "endCueDrag": [1,1,53.1,59.1]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [763.7,764.9],
+          "settledMs": [765.9,766],
+          "longestTaskMs": [120,134],
+          "calls": {
+            "beginCueDrag": [1,1,1.8,2],
+            "fixedContentKey": [2,2,10.2,12.1],
+            "fixedAcceptEdit": [1,1,5.9,7.1],
+            "moveCueDrag": [12,12,239.9,255.6],
+            "fixedTimingCheckpoint": [1,1,6.6,11.6],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,1.2,2.6],
+            "fixedSyncUI": [1,1,2.3,4.2],
+            "applyCueListDisplaySettings": [1,1,6.7,11.1],
+            "renderAll": [1,1,66.3,79.6],
+            "endCueDrag": [1,1,99.7,113.6]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [237.5,278.9],
+          "settledMs": [654.2,808.9],
+          "longestTaskMs": [167,207],
+          "calls": {
+            "fixedContentKey": [3,3,14.8,16.6],
+            "fixedContent": [1,1,21.4,25.1],
+            "fixedAcceptEdit": [2,2,46.2,50.9],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,3.9,12.1]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [143.1,167.7],
+          "settledMs": [414.4,524.6],
+          "longestTaskMs": [80,114],
+          "calls": {
+            "fixedContentKey": [1,1,2.2,2.5],
+            "fixedAcceptEdit": [1,1,2.5,2.8],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,2.7,4.5]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [86.1,102.3],
+          "settledMs": [123.3,124.8],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [33,85.4],
+          "feedbackMs": [108.4,194],
+          "settledMs": [211.5,315.3],
+          "longestTaskMs": [50,120],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [25,28.9],
+          "settledMs": [6036.4,6047],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 63214824,
+            "totalSize": 104554496,
+            "embedderHeapUsedSize": 38151728,
+            "backingStorageSize": 58587901
+          },
+          "heapAfterGC": {
+            "usedSize": 24541368,
+            "totalSize": 26386432,
+            "embedderHeapUsedSize": 18432440,
+            "backingStorageSize": 58132970
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 31163,
+            "jsEventListeners": 9927
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 32487580,
+            "totalSize": 33652736,
+            "embedderHeapUsedSize": 20164280,
+            "backingStorageSize": 58193418
+          },
+          "heapAfterGC": {
+            "usedSize": 32078364,
+            "totalSize": 32866304,
+            "embedderHeapUsedSize": 19104080,
+            "backingStorageSize": 58192628
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 31909,
+            "jsEventListeners": 10107
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 47593604,
+            "totalSize": 117243904,
+            "embedderHeapUsedSize": 31801632,
+            "backingStorageSize": 56690254
+          },
+          "heapAfterGC": {
+            "usedSize": 26795792,
+            "totalSize": 28098560,
+            "embedderHeapUsedSize": 17980632,
+            "backingStorageSize": 56473767
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 31129,
+            "jsEventListeners": 9934
+          }
+        }
+      ]
+    },
+    {
+      "name": "bound-6000",
+      "fixture": {
+        "version": 1,
+        "profile": "bound",
+        "count": 6000,
+        "durationMs": 7200000,
+        "bindings": 3000,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "7751092788f885b34a44773ad7b8008f40cd05823841988c8f49ea568e1f866a",
+        "destination": "s2",
+        "firstCue": "cue-0-main"
+      },
+      "status": "complete",
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 1772.2,
+        "domContentLoadedMs": 4343,
+        "editorReadyMs": 5514,
+        "previewReadyMs": 9127.9,
+        "reloadPreviewReadyMs": 6606.9
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [7.9,7.9],
+          "feedbackMs": [35,44],
+          "settledMs": [38.7,47.7],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [1.7,1.8],
+          "feedbackMs": [21.8,30],
+          "settledMs": [28.3,34.9],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [2.6,3.9],
+          "feedbackMs": [26.4,30.7],
+          "settledMs": [283.2,1112.8],
+          "longestTaskMs": [62,639],
+          "calls": {
+            "fixedContentKey": [0,1,0,75.6],
+            "fixedAcceptEdit": [0,1,0,78.5],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,9.1]
+          }
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [1.4,2.5],
+          "feedbackMs": [24.3,35.2],
+          "settledMs": [27.8,40],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [317.1,440.9],
+          "feedbackMs": [368.3,504.2],
+          "settledMs": [372.4,509.1],
+          "longestTaskMs": [321,445],
+          "calls": {
+            "fixedContentKey": [2,2,104.9,172.6],
+            "fixedAcceptEdit": [1,1,61.7,130.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,5.4,11.2],
+            "fixedSyncUI": [1,1,13,14.1],
+            "applyCueListDisplaySettings": [1,1,13.3,14.1],
+            "renderAll": [1,1,168.9,184.1]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [258.1,428.3],
+          "feedbackMs": [315.7,496],
+          "settledMs": [320.2,513.5],
+          "longestTaskMs": [273,441],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,5.8,6.3],
+            "fixedSyncUI": [1,1,13.4,27.8],
+            "applyCueListDisplaySettings": [1,1,20.4,31.4],
+            "renderAll": [1,1,156.3,262.2],
+            "fixedContentKey": [1,1,49.7,64.7]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [248.2,250.5],
+          "feedbackMs": [312.2,986.1],
+          "settledMs": [318.3,1158.9],
+          "longestTaskMs": [261,555],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,6.3,17.6],
+            "fixedSyncUI": [1,1,13.1,15.1],
+            "applyCueListDisplaySettings": [1,1,12,14.8],
+            "renderAll": [1,1,169,170.3],
+            "fixedContentKey": [1,2,46,93.4],
+            "fixedAcceptEdit": [0,1,0,50.6]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [2.6,3.5],
+          "feedbackMs": [29.8,33.1],
+          "settledMs": [33,38.8],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [817.8,854.7],
+          "feedbackMs": [928.5,953.3],
+          "settledMs": [951.4,1037.3],
+          "longestTaskMs": [843,870],
+          "calls": {
+            "fixedContentKey": [2,2,100.6,143],
+            "fixedAcceptEdit": [1,1,46.8,47.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,7.1,7.4],
+            "fixedSyncUI": [1,1,14.8,72.9],
+            "applyCueListDisplaySettings": [1,1,74.5,92.2],
+            "renderAll": [1,1,452.1,498.6]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [495.4,713],
+          "feedbackMs": [574.8,807.3],
+          "settledMs": [580.2,830.5],
+          "longestTaskMs": [520,745],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,5.6,8],
+            "fixedSyncUI": [1,1,12.7,28.9],
+            "applyCueListDisplaySettings": [1,1,16.2,27.7],
+            "renderAll": [1,1,186.3,293.3],
+            "fixedContentKey": [1,1,54.1,98.1]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [563,611.4],
+          "feedbackMs": [666,703.9],
+          "settledMs": [680.5,721.2],
+          "longestTaskMs": [595,640],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,5.7,5.8],
+            "fixedSyncUI": [1,1,15,23.7],
+            "applyCueListDisplaySettings": [1,1,12.6,22.1],
+            "renderAll": [1,1,208.6,238.6],
+            "fixedContentKey": [1,1,49.8,63.3]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [1205.2,1671.1],
+          "feedbackMs": [2425.1,2734.2],
+          "settledMs": [2476.1,2939.1],
+          "longestTaskMs": [1591,2259],
+          "calls": {
+            "fixedContent": [3,3,135.2,266.1],
+            "fixedContentKey": [5,6,246.8,305.3],
+            "snapshotSegments": [1,1,36,41],
+            "fixedAcceptEdit": [2,3,217.4,284.9],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,6.6,18],
+            "fixedSyncUI": [1,1,13.9,17.2],
+            "applyCueListDisplaySettings": [1,1,34.4,60],
+            "renderAll": [1,1,609.4,722.4]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [1295.1,1676.5],
+          "feedbackMs": [1775.1,3076.3],
+          "settledMs": [1822.5,3230.6],
+          "longestTaskMs": [1641,1998],
+          "calls": {
+            "fixedContent": [2,3,103.6,306.7],
+            "fixedContentKey": [3,5,140.6,428.9],
+            "snapshotSegments": [1,1,33.8,77.3],
+            "fixedAcceptEdit": [1,2,156.9,461.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,9.8,35],
+            "fixedSyncUI": [1,1,23.1,27.7],
+            "applyCueListDisplaySettings": [1,1,43.3,62.4],
+            "renderAll": [1,1,799.5,907]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [1313.6,1432.9],
+          "feedbackMs": [2134.6,2789.5],
+          "settledMs": [2397.6,2964],
+          "longestTaskMs": [1651,1811],
+          "calls": {
+            "fixedContent": [3,3,170.7,174.6],
+            "fixedContentKey": [5,5,171.9,188.7],
+            "snapshotSegments": [1,1,38.3,61.3],
+            "fixedAcceptEdit": [3,3,204.7,252.9],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,22.9,31.9],
+            "fixedSyncUI": [1,1,23.9,27.7],
+            "applyCueListDisplaySettings": [1,1,42.4,70.6],
+            "renderAll": [1,1,860.1,1028]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [380.2,482.4],
+          "feedbackMs": [471.9,595.1],
+          "settledMs": [620.1,1269.6],
+          "longestTaskMs": [380,483],
+          "calls": {
+            "fixedContent": [1,2,75.4,272.6],
+            "fixedContentKey": [1,3,72.7,297.3],
+            "snapshotSegments": [1,1,39.9,46.9],
+            "fixedAcceptEdit": [0,1,0,449.2]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [113.6,126.8],
+          "feedbackMs": [161.8,182.1],
+          "settledMs": [344.7,436.4],
+          "longestTaskMs": [125,133],
+          "calls": {
+            "fixedContentKey": [2,2,81.3,104.2],
+            "fixedAcceptEdit": [1,1,36.7,69.9]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [163.3,241.5],
+          "feedbackMs": [579.5,1205.5],
+          "settledMs": [1008.8,1675],
+          "longestTaskMs": [248,866],
+          "calls": {
+            "fixedContentKey": [2,3,89.2,112.3],
+            "fixedAcceptEdit": [1,2,58.6,84.5],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,23.8]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [82.6,105],
+          "feedbackMs": [120.8,147.7],
+          "settledMs": [311.4,382.2],
+          "longestTaskMs": [92,119],
+          "calls": {
+            "fixedContentKey": [1,1,54.1,60.9],
+            "fixedAcceptEdit": [1,1,55.6,65.7]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [0.5,1.2],
+          "feedbackMs": [52.3,57.2],
+          "settledMs": [206,213.2],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [862.5,874.1],
+          "settledMs": [865.2,875.4],
+          "longestTaskMs": [313,357],
+          "calls": {
+            "beginCueDrag": [1,1,1.2,1.5],
+            "fixedContentKey": [2,2,57.4,65.1],
+            "fixedAcceptEdit": [1,1,33.9,35.7],
+            "moveCueDrag": [12,12,151.1,151.5],
+            "fixedTimingCheckpoint": [1,1,25.3,36],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,6.4,8.1],
+            "fixedSyncUI": [1,1,14.6,20.3],
+            "applyCueListDisplaySettings": [1,1,6.7,8.6],
+            "renderAll": [1,1,192.2,219],
+            "endCueDrag": [1,1,258.1,298.7]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [922.6,1315.6],
+          "settledMs": [947.5,1321.7],
+          "longestTaskMs": [406,458],
+          "calls": {
+            "beginCueDrag": [1,1,2,2],
+            "fixedContentKey": [2,2,64.4,76.2],
+            "fixedAcceptEdit": [1,1,34.1,36.7],
+            "moveCueDrag": [12,12,57.9,72.7],
+            "fixedTimingCheckpoint": [1,1,42.2,47.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,8.7,10],
+            "fixedSyncUI": [1,1,14.2,32.6],
+            "applyCueListDisplaySettings": [1,1,6,13.3],
+            "renderAll": [1,1,272.5,298.4],
+            "endCueDrag": [1,1,392.2,434.9]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1754.4,2606.5],
+          "settledMs": [1755.5,2752.2],
+          "longestTaskMs": [332,560],
+          "calls": {
+            "beginCueDrag": [1,1,2.9,4.5],
+            "fixedContentKey": [2,4,73.5,128.2],
+            "fixedAcceptEdit": [1,2,51.2,172.9],
+            "moveCueDrag": [12,12,935.5,1025.8],
+            "fixedTimingCheckpoint": [1,1,28.6,35.4],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,6.1,21.3],
+            "fixedSyncUI": [1,1,16.7,17.4],
+            "applyCueListDisplaySettings": [1,1,6.8,7.8],
+            "renderAll": [1,1,227.1,251.3],
+            "endCueDrag": [1,1,308.4,340.2],
+            "fixedContent": [0,1,0,54.8]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [915.6,1031.8],
+          "settledMs": [2285.2,2513.4],
+          "longestTaskMs": [738,821],
+          "calls": {
+            "fixedContentKey": [3,3,159.9,189.6],
+            "fixedContent": [1,1,48.6,53.6],
+            "fixedAcceptEdit": [2,2,235.1,258.5],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,13.7,13.7]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [843.8,902.1],
+          "settledMs": [2360.4,2499.1],
+          "longestTaskMs": [666,728],
+          "calls": {
+            "fixedContentKey": [1,1,52.3,53.7],
+            "fixedAcceptEdit": [1,1,53.9,55],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,12.9,13]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [472.3,560.8],
+          "settledMs": [784.9,862.5],
+          "longestTaskMs": [301,394],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [304.3,419.2],
+          "feedbackMs": [622.9,788.6],
+          "settledMs": [1290,1573.5],
+          "longestTaskMs": [428,555],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [26.3,34.9],
+          "settledMs": [6045.8,6048.7],
+          "longestTaskMs": [78,92],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 142048424,
+            "totalSize": 228012032,
+            "embedderHeapUsedSize": 71693200,
+            "backingStorageSize": 61516910
+          },
+          "heapAfterGC": {
+            "usedSize": 111570468,
+            "totalSize": 113885184,
+            "embedderHeapUsedSize": 62344696,
+            "backingStorageSize": 61369031
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 98899,
+            "jsEventListeners": 45065
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 133780184,
+            "totalSize": 141291520,
+            "embedderHeapUsedSize": 64949848,
+            "backingStorageSize": 61838004
+          },
+          "heapAfterGC": {
+            "usedSize": 132067504,
+            "totalSize": 133165056,
+            "embedderHeapUsedSize": 63699616,
+            "backingStorageSize": 61837247
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 99579,
+            "jsEventListeners": 45145
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 147246024,
+            "totalSize": 223649792,
+            "embedderHeapUsedSize": 107854000,
+            "backingStorageSize": 63143537
+          },
+          "heapAfterGC": {
+            "usedSize": 112122288,
+            "totalSize": 116080640,
+            "embedderHeapUsedSize": 63259544,
+            "backingStorageSize": 63103578
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 98944,
+            "jsEventListeners": 45114
+          }
+        }
+      ]
+    },
+    {
+      "name": "bound-10000",
+      "fixture": {
+        "version": 1,
+        "profile": "bound",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 5000,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "ab5c1b5b0ae054e6465ace6207cb0653dd1c143ea4878f315ddb98c1b25a81cb",
+        "destination": "s2",
+        "firstCue": "cue-0-main"
+      },
+      "status": "complete",
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 2294.8,
+        "domContentLoadedMs": 7310.1,
+        "editorReadyMs": 8737.7,
+        "previewReadyMs": 14975.8,
+        "reloadPreviewReadyMs": 8709.1
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [21.1,26.8],
+          "feedbackMs": [75.3,88.8],
+          "settledMs": [81,103.4],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [1.5,2.7],
+          "feedbackMs": [28,30.3],
+          "settledMs": [32.1,37.2],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [4.6,5.8],
+          "feedbackMs": [80.5,81.2],
+          "settledMs": [397.4,426.2],
+          "longestTaskMs": [139,158],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [3.2,5.1],
+          "feedbackMs": [34,36.1],
+          "settledMs": [40.5,46.4],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [667.5,694],
+          "feedbackMs": [811.1,864.9],
+          "settledMs": [841.9,897.5],
+          "longestTaskMs": [684,700],
+          "calls": {
+            "fixedContentKey": [2,2,195.1,258.1],
+            "fixedAcceptEdit": [1,1,80.5,160.2],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,9.4,11.6],
+            "fixedSyncUI": [1,1,23.3,27.6],
+            "applyCueListDisplaySettings": [1,1,18.3,19.6],
+            "renderAll": [1,1,314.9,416.8]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [449.6,742.4],
+          "feedbackMs": [521,906.8],
+          "settledMs": [524.4,940.9],
+          "longestTaskMs": [463,763],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,12,36.8],
+            "fixedSyncUI": [1,1,27.7,32.2],
+            "applyCueListDisplaySettings": [1,1,20.1,20.8],
+            "renderAll": [1,1,304.1,520.2],
+            "fixedContentKey": [1,1,74.1,103.8]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [641.6,749.7],
+          "feedbackMs": [1655.4,2154.6],
+          "settledMs": [1965.7,2272.2],
+          "longestTaskMs": [949,1038],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [3,3,26.5,36.2],
+            "fixedSyncUI": [1,1,24.5,35.3],
+            "applyCueListDisplaySettings": [1,1,14.2,16.1],
+            "renderAll": [1,1,414.3,435.8],
+            "fixedContentKey": [2,2,155.6,164.9],
+            "fixedAcceptEdit": [1,1,79,90.3]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [2.9,3.4],
+          "feedbackMs": [23.2,38.6],
+          "settledMs": [26.7,42.2],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [1181.6,1438],
+          "feedbackMs": [1285.1,1610.2],
+          "settledMs": [1307.7,1655.4],
+          "longestTaskMs": [1199,1458],
+          "calls": {
+            "fixedContentKey": [2,2,163.8,228.4],
+            "fixedAcceptEdit": [1,1,84,148.9],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,8.8,10.2],
+            "fixedSyncUI": [1,1,30.4,37.4],
+            "applyCueListDisplaySettings": [1,1,68.7,100.8],
+            "renderAll": [1,1,549,740.9]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [870.6,901.2],
+          "feedbackMs": [1232.6,2748.5],
+          "settledMs": [1237,3000.1],
+          "longestTaskMs": [923,1068],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,13.8,29.1],
+            "fixedSyncUI": [1,1,26.5,28.5],
+            "applyCueListDisplaySettings": [1,1,20.4,21.6],
+            "renderAll": [1,1,312.8,348.3],
+            "fixedContentKey": [1,2,81.3,164],
+            "fixedAcceptEdit": [0,1,0,95.8]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [1044,1048.8],
+          "feedbackMs": [1209.2,3092.7],
+          "settledMs": [1233.1,3331],
+          "longestTaskMs": [1081,1093],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,15.6,27.3],
+            "fixedSyncUI": [1,1,23.7,30.4],
+            "applyCueListDisplaySettings": [1,1,18.7,21.3],
+            "renderAll": [1,1,338.2,394.8],
+            "fixedContentKey": [1,2,77.2,234.5],
+            "fixedAcceptEdit": [0,1,0,92.3]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [2815.3,3267.1],
+          "feedbackMs": [4342.2,4355.7],
+          "settledMs": [4558.5,4629.6],
+          "longestTaskMs": [3379,3798],
+          "calls": {
+            "fixedContent": [3,3,292.2,400.2],
+            "fixedContentKey": [5,6,531.9,595.1],
+            "snapshotSegments": [1,1,66.8,121.2],
+            "fixedAcceptEdit": [2,3,431.3,666.4],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,22.7,46.8],
+            "fixedSyncUI": [1,1,30.9,39.8],
+            "applyCueListDisplaySettings": [1,1,59.3,73.8],
+            "renderAll": [1,1,1625.2,1854]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [2114.8,2903.6],
+          "feedbackMs": [3060.9,5169],
+          "settledMs": [3099.7,5429.5],
+          "longestTaskMs": [2882,3598],
+          "calls": {
+            "fixedContent": [2,3,169.6,424.8],
+            "fixedContentKey": [3,5,219.6,587.9],
+            "snapshotSegments": [1,1,54.6,88.6],
+            "fixedAcceptEdit": [1,2,257.9,772.9],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,11.9,58.8],
+            "fixedSyncUI": [1,1,34.5,41.7],
+            "applyCueListDisplaySettings": [1,1,68.2,82.1],
+            "renderAll": [1,1,1568.8,1928.5]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [2162.9,2864.6],
+          "feedbackMs": [4109.1,5555.7],
+          "settledMs": [4362.7,6536.4],
+          "longestTaskMs": [2666,4161],
+          "calls": {
+            "fixedContent": [3,3,268.3,392.6],
+            "fixedContentKey": [5,5,303.8,364.8],
+            "snapshotSegments": [1,1,55.4,81.6],
+            "fixedAcceptEdit": [3,3,328.7,361.9],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,37.8,49.4],
+            "fixedSyncUI": [1,1,43.6,48.9],
+            "applyCueListDisplaySettings": [1,1,79.3,80.6],
+            "renderAll": [1,1,1376.2,1798.7]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [663.9,711.8],
+          "feedbackMs": [768.8,792.6],
+          "settledMs": [1354,1620.5],
+          "longestTaskMs": [673,729],
+          "calls": {
+            "fixedContent": [2,2,265,376.7],
+            "fixedContentKey": [3,3,359,407.2],
+            "snapshotSegments": [1,1,65.4,86.9],
+            "fixedAcceptEdit": [1,1,352,673.5]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [170.4,230.3],
+          "feedbackMs": [211.2,284.7],
+          "settledMs": [447.9,572.3],
+          "longestTaskMs": [191,241],
+          "calls": {
+            "fixedContentKey": [2,2,132.5,181.4],
+            "fixedAcceptEdit": [1,1,65.6,84.8]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [433.9,558.5],
+          "feedbackMs": [489.9,615.1],
+          "settledMs": [669.6,743.7],
+          "longestTaskMs": [446,569],
+          "calls": {
+            "fixedContentKey": [2,2,116.1,122.7],
+            "fixedAcceptEdit": [1,1,64.7,68.3]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [63.2,72.2],
+          "feedbackMs": [96.1,107.7],
+          "settledMs": [446.8,1555.1],
+          "longestTaskMs": [98,1011],
+          "calls": {
+            "fixedContentKey": [1,2,47.4,91.8],
+            "fixedAcceptEdit": [1,2,50.5,96.7],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,32.3]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [1.2,1.2],
+          "feedbackMs": [54.7,57],
+          "settledMs": [220.1,238.1],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1324.3,1746.9],
+          "settledMs": [1326.1,1748.8],
+          "longestTaskMs": [546,646],
+          "calls": {
+            "beginCueDrag": [1,1,1.6,2.2],
+            "fixedContentKey": [2,2,107.1,129.1],
+            "fixedAcceptEdit": [1,1,57.3,59],
+            "moveCueDrag": [12,12,258.8,356.5],
+            "fixedTimingCheckpoint": [1,1,55.4,76],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.7,13.9],
+            "fixedSyncUI": [1,1,26.7,26.9],
+            "applyCueListDisplaySettings": [1,1,6.6,8.3],
+            "renderAll": [1,1,310.5,363.9],
+            "endCueDrag": [1,1,451.1,528.8]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1888,1986.6],
+          "settledMs": [2034.8,2278.8],
+          "longestTaskMs": [741,796],
+          "calls": {
+            "beginCueDrag": [1,1,3.5,6.7],
+            "fixedContentKey": [2,2,123.6,169.2],
+            "fixedAcceptEdit": [1,1,73.4,90.8],
+            "moveCueDrag": [12,12,117.6,155.6],
+            "fixedTimingCheckpoint": [1,1,55.6,92.2],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.6,16.2],
+            "fixedSyncUI": [1,1,28.3,43.9],
+            "applyCueListDisplaySettings": [1,1,8,8.3],
+            "renderAll": [1,1,458.4,518],
+            "endCueDrag": [1,1,622.7,766.6]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [3007.5,3220.7],
+          "settledMs": [3021,3222.5],
+          "longestTaskMs": [612,795],
+          "calls": {
+            "beginCueDrag": [1,1,3.4,4.7],
+            "fixedContentKey": [2,2,128.8,148.6],
+            "fixedAcceptEdit": [1,1,64.1,66.5],
+            "moveCueDrag": [12,12,1677.4,1705.8],
+            "fixedTimingCheckpoint": [1,1,73.8,93.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.5,17.5],
+            "fixedSyncUI": [1,1,37.4,46.3],
+            "applyCueListDisplaySettings": [1,1,11.9,16.3],
+            "renderAll": [1,1,434.5,528.6],
+            "endCueDrag": [1,1,582.3,756.5]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [1825,2058],
+          "settledMs": [4144.4,5396.6],
+          "longestTaskMs": [1546,1712],
+          "calls": {
+            "fixedContentKey": [1,3,185,260.3],
+            "fixedContent": [0,1,0,79.2],
+            "fixedAcceptEdit": [1,2,190.5,378],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,30.7,44.2]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [1334.7,1366.2],
+          "settledMs": [3679.8,4320.4],
+          "longestTaskMs": [1051,1056],
+          "calls": {
+            "fixedContentKey": [1,1,82.5,100.8],
+            "fixedAcceptEdit": [1,1,85.1,105.1],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,21.1,28.7]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [813.2,917],
+          "settledMs": [1384.4,1535.7],
+          "longestTaskMs": [549,566],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [494.1,537.4],
+          "feedbackMs": [929.1,1006.4],
+          "settledMs": [2009.9,2126.1],
+          "longestTaskMs": [666,742],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [35.5,38.7],
+          "settledMs": [6057.5,6061.4],
+          "longestTaskMs": [117,163],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 334412924,
+            "totalSize": 411893760,
+            "embedderHeapUsedSize": 119771560,
+            "backingStorageSize": 64199872
+          },
+          "heapAfterGC": {
+            "usedSize": 182245768,
+            "totalSize": 189616128,
+            "embedderHeapUsedSize": 97885504,
+            "backingStorageSize": 63963814
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153088,
+            "jsEventListeners": 73174
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 216181188,
+            "totalSize": 227651584,
+            "embedderHeapUsedSize": 101685264,
+            "backingStorageSize": 64750418
+          },
+          "heapAfterGC": {
+            "usedSize": 214091068,
+            "totalSize": 216813568,
+            "embedderHeapUsedSize": 101102992,
+            "backingStorageSize": 64749753
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153777,
+            "jsEventListeners": 73253
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 507444396,
+            "totalSize": 608460800,
+            "embedderHeapUsedSize": 302211344,
+            "backingStorageSize": 131333610
+          },
+          "heapAfterGC": {
+            "usedSize": 182689800,
+            "totalSize": 190218240,
+            "embedderHeapUsedSize": 98505048,
+            "backingStorageSize": 66841808
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153203,
+            "jsEventListeners": 73258
+          }
+        }
+      ]
+    },
+    {
+      "name": "bound-15000",
+      "fixture": {
+        "version": 1,
+        "profile": "bound",
+        "count": 15000,
+        "durationMs": 7200000,
+        "bindings": 7500,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "51d9b153f159fb532d8477f71a7ef6e9f7c44cc20fce5c7d6cd41553f6b309f1",
+        "destination": "s2",
+        "firstCue": "cue-0-main"
+      },
+      "status": "complete",
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 3326.9,
+        "domContentLoadedMs": 17868,
+        "editorReadyMs": 20267.5,
+        "previewReadyMs": 28240.2,
+        "reloadPreviewReadyMs": 17273.3
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [16.8,17.8],
+          "feedbackMs": [60.3,61.6],
+          "settledMs": [65,65.2],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [1.8,2.2],
+          "feedbackMs": [27.1,33.3],
+          "settledMs": [33.2,38.6],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [6.4,7.7],
+          "feedbackMs": [77,99.4],
+          "settledMs": [437.5,497.8],
+          "longestTaskMs": [160,192],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [3.3,3.4],
+          "feedbackMs": [34.9,37],
+          "settledMs": [38.5,41.6],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [920.3,1528.6],
+          "feedbackMs": [1112.7,4678.2],
+          "settledMs": [1148,5066],
+          "longestTaskMs": [929,2480],
+          "calls": {
+            "fixedContentKey": [2,3,330.4,693.6],
+            "fixedAcceptEdit": [1,2,135.7,418.6],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,20.9,78],
+            "fixedSyncUI": [1,1,30.6,100.2],
+            "applyCueListDisplaySettings": [1,1,17,53.7],
+            "renderAll": [1,1,478.2,963.2]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [2326.2,2525.5],
+          "feedbackMs": [2710,3280.9],
+          "settledMs": [2764.3,3330.8],
+          "longestTaskMs": [2399,2592],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,40.9,42.6],
+            "fixedSyncUI": [1,1,164.7,188.9],
+            "applyCueListDisplaySettings": [1,1,84.9,92.2],
+            "renderAll": [1,1,1569.2,1808],
+            "fixedContentKey": [1,1,352.1,394.3]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [2130.1,2368.4],
+          "feedbackMs": [2932.8,8224.8],
+          "settledMs": [3012.6,8889.5],
+          "longestTaskMs": [2443,3894],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,51.4,102.3],
+            "fixedSyncUI": [1,1,113.5,178.3],
+            "applyCueListDisplaySettings": [1,1,46.9,53.1],
+            "renderAll": [1,1,1438.4,1594.2],
+            "fixedContentKey": [1,2,388.2,622.5],
+            "fixedAcceptEdit": [0,1,0,295.6]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [10,12.4],
+          "feedbackMs": [48,48.6],
+          "settledMs": [54.8,58],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [5550.3,6528],
+          "feedbackMs": [11103.9,13529.4],
+          "settledMs": [11631.1,14119.1],
+          "longestTaskMs": [5613,6609],
+          "calls": {
+            "fixedContentKey": [3,3,1170.2,1205.5],
+            "fixedAcceptEdit": [2,2,763.7,827.7],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,142.2,147.8],
+            "fixedSyncUI": [1,1,118.3,146],
+            "applyCueListDisplaySettings": [1,1,185.9,275.2],
+            "renderAll": [1,1,2411.1,2878.3]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [3685.3,3829.7],
+          "feedbackMs": [4732.5,7939.1],
+          "settledMs": [4844.8,8465.4],
+          "longestTaskMs": [3789,3927],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,40.4,120.3],
+            "fixedSyncUI": [1,1,129.8,131.4],
+            "applyCueListDisplaySettings": [1,1,72.3,74.1],
+            "renderAll": [1,1,1504.4,1536.4],
+            "fixedContentKey": [1,2,322.6,677.6],
+            "fixedAcceptEdit": [0,1,0,357.3]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [3818.9,4171.4],
+          "feedbackMs": [6904.7,9881.9],
+          "settledMs": [7485,10623.8],
+          "longestTaskMs": [3955,4530],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,43.1,134.4],
+            "fixedSyncUI": [1,1,138,180.3],
+            "applyCueListDisplaySettings": [1,1,58.7,94.8],
+            "renderAll": [1,1,1576.1,1720.2],
+            "fixedContentKey": [1,2,329.9,908.9],
+            "fixedAcceptEdit": [0,1,0,500.9]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [11047.6,11201.7],
+          "feedbackMs": [16027.6,16341.3],
+          "settledMs": [16719.9,17079.2],
+          "longestTaskMs": [13632,13664],
+          "calls": {
+            "fixedContent": [3,3,1089.8,1263.6],
+            "fixedContentKey": [5,6,1594.7,1715.1],
+            "snapshotSegments": [1,1,234.8,293.9],
+            "fixedAcceptEdit": [2,3,1475,1825.3],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,42.7,98.6],
+            "fixedSyncUI": [1,1,146,153.1],
+            "applyCueListDisplaySettings": [1,1,272.2,290.5],
+            "renderAll": [1,1,6289.1,6725.3]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [9915.7,10150.2],
+          "feedbackMs": [15495.7,15940.6],
+          "settledMs": [16371.8,16686.9],
+          "longestTaskMs": [12499,13163],
+          "calls": {
+            "fixedContent": [2,2,770.5,853.6],
+            "fixedContentKey": [3,3,955.1,975.5],
+            "snapshotSegments": [1,1,277.7,309.6],
+            "fixedAcceptEdit": [1,1,1198.5,1823.7],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,48.2,49],
+            "fixedSyncUI": [1,1,154.9,201],
+            "applyCueListDisplaySettings": [1,1,295,311],
+            "renderAll": [1,1,7347.9,7784.1]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [10132.5,12176.1],
+          "feedbackMs": [18349,20106.1],
+          "settledMs": [19040.3,22292.4],
+          "longestTaskMs": [12642,15392],
+          "calls": {
+            "fixedContent": [3,3,1123.9,1283.5],
+            "fixedContentKey": [5,5,971.2,1181.9],
+            "snapshotSegments": [1,1,267.5,285.6],
+            "fixedAcceptEdit": [3,3,1351.6,1554.3],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,161,167.5],
+            "fixedSyncUI": [1,1,194.2,247.1],
+            "applyCueListDisplaySettings": [1,1,291.2,336],
+            "renderAll": [1,1,7288.2,8593]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [1656.6,1658.9],
+          "feedbackMs": [2096.1,7285.6],
+          "settledMs": [4675.2,7854.3],
+          "longestTaskMs": [1731,4871],
+          "calls": {
+            "fixedContent": [2,2,763,764.9],
+            "fixedContentKey": [3,4,1117.5,1147.7],
+            "snapshotSegments": [1,1,244.9,269.4],
+            "fixedAcceptEdit": [1,2,1350,1731.3],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,80.9]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [480.4,520.3],
+          "feedbackMs": [626.4,3862.4],
+          "settledMs": [995.7,6421.3],
+          "longestTaskMs": [500,2868],
+          "calls": {
+            "fixedContentKey": [2,3,384.7,553.2],
+            "fixedAcceptEdit": [1,2,216.2,360.6],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,77.7]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [959.6,1259.2],
+          "feedbackMs": [1432.6,5505.8],
+          "settledMs": [1825,6131.7],
+          "longestTaskMs": [1282,2542],
+          "calls": {
+            "fixedContentKey": [2,3,349.2,503.1],
+            "fixedAcceptEdit": [1,2,197.3,358],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,73.5]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [207.3,216.9],
+          "feedbackMs": [300.3,410.8],
+          "settledMs": [814.9,3592.3],
+          "longestTaskMs": [240,2483],
+          "calls": {
+            "fixedContentKey": [1,2,151.2,290.9],
+            "fixedAcceptEdit": [1,2,160.5,310.8],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,72.6]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [1.9,2.3],
+          "feedbackMs": [102.4,115.8],
+          "settledMs": [295.3,2744.2],
+          "longestTaskMs": [56,1413],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [4569.7,5329.8],
+          "settledMs": [8009.7,9621.9],
+          "longestTaskMs": [3147,3685],
+          "calls": {
+            "beginCueDrag": [1,1,6.3,6.5],
+            "fixedContentKey": [4,4,616.8,645.3],
+            "fixedAcceptEdit": [2,2,905.8,1121.1],
+            "moveCueDrag": [12,12,776.6,1055.6],
+            "fixedTimingCheckpoint": [1,1,168.2,175.3],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,128.4,129.6],
+            "fixedSyncUI": [1,1,119.8,128.7],
+            "applyCueListDisplaySettings": [1,1,21.9,30.2],
+            "renderAll": [1,1,1349.4,1544.2],
+            "endCueDrag": [1,1,1810.4,2015.9],
+            "fixedContent": [1,1,286.4,429.6]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [4176.7,8445.8],
+          "settledMs": [4180.3,9163.1],
+          "longestTaskMs": [2014,3948],
+          "calls": {
+            "beginCueDrag": [1,1,11.2,13.6],
+            "fixedContentKey": [2,4,414,586],
+            "fixedAcceptEdit": [1,2,282.9,970.5],
+            "moveCueDrag": [12,12,280.5,417],
+            "fixedTimingCheckpoint": [1,1,165.1,192.2],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,57.4,146.2],
+            "fixedSyncUI": [1,1,134.6,135.9],
+            "applyCueListDisplaySettings": [1,1,18.9,23.5],
+            "renderAll": [1,1,1345,1446.6],
+            "endCueDrag": [1,1,1808,1953.9],
+            "fixedContent": [0,1,0,325.5]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [13430.2,14213.8],
+          "settledMs": [14082.4,15712.6],
+          "longestTaskMs": [3681,4155],
+          "calls": {
+            "beginCueDrag": [1,1,11.8,12],
+            "fixedContentKey": [4,4,609.3,736.1],
+            "fixedAcceptEdit": [2,2,1058.7,1150.7],
+            "moveCueDrag": [12,12,4666.6,4754.3],
+            "fixedTimingCheckpoint": [1,1,165.7,259.3],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,130.5,134.8],
+            "fixedSyncUI": [1,1,138.9,187.7],
+            "applyCueListDisplaySettings": [1,1,19.4,29.8],
+            "renderAll": [1,1,1669.2,1742.6],
+            "endCueDrag": [1,1,2214.9,2416.5],
+            "fixedContent": [1,1,353.8,420.6]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [4646.3,5210.7],
+          "settledMs": [12383,15424],
+          "longestTaskMs": [3738,4265],
+          "calls": {
+            "fixedContentKey": [1,1,314.3,356],
+            "fixedAcceptEdit": [1,1,326.7,370.7],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,80.6,145.3]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [4768.1,4933.9],
+          "settledMs": [12008.2,15493],
+          "longestTaskMs": [3968,4187],
+          "calls": {
+            "fixedContentKey": [1,1,386.4,396.9],
+            "fixedAcceptEdit": [1,1,397.7,409.4],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,101.1,115.4]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [2428.5,2477.6],
+          "settledMs": [4252.6,4466.3],
+          "longestTaskMs": [1663,1715],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [1991.5,2019],
+          "feedbackMs": [3418.2,3443.9],
+          "settledMs": [7340.2,7513.8],
+          "longestTaskMs": [2485,2487],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [34.3,39.8],
+          "settledMs": [6061.1,6062.3],
+          "longestTaskMs": [391,421],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 455400704,
+            "totalSize": 526409728,
+            "embedderHeapUsedSize": 146467992,
+            "backingStorageSize": 67370457
+          },
+          "heapAfterGC": {
+            "usedSize": 350711792,
+            "totalSize": 353546240,
+            "embedderHeapUsedSize": 141562560,
+            "backingStorageSize": 67206368
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 220837,
+            "jsEventListeners": 108329
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 306631184,
+            "totalSize": 380551168,
+            "embedderHeapUsedSize": 147886640,
+            "backingStorageSize": 68389694
+          },
+          "heapAfterGC": {
+            "usedSize": 338184240,
+            "totalSize": 348934144,
+            "embedderHeapUsedSize": 147171440,
+            "backingStorageSize": 68389264
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 221550,
+            "jsEventListeners": 108410
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 756514876,
+            "totalSize": 868679680,
+            "embedderHeapUsedSize": 629967736,
+            "backingStorageSize": 139358993
+          },
+          "heapAfterGC": {
+            "usedSize": 266095124,
+            "totalSize": 299835392,
+            "embedderHeapUsedSize": 143713192,
+            "backingStorageSize": 71515067
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 221034,
+            "jsEventListeners": 108450
+          }
+        }
+      ]
+    },
+    {
+      "name": "mixed-10000",
+      "fixture": {
+        "version": 1,
+        "profile": "mixed",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 4800,
+        "tracks": 9,
+        "speakers": 12,
+        "audioClips": 100,
+        "styledCues": 980,
+        "animatedCues": 1046,
+        "contentHash": "316279f3ffe90055f8f49a078700bef4406e5612598ba2aec3b60cf83affe6ec",
+        "destination": "s4",
+        "firstCue": "cue-0-main"
+      },
+      "status": "complete",
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 3092.9,
+        "domContentLoadedMs": 10643.8,
+        "editorReadyMs": 13376.3,
+        "previewReadyMs": 22047.7,
+        "reloadPreviewReadyMs": 9591.1
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [12.1,12.4],
+          "feedbackMs": [46.3,53.2],
+          "settledMs": [49.5,56.7],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [2.7,2.8],
+          "feedbackMs": [35.3,41.2],
+          "settledMs": [47,48.9],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [4.2,6.3],
+          "feedbackMs": [96.5,181.3],
+          "settledMs": [1071.4,1187.6],
+          "longestTaskMs": [165,223],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [5.1,5.3],
+          "feedbackMs": [37.7,39.4],
+          "settledMs": [41.5,44.2],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [740.8,924],
+          "feedbackMs": [826.9,1157.7],
+          "settledMs": [830.4,1164.1],
+          "longestTaskMs": [747,938],
+          "calls": {
+            "fixedContentKey": [2,2,242,265.6],
+            "fixedAcceptEdit": [1,1,115.4,123.7],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,14.5,23.8],
+            "fixedSyncUI": [1,1,37.7,68.5],
+            "applyCueListDisplaySettings": [1,1,23.8,25.9],
+            "renderAll": [1,1,353.7,525.1]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [840.5,1098.4],
+          "feedbackMs": [1558.6,2050.7],
+          "settledMs": [1563.7,2235.3],
+          "longestTaskMs": [1100,1159],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,10.8,29.9],
+            "fixedSyncUI": [1,1,43.1,125.6],
+            "applyCueListDisplaySettings": [1,1,29.6,49.5],
+            "renderAll": [1,1,487.6,656.5],
+            "fixedContentKey": [1,2,250.4,315.8],
+            "fixedAcceptEdit": [0,1,0,86.2]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [499.5,536.4],
+          "feedbackMs": [645.2,872.1],
+          "settledMs": [688.6,884.8],
+          "longestTaskMs": [514,561],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,11.4,20.7],
+            "fixedSyncUI": [1,1,32.8,38.7],
+            "applyCueListDisplaySettings": [1,1,14.8,17.2],
+            "renderAll": [1,1,305.5,370.8],
+            "fixedContentKey": [1,1,94.3,97.8]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [4.4,7],
+          "feedbackMs": [25.6,31.6],
+          "settledMs": [32,39.4],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [1300.2,1844.9],
+          "feedbackMs": [1462.9,2190.2],
+          "settledMs": [1468.8,2217.8],
+          "longestTaskMs": [1317,1867],
+          "calls": {
+            "fixedContentKey": [2,2,195.7,244.4],
+            "fixedAcceptEdit": [1,1,111.1,137.3],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,17.3,18.9],
+            "fixedSyncUI": [1,1,37.5,69.1],
+            "applyCueListDisplaySettings": [1,1,81,119.5],
+            "renderAll": [1,1,616.8,934.6]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [919.2,946.1],
+          "feedbackMs": [1020.4,1063.3],
+          "settledMs": [1039.2,1080.4],
+          "longestTaskMs": [940,969],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.4,13.5],
+            "fixedSyncUI": [1,1,34.9,35.3],
+            "applyCueListDisplaySettings": [1,1,21,25.7],
+            "renderAll": [1,1,345.2,389.3],
+            "fixedContentKey": [1,1,84,86]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [865.7,1166.5],
+          "feedbackMs": [1016.5,1321],
+          "settledMs": [1021.2,1329.1],
+          "longestTaskMs": [909,1205],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.8,10.9],
+            "fixedSyncUI": [1,1,30.1,34.7],
+            "applyCueListDisplaySettings": [1,1,16.5,17.8],
+            "renderAll": [1,1,346.1,524.4],
+            "fixedContentKey": [1,1,84.4,153.3]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [2224.7,2633.7],
+          "feedbackMs": [3229.7,4755.4],
+          "settledMs": [3260.9,4928.2],
+          "longestTaskMs": [2986,3369],
+          "calls": {
+            "fixedContent": [3,3,269.3,306.6],
+            "fixedContentKey": [5,6,433.2,497.9],
+            "snapshotSegments": [1,1,61.7,64.2],
+            "fixedAcceptEdit": [2,3,387.8,522.4],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,10.3,28.5],
+            "fixedSyncUI": [1,1,35.9,42.9],
+            "applyCueListDisplaySettings": [1,1,60.3,60.7],
+            "renderAll": [1,1,1108.6,1337.9]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [2457.2,3078.5],
+          "feedbackMs": [3281.3,4009.9],
+          "settledMs": [3354.9,4101],
+          "longestTaskMs": [3097,3741],
+          "calls": {
+            "fixedContent": [2,2,210,315],
+            "fixedContentKey": [3,3,282.5,388.8],
+            "snapshotSegments": [1,1,99,153.2],
+            "fixedAcceptEdit": [1,1,307.4,825],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,11.7,36.4],
+            "fixedSyncUI": [1,1,47.5,53.6],
+            "applyCueListDisplaySettings": [1,1,82.5,271],
+            "renderAll": [1,1,1558.4,2227.5]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [2059.8,2768.7],
+          "feedbackMs": [2693.8,3454.3],
+          "settledMs": [2703.3,3473.3],
+          "longestTaskMs": [2535,3341],
+          "calls": {
+            "fixedContent": [3,3,279,320.8],
+            "fixedContentKey": [4,4,276.5,279],
+            "snapshotSegments": [1,1,113.7,139.3],
+            "fixedAcceptEdit": [2,2,304.7,771],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,15.4,27.7],
+            "fixedSyncUI": [1,1,33.1,49],
+            "applyCueListDisplaySettings": [1,1,64.7,73.1],
+            "renderAll": [1,1,1190.3,1837.8]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [690.7,699.3],
+          "feedbackMs": [761.3,764.6],
+          "settledMs": [1670.5,1788.9],
+          "longestTaskMs": [691,699],
+          "calls": {
+            "fixedContent": [2,2,234.9,340.2],
+            "fixedContentKey": [3,3,300.9,397.7],
+            "snapshotSegments": [1,1,81,184.9],
+            "fixedAcceptEdit": [1,1,375.5,468.8]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [150.8,175.1],
+          "feedbackMs": [188.2,210.8],
+          "settledMs": [849.5,891.7],
+          "longestTaskMs": [156,184],
+          "calls": {
+            "fixedContentKey": [2,2,123,129.8],
+            "fixedAcceptEdit": [1,1,70.1,77.6]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [321.7,329.8],
+          "feedbackMs": [345.1,366.9],
+          "settledMs": [1400,1427.7],
+          "longestTaskMs": [326,336],
+          "calls": {
+            "fixedContentKey": [2,2,94.7,165.1],
+            "fixedAcceptEdit": [1,1,53.1,88.1]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [72.2,77.7],
+          "feedbackMs": [98.4,111],
+          "settledMs": [970.3,1952.5],
+          "longestTaskMs": [100,888],
+          "calls": {
+            "fixedContentKey": [1,2,52.6,99.7],
+            "fixedAcceptEdit": [1,2,55.9,105],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,21.4]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [1.2,2.3],
+          "feedbackMs": [51,124.4],
+          "settledMs": [210.3,214.8],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1622,1827.8],
+          "settledMs": [1634.5,1828.9],
+          "longestTaskMs": [600,635],
+          "calls": {
+            "beginCueDrag": [1,1,3.8,5.1],
+            "fixedContentKey": [2,2,103.3,105.4],
+            "fixedAcceptEdit": [1,1,57.6,60.2],
+            "moveCueDrag": [12,12,333.2,392.2],
+            "fixedTimingCheckpoint": [1,1,52.7,56.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,14.5,19.4],
+            "fixedSyncUI": [1,1,35.6,53.2],
+            "applyCueListDisplaySettings": [1,1,8.4,27.7],
+            "renderAll": [1,1,366.3,474.4],
+            "endCueDrag": [1,1,509.5,586]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1804.7,3018.3],
+          "settledMs": [2229,3324.2],
+          "longestTaskMs": [554,1410],
+          "calls": {
+            "beginCueDrag": [1,1,4.4,5.1],
+            "fixedContentKey": [2,4,101.1,198.7],
+            "fixedAcceptEdit": [1,2,57.7,293.7],
+            "moveCueDrag": [12,12,97.7,104.3],
+            "fixedTimingCheckpoint": [1,1,51.1,54.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,12.1,34.7],
+            "fixedSyncUI": [1,1,43.6,53.4],
+            "applyCueListDisplaySettings": [1,1,11.9,13.5],
+            "renderAll": [1,1,422.3,436.6],
+            "endCueDrag": [1,1,539.7,563.3],
+            "fixedContent": [0,1,0,92.7]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [3349.5,3547.7],
+          "settledMs": [3549.3,5125.8],
+          "longestTaskMs": [721,1504],
+          "calls": {
+            "beginCueDrag": [1,1,5.2,5.5],
+            "fixedContentKey": [2,4,120.7,280],
+            "fixedAcceptEdit": [1,2,68,486.5],
+            "moveCueDrag": [12,12,1727.4,1883.6],
+            "fixedTimingCheckpoint": [1,1,63.5,67.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,19,33.4],
+            "fixedSyncUI": [1,1,42.8,49.6],
+            "applyCueListDisplaySettings": [1,1,7.9,9.5],
+            "renderAll": [1,1,445.2,515.2],
+            "endCueDrag": [1,1,658.7,668.6],
+            "fixedContent": [0,1,0,166.2]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [1901.4,1907.4],
+          "settledMs": [4699.5,5538.8],
+          "longestTaskMs": [1436,1599],
+          "calls": {
+            "fixedContentKey": [1,1,93.2,172.1],
+            "fixedAcceptEdit": [1,1,96.2,184.2],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,26.9,55.1]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [1501.1,1533.2],
+          "settledMs": [5530.1,5648.3],
+          "longestTaskMs": [1195,1224],
+          "calls": {
+            "fixedContentKey": [1,1,89,95.2],
+            "fixedAcceptEdit": [1,1,91.6,99],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,20.4,23.4]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0.1,0.1],
+          "feedbackMs": [1106.4,1116.6],
+          "settledMs": [4316.9,4847.6],
+          "longestTaskMs": [786,798],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [942.6,964.2],
+          "feedbackMs": [1567,1586.7],
+          "settledMs": [3224.4,3271.2],
+          "longestTaskMs": [1170,1172],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [32.1,106],
+          "settledMs": [6037.6,6120.5],
+          "longestTaskMs": [120,132],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 272582292,
+            "totalSize": 334315520,
+            "embedderHeapUsedSize": 103740592,
+            "backingStorageSize": 65330241
+          },
+          "heapAfterGC": {
+            "usedSize": 203288936,
+            "totalSize": 205529088,
+            "embedderHeapUsedSize": 99475136,
+            "backingStorageSize": 65246711
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 154375,
+            "jsEventListeners": 73423
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 242636112,
+            "totalSize": 279130112,
+            "embedderHeapUsedSize": 101998632,
+            "backingStorageSize": 66007953
+          },
+          "heapAfterGC": {
+            "usedSize": 234920184,
+            "totalSize": 237092864,
+            "embedderHeapUsedSize": 100429288,
+            "backingStorageSize": 66007318
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 155284,
+            "jsEventListeners": 73523
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 594456288,
+            "totalSize": 689213440,
+            "embedderHeapUsedSize": 285190448,
+            "backingStorageSize": 137036396
+          },
+          "heapAfterGC": {
+            "usedSize": 202891788,
+            "totalSize": 206635008,
+            "embedderHeapUsedSize": 99289744,
+            "backingStorageSize": 68011267
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 154107,
+            "jsEventListeners": 73330
+          }
+        }
+      ]
+    },
+    {
+      "name": "migrated-10000",
+      "fixture": {
+        "version": 1,
+        "profile": "migrated",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 5000,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "cf63910b2c981f10791dea5433b5498e10408e10acb8d8c87f47aba55982556d",
+        "destination": "s2",
+        "firstCue": "cue-ff9d42d8de9f8883"
+      },
+      "status": "complete",
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 2884.8,
+        "domContentLoadedMs": 10350.2,
+        "editorReadyMs": 12417.6,
+        "previewReadyMs": 20416.7,
+        "reloadPreviewReadyMs": 9699.6
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [13.6,14.9],
+          "feedbackMs": [49.9,55.2],
+          "settledMs": [54,59.9],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [1.9,2.4],
+          "feedbackMs": [23.4,26.7],
+          "settledMs": [28.1,30.5],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [3.2,8.9],
+          "feedbackMs": [36.5,134.3],
+          "settledMs": [435.8,874],
+          "longestTaskMs": [154,232],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [2.9,4.1],
+          "feedbackMs": [26.8,29.6],
+          "settledMs": [32.3,34.9],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [562.6,563.6],
+          "feedbackMs": [2152.1,2502.6],
+          "settledMs": [2518.6,2771.1],
+          "longestTaskMs": [1174,1562],
+          "calls": {
+            "fixedContentKey": [3,3,285.2,308.8],
+            "fixedAcceptEdit": [2,2,196.1,209.1],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,31.1,38.9],
+            "fixedSyncUI": [1,1,33.4,36.5],
+            "applyCueListDisplaySettings": [1,1,22.8,26.9],
+            "renderAll": [1,1,283.1,297]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [994.1,1159.5],
+          "feedbackMs": [1353.9,3015.3],
+          "settledMs": [1368.5,3337.8],
+          "longestTaskMs": [1186,1627],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,10.4,28.8],
+            "fixedSyncUI": [1,1,52.2,73.9],
+            "applyCueListDisplaySettings": [1,1,45.1,55.6],
+            "renderAll": [1,1,562.8,791.2],
+            "fixedContentKey": [1,2,289.7,404.6],
+            "fixedAcceptEdit": [0,1,0,114.4]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [403.4,547.8],
+          "feedbackMs": [490.2,1587.6],
+          "settledMs": [512.9,1903.8],
+          "longestTaskMs": [417,640],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.1,13.1],
+            "fixedSyncUI": [1,1,21,48.4],
+            "applyCueListDisplaySettings": [1,1,23.3,32.1],
+            "renderAll": [1,1,242.2,344.6],
+            "fixedContentKey": [1,1,106.9,140.4]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [2.8,3.5],
+          "feedbackMs": [26.9,37.5],
+          "settledMs": [30,41.7],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [1461.4,1483.6],
+          "feedbackMs": [1600.8,1601],
+          "settledMs": [1622,1629.1],
+          "longestTaskMs": [1479,1505],
+          "calls": {
+            "fixedContentKey": [2,2,253.2,470.5],
+            "fixedAcceptEdit": [1,1,105.3,152.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,9.8,14.7],
+            "fixedSyncUI": [1,1,25.5,48.6],
+            "applyCueListDisplaySettings": [1,1,63.8,68.6],
+            "renderAll": [1,1,533.5,651.4]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [851.4,1100.1],
+          "feedbackMs": [1300.8,2610.1],
+          "settledMs": [1350.5,2855.8],
+          "longestTaskMs": [1206,1376],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,9.9,26.1],
+            "fixedSyncUI": [1,1,23.9,108.1],
+            "applyCueListDisplaySettings": [1,1,22.9,99.3],
+            "renderAll": [1,1,294.7,552.7],
+            "fixedContentKey": [1,2,100.8,191.3],
+            "fixedAcceptEdit": [0,1,0,101.6]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [1076,1139.8],
+          "feedbackMs": [1318.3,3301.6],
+          "settledMs": [1331.3,3605.7],
+          "longestTaskMs": [1177,1661],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,9.3,59.1],
+            "fixedSyncUI": [1,1,40.2,50.7],
+            "applyCueListDisplaySettings": [1,1,30,41],
+            "renderAll": [1,1,444.7,462.1],
+            "fixedContentKey": [1,2,109.5,263.3],
+            "fixedAcceptEdit": [0,1,0,169.9]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [2750.5,2789.4],
+          "feedbackMs": [3476.4,4874.3],
+          "settledMs": [3519.5,5130.2],
+          "longestTaskMs": [3264,3268],
+          "calls": {
+            "fixedContent": [3,3,328.5,349.6],
+            "fixedContentKey": [5,6,469.4,545.3],
+            "snapshotSegments": [1,1,84,85.5],
+            "fixedAcceptEdit": [2,3,538.9,625.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,9.9,29.7],
+            "fixedSyncUI": [1,1,35.8,42.5],
+            "applyCueListDisplaySettings": [1,1,56.5,61.5],
+            "renderAll": [1,1,1267.4,1400.9]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [2423.6,2657.7],
+          "feedbackMs": [3148.3,5002.1],
+          "settledMs": [3268,5347.2],
+          "longestTaskMs": [2976,3167],
+          "calls": {
+            "fixedContent": [2,3,273.1,399.3],
+            "fixedContentKey": [3,5,296.3,462.2],
+            "snapshotSegments": [1,1,84.9,86.4],
+            "fixedAcceptEdit": [1,2,337.5,986.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,12.9,36.7],
+            "fixedSyncUI": [1,1,30.3,32.6],
+            "applyCueListDisplaySettings": [1,1,53.7,54.3],
+            "renderAll": [1,1,1566.4,2019.1]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [3026.6,3581.2],
+          "feedbackMs": [4955.8,6145.9],
+          "settledMs": [5341,6554.9],
+          "longestTaskMs": [4215,4516],
+          "calls": {
+            "fixedContent": [3,3,413.3,433.8],
+            "fixedContentKey": [5,5,413.2,515.4],
+            "snapshotSegments": [1,1,132.3,158.8],
+            "fixedAcceptEdit": [3,3,429.8,526.3],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,39.8,58.7],
+            "fixedSyncUI": [1,1,28.5,43.8],
+            "applyCueListDisplaySettings": [1,1,56,102.2],
+            "renderAll": [1,1,1880.6,1927.7]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [484.2,507.6],
+          "feedbackMs": [540.4,567.8],
+          "settledMs": [727.1,1109.6],
+          "longestTaskMs": [484,508],
+          "calls": {
+            "fixedContent": [1,2,126.4,219.5],
+            "fixedContentKey": [1,3,101.1,299.4],
+            "snapshotSegments": [1,1,83.7,85.3],
+            "fixedAcceptEdit": [0,1,0,333.3]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [157.3,163],
+          "feedbackMs": [187.4,198.2],
+          "settledMs": [403.6,440.3],
+          "longestTaskMs": [162,167],
+          "calls": {
+            "fixedContentKey": [2,2,124.6,137.2],
+            "fixedAcceptEdit": [1,1,75.4,84.1]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [261.9,275.8],
+          "feedbackMs": [293.6,298.2],
+          "settledMs": [527.9,534.3],
+          "longestTaskMs": [267,280],
+          "calls": {
+            "fixedContentKey": [2,2,113,122.9],
+            "fixedAcceptEdit": [1,1,63.2,69.2]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [99.2,121],
+          "feedbackMs": [132.1,164.6],
+          "settledMs": [382.1,1769.5],
+          "longestTaskMs": [105,1015],
+          "calls": {
+            "fixedContentKey": [1,2,71.1,141.7],
+            "fixedAcceptEdit": [1,2,74.7,150.4],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,23]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [0.6,0.6],
+          "feedbackMs": [46,51.4],
+          "settledMs": [201.6,203.3],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1222,1622.8],
+          "settledMs": [1223.1,1624.3],
+          "longestTaskMs": [551,866],
+          "calls": {
+            "beginCueDrag": [1,1,1.9,3],
+            "fixedContentKey": [2,2,118.9,131.8],
+            "fixedAcceptEdit": [1,1,54.8,83.6],
+            "moveCueDrag": [12,12,227.2,228.4],
+            "fixedTimingCheckpoint": [1,1,54.8,71.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.3,11.3],
+            "fixedSyncUI": [1,1,31.3,44.2],
+            "applyCueListDisplaySettings": [1,1,9.4,11.5],
+            "renderAll": [1,1,343.2,529.5],
+            "endCueDrag": [1,1,457.2,683]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1259.3,1620.6],
+          "settledMs": [1262.2,1626.6],
+          "longestTaskMs": [488,781],
+          "calls": {
+            "beginCueDrag": [1,1,5.2,6.9],
+            "fixedContentKey": [2,2,117.1,175.5],
+            "fixedAcceptEdit": [1,1,69.1,106.3],
+            "moveCueDrag": [12,12,103.8,143.4],
+            "fixedTimingCheckpoint": [1,1,54.1,75.9],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,11.2,11.8],
+            "fixedSyncUI": [1,1,31,46.7],
+            "applyCueListDisplaySettings": [1,1,6.6,8.9],
+            "renderAll": [1,1,347.9,612.5],
+            "endCueDrag": [1,1,462.2,763.1]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [2976.3,4315.2],
+          "settledMs": [2985.6,4659.2],
+          "longestTaskMs": [556,1237],
+          "calls": {
+            "beginCueDrag": [1,1,4.6,5.5],
+            "fixedContentKey": [2,4,122.9,238.3],
+            "fixedAcceptEdit": [1,2,72.8,353.7],
+            "moveCueDrag": [12,12,1595.7,1691.8],
+            "fixedTimingCheckpoint": [1,1,61.7,63.3],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,11.8,33.8],
+            "fixedSyncUI": [1,1,22.3,23.6],
+            "applyCueListDisplaySettings": [1,1,5.8,6.5],
+            "renderAll": [1,1,379.4,380.4],
+            "endCueDrag": [1,1,518.6,527.6],
+            "fixedContent": [0,1,0,133.2]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [1628,2076.3],
+          "settledMs": [4689.7,7130.5],
+          "longestTaskMs": [1276,1659],
+          "calls": {
+            "fixedContentKey": [1,3,110.3,380.8],
+            "fixedAcceptEdit": [1,2,113.3,527.7],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,21.3,24.3],
+            "fixedContent": [0,1,0,110.4]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [1733.8,1857.7],
+          "settledMs": [4928.5,5229.2],
+          "longestTaskMs": [1402,1451],
+          "calls": {
+            "fixedContentKey": [1,1,101.1,110.5],
+            "fixedAcceptEdit": [1,1,104.9,113.5],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,22.6,23.4]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [1049.3,1152.1],
+          "settledMs": [1646.6,1766.9],
+          "longestTaskMs": [713,793],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [615,624],
+          "feedbackMs": [1241.5,1258],
+          "settledMs": [2543.1,2694],
+          "longestTaskMs": [888,899],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [29.7,136.8],
+          "settledMs": [6120.6,6154.3],
+          "longestTaskMs": [121,212],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 345640632,
+            "totalSize": 404082688,
+            "embedderHeapUsedSize": 101260800,
+            "backingStorageSize": 68053645
+          },
+          "heapAfterGC": {
+            "usedSize": 239984220,
+            "totalSize": 242577408,
+            "embedderHeapUsedSize": 97305136,
+            "backingStorageSize": 67889758
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153083,
+            "jsEventListeners": 73173
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 275141660,
+            "totalSize": 311508992,
+            "embedderHeapUsedSize": 101533280,
+            "backingStorageSize": 68677241
+          },
+          "heapAfterGC": {
+            "usedSize": 298917688,
+            "totalSize": 301195264,
+            "embedderHeapUsedSize": 100190384,
+            "backingStorageSize": 68676480
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153681,
+            "jsEventListeners": 73253
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 732045996,
+            "totalSize": 835321856,
+            "embedderHeapUsedSize": 390865696,
+            "backingStorageSize": 140604116
+          },
+          "heapAfterGC": {
+            "usedSize": 242895572,
+            "totalSize": 249200640,
+            "embedderHeapUsedSize": 99010960,
+            "backingStorageSize": 70809500
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153203,
+            "jsEventListeners": 73258
+          }
+        }
+      ]
+    }
+  ],
+  "modelProbes": {
+    "count": 10000,
+    "repeats": 3,
+    "cases": {
+      "preview-window-90s": {
+        "samples": [38.08930000010878,13.973500000312924,11.156899999827147],
+        "ms": {
+          "n": 3,
+          "median": 13.973500000312924,
+          "p95": null,
+          "max": 38.08930000010878
+        },
+        "outputCues": 126
+      },
+      "full-project-conversion": {
+        "samples": [189.63189999992028,176.58009999990463,199.89429999981076],
+        "ms": {
+          "n": 3,
+          "median": 189.63189999992028,
+          "p95": null,
+          "max": 199.89429999981076
+        },
+        "outputCues": 10000
+      },
+      "locks-none": {
+        "samples": [0.263499999884516,0.0024999999441206455,0.008700000122189522],
+        "ms": {
+          "n": 3,
+          "median": 0.008700000122189522,
+          "p95": null,
+          "max": 0.263499999884516
+        }
+      },
+      "locks-half-project": {
+        "samples": [1025.4945000000298,782.3865000000224,697.4876999999397],
+        "ms": {
+          "n": 3,
+          "median": 782.3865000000224,
+          "p95": null,
+          "max": 1025.4945000000298
+        }
+      },
+      "preview-window-with-fixed-long-note": {
+        "samples": [123.13189999992028,140.42579999985173,105.4152999999933],
+        "ms": {
+          "n": 3,
+          "median": 123.13189999992028,
+          "p95": null,
+          "max": 140.42579999985173
+        },
+        "outputCues": 10000
+      }
+    }
+  }
+}
