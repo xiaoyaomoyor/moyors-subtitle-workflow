@@ -13,6 +13,7 @@ let fixedLastContent = null;
 let fixedLastContentKey = '';
 let fixedHistoryCheckpoint = null;
 let fixedOwnerCache = null;
+let fixedDataIndex = null;
 let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
 let fixedNumberCache = null;
@@ -20,14 +21,55 @@ let fixedLastMessage = '';
 let productionSplitTrackId = null;
 let productionSelectionOrder = [];
 let fixedDragTransaction = null;
+let fixedPendingEdit = null;
+let fixedRenderChanges = null;
+function fixedCurrentContent() {
+  return {schema:DATA.schema,segments:DATA.segments,multi_subtitle:DATA.multi_subtitle,
+    subtitle_layers:DATA.subtitle_layers,subtitle_tracks:DATA.subtitle_tracks};
+}
+function fixedSealCheckpoint() {
+  fixedLastContentKey='';fixedHistoryCheckpoint=editorHistory.checkpoint();
+}
+function fixedIndex() {
+  return fixedDataIndex ||= fixedTrackCore.createIndex(DATA,{validated:true});
+}
+function fixedContentChanged() {
+  return !fixedLastContent || !MSWEditTransaction.equal(fixedLastContent,fixedCurrentContent());
+}
+function fixedCompletePending(patch) {
+  if(!fixedPendingEdit)return;
+  const record=fixedPendingEdit;fixedPendingEdit=null;
+  if(!patch){editorHistory.restoreCheckpoint(fixedHistoryCheckpoint);updateUndoRedoButtons();return;}
+  record.kind='subtitle-edit';record.patch=patch;record.forward=false;
+}
+function fixedApplyEditHistory(record) {
+  try {
+    const next=MSWEditTransaction.apply(fixedCurrentContent(),record.patch,record.forward);
+    // History can restore locking metadata itself; validate the complete result
+    // before swapping anything into the live project.
+    fixedTrackCore.validate(next);
+    const checkpoint=MSWEditTransaction.apply(fixedLastContent,record.patch,record.forward,{check:false});
+    for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks'])DATA[field]=next[field];
+    fixedLastContent=checkpoint;fixedSealCheckpoint();fixedInvalidate();
+    currentCuePanelIdx=-1;resetCuePanelEditState();clearSelection({silent:true,commitCuePanel:false});
+    projectImportDirty=true;
+    renderAll({changedCueIds:MSWEditTransaction.renderChanges(record.patch),validated:true});
+    restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+  } catch(error){fixedStatus(error.message);return false;}
+}
 function snapshotFixedTiming(record,label=record.label) {
   const ids=new Set(record.cues.map(c=>c.id));
+  // Resize history needs only the selected rows. Do not build track/binding/
+  // marker indexes solely to copy a few cues at the first pointer frame.
+  const rows=fixedDataIndex?[...ids].map(id=>fixedDataIndex.byId.get(id)).filter(Boolean).map(row=>({cue:row.cue,
+    segments:fixedDataIndex.sources.get(JSON.stringify([row.role,row.track_id]))}))
+    :layerCore.tracks(DATA).flatMap(source=>source.segments.filter(c=>ids.has(c.id)).map(cue=>({cue,segments:source.segments})));
   return {kind:'subtitle-timing',label,view:snapshotEditorSelection(),
-    cues:layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>ids.has(c.id)).map(c=>{
+    cues:rows.map(({cue:c,segments})=>{
       const copy=structuredClone(c);
-      for(const field of ['color_ref','sticker_ref'])if(copy[field]){copy[field].cue_id=s.segments[copy[field].headIdx]?.id;delete copy[field].headIdx;}
+      for(const field of ['color_ref','sticker_ref'])if(copy[field]){copy[field].cue_id=segments[copy[field].headIdx]?.id;delete copy[field].headIdx;}
       return copy;
-    })),
+    }),
     owners:DATA.subtitle_tracks.assignments.filter(a=>ids.has(a.cue_id)).map(a=>({...a}))};
 }
 function fixedBeginDragTransaction(drag,label) {
@@ -71,7 +113,7 @@ function fixedTimingCheckpoint(record) {
   MULTI_SUBTITLE_UTILS.rebuildBindingOffsets(fixedLastContent.multi_subtitle,fixedLastContent.segments);
   fixedLastContent.multi_subtitle._dirty=DATA.multi_subtitle._dirty;
   for(const t of fixedLastContent.multi_subtitle.tracks)t._dirty=DATA.multi_subtitle.tracks.find(s=>s.id===t.id)?._dirty;
-  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedSealCheckpoint();
 }
 function fixedRestoreTiming(record) {
   const byId=new Map(record.cues.map(c=>[c.id,c]));
@@ -89,8 +131,11 @@ function fixedRestoreTiming(record) {
   syncBindingOffsets();fixedInvalidate();
 }
 function fixedApplyTimingHistory(record) {
-  fixedRestoreTiming(record);fixedTrackCore.validate(DATA);fixedTimingCheckpoint(record);
-  projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id)),validated:true});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+  const previous=snapshotFixedTiming(record);
+  try {
+    fixedRestoreTiming(record);fixedTrackCore.validate(DATA);fixedTimingCheckpoint(record);
+    projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id)),validated:true});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+  } catch(error) {fixedRestoreTiming(previous);fixedStatus(error.message);return false;}
 }
 function fixedFinishDragTransaction() {
   const record=fixedDragTransaction;if(!record)return false;
@@ -151,7 +196,7 @@ document.getElementById('cue-list-swap-sides')?.addEventListener('click',()=>{
   catch(error){fixedStatus(error.message);}
 });
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
-function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
+function fixedInvalidate() { fixedDataIndex=null;fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
 function fixedCueLabel(cue,role='main',trackId=null,editor=false) {
   const track=fixedTrack(cue,role,trackId);if(!track)return '';
   if(!fixedNumberCache) {
@@ -212,40 +257,51 @@ function fixedSameTrack(a, b) {
   fixedOwners(); return fixedCueOwners.get(a) === fixedCueOwners.get(b);
 }
 function fixedContent() {
-  return structuredClone({ schema: DATA.schema, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle,
-    subtitle_layers: DATA.subtitle_layers, subtitle_tracks: DATA.subtitle_tracks });
+  return structuredClone(fixedCurrentContent());
 }
 function fixedContentKey() {
   return JSON.stringify({schema:DATA.schema,segments:DATA.segments,multi_subtitle:DATA.multi_subtitle,
     subtitle_layers:DATA.subtitle_layers,subtitle_tracks:DATA.subtitle_tracks});
 }
 function fixedReset() {
-  fixedDragTransaction=null;fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
+  fixedPendingEdit=null;fixedDragTransaction=null;fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
 }
 function fixedBeginEdit() {
   if(fixedPositionEditing)fixedStopPositioning(false);
   if (!fixedTrackMode()) return;
-  fixedLastContent = fixedContent();
-  fixedLastContentKey=fixedContentKey();
+  if(!fixedAcceptEdit())throw Error('字幕编辑未通过轨道校验');
   fixedHistoryCheckpoint = editorHistory.checkpoint();
 }
 function fixedAcceptEdit() {
   if (!fixedTrackMode()) return true;
-  if(fixedLastContent&&fixedContentKey()===fixedLastContentKey)return true;
+  if(!fixedContentChanged()){fixedCompletePending(null);return true;}
   try {
     for (const cue of DATA.segments) if (fixedDraftOwners.get(cue)?.legacy
       && !DATA.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)) DATA.subtitle_layers.legacy_overlay.cue_ids.push(cue.id);
     fixedTrackCore.reconcile(DATA, row => fixedDraftOwners.get(row.cue)?.owner || fixedActiveTrack()?.id);
     if (fixedLastContent) fixedTrackCore.assertLocks(fixedLastContent, DATA);
-    fixedLastContent = fixedContent();
-    fixedLastContentKey=fixedContentKey();
-    fixedHistoryCheckpoint = editorHistory.checkpoint();
+    if(fixedPendingEdit) {
+      // Sort before sealing the delta: inserting in the middle must not leave
+      // history describing the temporary append order used by create/split.
+      const selection=snapshotEditorSelection();
+      layerCore.tracks(DATA).forEach(source=>layerCore.sortTrack(source.segments));
+      restoreEditorSelection(selection,{render:false});
+      syncProjectTimebaseAndBindingOffsets(DATA,{preferFrames:false});
+    }
+    const patch=fixedLastContent?MSWEditTransaction.diff(fixedLastContent,fixedCurrentContent()):null;
+    fixedCompletePending(patch);
+    fixedRenderChanges=MSWEditTransaction.renderChanges(patch);
+    fixedLastContent=fixedLastContent?MSWEditTransaction.apply(fixedLastContent,patch,true,{check:false}):fixedContent();
+    fixedSealCheckpoint();
     fixedInvalidate();
     return true;
   } catch (error) {
     if (fixedLastContent) {
+      const failedView=fixedPendingEdit?.view;
       for (const field of ['segments', 'multi_subtitle', 'subtitle_layers', 'subtitle_tracks']) DATA[field] = structuredClone(fixedLastContent[field]);
       if (fixedHistoryCheckpoint) editorHistory.restoreCheckpoint(fixedHistoryCheckpoint);
+      fixedPendingEdit=null;
+      if(failedView){currentCuePanelIdx=-1;resetCuePanelEditState();restoreEditorSelection(failedView,{render:false});}
       fixedInvalidate(); updateUndoRedoButtons();
     }
     fixedStatus(error.message);
@@ -335,7 +391,8 @@ const fixedAppearanceKeys=['subtitle_style','subtitle_style_preset','subtitle_an
 function fixedAppearanceSources(changes) {
   const ids=new Set((changes.cues||[]).map(c=>c.id));
   if(!ids.size)return new Map();
-  return new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>ids.has(c.id)).map(c=>[c.id,{cue:c,track:fixedTrack(c,s.role,s.track_id)}])));
+  const index=fixedIndex();
+  return new Map([...ids].flatMap(id=>{const row=index.byId.get(id);return row?[[id,{cue:row.cue,track:index.trackFor(row)}]]:[];}));
 }
 function snapshotFixedAppearance(changes,label) {
   const sources=fixedAppearanceSources(changes);
@@ -378,7 +435,7 @@ function fixedCommitAppearance(changes,label,{restore=false}={}) {
   const byId=new Map(cues.map(c=>[c.id,c.fields]));
   for(const source of layerCore.tracks(fixedLastContent))for(const cue of source.segments)if(byId.has(cue.id))applyCue(cue,byId.get(cue.id));
   for(const {id,style} of changedTracks)fixedLastContent.subtitle_tracks.tracks.find(t=>t.id===id).style=structuredClone(style);
-  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedSealCheckpoint();
   fixedPreviewInvalidate();projectImportDirty=true;updateUndoRedoButtons();refreshSubtitlePreview();scheduleAutoSaveFlush({validated:true});
   window.dispatchEvent(new Event('msw:burn-style'));
   if(restore)restoreEditorSelection(changes.view);
@@ -400,20 +457,31 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
   if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
   const panelId=getCurrentCuePanelTarget()?.segment.id;
   const next=window.MSWProductionProject.fromProject(project);
+  MULTI_SUBTITLE_UTILS.normalizeMultiSubtitleProject(next);
   if(displayOnly) {
     const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
     if(JSON.stringify(ordered(MSWProductionProject.toProject(DATA)))!==JSON.stringify(ordered(MSWProductionProject.toProject(next))))throw Error('显示操作不能修改字幕内容');
   } else fixedTrackCore.assertLocks(DATA,next);
-  commitProcessingEdits();if(recordHistory)pushUndo(label,{captureView:true});
-  for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks','msw'])if(next[field])DATA[field]=next[field];
-  // This transaction has already checked the canonical content/locks. Reset
-  // the legacy operation checkpoint so a display-side change on locked tracks
-  // is not mistaken for a later edit to their contents.
-  fixedLastContent=fixedContent();fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
-  fixedInvalidate();normalizeMultiSubtitleState();clearSelection({silent:true});
+  commitProcessingEdits();if(!fixedAcceptEdit())return false;
+  const content={schema:next.schema,segments:next.segments,multi_subtitle:next.multi_subtitle,
+    subtitle_layers:next.subtitle_layers,subtitle_tracks:next.subtitle_tracks};
+  const patch=MSWEditTransaction.diff(fixedCurrentContent(),content);
+  const changedMsw=next.msw&&!MSWEditTransaction.equal(DATA.msw,next.msw);
+  if(!patch&&!changedMsw)return false;
+  if(recordHistory) {
+    if(changedMsw)pushUndo(label,{captureView:true}); // Broader asset/import snapshot.
+    else {rememberCueListMutation();editorHistory.push({kind:'subtitle-edit',label,patch,forward:false,view:snapshotEditorSelection()});}
+  }
+  const committed=MSWEditTransaction.apply(fixedCurrentContent(),patch,true,{check:false});
+  fixedLastContent=MSWEditTransaction.apply(fixedLastContent,patch,true,{check:false});
+  for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks'])DATA[field]=committed[field];
+  if(changedMsw)DATA.msw=next.msw;
+  fixedSealCheckpoint();
+  fixedInvalidate();normalizedMultiSubtitleReference=DATA.multi_subtitle;clearSelection({silent:true});
   DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack()?.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});
   syncCuePanelSelection(panelId);
-  projectImportDirty=true;cueListPlaybackKey=null;renderAll({waveform:'full'});scheduleAutoSaveFlush();
+  projectImportDirty=true;cueListPlaybackKey=null;
+  renderAll({changedCueIds:MSWEditTransaction.renderChanges(patch),validated:true});updateUndoRedoButtons();scheduleAutoSaveFlush({validated:true});return true;
 }
 function productionBindSelected() {
   try {
@@ -488,7 +556,7 @@ function productionApplyInsertion(record,{recordHistory=false}={}) {
   }
   projectImportDirty=true;cueListPlaybackKey=null;
   renderAll({changedCueIds:ids,validated:true});
-  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedSealCheckpoint();
   if(!recordHistory)restoreEditorSelection(record.view);
   updateUndoRedoButtons();scheduleAutoSaveFlush({validated:true});return true;
 }
@@ -553,7 +621,7 @@ function fixedPrepareMove(drag) {
   const selected=fixedSelectedRows().map(r=>r.cue_id);
   const ids=selected.includes(anchor.id)?selected:drag.indices.map(i=>source[i].id);
   const plan=MSWProductionProject.prepareMove(DATA,ids,anchor.id);
-  drag.fixedMove={...plan,assignments:structuredClone(DATA.subtitle_tracks.assignments),active:fixedActiveTrackId};
+  drag.fixedMove={...plan,index:fixedIndex(),assignments:structuredClone(DATA.subtitle_tracks.assignments),active:fixedActiveTrackId};
   drag.moveMotions=plan.entries.map(e=>({segment:e.cue,segments:e.source.segments,
     start:drag.timing.fromMs(e.original.start),end:drag.timing.fromMs(e.original.end),moveStart:true,moveEnd:true}));
   return drag.fixedMove;
@@ -602,7 +670,7 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
       return [e.cue.id,next];
     }));
     drag.destinationPreview.entries=previews(ms);
-    fixedTrackCore.validateTimingChanges(DATA,changes,moving);
+    fixedTrackCore.validateTimingChanges(DATA,changes,moving,state.index);
   } catch(error) {drag.destinationPreview.reason=error.message;return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
   const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);

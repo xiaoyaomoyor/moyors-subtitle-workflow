@@ -19640,7 +19640,33 @@ export default MawDynamicCaptions;
 
   // Pointer frames only alter ranges and ownership. Validate those constraints
   // locally; the complete contract is still checked once at gesture commit.
-  function validateTimingChanges(project, changes, ownerChanges=new Map()) {
+  function validateTimingChanges(project, changes, ownerChanges=new Map(), index=null) {
+    if(index&&flatView(project)) {
+      const byId=index.byId, affected=new Set(), moved=new Set([...changes.keys(),...ownerChanges.keys()]);
+      const owner=id=>ownerChanges.get(id)||byId.get(id)?.subtitle_track_id;
+      const additions=new Map();
+      for(const id of moved) {
+        const row=byId.get(id);if(!row)fail('字幕引用已失效');
+        const target=owner(id),cue=changes.get(id)||row.cue;
+        if(!index.tracks.has(target))fail('目标轨道不存在');
+        if(!Number.isSafeInteger(cue.start)||!Number.isSafeInteger(cue.end)||cue.start<0||cue.end<=cue.start)fail('字幕时间范围无效');
+        affected.add(row.subtitle_track_id);affected.add(target);
+        if(!additions.has(target))additions.set(target,[]);additions.get(target).push(cue);
+        const peer=index.byKey.get(index.partners.get(key(row)));
+        if(peer&&owner(peer.cue_id)===target)fail('绑定字幕必须位于不同轨道');
+      }
+      for(const trackId of affected) {
+        const lane=(index.lanes.get(JSON.stringify([trackId,'']))||[]).filter(r=>!moved.has(r.cue_id));
+        const incoming=(additions.get(trackId)||[]).sort((a,b)=>a.start-b.start);
+        let a=0,b=0,previous=null;
+        while(a<lane.length||b<incoming.length) {
+          const cue=b>=incoming.length||a<lane.length&&lane[a].cue.start<=incoming[b].start?lane[a++].cue:incoming[b++];
+          if(previous&&cue.start<previous.end)fail(`目标轨道 ${index.tracks.get(trackId).name} 在 ${(cue.start/1000).toFixed(3)} s 处已有字幕，请调整位置`);
+          previous=cue;
+        }
+      }
+      return;
+    }
     const owners=new Map(project.subtitle_tracks.assignments.map(a=>[a.cue_id,ownerChanges.get(a.cue_id)||a.subtitle_track_id]));
     for(const b of project.multi_subtitle?.bindings||[])if(owners.get(b.main_segment_ids[0])===owners.get(b.extension_segment_ids[0]))fail('绑定字幕必须位于不同轨道');
     const lanes=new Map();
@@ -19657,13 +19683,46 @@ export default MawDynamicCaptions;
       }
     }
   }
-  function createIndex(project) {
-    validate(project);
+  // Operation-scoped index. Never cache by the mutable project object alone:
+  // callers discard it on commit/rollback, including history navigation.
+  function createIndex(project, { validated = false } = {}) {
+    if (!validated) validate(project);
     const tracks = new Map(project.subtitle_tracks.tracks.map(t => [t.id, t]));
     const owners = new Map(project.subtitle_tracks.assignments.map(a => [key(a), a.subtitle_track_id]));
     const rows = sourceRecords(project).map(row => ({ ...row, subtitle_track_id: owners.get(key(row)) }));
     const byKey = new Map(rows.map(row => [key(row), row]));
+    const bindings = new Map(), partners = new Map(), lanes = new Map(), dependents = new Map();
+    const sources = new Map(layers.tracks(project).map(s => [JSON.stringify([s.role, s.track_id]), s.segments]));
+    for (const binding of project.multi_subtitle?.bindings || []) {
+      const trackId = binding.track_id ?? project.multi_subtitle.tracks[0]?.id;
+      const a = key({role:'main', track_id:null, cue_id:binding.main_segment_ids?.[0] ?? binding.main_segment_id});
+      const b = key({role:'extension', track_id:trackId, cue_id:binding.extension_segment_ids?.[0] ?? binding.extension_segment_id});
+      for (const [own, other] of [[a,b],[b,a]]) {
+        if (!bindings.has(own)) bindings.set(own, []);
+        bindings.get(own).push(binding); partners.set(own, other);
+      }
+    }
+    for (const row of rows) {
+      const lane = JSON.stringify([row.subtitle_track_id, flatView(project) ? '' : row.role]);
+      if (!lanes.has(lane)) lanes.set(lane, []);
+      lanes.get(lane).push(row);
+      const segments = sources.get(JSON.stringify([row.role, row.track_id]));
+      for (const field of ['color_ref','sticker_ref']) if (row.cue[field]) {
+        const head = segments[row.cue[field].headIdx];
+        if (!head) continue; // validate() reports invalid references at the boundary.
+        const headKey = key({...row, cue_id:head.id});
+        if (!dependents.has(headKey)) dependents.set(headKey, new Set());
+        dependents.get(headKey).add(key(row));
+      }
+    }
+    for (const lane of lanes.values()) lane.sort((a,b) => a.cue.start-b.cue.start || a.cue.end-b.cue.end);
     return {
+      tracks, owners, byKey, byId:new Map(rows.map(row=>[row.cue_id,row])), bindings, partners, lanes, dependents, sources,
+      boundRefs: refs => {
+        const wanted = new Set(refs.map(key));
+        for (const id of [...wanted]) if (partners.has(id)) wanted.add(partners.get(id));
+        return [...wanted].map(id => byKey.get(id)).filter(Boolean).map(refOf);
+      },
       resolve: ref => byKey.get(key(ref)) || null,
       trackFor: ref => tracks.get(owners.get(key(ref))) || null,
       records: ({ subtitleTrackId, role, includeHidden = false, includeDisabled = true } = {}) => rows.filter(row =>
@@ -19725,10 +19784,11 @@ export default MawDynamicCaptions;
         || placement(track) !== placement(other) || styleKind(track) !== styleKind(other)
         || JSON.stringify(track.position) !== JSON.stringify(other.position))) fail(`“${track.name}”已锁定，不能修改样式或位置`);
     }
-    const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
-    const canonical = (row, project) => {
+    const index = createIndex(before), nextIndex = createIndex(after, {validated:true});
+    const next = nextIndex.byKey, owners = nextIndex.owners;
+    const canonical = (row, dataIndex) => {
       const cue=row.cue;
-      const segments=row.role==='main'?project.segments:project.multi_subtitle.tracks.find(t=>t.id===row.track_id).segments;
+      const segments=dataIndex.sources.get(JSON.stringify([row.role,row.track_id]));
       return Object.fromEntries(Object.keys(cue).sort()
         .filter(k => !k.startsWith('_') && !['start_frame', 'end_frame'].includes(k)).map(k => {
           // Inserting on another physical track changes display-array indices,
@@ -19739,16 +19799,16 @@ export default MawDynamicCaptions;
           return [k,cue[k]];
         }));
     };
-    const index = createIndex(before);
     for (const row of index.records({ includeHidden: true })) {
       if (!index.trackFor(row).locked) continue;
       const other = next.get(key(row));
       if (!other || owners.get(key(row)) !== row.subtitle_track_id
-        || JSON.stringify(canonical(row,before)) !== JSON.stringify(canonical(other,after))) fail(`“${index.trackFor(row).name}”已锁定，操作未提交`);
-      const bindings = p => (p.multi_subtitle?.bindings || []).filter(b => row.role === 'main'
-        ? b.main_segment_ids?.includes(row.cue_id) : b.track_id === row.track_id && b.extension_segment_ids?.includes(row.cue_id));
-      if (JSON.stringify(bindings(before)) !== JSON.stringify(bindings(after))) fail('锁定轨道的绑定不能修改');
+        || JSON.stringify(canonical(row,index)) !== JSON.stringify(canonical(other,nextIndex))) fail(`“${index.trackFor(row).name}”已锁定，操作未提交`);
+      if (JSON.stringify(index.bindings.get(key(row)) || []) !== JSON.stringify(nextIndex.bindings.get(key(row)) || [])) fail('锁定轨道的绑定不能修改');
     }
+    const lockedIds = new Set(locked.map(t => t.id));
+    for (const row of next.values()) if (lockedIds.has(row.subtitle_track_id)
+      && index.owners.get(key(row)) !== row.subtitle_track_id) fail('锁定轨道不能接收新增或移入的字幕');
   }
   function addTrack(project, kind = 'subtitle', id) {
     validate(project);
@@ -19784,6 +19844,112 @@ export default MawDynamicCaptions;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSubtitleTracks = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// Immutable edit deltas. Runtime indexes are rebuilt at commit boundaries;
+// history owns changed values, never references to mutable live subtitle rows.
+(function(global) {
+  'use strict';
+  const copy = value => value === undefined ? undefined : structuredClone(value);
+  const object = value => value && typeof value === 'object' && !Array.isArray(value);
+  const identity = value => object(value) ? typeof value.id === 'string' ? value.id
+    : typeof value.cue_id === 'string' && Object.hasOwn(value,'subtitle_track_id')
+      ? JSON.stringify([value.role,value.track_id,value.cue_id]) : null : null;
+  function equal(a,b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+    if(Array.isArray(a)) {
+      if(!Array.isArray(b)||a.length!==b.length)return false;
+      for(let i=0;i<a.length;i++)if(!equal(a[i],b[i]))return false;
+      return true;
+    }
+    if(Array.isArray(b))return false;
+    const keys = Object.keys(a), other = Object.keys(b);
+    // Live checkpoints may carry unset optional flags. Like the saved JSON
+    // and diff(), an absent field and an undefined field are equivalent.
+    let missing=keys.length!==other.length;
+    for(const key of keys) {
+      if(!Object.hasOwn(b,key)){if(a[key]!==undefined)return false;missing=true;}
+      else if(!equal(a[key],b[key]))return false;
+    }
+    if(missing)for(const key of other)if(!Object.hasOwn(a,key)&&b[key]!==undefined)return false;
+    return true;
+  }
+  function diff(before,after) {
+    if (before === after) return null;
+    if (Array.isArray(before) && Array.isArray(after)) {
+      const a = before.map(identity), b = after.map(identity);
+      if (a.every(x => x !== null) && b.every(x => x !== null) && new Set(a).size === a.length && new Set(b).size === b.length) {
+        const old = new Map(before.map((v,i) => [a[i],v])), next = new Map(after.map((v,i) => [b[i],v])), entries=[];
+        for (const id of new Set([...a,...b])) { const patch=diff(old.get(id),next.get(id)); if(patch)entries.push([id,patch]); }
+        const order=equal(a,b)?null:[a,b];
+        return entries.length || order ? {kind:'rows',entries,order} : null;
+      }
+      return equal(before,after) ? null : {kind:'value',before:copy(before),after:copy(after)};
+    }
+    if (object(before) && object(after)) {
+      const entries=[];
+      for (const key of new Set([...Object.keys(before),...Object.keys(after)])) {
+        const patch=diff(Object.hasOwn(before,key)?before[key]:undefined,Object.hasOwn(after,key)?after[key]:undefined);if(patch)entries.push([key,patch]);
+      }
+      return entries.length ? {kind:'object',entries} : null;
+    }
+    return equal(before,after) ? null : {kind:'value',before:copy(before),after:copy(after)};
+  }
+  function apply(current,patch,forward=true,{check=true}={}) {
+    if (!patch) return current;
+    const from=forward?'before':'after', to=forward?'after':'before';
+    if (patch.kind==='value') {
+      if(check&&!equal(current,patch[from]))throw Error('编辑目标已改变，未提交操作');
+      return copy(patch[to]);
+    }
+    if (patch.kind==='rows') {
+      if(!Array.isArray(current))throw Error('编辑列表已改变，未提交操作');
+      const order=current.map(identity), rows=new Map(current.map((v,i)=>[order[i],v]));
+      if(check&&patch.order&&!equal(order,patch.order[forward?0:1]))throw Error('字幕顺序已改变，未提交操作');
+      for(const [id,change] of patch.entries) {
+        const value=apply(rows.get(id),change,forward,{check});
+        if(value===undefined)rows.delete(id);else rows.set(id,value);
+      }
+      return (patch.order?.[forward?1:0]||order).map(id=>rows.get(id));
+    }
+    if(!object(current))throw Error('编辑对象已改变，未提交操作');
+    const next={...current};
+    for(const [key,change] of patch.entries) {
+      const value=apply(Object.hasOwn(current,key)?current[key]:undefined,change,forward,{check});
+      if(value===undefined)delete next[key];
+      else if(key==='__proto__')Object.defineProperty(next,key,{value,writable:true,enumerable:true,configurable:true});
+      else next[key]=value;
+    }
+    return next;
+  }
+  function changedCues(patch) {
+    const ids=new Set();
+    function visit(node,key='') {
+      if(!node)return;
+      if(key==='segments'&&node.kind==='rows')for(const [id] of node.entries)ids.add(id);
+      if(key==='assignments'&&node.kind==='rows')for(const [id] of node.entries)ids.add(JSON.parse(id)[2]);
+      if(['main_segment_ids','extension_segment_ids'].includes(key)&&node.kind==='value')
+        for(const id of [...(node.before||[]),...(node.after||[])])ids.add(id);
+      if(node.kind==='value')for(const value of [node.before,node.after])if(object(value))
+        for(const id of [...(value.main_segment_ids||[]),...(value.extension_segment_ids||[])])ids.add(id);
+      for(const [name,child] of node.entries||[])visit(child,name);
+    }
+    visit(patch);return ids;
+  }
+  function renderChanges(patch) {
+    // Metadata/presentation edits may affect every existing row.
+    const tracks=patch?.entries?.find(([k])=>k==='subtitle_tracks')?.[1];
+    if(tracks?.entries?.some(([k])=>!['assignments','flat_context'].includes(k)))return null;
+    const multi=patch?.entries?.find(([k])=>k==='multi_subtitle')?.[1];
+    if(multi?.entries?.some(([k])=>!['tracks','bindings','_dirty'].includes(k)))return null;
+    const sources=multi?.entries?.find(([k])=>k==='tracks')?.[1];
+    if(sources?.order||sources?.entries?.some(([,row])=>row.kind!=='object'||row.entries.some(([k])=>!['segments','_dirty'].includes(k))))return null;
+    const ids=changedCues(patch);return ids.size?ids:null;
+  }
+  const api={equal,diff,apply,changedCues,renderChanges};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  global.MSWEditTransaction=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
 
 // Role-independent subtitle storage. The normal editor uses a reversible
 // operation view for its existing components; persistence always uses v4.
@@ -34769,6 +34935,7 @@ let fixedLastContent = null;
 let fixedLastContentKey = '';
 let fixedHistoryCheckpoint = null;
 let fixedOwnerCache = null;
+let fixedDataIndex = null;
 let fixedCueOwners = new WeakMap();
 let fixedLayoutCache = null;
 let fixedNumberCache = null;
@@ -34776,14 +34943,55 @@ let fixedLastMessage = '';
 let productionSplitTrackId = null;
 let productionSelectionOrder = [];
 let fixedDragTransaction = null;
+let fixedPendingEdit = null;
+let fixedRenderChanges = null;
+function fixedCurrentContent() {
+  return {schema:DATA.schema,segments:DATA.segments,multi_subtitle:DATA.multi_subtitle,
+    subtitle_layers:DATA.subtitle_layers,subtitle_tracks:DATA.subtitle_tracks};
+}
+function fixedSealCheckpoint() {
+  fixedLastContentKey='';fixedHistoryCheckpoint=editorHistory.checkpoint();
+}
+function fixedIndex() {
+  return fixedDataIndex ||= fixedTrackCore.createIndex(DATA,{validated:true});
+}
+function fixedContentChanged() {
+  return !fixedLastContent || !MSWEditTransaction.equal(fixedLastContent,fixedCurrentContent());
+}
+function fixedCompletePending(patch) {
+  if(!fixedPendingEdit)return;
+  const record=fixedPendingEdit;fixedPendingEdit=null;
+  if(!patch){editorHistory.restoreCheckpoint(fixedHistoryCheckpoint);updateUndoRedoButtons();return;}
+  record.kind='subtitle-edit';record.patch=patch;record.forward=false;
+}
+function fixedApplyEditHistory(record) {
+  try {
+    const next=MSWEditTransaction.apply(fixedCurrentContent(),record.patch,record.forward);
+    // History can restore locking metadata itself; validate the complete result
+    // before swapping anything into the live project.
+    fixedTrackCore.validate(next);
+    const checkpoint=MSWEditTransaction.apply(fixedLastContent,record.patch,record.forward,{check:false});
+    for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks'])DATA[field]=next[field];
+    fixedLastContent=checkpoint;fixedSealCheckpoint();fixedInvalidate();
+    currentCuePanelIdx=-1;resetCuePanelEditState();clearSelection({silent:true,commitCuePanel:false});
+    projectImportDirty=true;
+    renderAll({changedCueIds:MSWEditTransaction.renderChanges(record.patch),validated:true});
+    restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+  } catch(error){fixedStatus(error.message);return false;}
+}
 function snapshotFixedTiming(record,label=record.label) {
   const ids=new Set(record.cues.map(c=>c.id));
+  // Resize history needs only the selected rows. Do not build track/binding/
+  // marker indexes solely to copy a few cues at the first pointer frame.
+  const rows=fixedDataIndex?[...ids].map(id=>fixedDataIndex.byId.get(id)).filter(Boolean).map(row=>({cue:row.cue,
+    segments:fixedDataIndex.sources.get(JSON.stringify([row.role,row.track_id]))}))
+    :layerCore.tracks(DATA).flatMap(source=>source.segments.filter(c=>ids.has(c.id)).map(cue=>({cue,segments:source.segments})));
   return {kind:'subtitle-timing',label,view:snapshotEditorSelection(),
-    cues:layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>ids.has(c.id)).map(c=>{
+    cues:rows.map(({cue:c,segments})=>{
       const copy=structuredClone(c);
-      for(const field of ['color_ref','sticker_ref'])if(copy[field]){copy[field].cue_id=s.segments[copy[field].headIdx]?.id;delete copy[field].headIdx;}
+      for(const field of ['color_ref','sticker_ref'])if(copy[field]){copy[field].cue_id=segments[copy[field].headIdx]?.id;delete copy[field].headIdx;}
       return copy;
-    })),
+    }),
     owners:DATA.subtitle_tracks.assignments.filter(a=>ids.has(a.cue_id)).map(a=>({...a}))};
 }
 function fixedBeginDragTransaction(drag,label) {
@@ -34827,7 +35035,7 @@ function fixedTimingCheckpoint(record) {
   MULTI_SUBTITLE_UTILS.rebuildBindingOffsets(fixedLastContent.multi_subtitle,fixedLastContent.segments);
   fixedLastContent.multi_subtitle._dirty=DATA.multi_subtitle._dirty;
   for(const t of fixedLastContent.multi_subtitle.tracks)t._dirty=DATA.multi_subtitle.tracks.find(s=>s.id===t.id)?._dirty;
-  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedSealCheckpoint();
 }
 function fixedRestoreTiming(record) {
   const byId=new Map(record.cues.map(c=>[c.id,c]));
@@ -34845,8 +35053,11 @@ function fixedRestoreTiming(record) {
   syncBindingOffsets();fixedInvalidate();
 }
 function fixedApplyTimingHistory(record) {
-  fixedRestoreTiming(record);fixedTrackCore.validate(DATA);fixedTimingCheckpoint(record);
-  projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id)),validated:true});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+  const previous=snapshotFixedTiming(record);
+  try {
+    fixedRestoreTiming(record);fixedTrackCore.validate(DATA);fixedTimingCheckpoint(record);
+    projectImportDirty=true;renderAll({changedCueIds:new Set(record.cues.map(c=>c.id)),validated:true});restoreEditorSelection(record.view);scheduleAutoSaveFlush({validated:true});return true;
+  } catch(error) {fixedRestoreTiming(previous);fixedStatus(error.message);return false;}
 }
 function fixedFinishDragTransaction() {
   const record=fixedDragTransaction;if(!record)return false;
@@ -34907,7 +35118,7 @@ document.getElementById('cue-list-swap-sides')?.addEventListener('click',()=>{
   catch(error){fixedStatus(error.message);}
 });
 function fixedTrackMode() { return DATA.schema === fixedTrackCore.SCHEMA; }
-function fixedInvalidate() { fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
+function fixedInvalidate() { fixedDataIndex=null;fixedOwnerCache = null; fixedLayoutCache = null; fixedNumberCache=null; fixedCueOwners = new WeakMap(); fixedPreviewInvalidate(); }
 function fixedCueLabel(cue,role='main',trackId=null,editor=false) {
   const track=fixedTrack(cue,role,trackId);if(!track)return '';
   if(!fixedNumberCache) {
@@ -34968,40 +35179,51 @@ function fixedSameTrack(a, b) {
   fixedOwners(); return fixedCueOwners.get(a) === fixedCueOwners.get(b);
 }
 function fixedContent() {
-  return structuredClone({ schema: DATA.schema, segments: DATA.segments, multi_subtitle: DATA.multi_subtitle,
-    subtitle_layers: DATA.subtitle_layers, subtitle_tracks: DATA.subtitle_tracks });
+  return structuredClone(fixedCurrentContent());
 }
 function fixedContentKey() {
   return JSON.stringify({schema:DATA.schema,segments:DATA.segments,multi_subtitle:DATA.multi_subtitle,
     subtitle_layers:DATA.subtitle_layers,subtitle_tracks:DATA.subtitle_tracks});
 }
 function fixedReset() {
-  fixedDragTransaction=null;fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
+  fixedPendingEdit=null;fixedDragTransaction=null;fixedLastContent = null; fixedLastContentKey=''; fixedHistoryCheckpoint = null; fixedDraftOwners = new WeakMap(); fixedLastMessage = ''; fixedInvalidate();
 }
 function fixedBeginEdit() {
   if(fixedPositionEditing)fixedStopPositioning(false);
   if (!fixedTrackMode()) return;
-  fixedLastContent = fixedContent();
-  fixedLastContentKey=fixedContentKey();
+  if(!fixedAcceptEdit())throw Error('字幕编辑未通过轨道校验');
   fixedHistoryCheckpoint = editorHistory.checkpoint();
 }
 function fixedAcceptEdit() {
   if (!fixedTrackMode()) return true;
-  if(fixedLastContent&&fixedContentKey()===fixedLastContentKey)return true;
+  if(!fixedContentChanged()){fixedCompletePending(null);return true;}
   try {
     for (const cue of DATA.segments) if (fixedDraftOwners.get(cue)?.legacy
       && !DATA.subtitle_layers.legacy_overlay.cue_ids.includes(cue.id)) DATA.subtitle_layers.legacy_overlay.cue_ids.push(cue.id);
     fixedTrackCore.reconcile(DATA, row => fixedDraftOwners.get(row.cue)?.owner || fixedActiveTrack()?.id);
     if (fixedLastContent) fixedTrackCore.assertLocks(fixedLastContent, DATA);
-    fixedLastContent = fixedContent();
-    fixedLastContentKey=fixedContentKey();
-    fixedHistoryCheckpoint = editorHistory.checkpoint();
+    if(fixedPendingEdit) {
+      // Sort before sealing the delta: inserting in the middle must not leave
+      // history describing the temporary append order used by create/split.
+      const selection=snapshotEditorSelection();
+      layerCore.tracks(DATA).forEach(source=>layerCore.sortTrack(source.segments));
+      restoreEditorSelection(selection,{render:false});
+      syncProjectTimebaseAndBindingOffsets(DATA,{preferFrames:false});
+    }
+    const patch=fixedLastContent?MSWEditTransaction.diff(fixedLastContent,fixedCurrentContent()):null;
+    fixedCompletePending(patch);
+    fixedRenderChanges=MSWEditTransaction.renderChanges(patch);
+    fixedLastContent=fixedLastContent?MSWEditTransaction.apply(fixedLastContent,patch,true,{check:false}):fixedContent();
+    fixedSealCheckpoint();
     fixedInvalidate();
     return true;
   } catch (error) {
     if (fixedLastContent) {
+      const failedView=fixedPendingEdit?.view;
       for (const field of ['segments', 'multi_subtitle', 'subtitle_layers', 'subtitle_tracks']) DATA[field] = structuredClone(fixedLastContent[field]);
       if (fixedHistoryCheckpoint) editorHistory.restoreCheckpoint(fixedHistoryCheckpoint);
+      fixedPendingEdit=null;
+      if(failedView){currentCuePanelIdx=-1;resetCuePanelEditState();restoreEditorSelection(failedView,{render:false});}
       fixedInvalidate(); updateUndoRedoButtons();
     }
     fixedStatus(error.message);
@@ -35091,7 +35313,8 @@ const fixedAppearanceKeys=['subtitle_style','subtitle_style_preset','subtitle_an
 function fixedAppearanceSources(changes) {
   const ids=new Set((changes.cues||[]).map(c=>c.id));
   if(!ids.size)return new Map();
-  return new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.filter(c=>ids.has(c.id)).map(c=>[c.id,{cue:c,track:fixedTrack(c,s.role,s.track_id)}])));
+  const index=fixedIndex();
+  return new Map([...ids].flatMap(id=>{const row=index.byId.get(id);return row?[[id,{cue:row.cue,track:index.trackFor(row)}]]:[];}));
 }
 function snapshotFixedAppearance(changes,label) {
   const sources=fixedAppearanceSources(changes);
@@ -35134,7 +35357,7 @@ function fixedCommitAppearance(changes,label,{restore=false}={}) {
   const byId=new Map(cues.map(c=>[c.id,c.fields]));
   for(const source of layerCore.tracks(fixedLastContent))for(const cue of source.segments)if(byId.has(cue.id))applyCue(cue,byId.get(cue.id));
   for(const {id,style} of changedTracks)fixedLastContent.subtitle_tracks.tracks.find(t=>t.id===id).style=structuredClone(style);
-  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedSealCheckpoint();
   fixedPreviewInvalidate();projectImportDirty=true;updateUndoRedoButtons();refreshSubtitlePreview();scheduleAutoSaveFlush({validated:true});
   window.dispatchEvent(new Event('msw:burn-style'));
   if(restore)restoreEditorSelection(changes.view);
@@ -35156,20 +35379,31 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
   if(pendingLinkedSplit)throw Error('请先确认或取消当前切分');
   const panelId=getCurrentCuePanelTarget()?.segment.id;
   const next=window.MSWProductionProject.fromProject(project);
+  MULTI_SUBTITLE_UTILS.normalizeMultiSubtitleProject(next);
   if(displayOnly) {
     const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
     if(JSON.stringify(ordered(MSWProductionProject.toProject(DATA)))!==JSON.stringify(ordered(MSWProductionProject.toProject(next))))throw Error('显示操作不能修改字幕内容');
   } else fixedTrackCore.assertLocks(DATA,next);
-  commitProcessingEdits();if(recordHistory)pushUndo(label,{captureView:true});
-  for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks','msw'])if(next[field])DATA[field]=next[field];
-  // This transaction has already checked the canonical content/locks. Reset
-  // the legacy operation checkpoint so a display-side change on locked tracks
-  // is not mistaken for a later edit to their contents.
-  fixedLastContent=fixedContent();fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
-  fixedInvalidate();normalizeMultiSubtitleState();clearSelection({silent:true});
+  commitProcessingEdits();if(!fixedAcceptEdit())return false;
+  const content={schema:next.schema,segments:next.segments,multi_subtitle:next.multi_subtitle,
+    subtitle_layers:next.subtitle_layers,subtitle_tracks:next.subtitle_tracks};
+  const patch=MSWEditTransaction.diff(fixedCurrentContent(),content);
+  const changedMsw=next.msw&&!MSWEditTransaction.equal(DATA.msw,next.msw);
+  if(!patch&&!changedMsw)return false;
+  if(recordHistory) {
+    if(changedMsw)pushUndo(label,{captureView:true}); // Broader asset/import snapshot.
+    else {rememberCueListMutation();editorHistory.push({kind:'subtitle-edit',label,patch,forward:false,view:snapshotEditorSelection()});}
+  }
+  const committed=MSWEditTransaction.apply(fixedCurrentContent(),patch,true,{check:false});
+  fixedLastContent=MSWEditTransaction.apply(fixedLastContent,patch,true,{check:false});
+  for(const field of ['segments','multi_subtitle','subtitle_layers','subtitle_tracks'])DATA[field]=committed[field];
+  if(changedMsw)DATA.msw=next.msw;
+  fixedSealCheckpoint();
+  fixedInvalidate();normalizedMultiSubtitleReference=DATA.multi_subtitle;clearSelection({silent:true});
   DATA.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedIdxs.add(i);});getActiveExtensionTrack()?.segments.forEach((c,i)=>{if(ids.includes(c.id))selectedExtensionIdxs.add(i);});
   syncCuePanelSelection(panelId);
-  projectImportDirty=true;cueListPlaybackKey=null;renderAll({waveform:'full'});scheduleAutoSaveFlush();
+  projectImportDirty=true;cueListPlaybackKey=null;
+  renderAll({changedCueIds:MSWEditTransaction.renderChanges(patch),validated:true});updateUndoRedoButtons();scheduleAutoSaveFlush({validated:true});return true;
 }
 function productionBindSelected() {
   try {
@@ -35244,7 +35478,7 @@ function productionApplyInsertion(record,{recordHistory=false}={}) {
   }
   projectImportDirty=true;cueListPlaybackKey=null;
   renderAll({changedCueIds:ids,validated:true});
-  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedSealCheckpoint();
   if(!recordHistory)restoreEditorSelection(record.view);
   updateUndoRedoButtons();scheduleAutoSaveFlush({validated:true});return true;
 }
@@ -35309,7 +35543,7 @@ function fixedPrepareMove(drag) {
   const selected=fixedSelectedRows().map(r=>r.cue_id);
   const ids=selected.includes(anchor.id)?selected:drag.indices.map(i=>source[i].id);
   const plan=MSWProductionProject.prepareMove(DATA,ids,anchor.id);
-  drag.fixedMove={...plan,assignments:structuredClone(DATA.subtitle_tracks.assignments),active:fixedActiveTrackId};
+  drag.fixedMove={...plan,index:fixedIndex(),assignments:structuredClone(DATA.subtitle_tracks.assignments),active:fixedActiveTrackId};
   drag.moveMotions=plan.entries.map(e=>({segment:e.cue,segments:e.source.segments,
     start:drag.timing.fromMs(e.original.start),end:drag.timing.fromMs(e.original.end),moveStart:true,moveEnd:true}));
   return drag.fixedMove;
@@ -35358,7 +35592,7 @@ function fixedMoveDrag(drag, rawDelta, fromBottom, disableSnap) {
       return [e.cue.id,next];
     }));
     drag.destinationPreview.entries=previews(ms);
-    fixedTrackCore.validateTimingChanges(DATA,changes,moving);
+    fixedTrackCore.validateTimingChanges(DATA,changes,moving,state.index);
   } catch(error) {drag.destinationPreview.reason=error.message;return false;}
   finally { DATA.subtitle_tracks.assignments=previous;fixedInvalidate(); }
   const ownerChanged=previous.some((a,i)=>a.subtitle_track_id!==proposed[i].subtitle_track_id);
@@ -35814,6 +36048,7 @@ function layerPreferredActive(segments, time, includeDisabled = false) {
 }
 function layerPrepareRender({validated=false}={}) {
   if (!layerMode()) return;
+  fixedRenderChanges=null;
   if (fixedTrackMode()&&!validated) fixedAcceptEdit();
   const liveIds = new Set(DATA.segments.map(cue => cue.id));
   DATA.subtitle_layers.legacy_overlay.cue_ids = DATA.subtitle_layers.legacy_overlay.cue_ids.filter(id => liveIds.has(id));
@@ -35831,6 +36066,7 @@ function layerPrepareRender({validated=false}={}) {
   currentCuePanelIdx = panel?.findIndex(cue => cue.id === snapshot.panelId) ?? -1;
   layerInvalidate();
   layerSyncControls();
+  return fixedRenderChanges;
 }
 function layerSyncControls() {
   document.documentElement.classList.toggle('msw-unified-subtitles', layerMode());
@@ -35894,7 +36130,7 @@ function layerCreateCue(start, end, role = 'main', subtitleTrackId = fixedActive
   let inherited;
   try { inherited=planNewCueSpeaker(cue,subtitleTrackId,cues); }
   catch(error){fixedStatus(error.message);return false;}
-  pushUndo('创建字幕', { captureView: true });
+  pushUndo('创建字幕', { captureView: true, subtitleOnly: true });
   if(inherited) {
     if(inherited.color_ref)cue.color_ref=inherited.color_ref;
     else {
@@ -35998,7 +36234,7 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
     for (const change of plan.changes) if (change.changed) syncSegmentTimebase(change.merged, projectTimebase(), {preferFrames:false});
   } catch (error) { if (fixedTrackMode()) fixedStatus(error.message); else flashHint(error.message, 'warning'); return false; }
   const feedback = captureMergeFeedback(plan);
-  pushUndo(mode === 'common' ? '共有状态合并' : '累加状态合并', {captureView:true});
+  pushUndo(mode === 'common' ? '共有状态合并' : '累加状态合并', {captureView:true,subtitleOnly:true});
   clearSelection({silent:true, commitCuePanel:false});
   for (const change of plan.changes) {
     if (!change.changed) continue;
@@ -38711,9 +38947,13 @@ function snapshotEditorSelection() {
     lastOverlayId: getOverlayTrack()?.segments?.[lastClickedOverlayIdx]?.id || null,
   };
 }
-function pushUndo(label, { captureView = false } = {}) {
+function pushUndo(label, { captureView = false, subtitleOnly = false } = {}) {
   fixedBeginEdit();
   rememberCueListMutation();
+  if(subtitleOnly&&productionFlatMode()) {
+    const record={kind:'subtitle-edit-pending',label,view:captureView?snapshotEditorSelection():null};
+    fixedPendingEdit=record;editorHistory.push(record);updateUndoRedoButtons();return record;
+  }
   const record = EDITOR_SETTINGS_UTILS.buildHistoryRecord(
     'segments', label, snapshotSegments(), captureView ? snapshotEditorSelection() : null,
   );
@@ -38768,6 +39008,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-edit')return {...sourceRecord,forward:!sourceRecord.forward,view:snapshotEditorSelection()};
   if(kind==='subtitle-text')return window.MSWFindEdit.capture(sourceRecord,label);
   if(kind==='subtitle-insertion')return productionInsertionRecord(sourceRecord.patch,!sourceRecord.present,label);
   if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
@@ -38796,7 +39037,7 @@ function snapshotCurrentForKind(kind, label, sourceRecord = null) {
     'segments', label, snapshotSegments(), sourceRecord?.view ? snapshotEditorSelection() : null,
   );
 }
-function restoreEditorSelection(snapshot) {
+function restoreEditorSelection(snapshot, { render = true } = {}) {
   if (!snapshot) return;
   selectedIdxs.clear();
   selectedExtensionIdxs.clear();
@@ -38848,6 +39089,7 @@ function restoreEditorSelection(snapshot) {
     currentCuePanelKind = 'main';
     currentCuePanelTrackId = null;
   }
+  if(!render)return;
   selCountEl.textContent = String(
     selectedIdxs.size + selectedExtensionIdxs.size + selectedOverlayIdxs.size,
   );
@@ -38862,6 +39104,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-edit')return fixedApplyEditHistory(record);
   if(record.kind==='subtitle-text')return window.MSWFindEdit.restore(record);
   if(record.kind==='subtitle-insertion')return productionApplyInsertion(record);
   if(record.kind==='subtitle-timing')return fixedApplyTimingHistory(record);
@@ -38996,10 +39239,11 @@ function performUndo() {
   }
   if (editingState) finishEdit(false);  // 撤销前丢弃当前编辑（保持快照前后一致）
   const current = snapshotCurrentForKind(top.kind, top.label, top);
+  const checkpoint=editorHistory.checkpoint();
   const record = editorHistory.popUndo(current);
   if (!record) return;
   const applied = applyHistoryRecord(record);
-  if (applied === false) { updateUndoRedoButtons(); return; }
+  if (applied === false) { editorHistory.restoreCheckpoint(checkpoint);updateUndoRedoButtons(); return; }
   updateUndoRedoButtons();
 }
 function performRedo() {
@@ -39014,10 +39258,11 @@ function performRedo() {
   }
   if (editingState) finishEdit(false);
   const current = snapshotCurrentForKind(top.kind, top.label, top);
+  const checkpoint=editorHistory.checkpoint();
   const record = editorHistory.popRedo(current);
   if (!record) return;
   const applied = applyHistoryRecord(record);
-  if (applied === false) { updateUndoRedoButtons(); return; }
+  if (applied === false) { editorHistory.restoreCheckpoint(checkpoint);updateUndoRedoButtons(); return; }
   updateUndoRedoButtons();
 }
 // modal 或文本输入聚焦时不触发全局撤销/重做（让浏览器/输入框自己处理）
@@ -43629,7 +43874,8 @@ function alignSelectedExtensionSubtitleRanges() {
 function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null, validated = false } = {}) {
   queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
-  layerPrepareRender({validated});
+  const transactionChanges=layerPrepareRender({validated});
+  changedCueIds ||= transactionChanges;
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
   (getMultiSubtitleState().tracks || []).forEach(track => MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(track.segments, track.id + '-segment'));
   // 其它编辑入口仍以毫秒修改工程对象；在重绘前把它们投影回当前时间基准，
@@ -46830,7 +47076,7 @@ function commitMainWaveformSplit(
   }
   if (!duplicateText) flashSplitAlignmentHint(pair.alignment, { committed: true });
   const oldMainId = main.id;
-  pushUndo(duplicateText ? '拆分字幕并保留原文' : '拆分字幕', { captureView: true });
+  pushUndo(duplicateText ? '拆分字幕并保留原文' : '拆分字幕', { captureView: true, subtitleOnly: true });
   clearSelection({ commitCuePanel: false });
   removeBindingsForSegmentIds([oldMainId], []);
   DATA.segments.splice(mainIndex, 1, pair.left, pair.right);
@@ -46931,7 +47177,7 @@ function commitExtensionSplit(
   if (!duplicateText) flashSplitAlignmentHint(pair.alignment, { committed: true });
 
   const oldExtensionId = extension.id;
-  pushUndo('拆分副字幕', { captureView: true });
+  pushUndo('拆分副字幕', { captureView: true, subtitleOnly: true });
   // 一对一绑定无法让一个主段同时指向拆出的两条副轨段；独立拆分后
   // 保留两条副字幕，但解除旧关系，等待用户按需要重新绑定。
   removeBindingsForSegmentIds([], [oldExtensionId]);
@@ -47123,7 +47369,7 @@ function confirmLinkedSplit({ duplicateText = false } = {}) {
   }
   const oldMainId = main.id;
   const oldExtensionId = extension.id;
-  pushUndo(duplicateText ? '联动拆分并保留原文' : '联动拆分字幕', { captureView: true });
+  pushUndo(duplicateText ? '联动拆分并保留原文' : '联动拆分字幕', { captureView: true, subtitleOnly: true });
   removeBindingsForSegmentIds([oldMainId], [oldExtensionId]);
   DATA.segments.splice(mainIndex, 1, mainPair.left, mainPair.right);
   if (track) track.segments.splice(extensionIndex, 1, extensionPair.left, extensionPair.right);
@@ -57231,7 +57477,8 @@ function finishCueMarkerChange(changes) {
       if(markers[cue.id])delete markers[cue.id][field];if(marker)(markers[cue.id]||={})[field]=structuredClone(marker);
     }
   } else fixedLastContent=fixedContent();
-  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedSealCheckpoint();
+  fixedDataIndex=null; // Marker dependencies changed even though cue ranges did not.
   fixedPreviewInvalidate();projectImportDirty=true;updateUndoRedoButtons();
   refreshColorAssignmentUi(new Set(changes.map(c=>c.id)));scheduleAutoSaveFlush();
 }
@@ -57263,7 +57510,7 @@ function commitCueMarkerProject(before,next,label) {
   if(!changes.length)return false;
   // The canonical transaction has validated bindings and locks. Apply its
   // marker changes in place: no cue replacement, selection reset or list rebuild.
-  if(!fixedLastContent||fixedLastContentKey!==fixedContentKey())fixedLastContent=fixedContent();
+  if(!fixedAcceptEdit())return false;
   editorHistory.push(snapshotCueMarkers(changes,label));
   const markers=DATA.subtitle_tracks.flat_context.markers;
   for(const {id,content,field} of changes) {
@@ -67170,7 +67417,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     if (fixedTrackMode() && fixedLastContent) {
       const patch = new Map(record.cues.map(c => [c.id, c.fields]));
       for (const s of layerCore.tracks(fixedLastContent)) for (const c of s.segments) if (patch.has(c.id)) applyFields(c, patch.get(c.id));
-      fixedLastContentKey = fixedContentKey(); fixedHistoryCheckpoint = editorHistory.checkpoint();
+      fixedSealCheckpoint();
     }
     fixedPreviewInvalidate(); projectImportDirty = true;
     refreshCueTextRows(new Set(record.cues.map(c => c.id)));

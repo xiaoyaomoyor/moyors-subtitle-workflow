@@ -305,7 +305,8 @@ test('saved download reopens via the file chooser and SRT output is available', 
   const before = await state(page);
   await page.evaluate(()=>{window.showSaveFilePicker=undefined;});
   const exported=page.waitForEvent('download');
-  await page.locator('#download-full-srt').dispatchEvent('click');
+  await page.evaluate(()=>MSWSubtitleExport.open('srt'));
+  await page.locator('#subtitle-export-start').click();
   expect((await exported).suggestedFilename()).toMatch(/\.srt$/);
   expect(await state(page)).toEqual(before); expect(errors).toEqual([]);
 });

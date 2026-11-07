@@ -1828,9 +1828,13 @@ function snapshotEditorSelection() {
     lastOverlayId: getOverlayTrack()?.segments?.[lastClickedOverlayIdx]?.id || null,
   };
 }
-function pushUndo(label, { captureView = false } = {}) {
+function pushUndo(label, { captureView = false, subtitleOnly = false } = {}) {
   fixedBeginEdit();
   rememberCueListMutation();
+  if(subtitleOnly&&productionFlatMode()) {
+    const record={kind:'subtitle-edit-pending',label,view:captureView?snapshotEditorSelection():null};
+    fixedPendingEdit=record;editorHistory.push(record);updateUndoRedoButtons();return record;
+  }
   const record = EDITOR_SETTINGS_UTILS.buildHistoryRecord(
     'segments', label, snapshotSegments(), captureView ? snapshotEditorSelection() : null,
   );
@@ -1885,6 +1889,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='subtitle-edit')return {...sourceRecord,forward:!sourceRecord.forward,view:snapshotEditorSelection()};
   if(kind==='subtitle-text')return window.MSWFindEdit.capture(sourceRecord,label);
   if(kind==='subtitle-insertion')return productionInsertionRecord(sourceRecord.patch,!sourceRecord.present,label);
   if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
@@ -1913,7 +1918,7 @@ function snapshotCurrentForKind(kind, label, sourceRecord = null) {
     'segments', label, snapshotSegments(), sourceRecord?.view ? snapshotEditorSelection() : null,
   );
 }
-function restoreEditorSelection(snapshot) {
+function restoreEditorSelection(snapshot, { render = true } = {}) {
   if (!snapshot) return;
   selectedIdxs.clear();
   selectedExtensionIdxs.clear();
@@ -1965,6 +1970,7 @@ function restoreEditorSelection(snapshot) {
     currentCuePanelKind = 'main';
     currentCuePanelTrackId = null;
   }
+  if(!render)return;
   selCountEl.textContent = String(
     selectedIdxs.size + selectedExtensionIdxs.size + selectedOverlayIdxs.size,
   );
@@ -1979,6 +1985,7 @@ function restoreEditorSelection(snapshot) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='subtitle-edit')return fixedApplyEditHistory(record);
   if(record.kind==='subtitle-text')return window.MSWFindEdit.restore(record);
   if(record.kind==='subtitle-insertion')return productionApplyInsertion(record);
   if(record.kind==='subtitle-timing')return fixedApplyTimingHistory(record);
@@ -2113,10 +2120,11 @@ function performUndo() {
   }
   if (editingState) finishEdit(false);  // 撤销前丢弃当前编辑（保持快照前后一致）
   const current = snapshotCurrentForKind(top.kind, top.label, top);
+  const checkpoint=editorHistory.checkpoint();
   const record = editorHistory.popUndo(current);
   if (!record) return;
   const applied = applyHistoryRecord(record);
-  if (applied === false) { updateUndoRedoButtons(); return; }
+  if (applied === false) { editorHistory.restoreCheckpoint(checkpoint);updateUndoRedoButtons(); return; }
   updateUndoRedoButtons();
 }
 function performRedo() {
@@ -2131,10 +2139,11 @@ function performRedo() {
   }
   if (editingState) finishEdit(false);
   const current = snapshotCurrentForKind(top.kind, top.label, top);
+  const checkpoint=editorHistory.checkpoint();
   const record = editorHistory.popRedo(current);
   if (!record) return;
   const applied = applyHistoryRecord(record);
-  if (applied === false) { updateUndoRedoButtons(); return; }
+  if (applied === false) { editorHistory.restoreCheckpoint(checkpoint);updateUndoRedoButtons(); return; }
   updateUndoRedoButtons();
 }
 // modal 或文本输入聚焦时不触发全局撤销/重做（让浏览器/输入框自己处理）
@@ -6746,7 +6755,8 @@ function alignSelectedExtensionSubtitleRanges() {
 function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null, validated = false } = {}) {
   queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
-  layerPrepareRender({validated});
+  const transactionChanges=layerPrepareRender({validated});
+  changedCueIds ||= transactionChanges;
   MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(DATA.segments, 'main');
   (getMultiSubtitleState().tracks || []).forEach(track => MULTI_SUBTITLE_UTILS.ensureStableSegmentIds(track.segments, track.id + '-segment'));
   // 其它编辑入口仍以毫秒修改工程对象；在重绘前把它们投影回当前时间基准，
@@ -9947,7 +9957,7 @@ function commitMainWaveformSplit(
   }
   if (!duplicateText) flashSplitAlignmentHint(pair.alignment, { committed: true });
   const oldMainId = main.id;
-  pushUndo(duplicateText ? '拆分字幕并保留原文' : '拆分字幕', { captureView: true });
+  pushUndo(duplicateText ? '拆分字幕并保留原文' : '拆分字幕', { captureView: true, subtitleOnly: true });
   clearSelection({ commitCuePanel: false });
   removeBindingsForSegmentIds([oldMainId], []);
   DATA.segments.splice(mainIndex, 1, pair.left, pair.right);
@@ -10048,7 +10058,7 @@ function commitExtensionSplit(
   if (!duplicateText) flashSplitAlignmentHint(pair.alignment, { committed: true });
 
   const oldExtensionId = extension.id;
-  pushUndo('拆分副字幕', { captureView: true });
+  pushUndo('拆分副字幕', { captureView: true, subtitleOnly: true });
   // 一对一绑定无法让一个主段同时指向拆出的两条副轨段；独立拆分后
   // 保留两条副字幕，但解除旧关系，等待用户按需要重新绑定。
   removeBindingsForSegmentIds([], [oldExtensionId]);
@@ -10240,7 +10250,7 @@ function confirmLinkedSplit({ duplicateText = false } = {}) {
   }
   const oldMainId = main.id;
   const oldExtensionId = extension.id;
-  pushUndo(duplicateText ? '联动拆分并保留原文' : '联动拆分字幕', { captureView: true });
+  pushUndo(duplicateText ? '联动拆分并保留原文' : '联动拆分字幕', { captureView: true, subtitleOnly: true });
   removeBindingsForSegmentIds([oldMainId], [oldExtensionId]);
   DATA.segments.splice(mainIndex, 1, mainPair.left, mainPair.right);
   if (track) track.segments.splice(extensionIndex, 1, extensionPair.left, extensionPair.right);
@@ -20348,7 +20358,8 @@ function finishCueMarkerChange(changes) {
       if(markers[cue.id])delete markers[cue.id][field];if(marker)(markers[cue.id]||={})[field]=structuredClone(marker);
     }
   } else fixedLastContent=fixedContent();
-  fixedLastContentKey=fixedContentKey();fixedHistoryCheckpoint=editorHistory.checkpoint();
+  fixedSealCheckpoint();
+  fixedDataIndex=null; // Marker dependencies changed even though cue ranges did not.
   fixedPreviewInvalidate();projectImportDirty=true;updateUndoRedoButtons();
   refreshColorAssignmentUi(new Set(changes.map(c=>c.id)));scheduleAutoSaveFlush();
 }
@@ -20380,7 +20391,7 @@ function commitCueMarkerProject(before,next,label) {
   if(!changes.length)return false;
   // The canonical transaction has validated bindings and locks. Apply its
   // marker changes in place: no cue replacement, selection reset or list rebuild.
-  if(!fixedLastContent||fixedLastContentKey!==fixedContentKey())fixedLastContent=fixedContent();
+  if(!fixedAcceptEdit())return false;
   editorHistory.push(snapshotCueMarkers(changes,label));
   const markers=DATA.subtitle_tracks.flat_context.markers;
   for(const {id,content,field} of changes) {

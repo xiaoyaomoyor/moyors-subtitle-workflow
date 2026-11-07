@@ -1,0 +1,3289 @@
+{
+  "schema": "msw.performance-transactions.v1",
+  "note": "Phase 2 working tree above base commit; source hashes identify tested code. Final measurements cover the three 10000-cue target profiles. Earlier diagnostic matrices, including an unresolved 15000-cue save failure, are documented in the stage ledger.",
+  "source": {
+    "web/editor-scripts.txt": "1e38477d305e25d755876b999077b1c8512c931bf1b9338bc6fa488f2985dc88",
+    "web/editor.js": "18735fa0c4fe7f1b8b7e49b8bb85f76ffa1c8499cc2bfc999de5dfa392fa2ac6",
+    "web/msw-edit-transaction.js": "3497ffe41e991e933f21226e5db75557dee51515ffc7d559860e64ddc04546fa",
+    "web/msw-subtitle-tracks.js": "5bf2032e8409efa50142a1e2d5da0ff32e4a8a59318314ba47c5a449e5747f01",
+    "web/msw-subtitle-tracks-editor.js": "7d21d4bd3b051021cf08860f76fc67792c3d7e28c60c750533fd33fba1368dea",
+    "web/msw-subtitle-layers-editor.js": "f369ae0afa3c173dbcf765e3fd9882633d296cdfe350625fa683d802c7d20d52",
+    "web/msw-find-edit.js": "a56bab1eda2938fe0bb27cc0d32e410b3b0dec72bc93bde2e181243bf9018cf2"
+  },
+  "columns": {
+    "latency": [
+      "median ms",
+      "maximum ms"
+    ],
+    "calls": [
+      "median count",
+      "maximum count",
+      "median ms",
+      "maximum ms"
+    ]
+  },
+  "createdAt": "2026-11-07T08:17:38.064Z",
+  "scenarios": [
+    {
+      "name": "bound-10000",
+      "fixture": {
+        "version": 1,
+        "profile": "bound",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 5000,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "ab5c1b5b0ae054e6465ace6207cb0653dd1c143ea4878f315ddb98c1b25a81cb",
+        "destination": "s2",
+        "firstCue": "cue-0-main"
+      },
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 2425.9292,
+        "domContentLoadedMs": 16639.2635,
+        "editorReadyMs": 19655.3977,
+        "previewReadyMs": 31941.3588,
+        "reloadPreviewReadyMs": 24198.275200000033
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [35.1,37.5],
+          "feedbackMs": [111.1,121.9],
+          "settledMs": [118.9,130.3],
+          "longestTaskMs": [65,65],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [2.8,4.2],
+          "feedbackMs": [37.8,40.8],
+          "settledMs": [45.5,49],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [6.2,7.2],
+          "feedbackMs": [153.5,156.1],
+          "settledMs": [632.2,713.3],
+          "longestTaskMs": [324,334],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [7.4,9.7],
+          "feedbackMs": [37,39.4],
+          "settledMs": [48.1,49.8],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [1257,1284.2],
+          "feedbackMs": [3926.6,5041.3],
+          "settledMs": [4265,5464.1],
+          "longestTaskMs": [2319,3017],
+          "calls": {
+            "fixedAcceptEdit": [2,2,347.4,518.7],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,71,87.1],
+            "fixedSyncUI": [1,1,71.8,82],
+            "applyCueListDisplaySettings": [1,1,50,52.2],
+            "renderAll": [1,1,916.9,980.3]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [1243.1,1334.2],
+          "feedbackMs": [1567.6,1615],
+          "settledMs": [1602.6,1661.2],
+          "longestTaskMs": [1298,1385],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,23.4,27],
+            "fixedSyncUI": [1,1,95.7,102.7],
+            "applyCueListDisplaySettings": [1,1,57.9,89.9],
+            "renderAll": [1,1,999.5,1020.1]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [1182.1,1420.5],
+          "feedbackMs": [1891.9,6221.8],
+          "settledMs": [1927,6643.4],
+          "longestTaskMs": [1493,3374],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,24.9,86.2],
+            "fixedSyncUI": [1,1,90.8,112.8],
+            "applyCueListDisplaySettings": [1,1,46.7,62.3],
+            "renderAll": [1,1,912.8,1136.7],
+            "fixedAcceptEdit": [0,1,0,499.2]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [9.5,10.7],
+          "feedbackMs": [37.3,51],
+          "settledMs": [44.7,60.6],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [3282.5,3611.5],
+          "feedbackMs": [7253.2,7830.9],
+          "settledMs": [8266.9,9128.3],
+          "longestTaskMs": [3348,3684],
+          "calls": {
+            "fixedAcceptEdit": [2,2,400.7,548.5],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,77.1,80.5],
+            "fixedSyncUI": [1,1,99.4,135.4],
+            "applyCueListDisplaySettings": [1,1,204.2,251.6],
+            "renderAll": [1,1,1774.1,1794.3]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [2076.9,2560.2],
+          "feedbackMs": [4119.1,4398.9],
+          "settledMs": [4512.1,4958.2],
+          "longestTaskMs": [2155,2639],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,24.4,73.7],
+            "fixedSyncUI": [1,1,71.2,83.9],
+            "applyCueListDisplaySettings": [1,1,52.9,77.1],
+            "renderAll": [1,1,808.2,979.3],
+            "fixedAcceptEdit": [0,1,0,60.7]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [2369,2663],
+          "feedbackMs": [2874.9,6238.1],
+          "settledMs": [2930.5,6646.3],
+          "longestTaskMs": [2497,2798],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,28.2,68.6],
+            "fixedSyncUI": [1,1,88.5,112.6],
+            "applyCueListDisplaySettings": [1,1,48.5,48.9],
+            "renderAll": [1,1,988.7,1297.3],
+            "fixedAcceptEdit": [0,1,0,320.9]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [2365.1,2606],
+          "feedbackMs": [2935.1,5732.4],
+          "settledMs": [2965.5,6089.3],
+          "longestTaskMs": [2669,2893],
+          "calls": {
+            "fixedAcceptEdit": [1,2,67.1,139.2],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,45.4,81],
+            "fixedSyncUI": [1,1,73.2,73.5],
+            "applyCueListDisplaySettings": [1,1,57.6,63.1],
+            "renderAll": [1,1,905.9,918]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [5327.5,5737],
+          "feedbackMs": [9663,9830.6],
+          "settledMs": [10115.8,10804.4],
+          "longestTaskMs": [7260,7787],
+          "calls": {
+            "fixedAcceptEdit": [2,3,492.5,578.1],
+            "syncProjectTimebaseAndBindingOffsets": [2,4,68.5,119.7],
+            "fixedSyncUI": [1,1,109.4,116.4],
+            "applyCueListDisplaySettings": [1,1,197.8,233.5],
+            "renderAll": [1,1,4338.7,4931.4]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [2978,3762.4],
+          "feedbackMs": [6603.5,6886.4],
+          "settledMs": [7106.6,7203],
+          "longestTaskMs": [3472,4074],
+          "calls": {
+            "fixedContent": [1,1,237.1,434.9],
+            "fixedAcceptEdit": [4,4,1000.2,1126.3],
+            "syncProjectTimebaseAndBindingOffsets": [4,4,138.4,145.1],
+            "fixedSyncUI": [1,1,91.4,117.5],
+            "applyCueListDisplaySettings": [1,1,85.6,90.6],
+            "renderAll": [1,1,1606.4,1928.3]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [680.7,751.2],
+          "feedbackMs": [885.3,969],
+          "settledMs": [4491.4,4601.4],
+          "longestTaskMs": [2396,2810],
+          "calls": {
+            "fixedAcceptEdit": [3,3,431.3,469.3],
+            "snapshotSegments": [1,1,169.7,212.6],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,58,59.4]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [129.1,146.6],
+          "feedbackMs": [188.6,212.8],
+          "settledMs": [577.1,698.6],
+          "longestTaskMs": [151,178],
+          "calls": {
+            "fixedAcceptEdit": [1,1,63,69.9]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [513.9,585.9],
+          "feedbackMs": [677.2,3270.9],
+          "settledMs": [980.8,3706.6],
+          "longestTaskMs": [604,2308],
+          "calls": {
+            "fixedAcceptEdit": [1,2,79.3,123.9],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,87.3]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [109.9,128.1],
+          "feedbackMs": [174.9,188.9],
+          "settledMs": [543.3,569.6],
+          "longestTaskMs": [159,186],
+          "calls": {
+            "fixedAcceptEdit": [1,1,64.5,71.2]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [1.3,2.9],
+          "feedbackMs": [75.1,119.5],
+          "settledMs": [257.1,267.7],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [3650.4,4710.9],
+          "settledMs": [5145.2,5914.5],
+          "longestTaskMs": [1813,1900],
+          "calls": {
+            "beginCueDrag": [1,1,4,5],
+            "fixedAcceptEdit": [1,2,65.2,332],
+            "moveCueDrag": [12,12,569.4,585.2],
+            "fixedTimingCheckpoint": [1,1,12.2,16.2],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,46,90.8],
+            "fixedSyncUI": [1,1,82.5,99.1],
+            "applyCueListDisplaySettings": [1,1,17.4,19.4],
+            "renderAll": [1,1,1076.1,1126.7],
+            "endCueDrag": [1,1,1318.8,1341.7]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [2797.8,2888.8],
+          "settledMs": [2804.1,2915],
+          "longestTaskMs": [1082,1301],
+          "calls": {
+            "beginCueDrag": [1,1,7.2,7.5],
+            "fixedAcceptEdit": [1,1,69.7,74.6],
+            "moveCueDrag": [12,12,130.7,178],
+            "fixedTimingCheckpoint": [1,1,6.9,11.7],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,26.3,30.7],
+            "fixedSyncUI": [1,1,75.9,84.6],
+            "applyCueListDisplaySettings": [1,1,15.1,20.2],
+            "renderAll": [1,1,878.8,1046.2],
+            "endCueDrag": [1,1,1048.8,1249.9]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [9191.9,9424.8],
+          "settledMs": [9621.6,9849.8],
+          "longestTaskMs": [1887,2267],
+          "calls": {
+            "beginCueDrag": [1,1,8.6,10.9],
+            "fixedAcceptEdit": [1,2,65.4,344.1],
+            "moveCueDrag": [12,12,3984.7,4141.2],
+            "fixedTimingCheckpoint": [1,1,19.3,21.9],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,41.9,98.8],
+            "fixedSyncUI": [1,1,103.3,135.5],
+            "applyCueListDisplaySettings": [1,1,19.4,26.4],
+            "renderAll": [1,1,1262.2,1409],
+            "endCueDrag": [1,1,1661.4,1774.8]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [2613.7,3043.6],
+          "settledMs": [8603.2,9032.7],
+          "longestTaskMs": [2107,2593],
+          "calls": {
+            "fixedAcceptEdit": [1,1,73.5,102.6],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,53.2,85.9]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [3037.6,3251.4],
+          "settledMs": [9363.7,10434.3],
+          "longestTaskMs": [2562,2787],
+          "calls": {
+            "fixedAcceptEdit": [1,1,72.2,109.8],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,63.9,84.7]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [1699.2,1852.4],
+          "settledMs": [3048.3,3130],
+          "longestTaskMs": [1165,1311],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [1324.2,1355.2],
+          "feedbackMs": [2226.5,2329.9],
+          "settledMs": [4874.5,5002.5],
+          "longestTaskMs": [1664,1736],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [32.4,35.1],
+          "settledMs": [6048.6,6293.7],
+          "longestTaskMs": [251,307],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 225461128,
+            "totalSize": 286691328,
+            "embedderHeapUsedSize": 101493208,
+            "backingStorageSize": 64083010
+          },
+          "heapAfterGC": {
+            "usedSize": 164523724,
+            "totalSize": 170471424,
+            "embedderHeapUsedSize": 97201936,
+            "backingStorageSize": 63995986
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153088,
+            "jsEventListeners": 73174
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 216202336,
+            "totalSize": 228241408,
+            "embedderHeapUsedSize": 102011600,
+            "backingStorageSize": 64763314
+          },
+          "heapAfterGC": {
+            "usedSize": 189515808,
+            "totalSize": 197316608,
+            "embedderHeapUsedSize": 100573080,
+            "backingStorageSize": 64762691
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153688,
+            "jsEventListeners": 73254
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 477777352,
+            "totalSize": 585523200,
+            "embedderHeapUsedSize": 388391568,
+            "backingStorageSize": 132809988
+          },
+          "heapAfterGC": {
+            "usedSize": 164388092,
+            "totalSize": 172646400,
+            "embedderHeapUsedSize": 98737440,
+            "backingStorageSize": 66855787
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153203,
+            "jsEventListeners": 73258
+          }
+        }
+      ],
+      "regressions": [
+        {
+          "name": "select",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 65,
+          "deltaMs": 65,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "feedbackMs",
+          "before": 80.5,
+          "after": 153.5,
+          "deltaMs": 73,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "settledMs",
+          "before": 397.40000000037253,
+          "after": 632.1999999992549,
+          "deltaMs": 234.7999999988824,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "longestTaskMs",
+          "before": 139,
+          "after": 324,
+          "deltaMs": 185,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "syncMs",
+          "before": 667.5,
+          "after": 1257,
+          "deltaMs": 589.5,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "feedbackMs",
+          "before": 811.0999999996275,
+          "after": 3926.60000000149,
+          "deltaMs": 3115.5000000018626,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "settledMs",
+          "before": 841.9000000003725,
+          "after": 4265,
+          "deltaMs": 3423.0999999996275,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "longestTaskMs",
+          "before": 684,
+          "after": 2319,
+          "deltaMs": 1635,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "syncMs",
+          "before": 449.59999999962747,
+          "after": 1243.1000000014901,
+          "deltaMs": 793.5000000018626,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "feedbackMs",
+          "before": 521,
+          "after": 1567.5999999977648,
+          "deltaMs": 1046.5999999977648,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "settledMs",
+          "before": 524.4000000003725,
+          "after": 1602.5999999977648,
+          "deltaMs": 1078.1999999973923,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 463,
+          "after": 1298,
+          "deltaMs": 835,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "syncMs",
+          "before": 641.5999999996275,
+          "after": 1182.0999999977648,
+          "deltaMs": 540.4999999981374,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 949,
+          "after": 1493,
+          "deltaMs": 544,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "syncMs",
+          "before": 1181.6000000005588,
+          "after": 3282.5,
+          "deltaMs": 2100.899999999441,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "feedbackMs",
+          "before": 1285.1000000005588,
+          "after": 7253.199999999255,
+          "deltaMs": 5968.099999998696,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "settledMs",
+          "before": 1307.7000000001863,
+          "after": 8266.89999999851,
+          "deltaMs": 6959.199999998324,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "longestTaskMs",
+          "before": 1199,
+          "after": 3348,
+          "deltaMs": 2149,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "syncMs",
+          "before": 870.5999999996275,
+          "after": 2076.89999999851,
+          "deltaMs": 1206.2999999988824,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "feedbackMs",
+          "before": 1232.5999999996275,
+          "after": 4119.10000000149,
+          "deltaMs": 2886.5000000018626,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "settledMs",
+          "before": 1237,
+          "after": 4512.10000000149,
+          "deltaMs": 3275.10000000149,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 923,
+          "after": 2155,
+          "deltaMs": 1232,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "syncMs",
+          "before": 1044,
+          "after": 2369,
+          "deltaMs": 1325,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "feedbackMs",
+          "before": 1209.199999999255,
+          "after": 2874.89999999851,
+          "deltaMs": 1665.699999999255,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "settledMs",
+          "before": 1233.0999999996275,
+          "after": 2930.5,
+          "deltaMs": 1697.4000000003725,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 1081,
+          "after": 2497,
+          "deltaMs": 1416,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "syncMs",
+          "before": 2114.7999999998137,
+          "after": 5327.5,
+          "deltaMs": 3212.7000000001863,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "feedbackMs",
+          "before": 3060.9000000003725,
+          "after": 9663,
+          "deltaMs": 6602.0999999996275,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "settledMs",
+          "before": 3099.7000000001863,
+          "after": 10115.800000000745,
+          "deltaMs": 7016.100000000559,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "longestTaskMs",
+          "before": 2882,
+          "after": 7260,
+          "deltaMs": 4378,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "syncMs",
+          "before": 2162.9000000003725,
+          "after": 2978,
+          "deltaMs": 815.0999999996275,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "feedbackMs",
+          "before": 4109.100000000559,
+          "after": 6603.5,
+          "deltaMs": 2494.399999999441,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "settledMs",
+          "before": 4362.700000000186,
+          "after": 7106.60000000149,
+          "deltaMs": 2743.900000001304,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "longestTaskMs",
+          "before": 2666,
+          "after": 3472,
+          "deltaMs": 806,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "settledMs",
+          "before": 1354,
+          "after": 4491.400000002235,
+          "deltaMs": 3137.400000002235,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "longestTaskMs",
+          "before": 673,
+          "after": 2396,
+          "deltaMs": 1723,
+          "regression": true
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "settledMs",
+          "before": 447.8999999994412,
+          "after": 577.1000000014901,
+          "deltaMs": 129.2000000020489,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "feedbackMs",
+          "before": 489.8999999994412,
+          "after": 677.1999999992549,
+          "deltaMs": 187.29999999981374,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "settledMs",
+          "before": 669.5999999996275,
+          "after": 980.7999999970198,
+          "deltaMs": 311.1999999973923,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "longestTaskMs",
+          "before": 446,
+          "after": 604,
+          "deltaMs": 158,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "feedbackMs",
+          "before": 96.09999999962747,
+          "after": 174.89999999850988,
+          "deltaMs": 78.79999999888241,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "settledMs",
+          "before": 446.79999999981374,
+          "after": 543.3000000007451,
+          "deltaMs": 96.50000000093132,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "longestTaskMs",
+          "before": 98,
+          "after": 159,
+          "deltaMs": 61,
+          "regression": true
+        },
+        {
+          "name": "drag-pair",
+          "metric": "feedbackMs",
+          "before": 1324.2999999998137,
+          "after": 3650.39999999851,
+          "deltaMs": 2326.099999998696,
+          "regression": true
+        },
+        {
+          "name": "drag-pair",
+          "metric": "settledMs",
+          "before": 1326.0999999996275,
+          "after": 5145.199999999255,
+          "deltaMs": 3819.0999999996275,
+          "regression": true
+        },
+        {
+          "name": "drag-pair",
+          "metric": "longestTaskMs",
+          "before": 546,
+          "after": 1813,
+          "deltaMs": 1267,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "feedbackMs",
+          "before": 1888,
+          "after": 2797.7999999970198,
+          "deltaMs": 909.7999999970198,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "settledMs",
+          "before": 2034.7999999998137,
+          "after": 2804.099999997765,
+          "deltaMs": 769.2999999979511,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "longestTaskMs",
+          "before": 741,
+          "after": 1082,
+          "deltaMs": 341,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "feedbackMs",
+          "before": 3007.5,
+          "after": 9191.900000002235,
+          "deltaMs": 6184.400000002235,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "settledMs",
+          "before": 3021,
+          "after": 9621.60000000149,
+          "deltaMs": 6600.60000000149,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "longestTaskMs",
+          "before": 612,
+          "after": 1887,
+          "deltaMs": 1275,
+          "regression": true
+        },
+        {
+          "name": "save-changed",
+          "metric": "feedbackMs",
+          "before": 1825,
+          "after": 2613.699999999255,
+          "deltaMs": 788.6999999992549,
+          "regression": true
+        },
+        {
+          "name": "save-changed",
+          "metric": "settledMs",
+          "before": 4144.4000000003725,
+          "after": 8603.199999999255,
+          "deltaMs": 4458.799999998882,
+          "regression": true
+        },
+        {
+          "name": "save-changed",
+          "metric": "longestTaskMs",
+          "before": 1546,
+          "after": 2107,
+          "deltaMs": 561,
+          "regression": true
+        },
+        {
+          "name": "save-playhead",
+          "metric": "feedbackMs",
+          "before": 1334.7000000001863,
+          "after": 3037.599999997765,
+          "deltaMs": 1702.8999999975786,
+          "regression": true
+        },
+        {
+          "name": "save-playhead",
+          "metric": "settledMs",
+          "before": 3679.7999999998137,
+          "after": 9363.70000000298,
+          "deltaMs": 5683.9000000031665,
+          "regression": true
+        },
+        {
+          "name": "save-playhead",
+          "metric": "longestTaskMs",
+          "before": 1051,
+          "after": 2562,
+          "deltaMs": 1511,
+          "regression": true
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "feedbackMs",
+          "before": 813.1999999992549,
+          "after": 1699.199999999255,
+          "deltaMs": 886,
+          "regression": true
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "settledMs",
+          "before": 1384.4000000003725,
+          "after": 3048.300000000745,
+          "deltaMs": 1663.9000000003725,
+          "regression": true
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "longestTaskMs",
+          "before": 549,
+          "after": 1165,
+          "deltaMs": 616,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "syncMs",
+          "before": 494.09999999962747,
+          "after": 1324.199999999255,
+          "deltaMs": 830.0999999996275,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "feedbackMs",
+          "before": 929.0999999996275,
+          "after": 2226.5,
+          "deltaMs": 1297.4000000003725,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "settledMs",
+          "before": 2009.8999999994412,
+          "after": 4874.5,
+          "deltaMs": 2864.600000000559,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "longestTaskMs",
+          "before": 666,
+          "after": 1664,
+          "deltaMs": 998,
+          "regression": true
+        },
+        {
+          "name": "idle",
+          "metric": "longestTaskMs",
+          "before": 117,
+          "after": 251,
+          "deltaMs": 134,
+          "regression": true
+        }
+      ]
+    },
+    {
+      "name": "mixed-10000",
+      "fixture": {
+        "version": 1,
+        "profile": "mixed",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 4800,
+        "tracks": 9,
+        "speakers": 12,
+        "audioClips": 100,
+        "styledCues": 980,
+        "animatedCues": 1046,
+        "contentHash": "316279f3ffe90055f8f49a078700bef4406e5612598ba2aec3b60cf83affe6ec",
+        "destination": "s4",
+        "firstCue": "cue-0-main"
+      },
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 3159.6324000000022,
+        "domContentLoadedMs": 20840.74310000008,
+        "editorReadyMs": 24374.358600000036,
+        "previewReadyMs": 38813.80689999997,
+        "reloadPreviewReadyMs": 8536.63459999999
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [36,52.2],
+          "feedbackMs": [138.1,150.8],
+          "settledMs": [145.6,164.3],
+          "longestTaskMs": [64,93],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [4.7,4.7],
+          "feedbackMs": [51.1,55.9],
+          "settledMs": [59.9,65.5],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [9.7,10.5],
+          "feedbackMs": [174.7,382.5],
+          "settledMs": [2799.6,3079.8],
+          "longestTaskMs": [533,580],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [5.8,8],
+          "feedbackMs": [40.3,44.2],
+          "settledMs": [48,52.4],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [1517.4,1598.6],
+          "feedbackMs": [1919.9,5134.8],
+          "settledMs": [1931,5483.8],
+          "longestTaskMs": [1620,2933],
+          "calls": {
+            "fixedAcceptEdit": [1,2,70.3,495.4],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,44.4,101.4],
+            "fixedSyncUI": [1,1,102,102],
+            "applyCueListDisplaySettings": [1,1,44.4,50.2],
+            "renderAll": [1,1,939.1,999.7]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [1148.4,1765.8],
+          "feedbackMs": [1531.4,6879.5],
+          "settledMs": [1541,7399.9],
+          "longestTaskMs": [1207,3152],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,30.7,142.6],
+            "fixedSyncUI": [1,1,111,169.9],
+            "applyCueListDisplaySettings": [1,1,66.5,85],
+            "renderAll": [1,1,930.7,1402.7],
+            "fixedAcceptEdit": [0,1,0,116.6]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [1026.5,1042.8],
+          "feedbackMs": [1410.2,4087.9],
+          "settledMs": [1424.1,4517.6],
+          "longestTaskMs": [1085,2508],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,28.6,67.4],
+            "fixedSyncUI": [1,1,91.5,105.5],
+            "applyCueListDisplaySettings": [1,1,35.7,37.5],
+            "renderAll": [1,1,836,848.6],
+            "fixedAcceptEdit": [0,1,0,295.4]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [14.2,16.2],
+          "feedbackMs": [48.2,49.1],
+          "settledMs": [58.8,181.1],
+          "longestTaskMs": [0,58],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [3027,3532.8],
+          "feedbackMs": [3874.3,5146],
+          "settledMs": [3887.2,5436.4],
+          "longestTaskMs": [3047,3587],
+          "calls": {
+            "fixedAcceptEdit": [1,2,101.4,209.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,28.2,44.3],
+            "fixedSyncUI": [1,1,90.3,109.5],
+            "applyCueListDisplaySettings": [1,1,208.7,211.5],
+            "renderAll": [1,1,1084.3,1584.7]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [2298,2382.4],
+          "feedbackMs": [2843.6,5498.3],
+          "settledMs": [2850.8,7211.6],
+          "longestTaskMs": [2364,2531],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,27.9,78.7],
+            "fixedSyncUI": [1,1,89.8,113],
+            "applyCueListDisplaySettings": [1,1,54.2,59.9],
+            "renderAll": [1,1,911.3,1019.6],
+            "fixedAcceptEdit": [0,1,0,70.5]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [2479.5,2560.7],
+          "feedbackMs": [3025.7,5384.7],
+          "settledMs": [3039.7,5596.1],
+          "longestTaskMs": [2582,2666],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,28.8,78.4],
+            "fixedSyncUI": [1,1,107.3,123.1],
+            "applyCueListDisplaySettings": [1,1,48.9,50.8],
+            "renderAll": [1,1,1160,1175.7],
+            "fixedAcceptEdit": [0,1,0,366.5]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [3071.1,3265.9],
+          "feedbackMs": [4732.5,6776.7],
+          "settledMs": [5135.2,7191.1],
+          "longestTaskMs": [3219,3451],
+          "calls": {
+            "fixedAcceptEdit": [1,2,69.1,193.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,47.5,95.1],
+            "fixedSyncUI": [1,1,112.5,132.5],
+            "applyCueListDisplaySettings": [1,1,72.1,75.1],
+            "renderAll": [1,1,1069.3,1113.4]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [4626.7,5050.2],
+          "feedbackMs": [9618.9,10069.5],
+          "settledMs": [9976.9,10593.7],
+          "longestTaskMs": [6499,6632],
+          "calls": {
+            "fixedAcceptEdit": [3,3,586.7,641.1],
+            "syncProjectTimebaseAndBindingOffsets": [4,4,113.9,127.9],
+            "fixedSyncUI": [1,1,127.6,214.4],
+            "applyCueListDisplaySettings": [1,1,199,228.3],
+            "renderAll": [1,1,3799.4,4225.6]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [3240.8,3254.8],
+          "feedbackMs": [6328.2,6373.1],
+          "settledMs": [6816.6,6836.3],
+          "longestTaskMs": [3394,3434],
+          "calls": {
+            "fixedContent": [1,1,283.3,284.3],
+            "fixedAcceptEdit": [4,4,990,1169.7],
+            "syncProjectTimebaseAndBindingOffsets": [4,4,111.3,135.1],
+            "fixedSyncUI": [1,1,97.4,117.7],
+            "applyCueListDisplaySettings": [1,1,63.6,65.1],
+            "renderAll": [1,1,1534.4,1553.2]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [934.8,1026.4],
+          "feedbackMs": [1060.2,1179.4],
+          "settledMs": [5491.1,5689],
+          "longestTaskMs": [2698,2840],
+          "calls": {
+            "fixedAcceptEdit": [3,3,694.5,796.1],
+            "snapshotSegments": [1,1,158.7,178],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,52.6,58.3]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [200.7,204.8],
+          "feedbackMs": [304.3,614.2],
+          "settledMs": [1828.5,4801.3],
+          "longestTaskMs": [253,2436],
+          "calls": {
+            "fixedAcceptEdit": [1,2,90.5,165],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,60]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [527.7,590.5],
+          "feedbackMs": [594.7,677.8],
+          "settledMs": [4142.8,5393.9],
+          "longestTaskMs": [1023,1988],
+          "calls": {
+            "fixedAcceptEdit": [1,2,79.1,142],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,55.5]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [45.1,179.7],
+          "feedbackMs": [81.6,337],
+          "settledMs": [1273.3,4938.5],
+          "longestTaskMs": [413,1994],
+          "calls": {
+            "fixedAcceptEdit": [1,2,27.4,145.9],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,49.9]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [2.4,2.5],
+          "feedbackMs": [56.4,161.2],
+          "settledMs": [296.1,296.4],
+          "longestTaskMs": [53,56],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [3256.9,3329.3],
+          "settledMs": [3261.6,3333.4],
+          "longestTaskMs": [1498,1512],
+          "calls": {
+            "beginCueDrag": [1,1,4.9,5.1],
+            "fixedAcceptEdit": [1,1,81.2,83.6],
+            "moveCueDrag": [12,12,436.7,497.6],
+            "fixedTimingCheckpoint": [1,1,9.6,13.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,28.8,29.5],
+            "fixedSyncUI": [1,1,107.1,127],
+            "applyCueListDisplaySettings": [1,1,26.4,30.4],
+            "renderAll": [1,1,1086.9,1111],
+            "endCueDrag": [1,1,1331,1358.2]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [3047.2,3129.1],
+          "settledMs": [3051.4,3133.8],
+          "longestTaskMs": [1314,1353],
+          "calls": {
+            "beginCueDrag": [1,1,8.2,11.3],
+            "fixedAcceptEdit": [1,1,97,98.8],
+            "moveCueDrag": [12,12,183.6,187.5],
+            "fixedTimingCheckpoint": [1,1,9,13.7],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,28.2,29.3],
+            "fixedSyncUI": [1,1,107.4,110.7],
+            "applyCueListDisplaySettings": [1,1,22.9,25.6],
+            "renderAll": [1,1,1034.4,1060.3],
+            "endCueDrag": [1,1,1269.8,1304.5]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [7719.1,10480.5],
+          "settledMs": [7753.2,10992.7],
+          "longestTaskMs": [1692,2388],
+          "calls": {
+            "beginCueDrag": [1,1,8.8,9.8],
+            "fixedAcceptEdit": [1,2,96.9,412],
+            "moveCueDrag": [12,12,4023.2,4035],
+            "fixedTimingCheckpoint": [1,1,20.1,37.7],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,45.6,96.4],
+            "fixedSyncUI": [1,1,117.1,120],
+            "applyCueListDisplaySettings": [1,1,28.7,30.5],
+            "renderAll": [1,1,1211.7,1244.5],
+            "endCueDrag": [1,1,1584.6,1598.1]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [3262.1,3359.4],
+          "settledMs": [10494.2,10544],
+          "longestTaskMs": [2610,2790],
+          "calls": {
+            "fixedAcceptEdit": [1,1,72.1,84.5],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,55.1,67.3]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [3439.5,3597.8],
+          "settledMs": [10146.8,10443.5],
+          "longestTaskMs": [2916,3093],
+          "calls": {
+            "fixedAcceptEdit": [1,1,87.1,87.6],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,65.2,68.8]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [888.1,1641.3],
+          "settledMs": [3569.6,4973.2],
+          "longestTaskMs": [609,1133],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [523.6,595.9],
+          "feedbackMs": [1022.1,1106.7],
+          "settledMs": [2325.6,2376],
+          "longestTaskMs": [713,783],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [33.6,34.5],
+          "settledMs": [6052.7,6054],
+          "longestTaskMs": [123,421],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 252762352,
+            "totalSize": 332648448,
+            "embedderHeapUsedSize": 105068656,
+            "backingStorageSize": 65343933
+          },
+          "heapAfterGC": {
+            "usedSize": 185528616,
+            "totalSize": 190144512,
+            "embedderHeapUsedSize": 99569360,
+            "backingStorageSize": 65279443
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 154380,
+            "jsEventListeners": 73424
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 231007860,
+            "totalSize": 260247552,
+            "embedderHeapUsedSize": 103066872,
+            "backingStorageSize": 66029844
+          },
+          "heapAfterGC": {
+            "usedSize": 211127256,
+            "totalSize": 217513984,
+            "embedderHeapUsedSize": 102672064,
+            "backingStorageSize": 66029073
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 155110,
+            "jsEventListeners": 73523
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 545768160,
+            "totalSize": 610979840,
+            "embedderHeapUsedSize": 279889912,
+            "backingStorageSize": 137072720
+          },
+          "heapAfterGC": {
+            "usedSize": 184767780,
+            "totalSize": 192299008,
+            "embedderHeapUsedSize": 99688048,
+            "backingStorageSize": 68025238
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 154107,
+            "jsEventListeners": 73330
+          }
+        }
+      ],
+      "regressions": [
+        {
+          "name": "select",
+          "metric": "feedbackMs",
+          "before": 46.299999999813735,
+          "after": 138.10000000149012,
+          "deltaMs": 91.80000000167638,
+          "regression": true
+        },
+        {
+          "name": "select",
+          "metric": "settledMs",
+          "before": 49.5,
+          "after": 145.60000000149012,
+          "deltaMs": 96.10000000149012,
+          "regression": true
+        },
+        {
+          "name": "select",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 64,
+          "deltaMs": 64,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "feedbackMs",
+          "before": 96.5,
+          "after": 174.69999999925494,
+          "deltaMs": 78.19999999925494,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "settledMs",
+          "before": 1071.4000000003725,
+          "after": 2799.599999997765,
+          "deltaMs": 1728.1999999973923,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "longestTaskMs",
+          "before": 165,
+          "after": 533,
+          "deltaMs": 368,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "syncMs",
+          "before": 740.7999999998137,
+          "after": 1517.4000000022352,
+          "deltaMs": 776.6000000024214,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "feedbackMs",
+          "before": 826.8999999994412,
+          "after": 1919.9000000022352,
+          "deltaMs": 1093.000000002794,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "settledMs",
+          "before": 830.3999999994412,
+          "after": 1931,
+          "deltaMs": 1100.6000000005588,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "longestTaskMs",
+          "before": 747,
+          "after": 1620,
+          "deltaMs": 873,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "syncMs",
+          "before": 840.5,
+          "after": 1148.3999999985099,
+          "deltaMs": 307.8999999985099,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "syncMs",
+          "before": 499.5,
+          "after": 1026.5,
+          "deltaMs": 527,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "feedbackMs",
+          "before": 645.2000000001863,
+          "after": 1410.199999999255,
+          "deltaMs": 764.9999999990687,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "settledMs",
+          "before": 688.5999999996275,
+          "after": 1424.1000000014901,
+          "deltaMs": 735.5000000018626,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 514,
+          "after": 1085,
+          "deltaMs": 571,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "syncMs",
+          "before": 1300.2000000001863,
+          "after": 3027,
+          "deltaMs": 1726.7999999998137,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "feedbackMs",
+          "before": 1462.9000000003725,
+          "after": 3874.300000000745,
+          "deltaMs": 2411.4000000003725,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "settledMs",
+          "before": 1468.7999999998137,
+          "after": 3887.2000000029802,
+          "deltaMs": 2418.4000000031665,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "longestTaskMs",
+          "before": 1317,
+          "after": 3047,
+          "deltaMs": 1730,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "syncMs",
+          "before": 919.2000000001863,
+          "after": 2298,
+          "deltaMs": 1378.7999999998137,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "feedbackMs",
+          "before": 1020.4000000003725,
+          "after": 2843.599999997765,
+          "deltaMs": 1823.1999999973923,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "settledMs",
+          "before": 1039.2000000001863,
+          "after": 2850.7999999970198,
+          "deltaMs": 1811.5999999968335,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 940,
+          "after": 2364,
+          "deltaMs": 1424,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "syncMs",
+          "before": 865.7000000001863,
+          "after": 2479.5,
+          "deltaMs": 1613.7999999998137,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "feedbackMs",
+          "before": 1016.5,
+          "after": 3025.699999999255,
+          "deltaMs": 2009.199999999255,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "settledMs",
+          "before": 1021.2000000001863,
+          "after": 3039.699999999255,
+          "deltaMs": 2018.4999999990687,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 909,
+          "after": 2582,
+          "deltaMs": 1673,
+          "regression": true
+        },
+        {
+          "name": "cut-pair",
+          "metric": "syncMs",
+          "before": 2224.7000000001863,
+          "after": 3071.10000000149,
+          "deltaMs": 846.4000000013039,
+          "regression": true
+        },
+        {
+          "name": "cut-pair",
+          "metric": "feedbackMs",
+          "before": 3229.7000000001863,
+          "after": 4732.5,
+          "deltaMs": 1502.7999999998137,
+          "regression": true
+        },
+        {
+          "name": "cut-pair",
+          "metric": "settledMs",
+          "before": 3260.899999999441,
+          "after": 5135.199999999255,
+          "deltaMs": 1874.2999999998137,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "syncMs",
+          "before": 2457.2000000001863,
+          "after": 4626.699999999255,
+          "deltaMs": 2169.4999999990687,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "feedbackMs",
+          "before": 3281.2999999998137,
+          "after": 9618.89999999851,
+          "deltaMs": 6337.599999998696,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "settledMs",
+          "before": 3354.9000000003725,
+          "after": 9976.89999999851,
+          "deltaMs": 6621.999999998137,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "longestTaskMs",
+          "before": 3097,
+          "after": 6499,
+          "deltaMs": 3402,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "syncMs",
+          "before": 2059.7999999998137,
+          "after": 3240.7999999970198,
+          "deltaMs": 1180.999999997206,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "feedbackMs",
+          "before": 2693.7999999998137,
+          "after": 6328.20000000298,
+          "deltaMs": 3634.4000000031665,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "settledMs",
+          "before": 2703.2999999998137,
+          "after": 6816.60000000149,
+          "deltaMs": 4113.300000001676,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "longestTaskMs",
+          "before": 2535,
+          "after": 3394,
+          "deltaMs": 859,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "syncMs",
+          "before": 690.7000000001863,
+          "after": 934.8000000007451,
+          "deltaMs": 244.1000000005588,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "feedbackMs",
+          "before": 761.2999999998137,
+          "after": 1060.199999999255,
+          "deltaMs": 298.8999999994412,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "settledMs",
+          "before": 1670.5,
+          "after": 5491.10000000149,
+          "deltaMs": 3820.60000000149,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "longestTaskMs",
+          "before": 691,
+          "after": 2698,
+          "deltaMs": 2007,
+          "regression": true
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "feedbackMs",
+          "before": 188.20000000018626,
+          "after": 304.30000000074506,
+          "deltaMs": 116.1000000005588,
+          "regression": true
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "settledMs",
+          "before": 849.5,
+          "after": 1828.5,
+          "deltaMs": 979,
+          "regression": true
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "longestTaskMs",
+          "before": 156,
+          "after": 253,
+          "deltaMs": 97,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "syncMs",
+          "before": 321.70000000018626,
+          "after": 527.6999999992549,
+          "deltaMs": 205.99999999906868,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "feedbackMs",
+          "before": 345.09999999962747,
+          "after": 594.6999999992549,
+          "deltaMs": 249.59999999962747,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "settledMs",
+          "before": 1400,
+          "after": 4142.800000000745,
+          "deltaMs": 2742.800000000745,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "longestTaskMs",
+          "before": 326,
+          "after": 1023,
+          "deltaMs": 697,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "settledMs",
+          "before": 970.2999999998137,
+          "after": 1273.300000000745,
+          "deltaMs": 303.0000000009313,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "longestTaskMs",
+          "before": 100,
+          "after": 413,
+          "deltaMs": 313,
+          "regression": true
+        },
+        {
+          "name": "search",
+          "metric": "settledMs",
+          "before": 210.29999999981374,
+          "after": 296.0999999977648,
+          "deltaMs": 85.79999999795109,
+          "regression": true
+        },
+        {
+          "name": "search",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 53,
+          "deltaMs": 53,
+          "regression": true
+        },
+        {
+          "name": "drag-pair",
+          "metric": "feedbackMs",
+          "before": 1622,
+          "after": 3256.89999999851,
+          "deltaMs": 1634.8999999985099,
+          "regression": true
+        },
+        {
+          "name": "drag-pair",
+          "metric": "settledMs",
+          "before": 1634.5,
+          "after": 3261.599999997765,
+          "deltaMs": 1627.0999999977648,
+          "regression": true
+        },
+        {
+          "name": "drag-pair",
+          "metric": "longestTaskMs",
+          "before": 600,
+          "after": 1498,
+          "deltaMs": 898,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "feedbackMs",
+          "before": 1804.7000000001863,
+          "after": 3047.199999999255,
+          "deltaMs": 1242.4999999990687,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "settledMs",
+          "before": 2229,
+          "after": 3051.39999999851,
+          "deltaMs": 822.3999999985099,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "longestTaskMs",
+          "before": 554,
+          "after": 1314,
+          "deltaMs": 760,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "feedbackMs",
+          "before": 3349.5,
+          "after": 7719.10000000149,
+          "deltaMs": 4369.60000000149,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "settledMs",
+          "before": 3549.2999999998137,
+          "after": 7753.199999999255,
+          "deltaMs": 4203.899999999441,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "longestTaskMs",
+          "before": 721,
+          "after": 1692,
+          "deltaMs": 971,
+          "regression": true
+        },
+        {
+          "name": "save-changed",
+          "metric": "feedbackMs",
+          "before": 1901.4000000003725,
+          "after": 3262.099999997765,
+          "deltaMs": 1360.6999999973923,
+          "regression": true
+        },
+        {
+          "name": "save-changed",
+          "metric": "settledMs",
+          "before": 4699.5,
+          "after": 10494.199999999255,
+          "deltaMs": 5794.699999999255,
+          "regression": true
+        },
+        {
+          "name": "save-changed",
+          "metric": "longestTaskMs",
+          "before": 1436,
+          "after": 2610,
+          "deltaMs": 1174,
+          "regression": true
+        },
+        {
+          "name": "save-playhead",
+          "metric": "feedbackMs",
+          "before": 1501.0999999996275,
+          "after": 3439.5,
+          "deltaMs": 1938.4000000003725,
+          "regression": true
+        },
+        {
+          "name": "save-playhead",
+          "metric": "settledMs",
+          "before": 5530.0999999996275,
+          "after": 10146.800000000745,
+          "deltaMs": 4616.700000001118,
+          "regression": true
+        },
+        {
+          "name": "save-playhead",
+          "metric": "longestTaskMs",
+          "before": 1195,
+          "after": 2916,
+          "deltaMs": 1721,
+          "regression": true
+        }
+      ]
+    },
+    {
+      "name": "migrated-10000",
+      "fixture": {
+        "version": 1,
+        "profile": "migrated",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 5000,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "cf63910b2c981f10791dea5433b5498e10408e10acb8d8c87f47aba55982556d",
+        "destination": "s2",
+        "firstCue": "cue-ff9d42d8de9f8883"
+      },
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 3253.1324999998324,
+        "domContentLoadedMs": 7506.411799999885,
+        "editorReadyMs": 9173.355500000063,
+        "previewReadyMs": 15876.00400000019,
+        "reloadPreviewReadyMs": 14738.641700000037
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "syncMs": [13,13.9],
+          "feedbackMs": [47.5,48.4],
+          "settledMs": [51,52],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "syncMs": [1.6,1.7],
+          "feedbackMs": [24,25],
+          "settledMs": [27.3,29.1],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "syncMs": [2.6,2.7],
+          "feedbackMs": [25.2,25.6],
+          "settledMs": [304,339.6],
+          "longestTaskMs": [123,129],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "syncMs": [2.2,2.5],
+          "feedbackMs": [30.6,32.4],
+          "settledMs": [34,38.6],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "syncMs": [338.9,377.5],
+          "feedbackMs": [412.4,465.2],
+          "settledMs": [415.7,487.1],
+          "longestTaskMs": [344,382],
+          "calls": {
+            "fixedAcceptEdit": [1,1,31.7,33.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,8.6,9.4],
+            "fixedSyncUI": [1,1,21.7,26.1],
+            "applyCueListDisplaySettings": [1,1,15.8,18.9],
+            "renderAll": [1,1,236.2,269.8]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "syncMs": [293.3,352.9],
+          "feedbackMs": [367.3,548.5],
+          "settledMs": [382.6,552.8],
+          "longestTaskMs": [306,369],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,8.3,9.3],
+            "fixedSyncUI": [1,1,21.5,30],
+            "applyCueListDisplaySettings": [1,1,20.6,26.6],
+            "renderAll": [1,1,232,284.2]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "syncMs": [322.2,327.2],
+          "feedbackMs": [430.7,436],
+          "settledMs": [452.9,453.7],
+          "longestTaskMs": [347,349],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,8.9,10],
+            "fixedSyncUI": [1,1,24.4,25.6],
+            "applyCueListDisplaySettings": [1,1,14.4,24.1],
+            "renderAll": [1,1,256.6,257.6]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "syncMs": [3.4,4.9],
+          "feedbackMs": [27.6,28.4],
+          "settledMs": [32.2,33.1],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "syncMs": [1291.3,1393.8],
+          "feedbackMs": [3074.4,3244.3],
+          "settledMs": [3513.5,3528.7],
+          "longestTaskMs": [1374,1426],
+          "calls": {
+            "fixedAcceptEdit": [2,2,172.5,194.2],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,32.8,47.1],
+            "fixedSyncUI": [1,1,38.8,39.8],
+            "applyCueListDisplaySettings": [1,1,69.8,94.9],
+            "renderAll": [1,1,716,753.6]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "syncMs": [788.3,797.3],
+          "feedbackMs": [896.1,909.3],
+          "settledMs": [925.8,931.4],
+          "longestTaskMs": [821,822],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,11.3,12.7],
+            "fixedSyncUI": [1,1,31.5,35.6],
+            "applyCueListDisplaySettings": [1,1,21.3,32.8],
+            "renderAll": [1,1,318.9,344.5]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "syncMs": [848.4,994],
+          "feedbackMs": [993.5,1176.5],
+          "settledMs": [1012.1,1191],
+          "longestTaskMs": [882,1029],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,13.2,13.5],
+            "fixedSyncUI": [1,1,23.9,28.2],
+            "applyCueListDisplaySettings": [1,1,17.1,17.7],
+            "renderAll": [1,1,332.2,374.4]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "syncMs": [1111.9,1276.7],
+          "feedbackMs": [1280.6,1464.9],
+          "settledMs": [1293.3,1478.3],
+          "longestTaskMs": [1206,1389],
+          "calls": {
+            "fixedAcceptEdit": [1,1,28.7,28.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10,16],
+            "fixedSyncUI": [1,1,26.7,40.3],
+            "applyCueListDisplaySettings": [1,1,29.1,34.7],
+            "renderAll": [1,1,318.1,372.5]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "syncMs": [1662.9,1775.2],
+          "feedbackMs": [2428.3,2458.8],
+          "settledMs": [2467.1,2486.8],
+          "longestTaskMs": [2263,2339],
+          "calls": {
+            "fixedAcceptEdit": [2,2,194.4,205.5],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,22.4,35.4],
+            "fixedSyncUI": [1,1,24.9,25],
+            "applyCueListDisplaySettings": [1,1,59.2,64.5],
+            "renderAll": [1,1,1409.3,1525.4]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "syncMs": [906.5,913.8],
+          "feedbackMs": [1113.6,2459],
+          "settledMs": [1127.5,2744],
+          "longestTaskMs": [1007,1102],
+          "calls": {
+            "fixedContent": [1,1,112.7,117.1],
+            "fixedAcceptEdit": [3,4,298.4,318.4],
+            "syncProjectTimebaseAndBindingOffsets": [2,4,20.7,38.9],
+            "fixedSyncUI": [1,1,24,25.6],
+            "applyCueListDisplaySettings": [1,1,21.1,23.5],
+            "renderAll": [1,1,403,433.9]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "syncMs": [325.2,336.4],
+          "feedbackMs": [1957.7,2710.7],
+          "settledMs": [2413.7,3078.5],
+          "longestTaskMs": [1281,1287],
+          "calls": {
+            "fixedAcceptEdit": [3,3,187.3,201.5],
+            "snapshotSegments": [1,1,91.9,93.8],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,20,21.2]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "syncMs": [67.7,73.7],
+          "feedbackMs": [92,99],
+          "settledMs": [395.6,1882.3],
+          "longestTaskMs": [79,1063],
+          "calls": {
+            "fixedAcceptEdit": [1,2,45.8,81.2],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,33.5]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "syncMs": [171,173.1],
+          "feedbackMs": [197.9,201.9],
+          "settledMs": [480.8,515.9],
+          "longestTaskMs": [175,178],
+          "calls": {
+            "fixedAcceptEdit": [1,1,29.5,34.7]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "syncMs": [50,64.8],
+          "feedbackMs": [80.2,107.7],
+          "settledMs": [326.3,389.2],
+          "longestTaskMs": [77,79],
+          "calls": {
+            "fixedAcceptEdit": [1,1,31.9,45.5]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "syncMs": [0.9,1],
+          "feedbackMs": [54,57.9],
+          "settledMs": [215.8,217.6],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1050.3,1350.9],
+          "settledMs": [1051.9,1351.8],
+          "longestTaskMs": [429,566],
+          "calls": {
+            "beginCueDrag": [1,1,1.7,1.8],
+            "fixedAcceptEdit": [1,1,36.7,37.3],
+            "moveCueDrag": [12,12,168.3,224.9],
+            "fixedTimingCheckpoint": [1,1,3.6,5.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.1,11.3],
+            "fixedSyncUI": [1,1,23.9,39.6],
+            "applyCueListDisplaySettings": [1,1,6.1,10.3],
+            "renderAll": [1,1,279.6,379.7],
+            "endCueDrag": [1,1,340.9,458.1]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [1405.2,1520.9],
+          "settledMs": [1408.4,1524.2],
+          "longestTaskMs": [595,640],
+          "calls": {
+            "beginCueDrag": [1,1,4.2,5.2],
+            "fixedAcceptEdit": [1,1,45.1,56.2],
+            "moveCueDrag": [12,12,94.1,96.4],
+            "fixedTimingCheckpoint": [1,1,5.4,10.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,14.1,26.1],
+            "fixedSyncUI": [1,1,45.5,55.3],
+            "applyCueListDisplaySettings": [1,1,9.1,14.1],
+            "renderAll": [1,1,471.8,480.4],
+            "endCueDrag": [1,1,579.9,625.3]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "syncMs": [null,null],
+          "feedbackMs": [2983.5,3263.4],
+          "settledMs": [2986,3265.6],
+          "longestTaskMs": [538,572],
+          "calls": {
+            "beginCueDrag": [1,1,5.3,8.2],
+            "fixedAcceptEdit": [1,1,33.6,35.4],
+            "moveCueDrag": [12,12,1653.9,1856],
+            "fixedTimingCheckpoint": [1,1,6.2,7.3],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.6,13.1],
+            "fixedSyncUI": [1,1,28.3,28.3],
+            "applyCueListDisplaySettings": [1,1,6.2,7.6],
+            "renderAll": [1,1,420.7,422.7],
+            "endCueDrag": [1,1,507,531.6]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "syncMs": [0.1,0.1],
+          "feedbackMs": [1895.6,1903.2],
+          "settledMs": [5035.9,5636.1],
+          "longestTaskMs": [1468,1516],
+          "calls": {
+            "fixedAcceptEdit": [1,1,35.8,53.4],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,21.6,36.9]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "syncMs": [0,0.1],
+          "feedbackMs": [1634.3,1896.7],
+          "settledMs": [4846.6,5241.9],
+          "longestTaskMs": [1281,1552],
+          "calls": {
+            "fixedAcceptEdit": [1,1,29.2,30.3],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,19.4,24.9]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [1156.5,1160.4],
+          "settledMs": [1817.5,1899.1],
+          "longestTaskMs": [777,788],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "syncMs": [660.9,1251.8],
+          "feedbackMs": [1419,2139],
+          "settledMs": [4625,5846.9],
+          "longestTaskMs": [963,1608],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "syncMs": [0,0],
+          "feedbackMs": [34.1,35.1],
+          "settledMs": [6046.8,6048.5],
+          "longestTaskMs": [210,252],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 290071608,
+            "totalSize": 377888768,
+            "embedderHeapUsedSize": 102026504,
+            "backingStorageSize": 68067827
+          },
+          "heapAfterGC": {
+            "usedSize": 215236512,
+            "totalSize": 217907200,
+            "embedderHeapUsedSize": 98003696,
+            "backingStorageSize": 67903818
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153084,
+            "jsEventListeners": 73173
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 254365124,
+            "totalSize": 291819520,
+            "embedderHeapUsedSize": 101794056,
+            "backingStorageSize": 68691129
+          },
+          "heapAfterGC": {
+            "usedSize": 253530600,
+            "totalSize": 259358720,
+            "embedderHeapUsedSize": 101010384,
+            "backingStorageSize": 68690403
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153681,
+            "jsEventListeners": 73253
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 571711592,
+            "totalSize": 664080384,
+            "embedderHeapUsedSize": 221329624,
+            "backingStorageSize": 139183247
+          },
+          "heapAfterGC": {
+            "usedSize": 216449624,
+            "totalSize": 249466880,
+            "embedderHeapUsedSize": 98864280,
+            "backingStorageSize": 70823568
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 153203,
+            "jsEventListeners": 73258
+          }
+        }
+      ],
+      "regressions": [
+        {
+          "name": "paste-100",
+          "metric": "feedbackMs",
+          "before": 1600.7999999998137,
+          "after": 3074.400000002235,
+          "deltaMs": 1473.6000000024214,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "settledMs",
+          "before": 1622,
+          "after": 3513.5,
+          "deltaMs": 1891.5,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "feedbackMs",
+          "before": 540.3999999994412,
+          "after": 1957.699999999255,
+          "deltaMs": 1417.2999999998137,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "settledMs",
+          "before": 727.1000000005588,
+          "after": 2413.699999999255,
+          "deltaMs": 1686.5999999986961,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "longestTaskMs",
+          "before": 484,
+          "after": 1281,
+          "deltaMs": 797,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "longestTaskMs",
+          "before": 488,
+          "after": 595,
+          "deltaMs": 107,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "settledMs",
+          "before": 2543.0999999996275,
+          "after": 4625,
+          "deltaMs": 2081.9000000003725,
+          "regression": true
+        },
+        {
+          "name": "idle",
+          "metric": "longestTaskMs",
+          "before": 121,
+          "after": 210,
+          "deltaMs": 89,
+          "regression": true
+        }
+      ]
+    }
+  ],
+  "modelProbes": {
+    "count": 10000,
+    "repeats": 3,
+    "cases": {
+      "preview-window-90s": {
+        "samples": [24.035599999595433,21.354700000025332,16.548500000033528],
+        "ms": {
+          "n": 3,
+          "median": 21.354700000025332,
+          "p95": null,
+          "max": 24.035599999595433
+        },
+        "outputCues": 126
+      },
+      "full-project-conversion": {
+        "samples": [180.51929999981076,178.36659999983385,208.5910000000149],
+        "ms": {
+          "n": 3,
+          "median": 180.51929999981076,
+          "p95": null,
+          "max": 208.5910000000149
+        },
+        "outputCues": 10000
+      },
+      "locks-none": {
+        "samples": [0.25510000018402934,0.0023000002838671207,0.008800000417977571],
+        "ms": {
+          "n": 3,
+          "median": 0.008800000417977571,
+          "p95": null,
+          "max": 0.25510000018402934
+        }
+      },
+      "locks-half-project": {
+        "samples": [199.51829999964684,117.53780000004917,121.39589999988675],
+        "ms": {
+          "n": 3,
+          "median": 121.39589999988675,
+          "p95": null,
+          "max": 199.51829999964684
+        }
+      },
+      "preview-window-with-fixed-long-note": {
+        "samples": [71.92519999993965,77.38469999982044,70.93759999983013],
+        "ms": {
+          "n": 3,
+          "median": 71.92519999993965,
+          "p95": null,
+          "max": 77.38469999982044
+        },
+        "outputCues": 10000
+      }
+    }
+  },
+  "environment": {
+    "commit": "70d783edd307add8c2d7f05642b3f40c9c0e605c",
+    "node": "v24.19.0",
+    "python": "Python 3.11.16",
+    "ffmpeg": "ffmpeg version 8.1.2-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "platform": "win32",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900H",
+    "cpuThreads": 20,
+    "memoryBytes": 34070192128,
+    "headless": true,
+    "harnessHash": "d92bbba6fc9d3e439ca70e9626c6f8c200220087597db840f0383d0bcfc03dbd",
+    "fontInventoryHash": "3ed3ffac30743741d9ec14cf79c8ea1f07f701ce72e61ae0363a7d5476bdb6b9",
+    "browser": "151.0.7922.34"
+  },
+  "config": {
+    "repeats": 3,
+    "warmup": 1,
+    "idleMs": 6000,
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "video": {
+      "width": 640,
+      "height": 360,
+      "fps": 2,
+      "durationMs": 7200000
+    }
+  },
+  "freshBaseline": {
+    "commit": "70d783edd307add8c2d7f05642b3f40c9c0e605c",
+    "createdAt": "2026-11-07T07:59:32.030Z",
+    "status": "failed",
+    "failure": "recovery-draft: Operation returned false",
+    "note": "Supplemental contemporaneous comparison only. Failed or insufficiently sampled operations are excluded from the rows, not counted as passing; original failure is retained.",
+    "rows": [
+      {
+        "name": "select",
+        "metric": "syncMs",
+        "before": 42.5,
+        "after": 35.1,
+        "deltaMs": -7.4,
+        "regression": false
+      },
+      {
+        "name": "select",
+        "metric": "feedbackMs",
+        "before": 135.6,
+        "after": 111.1,
+        "deltaMs": -24.5,
+        "regression": false
+      },
+      {
+        "name": "select",
+        "metric": "settledMs",
+        "before": 144.1,
+        "after": 118.9,
+        "deltaMs": -25.2,
+        "regression": false
+      },
+      {
+        "name": "select",
+        "metric": "longestTaskMs",
+        "before": 68,
+        "after": 65,
+        "deltaMs": -3,
+        "regression": false
+      },
+      {
+        "name": "context-menu",
+        "metric": "syncMs",
+        "before": 4.5,
+        "after": 2.8,
+        "deltaMs": -1.7,
+        "regression": false
+      },
+      {
+        "name": "context-menu",
+        "metric": "feedbackMs",
+        "before": 37.8,
+        "after": 37.8,
+        "deltaMs": 0,
+        "regression": false
+      },
+      {
+        "name": "context-menu",
+        "metric": "settledMs",
+        "before": 47.2,
+        "after": 45.5,
+        "deltaMs": -1.7,
+        "regression": false
+      },
+      {
+        "name": "context-menu",
+        "metric": "longestTaskMs",
+        "before": 0,
+        "after": 0,
+        "deltaMs": 0,
+        "regression": false
+      },
+      {
+        "name": "seek-preview",
+        "metric": "syncMs",
+        "before": 9,
+        "after": 6.2,
+        "deltaMs": -2.8,
+        "regression": false
+      },
+      {
+        "name": "seek-preview",
+        "metric": "feedbackMs",
+        "before": 163.1,
+        "after": 153.5,
+        "deltaMs": -9.6,
+        "regression": false
+      },
+      {
+        "name": "seek-preview",
+        "metric": "settledMs",
+        "before": 738.1,
+        "after": 632.2,
+        "deltaMs": -105.9,
+        "regression": false
+      },
+      {
+        "name": "seek-preview",
+        "metric": "longestTaskMs",
+        "before": 381,
+        "after": 324,
+        "deltaMs": -57,
+        "regression": false
+      },
+      {
+        "name": "copy-1",
+        "metric": "syncMs",
+        "before": 6.9,
+        "after": 7.4,
+        "deltaMs": 0.5,
+        "regression": false
+      },
+      {
+        "name": "copy-1",
+        "metric": "feedbackMs",
+        "before": 40.3,
+        "after": 37,
+        "deltaMs": -3.3,
+        "regression": false
+      },
+      {
+        "name": "copy-1",
+        "metric": "settledMs",
+        "before": 48.6,
+        "after": 48.1,
+        "deltaMs": -0.5,
+        "regression": false
+      },
+      {
+        "name": "copy-1",
+        "metric": "longestTaskMs",
+        "before": 0,
+        "after": 0,
+        "deltaMs": 0,
+        "regression": false
+      },
+      {
+        "name": "paste-1",
+        "metric": "syncMs",
+        "before": 1814.2,
+        "after": 1257,
+        "deltaMs": -557.2,
+        "regression": false
+      },
+      {
+        "name": "paste-1",
+        "metric": "feedbackMs",
+        "before": 2104.3,
+        "after": 3926.6,
+        "deltaMs": 1822.3,
+        "regression": true
+      },
+      {
+        "name": "paste-1",
+        "metric": "settledMs",
+        "before": 2157.6,
+        "after": 4265,
+        "deltaMs": 2107.4,
+        "regression": true
+      },
+      {
+        "name": "paste-1",
+        "metric": "longestTaskMs",
+        "before": 1833,
+        "after": 2319,
+        "deltaMs": 486,
+        "regression": true
+      },
+      {
+        "name": "undo-paste-1",
+        "metric": "syncMs",
+        "before": 1499.5,
+        "after": 1243.1,
+        "deltaMs": -256.4,
+        "regression": false
+      },
+      {
+        "name": "undo-paste-1",
+        "metric": "feedbackMs",
+        "before": 1849.7,
+        "after": 1567.6,
+        "deltaMs": -282.1,
+        "regression": false
+      },
+      {
+        "name": "undo-paste-1",
+        "metric": "settledMs",
+        "before": 1889.5,
+        "after": 1602.6,
+        "deltaMs": -286.9,
+        "regression": false
+      },
+      {
+        "name": "undo-paste-1",
+        "metric": "longestTaskMs",
+        "before": 1616,
+        "after": 1298,
+        "deltaMs": -318,
+        "regression": false
+      },
+      {
+        "name": "redo-paste-1",
+        "metric": "syncMs",
+        "before": 1203,
+        "after": 1182.1,
+        "deltaMs": -20.9,
+        "regression": false
+      },
+      {
+        "name": "redo-paste-1",
+        "metric": "feedbackMs",
+        "before": 1459,
+        "after": 1891.9,
+        "deltaMs": 432.9,
+        "regression": true
+      },
+      {
+        "name": "redo-paste-1",
+        "metric": "settledMs",
+        "before": 1494.6,
+        "after": 1927,
+        "deltaMs": 432.4,
+        "regression": true
+      },
+      {
+        "name": "redo-paste-1",
+        "metric": "longestTaskMs",
+        "before": 1242,
+        "after": 1493,
+        "deltaMs": 251,
+        "regression": true
+      },
+      {
+        "name": "copy-100",
+        "metric": "syncMs",
+        "before": 8.7,
+        "after": 9.5,
+        "deltaMs": 0.8,
+        "regression": false
+      },
+      {
+        "name": "copy-100",
+        "metric": "feedbackMs",
+        "before": 46.1,
+        "after": 37.3,
+        "deltaMs": -8.8,
+        "regression": false
+      },
+      {
+        "name": "copy-100",
+        "metric": "settledMs",
+        "before": 55.1,
+        "after": 44.7,
+        "deltaMs": -10.4,
+        "regression": false
+      },
+      {
+        "name": "copy-100",
+        "metric": "longestTaskMs",
+        "before": 0,
+        "after": 0,
+        "deltaMs": 0,
+        "regression": false
+      },
+      {
+        "name": "paste-100",
+        "metric": "syncMs",
+        "before": 3643.8,
+        "after": 3282.5,
+        "deltaMs": -361.3,
+        "regression": false
+      },
+      {
+        "name": "paste-100",
+        "metric": "feedbackMs",
+        "before": 6790.7,
+        "after": 7253.2,
+        "deltaMs": 462.5,
+        "regression": false
+      },
+      {
+        "name": "paste-100",
+        "metric": "settledMs",
+        "before": 7137.6,
+        "after": 8266.9,
+        "deltaMs": 1129.3,
+        "regression": false
+      },
+      {
+        "name": "paste-100",
+        "metric": "longestTaskMs",
+        "before": 3703,
+        "after": 3348,
+        "deltaMs": -355,
+        "regression": false
+      },
+      {
+        "name": "undo-paste-100",
+        "metric": "syncMs",
+        "before": 2708.5,
+        "after": 2076.9,
+        "deltaMs": -631.6,
+        "regression": false
+      },
+      {
+        "name": "undo-paste-100",
+        "metric": "feedbackMs",
+        "before": 3426.1,
+        "after": 4119.1,
+        "deltaMs": 693,
+        "regression": true
+      },
+      {
+        "name": "undo-paste-100",
+        "metric": "settledMs",
+        "before": 3438.6,
+        "after": 4512.1,
+        "deltaMs": 1073.5,
+        "regression": true
+      },
+      {
+        "name": "undo-paste-100",
+        "metric": "longestTaskMs",
+        "before": 2801,
+        "after": 2155,
+        "deltaMs": -646,
+        "regression": false
+      },
+      {
+        "name": "redo-paste-100",
+        "metric": "syncMs",
+        "before": 2747.2,
+        "after": 2369,
+        "deltaMs": -378.2,
+        "regression": false
+      },
+      {
+        "name": "redo-paste-100",
+        "metric": "feedbackMs",
+        "before": 6063,
+        "after": 2874.9,
+        "deltaMs": -3188.1,
+        "regression": false
+      },
+      {
+        "name": "redo-paste-100",
+        "metric": "settledMs",
+        "before": 6442.9,
+        "after": 2930.5,
+        "deltaMs": -3512.4,
+        "regression": false
+      },
+      {
+        "name": "redo-paste-100",
+        "metric": "longestTaskMs",
+        "before": 2851,
+        "after": 2497,
+        "deltaMs": -354,
+        "regression": false
+      },
+      {
+        "name": "cut-pair",
+        "metric": "syncMs",
+        "before": 6906.5,
+        "after": 2365.1,
+        "deltaMs": -4541.4,
+        "regression": false
+      },
+      {
+        "name": "cut-pair",
+        "metric": "feedbackMs",
+        "before": 10691.7,
+        "after": 2935.1,
+        "deltaMs": -7756.6,
+        "regression": false
+      },
+      {
+        "name": "cut-pair",
+        "metric": "settledMs",
+        "before": 11036.2,
+        "after": 2965.5,
+        "deltaMs": -8070.7,
+        "regression": false
+      },
+      {
+        "name": "cut-pair",
+        "metric": "longestTaskMs",
+        "before": 9067,
+        "after": 2669,
+        "deltaMs": -6398,
+        "regression": false
+      },
+      {
+        "name": "split-pair",
+        "metric": "syncMs",
+        "before": 6263.1,
+        "after": 5327.5,
+        "deltaMs": -935.6,
+        "regression": false
+      },
+      {
+        "name": "split-pair",
+        "metric": "feedbackMs",
+        "before": 8893,
+        "after": 9663,
+        "deltaMs": 770,
+        "regression": false
+      },
+      {
+        "name": "split-pair",
+        "metric": "settledMs",
+        "before": 10866.4,
+        "after": 10115.8,
+        "deltaMs": -750.6,
+        "regression": false
+      },
+      {
+        "name": "split-pair",
+        "metric": "longestTaskMs",
+        "before": 8277,
+        "after": 7260,
+        "deltaMs": -1017,
+        "regression": false
+      },
+      {
+        "name": "merge-pairs",
+        "metric": "syncMs",
+        "before": 6774.8,
+        "after": 2978,
+        "deltaMs": -3796.8,
+        "regression": false
+      },
+      {
+        "name": "merge-pairs",
+        "metric": "feedbackMs",
+        "before": 11173.1,
+        "after": 6603.5,
+        "deltaMs": -4569.6,
+        "regression": false
+      },
+      {
+        "name": "merge-pairs",
+        "metric": "settledMs",
+        "before": 11547.2,
+        "after": 7106.6,
+        "deltaMs": -4440.6,
+        "regression": false
+      },
+      {
+        "name": "merge-pairs",
+        "metric": "longestTaskMs",
+        "before": 8433,
+        "after": 3472,
+        "deltaMs": -4961,
+        "regression": false
+      },
+      {
+        "name": "text-preview",
+        "metric": "syncMs",
+        "before": 1133.3,
+        "after": 680.7,
+        "deltaMs": -452.6,
+        "regression": false
+      },
+      {
+        "name": "text-preview",
+        "metric": "feedbackMs",
+        "before": 1341.1,
+        "after": 885.3,
+        "deltaMs": -455.8,
+        "regression": false
+      },
+      {
+        "name": "text-preview",
+        "metric": "settledMs",
+        "before": 5455.6,
+        "after": 4491.4,
+        "deltaMs": -964.2,
+        "regression": false
+      },
+      {
+        "name": "text-preview",
+        "metric": "longestTaskMs",
+        "before": 2110,
+        "after": 2396,
+        "deltaMs": 286,
+        "regression": false
+      },
+      {
+        "name": "cue-style-preview",
+        "metric": "syncMs",
+        "before": 303.9,
+        "after": 129.1,
+        "deltaMs": -174.8,
+        "regression": false
+      },
+      {
+        "name": "cue-style-preview",
+        "metric": "feedbackMs",
+        "before": 378.2,
+        "after": 188.6,
+        "deltaMs": -189.6,
+        "regression": false
+      },
+      {
+        "name": "cue-style-preview",
+        "metric": "settledMs",
+        "before": 652.3,
+        "after": 577.1,
+        "deltaMs": -75.2,
+        "regression": false
+      },
+      {
+        "name": "cue-style-preview",
+        "metric": "longestTaskMs",
+        "before": 321,
+        "after": 151,
+        "deltaMs": -170,
+        "regression": false
+      },
+      {
+        "name": "track-style-preview",
+        "metric": "syncMs",
+        "before": 737.6,
+        "after": 513.9,
+        "deltaMs": -223.7,
+        "regression": false
+      },
+      {
+        "name": "track-style-preview",
+        "metric": "feedbackMs",
+        "before": 917.6,
+        "after": 677.2,
+        "deltaMs": -240.4,
+        "regression": false
+      },
+      {
+        "name": "track-style-preview",
+        "metric": "settledMs",
+        "before": 1186.9,
+        "after": 980.8,
+        "deltaMs": -206.1,
+        "regression": false
+      },
+      {
+        "name": "track-style-preview",
+        "metric": "longestTaskMs",
+        "before": 864,
+        "after": 604,
+        "deltaMs": -260,
+        "regression": false
+      },
+      {
+        "name": "speaker-style-preview",
+        "metric": "syncMs",
+        "before": 160.6,
+        "after": 109.9,
+        "deltaMs": -50.7,
+        "regression": false
+      },
+      {
+        "name": "speaker-style-preview",
+        "metric": "feedbackMs",
+        "before": 226.1,
+        "after": 174.9,
+        "deltaMs": -51.2,
+        "regression": false
+      },
+      {
+        "name": "speaker-style-preview",
+        "metric": "settledMs",
+        "before": 688.4,
+        "after": 543.3,
+        "deltaMs": -145.1,
+        "regression": false
+      },
+      {
+        "name": "speaker-style-preview",
+        "metric": "longestTaskMs",
+        "before": 195,
+        "after": 159,
+        "deltaMs": -36,
+        "regression": false
+      },
+      {
+        "name": "search",
+        "metric": "syncMs",
+        "before": 1.5,
+        "after": 1.3,
+        "deltaMs": -0.2,
+        "regression": false
+      },
+      {
+        "name": "search",
+        "metric": "feedbackMs",
+        "before": 100.1,
+        "after": 75.1,
+        "deltaMs": -25,
+        "regression": false
+      },
+      {
+        "name": "search",
+        "metric": "settledMs",
+        "before": 263.5,
+        "after": 257.1,
+        "deltaMs": -6.4,
+        "regression": false
+      },
+      {
+        "name": "search",
+        "metric": "longestTaskMs",
+        "before": 0,
+        "after": 0,
+        "deltaMs": 0,
+        "regression": false
+      },
+      {
+        "name": "drag-pair",
+        "metric": "feedbackMs",
+        "before": 3681.8,
+        "after": 3650.4,
+        "deltaMs": -31.4,
+        "regression": false
+      },
+      {
+        "name": "drag-pair",
+        "metric": "settledMs",
+        "before": 3709.1,
+        "after": 5145.2,
+        "deltaMs": 1436.1,
+        "regression": true
+      },
+      {
+        "name": "drag-pair",
+        "metric": "longestTaskMs",
+        "before": 1733,
+        "after": 1813,
+        "deltaMs": 80,
+        "regression": false
+      },
+      {
+        "name": "resize-pair",
+        "metric": "feedbackMs",
+        "before": 3094.7,
+        "after": 2797.8,
+        "deltaMs": -296.9,
+        "regression": false
+      },
+      {
+        "name": "resize-pair",
+        "metric": "settledMs",
+        "before": 3126,
+        "after": 2804.1,
+        "deltaMs": -321.9,
+        "regression": false
+      },
+      {
+        "name": "resize-pair",
+        "metric": "longestTaskMs",
+        "before": 1331,
+        "after": 1082,
+        "deltaMs": -249,
+        "regression": false
+      },
+      {
+        "name": "resize-100-pairs",
+        "metric": "feedbackMs",
+        "before": 7827.1,
+        "after": 9191.9,
+        "deltaMs": 1364.8,
+        "regression": false
+      },
+      {
+        "name": "resize-100-pairs",
+        "metric": "settledMs",
+        "before": 7833.1,
+        "after": 9621.6,
+        "deltaMs": 1788.5,
+        "regression": true
+      },
+      {
+        "name": "resize-100-pairs",
+        "metric": "longestTaskMs",
+        "before": 1664,
+        "after": 1887,
+        "deltaMs": 223,
+        "regression": false
+      },
+      {
+        "name": "save-changed",
+        "metric": "syncMs",
+        "before": 0,
+        "after": 0,
+        "deltaMs": 0,
+        "regression": false
+      },
+      {
+        "name": "save-changed",
+        "metric": "feedbackMs",
+        "before": 3362.7,
+        "after": 2613.7,
+        "deltaMs": -749,
+        "regression": false
+      },
+      {
+        "name": "save-changed",
+        "metric": "settledMs",
+        "before": 10760.6,
+        "after": 8603.2,
+        "deltaMs": -2157.4,
+        "regression": false
+      },
+      {
+        "name": "save-changed",
+        "metric": "longestTaskMs",
+        "before": 2782,
+        "after": 2107,
+        "deltaMs": -675,
+        "regression": false
+      },
+      {
+        "name": "save-playhead",
+        "metric": "syncMs",
+        "before": 0,
+        "after": 0,
+        "deltaMs": 0,
+        "regression": false
+      },
+      {
+        "name": "save-playhead",
+        "metric": "feedbackMs",
+        "before": 3057.2,
+        "after": 3037.6,
+        "deltaMs": -19.6,
+        "regression": false
+      },
+      {
+        "name": "save-playhead",
+        "metric": "settledMs",
+        "before": 8333.5,
+        "after": 9363.7,
+        "deltaMs": 1030.2,
+        "regression": false
+      },
+      {
+        "name": "save-playhead",
+        "metric": "longestTaskMs",
+        "before": 2645,
+        "after": 2562,
+        "deltaMs": -83,
+        "regression": false
+      },
+      {
+        "name": "save-unchanged",
+        "metric": "syncMs",
+        "before": 0.1,
+        "after": 0,
+        "deltaMs": -0.1,
+        "regression": false
+      },
+      {
+        "name": "save-unchanged",
+        "metric": "feedbackMs",
+        "before": 1722,
+        "after": 1699.2,
+        "deltaMs": -22.8,
+        "regression": false
+      },
+      {
+        "name": "save-unchanged",
+        "metric": "settledMs",
+        "before": 3367.5,
+        "after": 3048.3,
+        "deltaMs": -319.2,
+        "regression": false
+      },
+      {
+        "name": "save-unchanged",
+        "metric": "longestTaskMs",
+        "before": 1290,
+        "after": 1165,
+        "deltaMs": -125,
+        "regression": false
+      }
+    ]
+  },
+  "deliverySource": {
+    "web/editor-scripts.txt": "1e38477d305e25d755876b999077b1c8512c931bf1b9338bc6fa488f2985dc88",
+    "web/editor.js": "18735fa0c4fe7f1b8b7e49b8bb85f76ffa1c8499cc2bfc999de5dfa392fa2ac6",
+    "web/msw-edit-transaction.js": "3497ffe41e991e933f21226e5db75557dee51515ffc7d559860e64ddc04546fa",
+    "web/msw-subtitle-tracks.js": "5bf2032e8409efa50142a1e2d5da0ff32e4a8a59318314ba47c5a449e5747f01",
+    "web/msw-subtitle-tracks-editor.js": "431cd8714f4a76f614f16f1c7903fc2cd7c0af7bb7ce6a3724dd257b1246389e",
+    "web/msw-subtitle-layers-editor.js": "f369ae0afa3c173dbcf765e3fd9882633d296cdfe350625fa683d802c7d20d52",
+    "web/msw-find-edit.js": "a56bab1eda2938fe0bb27cc0d32e410b3b0dec72bc93bde2e181243bf9018cf2"
+  },
+  "postMeasurementFix": {
+    "description": "Restore selection and cue editor target when a pending structural transaction fails validation. This changes only the failure rollback branch, after the successful-operation performance matrix. No new timing measurement is claimed for this revision.",
+    "validation": "Failure-injection regression failed before the fix, passed afterwards; delivery unit and browser checks are recorded in the phase ledger."
+  }
+}

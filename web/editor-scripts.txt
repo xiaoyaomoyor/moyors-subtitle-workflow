@@ -10,6 +10,7 @@ msw-project-style.js
 msw-cue-style.js
 msw-subtitle-layers.js
 msw-subtitle-tracks.js
+msw-edit-transaction.js
 msw-flat-subtitles.js
 msw-flat-editing.js
 msw-batch-editing.js

@@ -171,7 +171,7 @@
     if (fixedTrackMode() && fixedLastContent) {
       const patch = new Map(record.cues.map(c => [c.id, c.fields]));
       for (const s of layerCore.tracks(fixedLastContent)) for (const c of s.segments) if (patch.has(c.id)) applyFields(c, patch.get(c.id));
-      fixedLastContentKey = fixedContentKey(); fixedHistoryCheckpoint = editorHistory.checkpoint();
+      fixedSealCheckpoint();
     }
     fixedPreviewInvalidate(); projectImportDirty = true;
     refreshCueTextRows(new Set(record.cues.map(c => c.id)));

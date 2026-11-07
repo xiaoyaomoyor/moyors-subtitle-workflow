@@ -59,6 +59,7 @@ function layerPreferredActive(segments, time, includeDisabled = false) {
 }
 function layerPrepareRender({validated=false}={}) {
   if (!layerMode()) return;
+  fixedRenderChanges=null;
   if (fixedTrackMode()&&!validated) fixedAcceptEdit();
   const liveIds = new Set(DATA.segments.map(cue => cue.id));
   DATA.subtitle_layers.legacy_overlay.cue_ids = DATA.subtitle_layers.legacy_overlay.cue_ids.filter(id => liveIds.has(id));
@@ -76,6 +77,7 @@ function layerPrepareRender({validated=false}={}) {
   currentCuePanelIdx = panel?.findIndex(cue => cue.id === snapshot.panelId) ?? -1;
   layerInvalidate();
   layerSyncControls();
+  return fixedRenderChanges;
 }
 function layerSyncControls() {
   document.documentElement.classList.toggle('msw-unified-subtitles', layerMode());
@@ -139,7 +141,7 @@ function layerCreateCue(start, end, role = 'main', subtitleTrackId = fixedActive
   let inherited;
   try { inherited=planNewCueSpeaker(cue,subtitleTrackId,cues); }
   catch(error){fixedStatus(error.message);return false;}
-  pushUndo('创建字幕', { captureView: true });
+  pushUndo('创建字幕', { captureView: true, subtitleOnly: true });
   if(inherited) {
     if(inherited.color_ref)cue.color_ref=inherited.color_ref;
     else {
@@ -243,7 +245,7 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
     for (const change of plan.changes) if (change.changed) syncSegmentTimebase(change.merged, projectTimebase(), {preferFrames:false});
   } catch (error) { if (fixedTrackMode()) fixedStatus(error.message); else flashHint(error.message, 'warning'); return false; }
   const feedback = captureMergeFeedback(plan);
-  pushUndo(mode === 'common' ? '共有状态合并' : '累加状态合并', {captureView:true});
+  pushUndo(mode === 'common' ? '共有状态合并' : '累加状态合并', {captureView:true,subtitleOnly:true});
   clearSelection({silent:true, commitCuePanel:false});
   for (const change of plan.changes) {
     if (!change.changed) continue;

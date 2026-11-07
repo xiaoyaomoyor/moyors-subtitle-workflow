@@ -246,7 +246,33 @@
 
   // Pointer frames only alter ranges and ownership. Validate those constraints
   // locally; the complete contract is still checked once at gesture commit.
-  function validateTimingChanges(project, changes, ownerChanges=new Map()) {
+  function validateTimingChanges(project, changes, ownerChanges=new Map(), index=null) {
+    if(index&&flatView(project)) {
+      const byId=index.byId, affected=new Set(), moved=new Set([...changes.keys(),...ownerChanges.keys()]);
+      const owner=id=>ownerChanges.get(id)||byId.get(id)?.subtitle_track_id;
+      const additions=new Map();
+      for(const id of moved) {
+        const row=byId.get(id);if(!row)fail('字幕引用已失效');
+        const target=owner(id),cue=changes.get(id)||row.cue;
+        if(!index.tracks.has(target))fail('目标轨道不存在');
+        if(!Number.isSafeInteger(cue.start)||!Number.isSafeInteger(cue.end)||cue.start<0||cue.end<=cue.start)fail('字幕时间范围无效');
+        affected.add(row.subtitle_track_id);affected.add(target);
+        if(!additions.has(target))additions.set(target,[]);additions.get(target).push(cue);
+        const peer=index.byKey.get(index.partners.get(key(row)));
+        if(peer&&owner(peer.cue_id)===target)fail('绑定字幕必须位于不同轨道');
+      }
+      for(const trackId of affected) {
+        const lane=(index.lanes.get(JSON.stringify([trackId,'']))||[]).filter(r=>!moved.has(r.cue_id));
+        const incoming=(additions.get(trackId)||[]).sort((a,b)=>a.start-b.start);
+        let a=0,b=0,previous=null;
+        while(a<lane.length||b<incoming.length) {
+          const cue=b>=incoming.length||a<lane.length&&lane[a].cue.start<=incoming[b].start?lane[a++].cue:incoming[b++];
+          if(previous&&cue.start<previous.end)fail(`目标轨道 ${index.tracks.get(trackId).name} 在 ${(cue.start/1000).toFixed(3)} s 处已有字幕，请调整位置`);
+          previous=cue;
+        }
+      }
+      return;
+    }
     const owners=new Map(project.subtitle_tracks.assignments.map(a=>[a.cue_id,ownerChanges.get(a.cue_id)||a.subtitle_track_id]));
     for(const b of project.multi_subtitle?.bindings||[])if(owners.get(b.main_segment_ids[0])===owners.get(b.extension_segment_ids[0]))fail('绑定字幕必须位于不同轨道');
     const lanes=new Map();
@@ -263,13 +289,46 @@
       }
     }
   }
-  function createIndex(project) {
-    validate(project);
+  // Operation-scoped index. Never cache by the mutable project object alone:
+  // callers discard it on commit/rollback, including history navigation.
+  function createIndex(project, { validated = false } = {}) {
+    if (!validated) validate(project);
     const tracks = new Map(project.subtitle_tracks.tracks.map(t => [t.id, t]));
     const owners = new Map(project.subtitle_tracks.assignments.map(a => [key(a), a.subtitle_track_id]));
     const rows = sourceRecords(project).map(row => ({ ...row, subtitle_track_id: owners.get(key(row)) }));
     const byKey = new Map(rows.map(row => [key(row), row]));
+    const bindings = new Map(), partners = new Map(), lanes = new Map(), dependents = new Map();
+    const sources = new Map(layers.tracks(project).map(s => [JSON.stringify([s.role, s.track_id]), s.segments]));
+    for (const binding of project.multi_subtitle?.bindings || []) {
+      const trackId = binding.track_id ?? project.multi_subtitle.tracks[0]?.id;
+      const a = key({role:'main', track_id:null, cue_id:binding.main_segment_ids?.[0] ?? binding.main_segment_id});
+      const b = key({role:'extension', track_id:trackId, cue_id:binding.extension_segment_ids?.[0] ?? binding.extension_segment_id});
+      for (const [own, other] of [[a,b],[b,a]]) {
+        if (!bindings.has(own)) bindings.set(own, []);
+        bindings.get(own).push(binding); partners.set(own, other);
+      }
+    }
+    for (const row of rows) {
+      const lane = JSON.stringify([row.subtitle_track_id, flatView(project) ? '' : row.role]);
+      if (!lanes.has(lane)) lanes.set(lane, []);
+      lanes.get(lane).push(row);
+      const segments = sources.get(JSON.stringify([row.role, row.track_id]));
+      for (const field of ['color_ref','sticker_ref']) if (row.cue[field]) {
+        const head = segments[row.cue[field].headIdx];
+        if (!head) continue; // validate() reports invalid references at the boundary.
+        const headKey = key({...row, cue_id:head.id});
+        if (!dependents.has(headKey)) dependents.set(headKey, new Set());
+        dependents.get(headKey).add(key(row));
+      }
+    }
+    for (const lane of lanes.values()) lane.sort((a,b) => a.cue.start-b.cue.start || a.cue.end-b.cue.end);
     return {
+      tracks, owners, byKey, byId:new Map(rows.map(row=>[row.cue_id,row])), bindings, partners, lanes, dependents, sources,
+      boundRefs: refs => {
+        const wanted = new Set(refs.map(key));
+        for (const id of [...wanted]) if (partners.has(id)) wanted.add(partners.get(id));
+        return [...wanted].map(id => byKey.get(id)).filter(Boolean).map(refOf);
+      },
       resolve: ref => byKey.get(key(ref)) || null,
       trackFor: ref => tracks.get(owners.get(key(ref))) || null,
       records: ({ subtitleTrackId, role, includeHidden = false, includeDisabled = true } = {}) => rows.filter(row =>
@@ -331,10 +390,11 @@
         || placement(track) !== placement(other) || styleKind(track) !== styleKind(other)
         || JSON.stringify(track.position) !== JSON.stringify(other.position))) fail(`“${track.name}”已锁定，不能修改样式或位置`);
     }
-    const next = new Map(sourceRecords(after).map(r => [key(r), r])), owners = ownerMap(after);
-    const canonical = (row, project) => {
+    const index = createIndex(before), nextIndex = createIndex(after, {validated:true});
+    const next = nextIndex.byKey, owners = nextIndex.owners;
+    const canonical = (row, dataIndex) => {
       const cue=row.cue;
-      const segments=row.role==='main'?project.segments:project.multi_subtitle.tracks.find(t=>t.id===row.track_id).segments;
+      const segments=dataIndex.sources.get(JSON.stringify([row.role,row.track_id]));
       return Object.fromEntries(Object.keys(cue).sort()
         .filter(k => !k.startsWith('_') && !['start_frame', 'end_frame'].includes(k)).map(k => {
           // Inserting on another physical track changes display-array indices,
@@ -345,16 +405,16 @@
           return [k,cue[k]];
         }));
     };
-    const index = createIndex(before);
     for (const row of index.records({ includeHidden: true })) {
       if (!index.trackFor(row).locked) continue;
       const other = next.get(key(row));
       if (!other || owners.get(key(row)) !== row.subtitle_track_id
-        || JSON.stringify(canonical(row,before)) !== JSON.stringify(canonical(other,after))) fail(`“${index.trackFor(row).name}”已锁定，操作未提交`);
-      const bindings = p => (p.multi_subtitle?.bindings || []).filter(b => row.role === 'main'
-        ? b.main_segment_ids?.includes(row.cue_id) : b.track_id === row.track_id && b.extension_segment_ids?.includes(row.cue_id));
-      if (JSON.stringify(bindings(before)) !== JSON.stringify(bindings(after))) fail('锁定轨道的绑定不能修改');
+        || JSON.stringify(canonical(row,index)) !== JSON.stringify(canonical(other,nextIndex))) fail(`“${index.trackFor(row).name}”已锁定，操作未提交`);
+      if (JSON.stringify(index.bindings.get(key(row)) || []) !== JSON.stringify(nextIndex.bindings.get(key(row)) || [])) fail('锁定轨道的绑定不能修改');
     }
+    const lockedIds = new Set(locked.map(t => t.id));
+    for (const row of next.values()) if (lockedIds.has(row.subtitle_track_id)
+      && index.owners.get(key(row)) !== row.subtitle_track_id) fail('锁定轨道不能接收新增或移入的字幕');
   }
   function addTrack(project, kind = 'subtitle', id) {
     validate(project);
