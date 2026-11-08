@@ -309,7 +309,13 @@ print(json.dumps([bands(p) for p in sys.argv[1:]]))`,png,ref],{encoding:'utf8',w
   expect(await page.evaluate(()=>window.MSWE.resolve('processing-host').data.segments[0].text)).toBe('MMMMMMMMM');
   // The portable/renderer-failure path must use exactly the same text breaks.
   await page.route('**/subtitle-preview',r=>r.fulfill({status:500,contentType:'application/json',body:JSON.stringify({ok:false,error:'synthetic fallback'})}));
-  await page.evaluate(()=>{DATA.segments[0].subtitle_style={outline:3};window.MSWSubtitleRenderer.invalidate();});await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status)).toBe('approximate');
+  await page.evaluate(()=>{DATA.segments[0].subtitle_style={outline:3};window.MSWSubtitleRenderer.invalidate();});
+  // An update failure keeps the last valid canvas. Losing the media then
+  // exercises the initial renderer-failure path, where no valid canvas exists.
+  await expect(page.locator('#subtitle-render-status')).toContainText('更新失败');
+  expect(await page.evaluate(()=>window.MSWSubtitleRenderer.status)).toBe('libass');
+  await page.evaluate(()=>{fixedPreviewInvalidate();player.dispatchEvent(new Event('emptied'));});
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status)).toBe('approximate');
   await expect(page.locator('#fixed-subtitle-preview [data-role="main"] .fixed-subtitle-text')).toHaveText('MMM\nMMM\nMMM');
   await expect(page.locator('#fixed-subtitle-preview [data-role="extension"] .fixed-subtitle-text')).toHaveText('WWWW\nWWWW');
 });

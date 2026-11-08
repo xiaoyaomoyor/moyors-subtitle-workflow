@@ -24243,6 +24243,9 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     scheduleAutoSaveFlush();
     return plan;
   },
+  // Flat edits invalidate the presentation at transaction boundaries (and on
+  // live text input). Legacy/experimental hosts retain fingerprint polling.
+  get subtitlePreviewRevision() { return productionFlatMode()?fixedPreviewRevision:undefined; },
   subtitlePreviewProject: (previewWindow = null) => {
     // Preview is a read, not a save/commit transaction. Exclude media caches,
     // workspace, task history and word timings before cloning the live view.

@@ -86,16 +86,26 @@
     const p={subtitles:{...model,tracks:view.subtitle_tracks.tracks,cues:[],bindings:[]}};
     core.normalizeGroups(p);model.next_track_number=p.subtitles.next_track_number;return view;
   }
-  // Preview keeps complete overlap components, including bound partners. A
-  // neighbouring group can affect lane allocation indirectly, so a plain
-  // time crop is not sufficient to preserve the export layout.
+  // Only automatically packed rows transmit overlap dependencies. Fixed
+  // annotations remain visible in the crop, but must not pull an entire film
+  // into the preview. Keep complete automatic chains and bound partners.
   function previewIds(view, range) {
     const rows=[...(view.segments||[]),...(view.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)];
+    const tracks=new Map(view.subtitle_tracks.tracks.map(t=>[t.id,t]));
+    const owned=new Map(view.subtitle_tracks.assignments.map(a=>[a.cue_id,tracks.get(a.subtitle_track_id)]));
+    const hidden=new Set(view.subtitle_layers?.legacy_overlay?.visible?[]:view.subtitle_layers?.legacy_overlay?.cue_ids||[]);
+    const automatic=c=>{
+      const t=owned.get(c.id),p=c.subtitle_position;
+      // Anchored individual positions may still reserve their original pair's
+      // lane. Mirror group_position() in the shared ASS layout compiler.
+      const position=p&&('alignment' in p?p.base:p);
+      return t?.enabled!==false&&!c.disabled&&!hidden.has(c.id)&&legacy.placement(t)==='auto'&&!position;
+    };
     const parent=new Map(rows.map(c=>[c.id,c.id]));
     const root=id=>{let next=id;while(parent.get(next)!==next)next=parent.get(next);while(id!==next){const old=parent.get(id);parent.set(id,next);id=old;}return next;};
     const join=(a,b)=>{if(parent.has(a)&&parent.has(b))parent.set(root(a),root(b));};
     let last=null,end=-Infinity;
-    for(const c of [...rows].sort((a,b)=>a.start-b.start)) {
+    for(const c of rows.filter(automatic).sort((a,b)=>a.start-b.start)) {
       if(c.start<end)join(last,c.id);
       if(c.end>end||c.start>=end){last=c.id;end=c.end;}
     }

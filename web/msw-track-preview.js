@@ -2,7 +2,13 @@
 let fixedPreviewCache = null;
 let fixedExactGeometry = null;
 let fixedGeometrySerial=0;
-function fixedGeometryKey() { const preview=window.MSWSubtitleStyle?.currentPreview();return JSON.stringify([mswProjectGeneration,DATA.segments,DATA.multi_subtitle,DATA.subtitle_tracks,preview&&{style:preview.style,target:preview.target,scope:preview.scope,trackIds:preview.trackIds,speakerLabels:preview.speakerLabels},getSpeakerLabelSettings()]); }
+let fixedPreviewRevision=0;
+function fixedGeometryKey() {
+  const preview=window.MSWSubtitleStyle?.currentPreview();
+  return JSON.stringify([mswProjectGeneration,fixedPreviewRevision,
+    preview&&{style:preview.style,target:preview.target,scope:preview.scope,trackIds:preview.trackIds,speakerLabels:preview.speakerLabels},
+    player.videoWidth,player.videoHeight,getSpeakerLabelSettings()]);
+}
 function fixedReceiveGeometry(geometry) {
   if(productionFlatMode()) {
     const refs=new Map(layerCore.tracks(DATA).flatMap(s=>s.segments.map(c=>[c.id,fixedTrackCore.key({role:s.role,track_id:s.track_id,cue_id:c.id})])));
@@ -28,7 +34,7 @@ let fixedPositionHold = null;
 let fixedPositionOffsetsKey = '';
 let fixedPositionNotice = '';
 function fixedPresentationMode() { return fixedTrackMode() && DATA.subtitle_tracks.presentation === 'fixed'; }
-function fixedPreviewInvalidate() { fixedPreviewCache = null; }
+function fixedPreviewInvalidate() { fixedPreviewCache = null; fixedPreviewRevision++; }
 function fixedStyleTarget() { return DATA.subtitle_tracks?.tracks.find(t => t.id === fixedStyleTrackId) || null; }
 function fixedStyleGroup(track=fixedStyleTarget()) {
   if(!productionFlatMode()||!track)return null;

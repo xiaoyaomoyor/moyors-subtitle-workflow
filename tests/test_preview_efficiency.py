@@ -1,5 +1,9 @@
 import copy
+import json
+import shutil
+import subprocess
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from maw.msw import track_presentation as presentation
@@ -10,6 +14,25 @@ from maw.project_subtitle_style import builtin_presets
 
 
 class PreviewEfficiencyTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('node'), 'frontend projection requires Node')
+    def test_projected_fixed_notes_and_overlap_chains_match_full_export_geometry(self):
+        project = migrate_project({'segments': [dict(id=f'c{i}',start=i*1000,end=i*1000+1500,text=f'Text {i}') for i in range(30)]})
+        main=project['subtitles']['tracks'][0]
+        note=dict(copy.deepcopy(main),id='note',name='Note',layout='fixed',position=dict(x=.5,y=.1))
+        project['subtitles']['tracks'].append(note)
+        project['subtitles']['cues'].append(dict(id='long-note',track_id='note',content=dict(start=0,end=600000,text='Long note')))
+        # A separated late group must not be pulled in via the annotation.
+        project['subtitles']['cues'].append(dict(id='late',track_id=main['id'],content=dict(start=400000,end=401000,text='Later')))
+        source="const b=require('./web/msw-production-project.js');let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>process.stdout.write(JSON.stringify(b.toProject(b.fromProject(JSON.parse(s)),{previewWindow:{start:10000,end:11000}}))));"
+        result=subprocess.run(['node','-e',source],input=json.dumps(project),text=True,encoding='utf-8',capture_output=True,check=True,cwd=Path(__file__).resolve().parents[1])
+        cropped=json.loads(result.stdout)
+        self.assertEqual(len(cropped['subtitles']['cues']),31)
+        full={r['cue_id']:r for r in presentation.layout(project)}
+        for r in presentation.layout(cropped):
+            expected=full[r['cue_id']]
+            for field in ('x','y','width','height','style','animations','motion'):
+                self.assertEqual(r[field],expected[field],(r['cue_id'],field))
+
     def test_preview_uses_one_layout_and_matches_export_after_each_change(self):
         project = migrate_project({'segments': [dict(id='a', start=0, end=2000, text='First'),
                                                  dict(id='b', start=2000, end=4000, text='Second')]})

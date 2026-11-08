@@ -4,6 +4,7 @@
   function create(host,styles) {
   if(!host||!styles)return;
   let renderer=null,video=null,observedPlayer=null,source='',key='',pending=false,again=false,timer,serial=0,modulePromise=null;
+  let inputRevision=0,observedStamp=null,projected=null;
   let previewRevision=0,previewEvents=[],previewGeometry=[],previewWrites=Promise.resolve();
   let controlsOffsets=new Map(),positionOffsets=new Map(),queuedWrites=0;
   const diagnostics=[];
@@ -68,7 +69,7 @@
   }
   const mediaSource=player=>player.currentSrc || player.querySelector('source')?.src || player.src || '';
   function resetMedia() {
-    serial++;key='';
+    serial++;key='';observedStamp=null;projected=null;
     fallback('正在等待视频与字幕画面…');disposeRenderer();invalidate();
   }
   function observePlayer() {
@@ -101,13 +102,32 @@
     const scriptFamilies=s=>global.AsrEditorUtils.ASS_FONT_SCRIPTS.map(([,k])=>s?.[k]);
     const familyNames=s=>[s.main,s.secondary,s.annotation?.main,s.annotation?.secondary].flatMap(scriptFamilies);
     const cueFonts=[...(project.subtitles?.cues||[]).map(c=>c.content),...(project.segments||[]),...(project.multi_subtitle?.tracks||[]).flatMap(t=>t.segments)].flatMap(c=>scriptFamilies(c.subtitle_style));
-    const families=[...new Set([...familyNames(style),...(project.preview?.speaker_palette?.rows||[]).flatMap(r=>scriptFamilies(r.style)),...cueFonts,...(project.subtitles?.tracks||project.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))],fontKey=JSON.stringify(families);
-    if(!fontManifests.has(fontKey))fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
+    const speakerFonts=(project.preview?.speaker_palette?.rows||[]).flatMap(r=>
+      [r.style,r.role_styles?.main?.style,r.role_styles?.secondary?.style].flatMap(scriptFamilies));
+    const families=[...new Set([...familyNames(style),...speakerFonts,...cueFonts,...(project.subtitles?.tracks||project.subtitle_tracks?.tracks||[]).flatMap(t=>t.style.mode==='snapshot'?familyNames(t.style.value):[])].filter(Boolean))].sort(),fontKey=JSON.stringify(families);
+    if(!fontManifests.has(fontKey)) {
+      if(fontManifests.size>=32)fontManifests.delete(fontManifests.keys().next().value);
+      fontManifests.set(fontKey,styles.request('subtitle-fonts',{families}).catch(error=>{fontManifests.delete(fontKey);throw error;}));
+    }
     const manifest=await fontManifests.get(fontKey);
     const bytes=await Promise.all(manifest.fonts.map(async item=>{
-      if(!fontBytes.has(item.id)) {const response=await fetch(`${host.config.processingUrl}/subtitle-font?id=${encodeURIComponent(item.id)}`,{headers:{'X-MSW-Token':host.config.requestToken}});if(!response.ok)throw Error('无法加载字幕字体');fontBytes.set(item.id,new Uint8Array(await response.arrayBuffer()));}
-      return fontBytes.get(item.id);
+      if(!fontBytes.has(item.id)) {
+        // Share in-flight reads as well as completed bytes. Failed reads are
+        // retryable, and the JS cache is bounded independently of worker fonts.
+        const entry={size:item.bytes||0,promise:null};
+        entry.promise=(async()=>{
+          const response=await fetch(`${host.config.processingUrl}/subtitle-font?id=${encodeURIComponent(item.id)}`,{headers:{'X-MSW-Token':host.config.requestToken}});
+          if(!response.ok)throw Error('无法加载字幕字体');
+          const bytes=new Uint8Array(await response.arrayBuffer());entry.size=bytes.byteLength;
+          return bytes;
+        })().catch(error=>{fontBytes.delete(item.id);fontManifests.delete(fontKey);throw error;});
+        fontBytes.set(item.id,entry);
+      }
+      const entry=fontBytes.get(item.id);fontBytes.delete(item.id);fontBytes.set(item.id,entry);
+      return entry.promise;
     }));
+    let total=[...fontBytes.values()].reduce((sum,e)=>sum+e.size,0);
+    for(const [id,e] of fontBytes){if(total<=128*1024*1024)break;fontBytes.delete(id);total-=e.size;}
     return {bytes,manifest};
   }
   let windowBucket=-1;
@@ -129,6 +149,19 @@
         return value;
       });
   }
+  // A cheap version/settings token replaces whole-project polling. Hosts
+  // without edit revisions keep the conservative content-fingerprint path.
+  function inputStamp(preview=styles.currentPreview()) {
+    if(host.subtitlePreviewRevision===undefined)return null;
+    return JSON.stringify([host.generation,host.subtitlePreviewRevision,inputRevision,
+      Math.floor(Math.max(0,host.player.currentTime)/30),mediaSource(host.player),
+      host.player.videoWidth,host.player.videoHeight,preview,host.subtitleRenderSettings()]);
+  }
+  function projection(preview,stamp) {
+    if(stamp!==null&&projected?.stamp===stamp)return projected;
+    const state=snapshot();
+    return projected={stamp,state,signatureKey:signature(preview,state.project)};
+  }
   async function update() {
     syncBadge();
     observePlayer();
@@ -141,8 +174,16 @@
     // Seeking can briefly drop readyState without replacing the media. Keep
     // the existing ASS renderer instead of flashing the CSS fallback.
     if(host.player.readyState<2||!host.player.videoWidth){if(!renderer){key='';fallback(preview.label+' · 等待视频画面');}return;}
-    let state,signatureKey;
-    try {state=snapshot();signatureKey=signature(preview,state.project);}
+    let state,signatureKey,stamp;
+    try {
+      stamp=inputStamp(preview);
+      if(stamp!==null&&stamp===observedStamp)return;
+      // Do not clone or project thousands of cues while an older request is
+      // running. Its completion checks the token and schedules the latest edit.
+      if(pending){again=true;return;}
+      ({state,signatureKey}=projection(preview,stamp));
+      observedStamp=stamp;
+    }
     catch(error){
       trace('snapshot-error',{reason:error.message});
       if(renderer)badge.textContent=preview.label+' · 更新失败：'+error.message;
@@ -153,13 +194,18 @@
     // Player replacement resets key; a failed renderer should not be recreated
     // by every poll while the media and subtitle settings remain unchanged.
     if(key===signatureKey)return;
-    // A slow render can outlive the 750ms polling interval. Queue another
-    // document only when its inputs changed; otherwise every poll restarts the
-    // same document and repeatedly clears its temporary control-bar offsets.
-    if(pending){again=true;return;}
     key=signatureKey;
     pending=true;const ticket=++serial,generation=host.generation,target=host.player,targetSource=mediaSource(host.player);
     const current=()=>ticket===serial&&generation===host.generation&&target===host.player&&targetSource===mediaSource(target);
+    const unchanged=()=>{
+      const next=styles.currentPreview(),nextStamp=inputStamp(next);
+      if(stamp!==null&&nextStamp===stamp)return true;
+      // Validation and UI refresh can advance the revision without changing
+      // render inputs. Check once on completion, not on every pending poll.
+      // A real newer edit keeps this projection for the next request.
+      if(projection(next,nextStamp).signatureKey!==signatureKey)return false;
+      stamp=nextStamp;observedStamp=nextStamp;return true;
+    };
     let swapping=false;
     try {
       let project=state.project;
@@ -173,7 +219,7 @@
       if(!current())return;
       // An old request must not overwrite more recent edits. Keep the current
       // canvas until the latest document is ready, and coalesce interim edits.
-      if(signature(styles.currentPreview(),snapshot().project)!==signatureKey){key='';again=true;trace('discard');return;}
+      if(!unchanged()){key='';observedStamp=null;again=true;trace('discard');return;}
       if(payload.layoutVersion!==global.MSWProjectStyle.layoutVersion)throw Error('编辑器服务尚未加载更新，请保存工程并重新启动本机编辑器；仅刷新页面无效。');
       swapping=true;clearPreviewDocument();await previewWrites;
       if(!current())return;
@@ -209,33 +255,39 @@
       // it. A settings-window repaint must not be needed to reveal the video.
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(!current())return;
-      if(signature(styles.currentPreview(),snapshot().project)!==signatureKey){key='';again=true;trace('discard');return;}
+      if(!unchanged()){key='';observedStamp=null;again=true;trace('discard');return;}
       stage.dataset.subtitleRenderer='libass';
       trace('document',{elapsed:Math.round(performance.now()-started),cues:payload.geometry?.length,scope:preview.scope,
         fontSizes:[...new Set(eventStyles.map(s=>s.FontSize))],frame:renderer?[renderer._videoWidth,renderer._videoHeight]:null});
       global.MSWPreviewControls?.refresh();
       if(payload.geometry)global.fixedReceiveGeometry?.(payload.geometry);
-      badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'');
+      const unavailable=loaded.manifest.unavailable||[];
+      badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'')+
+        (unavailable.length?' · 字体未完整加载：'+unavailable.map(f=>`${f.family}（${f.reason}）`).join('、'):'');
       badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。播放控制条避让仅临时调整预览位置。';
     } catch(error) {if(current()){
       if(renderer&&!swapping){trace('update-error',{reason:error.message});badge.textContent=preview.label+' · 更新失败：'+error.message;}
       else {fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}
     }}
-    finally {pending=false;if(again){again=false;invalidate();}}
+    finally {pending=false;if(again){again=false;schedule();}}
   }
   function invalidate(){
     syncBadge();
+    inputRevision++;
     // Explicit retries can recover a failed worker/server; unchanged healthy
     // documents must retain their geometry and temporary control-bar offsets.
     if(!pending&&!renderer)key='';
+    schedule();
+  }
+  function schedule(){
     clearTimeout(timer);timer=setTimeout(()=>{timer=undefined;void update();},100);
   }
   global.addEventListener('msw:player-changed',observePlayer);
   global.addEventListener('msw:project-changed',resetMedia);
   for(const name of ['msw:media-changed','msw:subtitles-changed','msw:burn-style'])global.addEventListener(name,invalidate);
   for(const id of ['overlay-toggle','extension-overlay-toggle'])document.getElementById(id)?.addEventListener('change',invalidate);
-  // Existing editing paths do not all dispatch an event; compare state without
-  // rebuilding an ASS document or starting a network request unless it changed.
+  // Poll only revision/settings on the main editor. Compatibility hosts without
+  // revisions still compare contents; ordinary idle playback never copies cues.
   setInterval(()=>{if(!document.hidden)void update();},750);
   global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,applyPositionOffsets,get diagnostics(){return structuredClone(diagnostics);},get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined||queuedWrites>0;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();

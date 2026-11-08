@@ -74,14 +74,27 @@ def font_manifest(families):
     for name in requested + ([fallback] if fallback else []):
         paths.update(registry.get(name.casefold(),set()))
     fonts=[]
-    for path in sorted(paths)[:24]:
-        if path.stat().st_size>64*1024*1024:
+    omitted={}
+    total=0
+    for path in sorted(paths):
+        try:
+            info=path.stat()
+        except OSError:
+            omitted[path]='文件不可读'
             continue
-        key=hashlib.sha256(str(path).encode()).hexdigest()[:32]
+        if info.st_size>64*1024*1024 or total+info.st_size>256*1024*1024:
+            omitted[path]='超出预览字体内存限额'
+            continue
+        total+=info.st_size
+        # A replaced font file must not reuse bytes cached for the old version.
+        key=hashlib.sha256(f'{path}:{info.st_size}:{info.st_mtime_ns}'.encode()).hexdigest()[:32]
         with _lock:
             _files[key]=path
-        fonts.append({'id':key})
-    return {'fonts':fonts,'missing':missing,'fallback':fallback or 'sans-serif'}
+        fonts.append({'id':key,'bytes':info.st_size})
+    unavailable=[{'family':name,'reason':'、'.join(sorted({omitted[p] for p in registry.get(name.casefold(),set()) if p in omitted}))}
+                 for name in requested+([fallback] if fallback and fallback not in requested else [])
+                 if any(p in omitted for p in registry.get(name.casefold(),set()))]
+    return {'fonts':fonts,'missing':missing,'unavailable':unavailable,'fallback':fallback or 'sans-serif'}
 
 
 def font_file(key):

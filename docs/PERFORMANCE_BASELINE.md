@@ -86,4 +86,6 @@ node scripts/benchmark_editor.mjs --compare output/performance/before/bound-1000
 
 本工具尚不覆盖长时间播放、数小时反复编辑泄漏、真实高分辨率视频解码、完整视频烧录速度、所有字体与全部历史工程。这些属于后续专项及第六阶段，不能由本次合成基线替代。
 
-阶段结果及尚未解决的问题见 [第一阶段账本](TEST_FEEDBACK_PERFORMANCE_BASELINE_20261107.md)；事务与索引的实现、回归及性能对照见 [第二阶段账本](TEST_FEEDBACK_EDIT_TRANSACTIONS_20261107.md)；界面增量刷新及按需卡片见 [第三阶段账本](TEST_FEEDBACK_INCREMENTAL_UI_20261108.md)。
+阶段结果及尚未解决的问题见 [第一阶段账本](TEST_FEEDBACK_PERFORMANCE_BASELINE_20261107.md)；事务与索引的实现、回归及性能对照见 [第二阶段账本](TEST_FEEDBACK_EDIT_TRANSACTIONS_20261107.md)；界面增量刷新及按需卡片见 [第三阶段账本](TEST_FEEDBACK_INCREMENTAL_UI_20261108.md)；样式、ASS 预览与字体见 [第四阶段账本](TEST_FEEDBACK_ASS_PREVIEW_20261108.md)。
+
+第四阶段专项：`node scripts/benchmark_preview.mjs --baseline d40d9ff8 --out output/perf-ass-preview`。使用相同当前后端和万条合成工程，分别加载历史／当前前端，测量文字与样式操作至 ASS 更新完成、空闲投影次数及长注释范围；每项预热一次、正式三次。不替代完整 27 类操作矩阵，也不当作历史后端的性能对照。

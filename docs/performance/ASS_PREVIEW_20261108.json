@@ -1,0 +1,1291 @@
+{
+  "baseline": "d40d9ff8",
+  "backend": "current for both sides",
+  "sources": {
+    "editor.js": "8d28be6586540b5ad218cd724b9ae3167708bece1da1685250363bf7a39445f0",
+    "msw-production-project.js": "2f0937a5620e8e97253a1fb032d3f49f3c771b38c998e8a69833a89830dfc599",
+    "msw-subtitle-renderer.js": "83336e410aafe69afc7eb3c66bda3bd248982422371641369986cfe009bc406a",
+    "msw-track-preview.js": "5ab77fe29bd1bef05dc7987dd2a9e16eab16a9c19ddd559311e10037fc6e8007"
+  },
+  "node": "v24.19.0",
+  "samples": 3,
+  "warmups": 1,
+  "environment": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900H",
+    "memoryBytes": 34070192128,
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "video": {
+      "width": 640,
+      "height": 360,
+      "fps": 2,
+      "durationSeconds": 7200
+    }
+  },
+  "backendSources": {
+    "subtitle_preview.py": "7723761c09de70d698390fb84868c65ccafd7730960d448e58a19f64823bbd31",
+    "subtitle_fonts.py": "aad6435a76498bdf0c81ca85e8b1331cc589519133ad616d3036af4ca30399d7",
+    "track_presentation.py": "c6f956b1c2ef2882225b8a07385544e44786a288f4465dda048cc45a32366279"
+  },
+  "browser": "151.0.7922.34",
+  "complete": true,
+  "schema": "msw.preview-performance.v1",
+  "scenarios": [
+    {
+      "profile": "bound",
+      "mode": "previous",
+      "idle": {
+        "reads": 3,
+        "ms": 72.80000000074506
+      },
+      "geometryKeyMs": [
+        212,
+        183.7000000011176,
+        216.69999999925494,
+        185.7000000011176,
+        207.69999999925494
+      ],
+      "originalUnchanged": true,
+      "geometryCount": 84,
+      "operations": {
+        "text": {
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 524.7000000011176,
+              "p95": null,
+              "max": 616.5
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 783.5999999996275,
+              "p95": null,
+              "max": 3169.7000000011176
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 1401.0999999996275,
+              "p95": null,
+              "max": 3620.10000000149
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 617,
+              "p95": null,
+              "max": 2199
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1215,
+              "p95": null,
+              "max": 3415
+            },
+            "frameGapMs": {
+              "n": 34,
+              "median": 16.80000000000291,
+              "p95": 583.2419999999984,
+              "max": 2516.5
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 3
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 356.80000000074506,
+                  "p95": null,
+                  "max": 363
+                }
+              },
+              "snapshotSegments": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 121.90000000037253,
+                  "p95": null,
+                  "max": 166.2000000011176
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 0,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 0,
+                  "p95": null,
+                  "max": 48.80000000074506
+                }
+              }
+            }
+          },
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 616.5,
+              "feedbackMs": 783.5999999996275,
+              "settledMs": 1401.0999999996275,
+              "longTasks": {
+                "count": 4,
+                "total": 1215,
+                "max": 617
+              },
+              "previewRequests": [
+                {
+                  "start": 42629.699999999255,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22955,
+                  "ms": 61.40000000037253
+                }
+              ],
+              "projection": {
+                "reads": 5,
+                "ms": 117.40000000223517
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 524.7000000011176,
+              "feedbackMs": 3169.7000000011176,
+              "settledMs": 3620.10000000149,
+              "longTasks": {
+                "count": 6,
+                "total": 3415,
+                "max": 2199
+              },
+              "previewRequests": [
+                {
+                  "start": 46188.29999999888,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22955,
+                  "ms": 2641.10000000149
+                }
+              ],
+              "projection": {
+                "reads": 6,
+                "ms": 116.5
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 493.5,
+              "feedbackMs": 597.3000000007451,
+              "settledMs": 1099.800000000745,
+              "longTasks": {
+                "count": 4,
+                "total": 980,
+                "max": 494
+              },
+              "previewRequests": [
+                {
+                  "start": 51912.5,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22955,
+                  "ms": 43.5
+                }
+              ],
+              "projection": {
+                "reads": 4,
+                "ms": 70.09999999962747
+              }
+            }
+          ]
+        },
+        "style": {
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 448.19999999925494,
+              "p95": null,
+              "max": 465.80000000074506
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 536.6999999992549,
+              "p95": null,
+              "max": 539.8000000007451
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 1073.5,
+              "p95": null,
+              "max": 3366.0999999996275
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 461,
+              "p95": null,
+              "max": 2145
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 694,
+              "p95": null,
+              "max": 3172
+            },
+            "frameGapMs": {
+              "n": 49,
+              "median": 16.69999999999709,
+              "p95": 450,
+              "max": 483.3999999999942
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 59.5,
+                  "p95": null,
+                  "max": 126.29999999888241
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 0,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 0,
+                  "p95": null,
+                  "max": 53
+                }
+              }
+            }
+          },
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 447.90000000037253,
+              "feedbackMs": 536.6999999992549,
+              "settledMs": 888.5,
+              "longTasks": {
+                "count": 2,
+                "total": 694,
+                "max": 461
+              },
+              "previewRequests": [
+                {
+                  "start": 63441.79999999888,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 23087,
+                  "ms": 72.40000000037253
+                }
+              ],
+              "projection": {
+                "reads": 4,
+                "ms": 88.69999999925494
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 465.80000000074506,
+              "feedbackMs": 539.8000000007451,
+              "settledMs": 3366.0999999996275,
+              "longTasks": {
+                "count": 4,
+                "total": 3172,
+                "max": 2145
+              },
+              "previewRequests": [
+                {
+                  "start": 65774.19999999925,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 23087,
+                  "ms": 69.30000000074506
+                }
+              ],
+              "projection": {
+                "reads": 6,
+                "ms": 112.6999999973923
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 448.19999999925494,
+              "feedbackMs": 510.40000000037253,
+              "settledMs": 1073.5,
+              "longTasks": {
+                "count": 2,
+                "total": 667,
+                "max": 460
+              },
+              "previewRequests": [
+                {
+                  "start": 71092.69999999925,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 23087,
+                  "ms": 313.2000000011176
+                }
+              ],
+              "projection": {
+                "reads": 5,
+                "ms": 84.19999999925494
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "profile": "bound",
+      "mode": "current",
+      "idle": {
+        "reads": 0,
+        "ms": 0
+      },
+      "geometryKeyMs": [
+        0.19999999925494194,
+        0,
+        0.09999999962747097,
+        0,
+        0
+      ],
+      "originalUnchanged": true,
+      "geometryCount": 84,
+      "operations": {
+        "text": {
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 643.3000000007451,
+              "p95": null,
+              "max": 707.8000000007451
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 766.6999999992549,
+              "p95": null,
+              "max": 841.9000000003725
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 961.5,
+              "p95": null,
+              "max": 1132.800000000745
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 644,
+              "p95": null,
+              "max": 708
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 781,
+              "p95": null,
+              "max": 907
+            },
+            "frameGapMs": {
+              "n": 32,
+              "median": 16.700000000000728,
+              "p95": 683.2999999999993,
+              "max": 766.7000000000044
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 100.40000000037253,
+                  "p95": null,
+                  "max": 340.09999999962747
+                }
+              },
+              "snapshotSegments": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 153.09999999962747,
+                  "p95": null,
+                  "max": 203
+                }
+              }
+            }
+          },
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 643.3000000007451,
+              "feedbackMs": 766.6999999992549,
+              "settledMs": 880.9000000003725,
+              "longTasks": {
+                "count": 2,
+                "total": 710,
+                "max": 644
+              },
+              "previewRequests": [
+                {
+                  "start": 24329.800000000745,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22955,
+                  "ms": 64
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 33.80000000074506
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 562,
+              "feedbackMs": 672.9000000003725,
+              "settledMs": 1132.800000000745,
+              "longTasks": {
+                "count": 3,
+                "total": 907,
+                "max": 562
+              },
+              "previewRequests": [
+                {
+                  "start": 30550.400000000373,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22955,
+                  "ms": 127.59999999962747
+                }
+              ],
+              "projection": {
+                "reads": 2,
+                "ms": 49.09999999962747
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 707.8000000007451,
+              "feedbackMs": 841.9000000003725,
+              "settledMs": 961.5,
+              "longTasks": {
+                "count": 2,
+                "total": 781,
+                "max": 708
+              },
+              "previewRequests": [
+                {
+                  "start": 34880,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22955,
+                  "ms": 55.90000000037253
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 38.30000000074506
+              }
+            }
+          ]
+        },
+        "style": {
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 469.30000000074506,
+              "p95": null,
+              "max": 493.7999999988824
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 522.8000000007451,
+              "p95": null,
+              "max": 563.3000000007451
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 659.0999999996275,
+              "p95": null,
+              "max": 722.6000000014901
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 483,
+              "p95": null,
+              "max": 506
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 483,
+              "p95": null,
+              "max": 506
+            },
+            "frameGapMs": {
+              "n": 33,
+              "median": 16.69999999999709,
+              "p95": 483.40000000000146,
+              "max": 500
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 70.60000000149012,
+                  "p95": null,
+                  "max": 75.19999999925494
+                }
+              }
+            }
+          },
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 493.7999999988824,
+              "feedbackMs": 563.3000000007451,
+              "settledMs": 659.0999999996275,
+              "longTasks": {
+                "count": 1,
+                "total": 506,
+                "max": 506
+              },
+              "previewRequests": [
+                {
+                  "start": 40709.5,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 23087,
+                  "ms": 49.30000000074506
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 21.09999999962747
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 469.30000000074506,
+              "feedbackMs": 522.8000000007451,
+              "settledMs": 722.6000000014901,
+              "longTasks": {
+                "count": 1,
+                "total": 483,
+                "max": 483
+              },
+              "previewRequests": [
+                {
+                  "start": 42761.59999999963,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 23087,
+                  "ms": 52.40000000037253
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 21.299999998882413
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 403.19999999925494,
+              "feedbackMs": 482,
+              "settledMs": 587.5999999996275,
+              "longTasks": {
+                "count": 1,
+                "total": 415,
+                "max": 415
+              },
+              "previewRequests": [
+                {
+                  "start": 44575,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 23087,
+                  "ms": 56.30000000074506
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 28.59999999962747
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "profile": "long-note",
+      "mode": "previous",
+      "idle": {
+        "reads": 3,
+        "ms": 441.7000000011176
+      },
+      "geometryKeyMs": [
+        237.80000000074506,
+        230,
+        226.40000000037253,
+        185.19999999925494,
+        189.19999999925494
+      ],
+      "originalUnchanged": true,
+      "geometryCount": 10000,
+      "operations": {
+        "text": {
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 576.7999999988824,
+              "p95": null,
+              "max": 635.2999999988824
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1637.4000000003725,
+              "p95": null,
+              "max": 1697.199999999255
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 9534.900000000373,
+              "p95": null,
+              "max": 9717.099999999627
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1946,
+              "p95": null,
+              "max": 2025
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 6282,
+              "p95": null,
+              "max": 6742
+            },
+            "frameGapMs": {
+              "n": 580,
+              "median": 16.69999999999709,
+              "p95": 199.90000000000873,
+              "max": 2350
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 3,
+                  "p95": null,
+                  "max": 3
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 398.90000000037253,
+                  "p95": null,
+                  "max": 405.5999999977648
+                }
+              },
+              "snapshotSegments": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 152.90000000037253,
+                  "p95": null,
+                  "max": 175.19999999925494
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 50.399999998509884,
+                  "p95": null,
+                  "max": 59.899999998509884
+                }
+              }
+            }
+          },
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 635.2999999988824,
+              "feedbackMs": 1697.199999999255,
+              "settledMs": 9717.099999999627,
+              "longTasks": {
+                "count": 21,
+                "total": 6282,
+                "max": 1938
+              },
+              "previewRequests": [
+                {
+                  "start": 61436.20000000112,
+                  "cues": 10000,
+                  "status": "ok",
+                  "assBytes": 2745845,
+                  "ms": 6209.799999998882
+                }
+              ],
+              "projection": {
+                "reads": 14,
+                "ms": 1875.4000000040978
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 543.6999999992549,
+              "feedbackMs": 1637.4000000003725,
+              "settledMs": 9313.800000000745,
+              "longTasks": {
+                "count": 19,
+                "total": 6113,
+                "max": 1946
+              },
+              "previewRequests": [
+                {
+                  "start": 81601.30000000075,
+                  "cues": 10000,
+                  "status": "ok",
+                  "assBytes": 2745845,
+                  "ms": 5984.199999999255
+                }
+              ],
+              "projection": {
+                "reads": 13,
+                "ms": 1704.9000000003725
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 576.7999999988824,
+              "feedbackMs": 1557.5999999996275,
+              "settledMs": 9534.900000000373,
+              "longTasks": {
+                "count": 21,
+                "total": 6742,
+                "max": 2025
+              },
+              "previewRequests": [
+                {
+                  "start": 102069.40000000037,
+                  "cues": 10000,
+                  "status": "ok",
+                  "assBytes": 2745845,
+                  "ms": 5837.199999999255
+                }
+              ],
+              "projection": {
+                "reads": 14,
+                "ms": 2031.1000000033528
+              }
+            }
+          ]
+        },
+        "style": {
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 515.5999999996275,
+              "p95": null,
+              "max": 550.8000000007451
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1493.5,
+              "p95": null,
+              "max": 3673
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 18868.5,
+              "p95": null,
+              "max": 19468.799999998882
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1999,
+              "p95": null,
+              "max": 2181
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 8499,
+              "p95": null,
+              "max": 9073
+            },
+            "frameGapMs": {
+              "n": 1937,
+              "median": 16.699999999982538,
+              "p95": 33.29999999998836,
+              "max": 2466.5
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 120,
+                  "p95": null,
+                  "max": 162.39999999850988
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 55.5,
+                  "p95": null,
+                  "max": 58.5
+                }
+              }
+            }
+          },
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 497.40000000037253,
+              "feedbackMs": 1223.5999999996275,
+              "settledMs": 18868.5,
+              "longTasks": {
+                "count": 32,
+                "total": 8499,
+                "max": 1907
+              },
+              "previewRequests": [
+                {
+                  "start": 161735,
+                  "cues": 10000,
+                  "status": "ok",
+                  "assBytes": 2755891,
+                  "ms": 15367
+                }
+              ],
+              "projection": {
+                "reads": 26,
+                "ms": 3546.299999995157
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 515.5999999996275,
+              "feedbackMs": 3673,
+              "settledMs": 18247.300000000745,
+              "longTasks": {
+                "count": 29,
+                "total": 7878,
+                "max": 1999
+              },
+              "previewRequests": [
+                {
+                  "start": 200152.80000000075,
+                  "cues": 10000,
+                  "status": "ok",
+                  "assBytes": 2755891,
+                  "ms": 15095.400000000373
+                }
+              ],
+              "projection": {
+                "reads": 24,
+                "ms": 3157.8000000026077
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 550.8000000007451,
+              "feedbackMs": 1493.5,
+              "settledMs": 19468.799999998882,
+              "longTasks": {
+                "count": 33,
+                "total": 9073,
+                "max": 2181
+              },
+              "previewRequests": [
+                {
+                  "start": 239200.09999999963,
+                  "cues": 10000,
+                  "status": "ok",
+                  "assBytes": 2755891,
+                  "ms": 15919.900000000373
+                }
+              ],
+              "projection": {
+                "reads": 27,
+                "ms": 3757.6000000052154
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "profile": "long-note",
+      "mode": "current",
+      "idle": {
+        "reads": 0,
+        "ms": 0
+      },
+      "geometryKeyMs": [
+        0.09999999962747097,
+        0.10000000149011612,
+        0,
+        0,
+        0.09999999962747097
+      ],
+      "originalUnchanged": true,
+      "geometryCount": 85,
+      "operations": {
+        "text": {
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 549.1999999992549,
+              "p95": null,
+              "max": 553
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 690.5,
+              "p95": null,
+              "max": 700.9000000003725
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 812.8000000007451,
+              "p95": null,
+              "max": 1247
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 550,
+              "p95": null,
+              "max": 554
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 653,
+              "p95": null,
+              "max": 942
+            },
+            "frameGapMs": {
+              "n": 37,
+              "median": 16.700000000000728,
+              "p95": 599.9000000000015,
+              "max": 600
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 63.399999998509884,
+                  "p95": null,
+                  "max": 389.1000000014901
+                }
+              },
+              "snapshotSegments": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 144.40000000037253,
+                  "p95": null,
+                  "max": 145.30000000074506
+                }
+              }
+            }
+          },
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 553,
+              "feedbackMs": 629.4000000003725,
+              "settledMs": 799,
+              "longTasks": {
+                "count": 2,
+                "total": 621,
+                "max": 554
+              },
+              "previewRequests": [
+                {
+                  "start": 23780.700000001118,
+                  "cues": 85,
+                  "status": "ok",
+                  "assBytes": 23167,
+                  "ms": 63.09999999962747
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 27.59999999962747
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 549.1999999992549,
+              "feedbackMs": 700.9000000003725,
+              "settledMs": 1247,
+              "longTasks": {
+                "count": 3,
+                "total": 942,
+                "max": 550
+              },
+              "previewRequests": [
+                {
+                  "start": 29914.300000000745,
+                  "cues": 85,
+                  "status": "ok",
+                  "assBytes": 23167,
+                  "ms": 151.90000000037253
+                }
+              ],
+              "projection": {
+                "reads": 2,
+                "ms": 50.40000000037253
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 520,
+              "feedbackMs": 690.5,
+              "settledMs": 812.8000000007451,
+              "longTasks": {
+                "count": 3,
+                "total": 653,
+                "max": 520
+              },
+              "previewRequests": [
+                {
+                  "start": 33497.5,
+                  "cues": 85,
+                  "status": "ok",
+                  "assBytes": 23167,
+                  "ms": 58.600000001490116
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 24
+              }
+            }
+          ]
+        },
+        "style": {
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 415.59999999962747,
+              "p95": null,
+              "max": 431.30000000074506
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 466.2999999988824,
+              "p95": null,
+              "max": 514.2999999988824
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 617.7999999988824,
+              "p95": null,
+              "max": 626.9000000003725
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 429,
+              "p95": null,
+              "max": 445
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 429,
+              "p95": null,
+              "max": 445
+            },
+            "frameGapMs": {
+              "n": 34,
+              "median": 16.69999999999709,
+              "p95": 433.3000000000029,
+              "max": 449.90000000000146
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 60,
+                  "p95": null,
+                  "max": 62.40000000037253
+                }
+              }
+            }
+          },
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 415.59999999962747,
+              "feedbackMs": 466.2999999988824,
+              "settledMs": 610.5999999996275,
+              "longTasks": {
+                "count": 1,
+                "total": 429,
+                "max": 429
+              },
+              "previewRequests": [
+                {
+                  "start": 38884.10000000149,
+                  "cues": 85,
+                  "status": "ok",
+                  "assBytes": 23299,
+                  "ms": 53.5
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 23.90000000037253
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 431.30000000074506,
+              "feedbackMs": 514.2999999988824,
+              "settledMs": 617.7999999988824,
+              "longTasks": {
+                "count": 1,
+                "total": 445,
+                "max": 445
+              },
+              "previewRequests": [
+                {
+                  "start": 40696,
+                  "cues": 85,
+                  "status": "ok",
+                  "assBytes": 23299,
+                  "ms": 59.100000001490116
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 23.200000001117587
+              }
+            },
+            {
+              "status": "ok",
+              "syncMs": 379,
+              "feedbackMs": 422,
+              "settledMs": 626.9000000003725,
+              "longTasks": {
+                "count": 1,
+                "total": 390,
+                "max": 390
+              },
+              "previewRequests": [
+                {
+                  "start": 42559,
+                  "cues": 85,
+                  "status": "ok",
+                  "assBytes": 23299,
+                  "ms": 52.5
+                }
+              ],
+              "projection": {
+                "reads": 1,
+                "ms": 23.799999998882413
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
