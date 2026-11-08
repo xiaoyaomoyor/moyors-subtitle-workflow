@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import sqlite3
 import tempfile
+import threading
 import uuid
 
 from send2trash import send2trash
@@ -55,6 +56,7 @@ class DiskVersions:
     def __init__(self, persistence):
         self.persistence = persistence
         self.api = persistence.api
+        self.lock = threading.Lock()
 
     def settings(self, raw=None):
         if raw is None:
@@ -106,59 +108,73 @@ class DiskVersions:
     def write(self, payload):
         if payload.get('backupOnly') is not True:
             raise ValueError('版本接口仅接受 backupOnly 快照')
+        if not self.lock.acquire(blocking=False):
+            raise ValueError('版本备份正在进行')
+        try:
+            return self._capture_and_write(payload)
+        finally:
+            self.lock.release()
+
+    def _capture_and_write(self, payload):
+        # Validate the private request before taking the foreground save lock.
+        data = normalize_project(copy.deepcopy(payload.get('project')))
         server = self.api.server
         if not server.save_lock.acquire(blocking=False):
             raise ValueError('工程正在保存，请稍后重试版本备份')
         try:
             self.api.check_save(payload.get('binding'), payload.get('saveRevision'))
             source, folder, key = self._location()
-            data = normalize_project(copy.deepcopy(payload.get('project')))
             if (data.get('msw') or {}).get('project_id') != self.api.context()['projectId']:
                 raise ValueError('备份内容不属于当前绑定工程')
             if data.get('media') != server.project.data.get('media'):
                 raise ValueError('媒体已改变，请先保存工程后再备份')
-            folder.mkdir(parents=True, exist_ok=True)
-            if folder.is_symlink() or folder.resolve() != folder.absolute():
-                raise ValueError('版本目录不能通过链接指向其他位置')
-            limits = self.settings()
-            # Serialize different server processes and deduplicate unchanged snapshots.
-            with closing(sqlite3.connect(folder / '.msw-versions.sqlite3', timeout=3)) as db, db:
-                db.execute('CREATE TABLE IF NOT EXISTS latest (scope TEXT PRIMARY KEY, digest TEXT, name TEXT)')
-                db.execute('BEGIN IMMEDIATE')
-                target = folder / 'snapshot.mosp-bak'
-                data = relocate(data, source, target)
-                encoded = (json.dumps(data, ensure_ascii=False, sort_keys=True, indent=2) + '\n').encode('utf-8')
-                digest = hashlib.sha256(encoded).hexdigest()
-                last = db.execute('SELECT digest,name FROM latest WHERE scope=?', (key,)).fetchone()
-                report = self.api.assets.persist_project(data, target, source)
-                if report['missing']:
-                    raise ValueError('版本备份存在缺失音频素材，未创建不完整版本')
-                self.api.check_save(payload.get('binding'), payload.get('saveRevision'))
-                if last and last[0] == digest and (folder / last[1]).is_file():
-                    return {'name': last[1], 'deduplicated': True, 'assets': report}
-                stamp = datetime.now().strftime('%Y-%m-%d_%H%M%S')
-                sequence = 0
-                while True:
-                    target = folder / f'msw-{key}-{stamp}-{sequence:06d}.mosp-bak'
-                    if not target.exists():
-                        break
-                    sequence += 1
-                fd, pending = tempfile.mkstemp(prefix='.msw-version-', suffix='.pending', dir=folder)
-                with os.fdopen(fd, 'wb') as output:
-                    output.write(encoded)
-                    output.flush()
-                    os.fsync(output.fileno())
-                os.replace(pending, target)
-                db.execute('INSERT OR REPLACE INTO latest VALUES (?,?,?)', (key, digest, target.name))
-            warning = None
-            for old in self._versions(folder, key)[limits['limit']:]:
-                try:
-                    send2trash(str(old))
-                except OSError:
-                    warning = '新版本已保存，但旧版本未能移入回收站；请稍后重试清理'
-            return {'name': target.name, 'deduplicated': False, 'warning': warning, 'assets': report}
         finally:
             server.save_lock.release()
+        # From here the snapshot, source identity and destination are immutable.
+        # A concurrent save/switch may proceed; this version still belongs to
+        # the captured project and must never touch the new live project.
+        return self._write_snapshot(data, source, folder, key)
+
+    def _write_snapshot(self, data, source, folder, key):
+        folder.mkdir(parents=True, exist_ok=True)
+        if folder.is_symlink() or folder.resolve() != folder.absolute():
+            raise ValueError('版本目录不能通过链接指向其他位置')
+        limits = self.settings()
+        # Serialize different server processes and deduplicate unchanged snapshots.
+        with closing(sqlite3.connect(folder / '.msw-versions.sqlite3', timeout=3)) as db, db:
+            db.execute('CREATE TABLE IF NOT EXISTS latest (scope TEXT PRIMARY KEY, digest TEXT, name TEXT)')
+            db.execute('BEGIN IMMEDIATE')
+            target = folder / 'snapshot.mosp-bak'
+            data = relocate(data, source, target)
+            encoded = (json.dumps(data, ensure_ascii=False, sort_keys=True, indent=2) + '\n').encode('utf-8')
+            digest = hashlib.sha256(encoded).hexdigest()
+            last = db.execute('SELECT digest,name FROM latest WHERE scope=?', (key,)).fetchone()
+            report = self.api.assets.persist_project(data, target, source)
+            if report['missing']:
+                raise ValueError('版本备份存在缺失音频素材，未创建不完整版本')
+            if last and last[0] == digest and (folder / last[1]).is_file():
+                return {'name': last[1], 'deduplicated': True, 'assets': report}
+            stamp = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+            sequence = 0
+            while True:
+                target = folder / f'msw-{key}-{stamp}-{sequence:06d}.mosp-bak'
+                if not target.exists():
+                    break
+                sequence += 1
+            fd, pending = tempfile.mkstemp(prefix='.msw-version-', suffix='.pending', dir=folder)
+            with os.fdopen(fd, 'wb') as output:
+                output.write(encoded)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(pending, target)
+            db.execute('INSERT OR REPLACE INTO latest VALUES (?,?,?)', (key, digest, target.name))
+        warning = None
+        for old in self._versions(folder, key)[limits['limit']:]:
+            try:
+                send2trash(str(old))
+            except OSError:
+                warning = '新版本已保存，但旧版本未能移入回收站；请稍后重试清理'
+        return {'name': target.name, 'deduplicated': False, 'warning': warning, 'assets': report}
 
     def restore(self, payload):
         with self.api.server.save_lock:

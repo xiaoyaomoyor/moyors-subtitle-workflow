@@ -559,11 +559,16 @@ def load_project(
     # 旧工程可能没有源音轨清单；在加载时补探测，确保 OTIO 导出不会只
     # 看见容器中的第一条音频流。探测失败时继续按旧工程兼容路径导出。
     # ffprobe 用 FFMPEG_PATH/.env 解析出的路径：本机 ffmpeg 不在 PATH 时也能探测。
-    data = normalize_project(enrich_project_media_metadata(
+    # Subtitle content already passed normalization above. Media probing only
+    # adds metadata; validate that small part instead of copying/validating all
+    # cues and word timings a second time.
+    data = enrich_project_media_metadata(
         data,
         media_path=source_media_path,
         ffprobe_path=ffmpeg_tools.ffprobe,
-    ))
+    )
+    if 'media_metadata' in data:
+        data['media_metadata'] = normalize_project({'segments': [], 'media_metadata': data['media_metadata']})['media_metadata']
     audio_track = selected_audio_track_from_project(data)
     data = discard_stale_inline_caches(persist_audio_track(data, audio_track), source_media_path)
     # .ReaPeaks 是转写时对"工程 media 字段原始文件"生成的；转换场景下
@@ -1037,10 +1042,13 @@ class EditorServer(ThreadingHTTPServer):
         except (OSError, ValueError, IndexError, struct.error) as error:
             print(f"[reapeaks] 后台加载失败: {error}", file=sys.stderr)
 
-        with self.reapeaks_lock:
+        with self.save_lock, self.reapeaks_lock:
             if generation != self.reapeaks_generation:
                 return
             current_project = self.project
+            identity = lambda p: (p.json_path, p.source_media_path, p.media_path, p.audio_track)
+            if identity(current_project) != identity(project):
+                return
             data = dict(current_project.data)
             if spectral is None:
                 data.pop("spectral", None)
@@ -1346,6 +1354,29 @@ class EditorServer(ThreadingHTTPServer):
         self.last_mutation = now
         self.last_save = now
         return backup
+
+    def confirm_saved_project(self, binding, revision):
+        """Acknowledge a repeated save without uploading an unchanged document.
+
+        Never trusts a client hash as project data. The previous validated save,
+        live binding and exact disk bytes must still agree; otherwise the client
+        either sends the full document or receives a real conflict.
+        """
+        if not self.save_lock.acquire(timeout=1):
+            raise ProjectMutationInProgressError('另一个工程保存操作正在进行')
+        try:
+            self.processing_api.check_save(binding, revision)
+            cached = getattr(self, '_saved_request', None)
+            if not cached or cached[1] != self.project.json_path or cached[1].read_bytes() != cached[2]:
+                return {'resendProject': True}
+            # Explicit saves still verify audio files, even when subtitles did
+            # not change. The full path owns collection/missing-file reporting.
+            if (self.project.data.get('msw') or {}).get('assets'):
+                return {'resendProject': True}
+            return {'filename': cached[1].name, 'backup': None, 'assets': cached[3],
+                    'recoveryWarning': cached[4], **self.processing_api.context()}
+        finally:
+            self.save_lock.release()
 
     def save_project(self, project_data: dict, filename: str | None = None, *,
                      expected_binding: str | None = None, expected_revision: str | None = None,

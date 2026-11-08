@@ -1,6 +1,8 @@
 import copy
+from dataclasses import replace
 import json
 import shutil
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -30,6 +32,38 @@ class DiskVersionTests(PersistenceTests):
         data = json.loads((directory(self.path)/first['name']).read_text(encoding='utf-8'))
         self.assertEqual((directory(self.path)/data['media']).resolve(), self.media.resolve())
 
+    def test_slow_backup_does_not_block_save_and_keeps_captured_contents(self):
+        entered, release = threading.Event(), threading.Event()
+        result, errors = [], []
+        persist = self.api.assets.persist_project
+        def slow(*args, **kwargs):
+            entered.set()
+            if not release.wait(10):
+                raise TimeoutError('test backup was not released')
+            return persist(*args, **kwargs)
+        def run():
+            try:
+                result.append(self.snapshot())
+            except Exception as error:
+                errors.append(error)
+        with patch.object(self.api.assets, 'persist_project', side_effect=slow):
+            thread = threading.Thread(target=run)
+            thread.start()
+            try:
+                self.assertTrue(entered.wait(5))
+                context = self.api.context()
+                updated = copy.deepcopy(self.server.project.data)
+                updated['language'] = 'en'
+                self.server.save_project(updated, expected_binding=context['binding'], expected_revision=context['saveRevision'])
+                self.assertEqual(json.loads(self.path.read_text('utf-8'))['language'], 'en')
+            finally:
+                release.set()
+                thread.join(10)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(errors, [])
+        saved = json.loads((directory(self.path)/result[0]['name']).read_text('utf-8'))
+        self.assertNotEqual(saved.get('language'), 'en')
+
     def test_audio_is_collected_once_and_recovery_uses_backup_assets(self):
         asset = self.asset()
         first = self.snapshot()
@@ -46,6 +80,44 @@ class DiskVersionTests(PersistenceTests):
         self.assertEqual(origin.parent, directory(self.path))
         self.assertTrue(self.api.assets.resolve(project_id, trusted, origin).is_file())
         self.assertEqual(self.path.name, self.server.project.json_path.name)
+
+    def test_background_backup_remains_with_its_source_after_project_switch(self):
+        entered, release = threading.Event(), threading.Event()
+        result, errors = [], []
+        persist = self.api.assets.persist_project
+        original = copy.deepcopy(self.server.project.data)
+        def slow(*args, **kwargs):
+            entered.set()
+            if not release.wait(10):
+                raise TimeoutError('test backup was not released')
+            return persist(*args, **kwargs)
+        def run():
+            try:
+                result.append(self.snapshot())
+            except Exception as error:
+                errors.append(error)
+        next_path = self.root / 'another' / 'project.mosp'
+        next_path.parent.mkdir()
+        next_data = copy.deepcopy(original)
+        next_data['msw']['project_id'] = 'another-project'
+        next_path.write_text(json.dumps(next_data), encoding='utf-8')
+        with patch.object(self.api.assets, 'persist_project', side_effect=slow):
+            thread = threading.Thread(target=run)
+            thread.start()
+            try:
+                self.assertTrue(entered.wait(5))
+                with self.server.save_lock:
+                    self.server.project = replace(self.server.project, json_path=next_path, data=next_data)
+                    self.api.invalidate_binding()
+            finally:
+                release.set()
+                thread.join(10)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(errors, [])
+        captured = json.loads((directory(self.path) / result[0]['name']).read_text('utf-8'))
+        self.assertEqual(captured['msw']['project_id'], original['msw']['project_id'])
+        self.assertFalse(directory(next_path).exists())
+        self.assertEqual(self.server.project.data, next_data)
 
     def test_revision_binding_and_source_guard(self):
         for change in ({'binding':'wrong'}, {'saveRevision':'stale'}, {'backupOnly':False}):

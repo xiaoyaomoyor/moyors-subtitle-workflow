@@ -11712,13 +11712,38 @@ function captureProjectPlayhead() {
     && !Array.isArray(DATA.editor_state) ? DATA.editor_state : {}), playhead_ms: Math.round(ms)};
 }
 let savedProjectSerialization = null;
+let acknowledgedProjectSave=null;
+let projectFingerprintContent=null,projectFingerprintGeneration=-1,projectFingerprintVersion=0;
+function projectDraftFingerprint({includePlayhead=true}={}) {
+  // Compare mutable subtitle data exactly, but do not allocate another full
+  // JSON string (including every word timestamp) on each save/draft check.
+  const content=fixedCurrentContent();
+  if(projectFingerprintGeneration!==mswProjectGeneration||!MSWEditTransaction.equal(projectFingerprintContent,content)) {
+    projectFingerprintContent=structuredClone(content);
+    projectFingerprintGeneration=mswProjectGeneration;projectFingerprintVersion++;
+  }
+  const rest=window.AsrEditorUtils.stripInlineCaches(DATA);
+  for(const field of ['schema','segments','multi_subtitle','subtitle_layers','subtitle_tracks'])delete rest[field];
+  if(!includePlayhead)delete rest.editor_state;
+  return JSON.stringify([projectFingerprintGeneration,projectFingerprintVersion,rest,projectExtensionFields,STICKER_ROOT,
+    buildCurrentWorkspaceData(),getPreviewGeometry(),getSubtitleAppearance(),getStoredExtensionSubtitleAppearance(),
+    editingState&&[editingState.idx,editingState.textEl.innerText],
+    extensionEditingState&&[extensionEditingState.trackId,extensionEditingState.index,extensionEditingState.textEl.innerText]]);
+}
 function buildSavedProjectJson() {
   captureProjectPlayhead();
   window.MSWE?.resolve('asset-library')?.commitEdit();
   const host=window.MSWE?.resolve('persistence-host'),key=host?.draftFingerprint();
   if(key!==undefined&&savedProjectSerialization?.generation===mswProjectGeneration&&savedProjectSerialization.key===key)return savedProjectSerialization.json;
-  const json=buildJson();
-  if(key!==undefined)savedProjectSerialization={generation:mswProjectGeneration,key:host.draftFingerprint(),json};
+  const contentKey=projectDraftFingerprint({includePlayhead:false});
+  // Moving only the playhead does not require normalizing all subtitles again.
+  let json;
+  if(savedProjectSerialization?.generation===mswProjectGeneration&&savedProjectSerialization.contentKey===contentKey) {
+    const project=JSON.parse(savedProjectSerialization.json);
+    if(DATA.editor_state)project.editor_state={...DATA.editor_state};else delete project.editor_state;
+    json=JSON.stringify(project);
+  } else json=buildJson({compact:true});
+  if(key!==undefined)savedProjectSerialization={generation:mswProjectGeneration,key:host.draftFingerprint(),contentKey:projectDraftFingerprint({includePlayhead:false}),json};
   return json;
 }
 function restoreProjectPlayhead(mediaElement = player) {
@@ -16054,8 +16079,8 @@ function buildGapRemovedRegionsJson() {
   }, null, 2);
 }
 
-function buildJson() {
-  if (window.MSWFlatEditor?.active) return JSON.stringify(window.MSWFlatEditor.snapshot(), null, 2);
+function buildJson({compact=false}={}) {
+  if (window.MSWFlatEditor?.active) return JSON.stringify(window.MSWFlatEditor.snapshot(), null, compact?undefined:2);
   if (fixedTrackMode() && !fixedAcceptEdit()) throw Error('本次字幕编辑未通过轨道校验，已保留上一次有效状态');
   window.MSWE?.resolve('asset-library')?.commitEdit();
   // Validate before timing repair, and always serialize the live MSW extension.
@@ -16195,7 +16220,9 @@ function buildJson() {
     preview.extension_subtitle = { ...getStoredExtensionSubtitleAppearance() };
   }
   out.preview = preview;
-  return JSON.stringify(productionFlatMode()?window.MSWProductionProject.toProject(out):out, null, 2);
+  // Persistence uploads do not need indentation. Generate the compact form
+  // directly, while standalone exports keep the existing readable formatting.
+  return JSON.stringify(productionFlatMode()?window.MSWProductionProject.toProject(out):out, null, compact?undefined:2);
 }
 
 // 保存/导出前的最后一道时间码兜底。波形拖动会把词时间码按像素取整，
@@ -17413,7 +17440,7 @@ function configureServerSaveControls() {
 let autoSaveTimer = null;
 let autoSaveFlushTimer = null;
 let projectSaveInFlight = false;
-const EDIT_SAVE_DEBOUNCE_MS = 400;
+const EDIT_SAVE_DEBOUNCE_MS = 1600;
 
 function scheduleAutoSave() {
   if (window.MSWFlatTrialRequested) return;
@@ -17424,7 +17451,7 @@ function scheduleAutoSave() {
   if (!projectSaveTargetEnabled() || !EDITOR_SETTINGS.autoSaveProject) return;
   autoSaveTimer = window.setInterval(() => {
     if (hasUnsavedProjectChanges() && !projectSaveInFlight && !projectCheckpointInFlight) {
-      void saveCurrentProject({ silent: true });
+      void saveCurrentProject({ silent: true, background:true });
     }
   }, EDITOR_SETTINGS.autoSaveIntervalSeconds * 1000);
 }
@@ -17490,7 +17517,7 @@ function scheduleAutoSaveFlush({deferValidation=false,validated=false}={}) {
   autoSaveFlushTimer = window.setTimeout(() => {
     autoSaveFlushTimer = null;
     if (hasUnsavedProjectChanges() && !projectSaveInFlight) {
-      void saveCurrentProject({ silent: true });
+      void saveCurrentProject({ silent: true, background:true });
     }
   }, EDIT_SAVE_DEBOUNCE_MS);
 }
@@ -18106,27 +18133,39 @@ async function saveProjectToServer({ silent = false } = {}) {
     savedFingerprint = window.MSWE?.resolve('persistence-host')?.draftFingerprint();
     const processingContext = SERVER_CONFIG.processingContext;
     const saveUrl = new URL(SERVER_CONFIG.processingUrl ? `${SERVER_CONFIG.processingUrl}/project` : SERVER_CONFIG.saveUrl, window.location.href);
-    const response = await fetch(saveUrl, {
+    const send=body=>fetch(saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(SERVER_CONFIG.processingUrl ? { 'X-MSW-Token': SERVER_CONFIG.requestToken } : {}) },
-      body: JSON.stringify({ project: JSON.parse(projectJson), filename: null,
-        ...(SERVER_CONFIG.processingUrl ? { binding: processingContext?.binding, saveRevision: processingContext?.saveRevision } : {}) }),
+      body,
     });
-    const result = await response.json().catch(() => ({}));
+    let response,result;
+    if(savedFingerprint!==undefined&&SERVER_CONFIG.processingUrl&&processingContext?.saveUnchanged&&!DATA.msw?.assets?.length&&acknowledgedProjectSave?.generation===savedGeneration
+      &&acknowledgedProjectSave.key===savedFingerprint&&acknowledgedProjectSave.binding===processingContext?.binding
+      &&acknowledgedProjectSave.revision===processingContext?.saveRevision) {
+      response=await send(JSON.stringify({unchanged:true,binding:processingContext.binding,saveRevision:processingContext.saveRevision}));
+      result=await response.json().catch(()=>({}));
+    }
+    if(!response||(response.ok&&result.ok&&result.resendProject)) {
+      // Already JSON-encoded: avoid parsing and encoding the entire document.
+      response=await send('{"project":'+projectJson+',"filename":null'+(SERVER_CONFIG.processingUrl
+        ? ',"binding":'+JSON.stringify(processingContext?.binding??null)+',"saveRevision":'+JSON.stringify(processingContext?.saveRevision??null):'')+'}');
+      result=await response.json().catch(()=>({}));
+    }
     if (!response.ok || !result.ok) {
       throw new Error(result.error || `服务器返回 ${response.status}`);
     }
     if (savedGeneration !== mswProjectGeneration) return false;
     if (SERVER_CONFIG.processingUrl) SERVER_CONFIG.processingContext = { ...processingContext, ...result };
     const unchanged = !inlineEditHasUncommittedText() && (savedFingerprint !== undefined
-      ? window.MSWE.resolve('persistence-host').draftFingerprint() === savedFingerprint : buildJson() === projectJson);
+      ? window.MSWE.resolve('persistence-host').draftFingerprint() === savedFingerprint : buildJson({compact:true}) === projectJson);
     window.MSWE?.resolve('project-persistence')?.status(result.assets,
       unchanged ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
     if (unchanged) {
       markProjectSaved(result.filename, result.backup, {silent:true});
       // Clearing display-only dirty flags is not a new document edit. Keep the
       // validated save snapshot reusable by a consecutive Ctrl+S.
-      savedProjectSerialization={generation:savedGeneration,key:window.MSWE.resolve('persistence-host').draftFingerprint(),json:projectJson};
+      savedProjectSerialization={generation:savedGeneration,key:window.MSWE.resolve('persistence-host').draftFingerprint(),contentKey:projectDraftFingerprint({includePlayhead:false}),json:projectJson};
+      acknowledgedProjectSave={generation:savedGeneration,key:savedProjectSerialization.key,binding:result.binding,revision:result.saveRevision};
     }
     feedback.finish(unchanged ? '保存成功' : '保存完成；保存期间的新修改仍未保存', unchanged?'success':'warning');
     void refreshRecentProjects();
@@ -18173,8 +18212,11 @@ async function saveProjectToHandle({ silent = false } = {}) {
     await writable.close();
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
     const unchanged = !inlineEditHasUncommittedText() && (savedFingerprint !== undefined
-      ? window.MSWE.resolve('persistence-host').draftFingerprint() === savedFingerprint : buildJson() === projectJson);
-    if (unchanged) markProjectSaved(savedHandle.name, null, {silent:true});
+      ? window.MSWE.resolve('persistence-host').draftFingerprint() === savedFingerprint : buildJson({compact:true}) === projectJson);
+    if (unchanged) {
+      markProjectSaved(savedHandle.name, null, {silent:true});
+      savedProjectSerialization={generation:savedGeneration,key:projectDraftFingerprint(),contentKey:projectDraftFingerprint({includePlayhead:false}),json:projectJson};
+    }
     feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
     return true;
   } catch (error) {
@@ -18188,8 +18230,9 @@ async function saveProjectToHandle({ silent = false } = {}) {
 }
 
 // 统一保存入口：句柄目标优先（最近一次新建/另存为选定的文件），否则写回服务器绑定工程。
-async function saveCurrentProject({ silent = false } = {}) {
+async function saveCurrentProject({ silent = false, background = false } = {}) {
   if (waveformEditor?.drag) return false;
+  if(background&&window.MSWE?.resolve('project-persistence')?.backgroundBusy())return false;
   if (window.MSWFlatTrialRequested) return silent ? false : window.MSWFlatEditor?.save();
   if (projectFileHandle) return saveProjectToHandle({ silent });
   return saveProjectToServer({ silent });
@@ -23963,12 +24006,8 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   // Polling recovery must not validate/normalize the project or invalidate
   // preview geometry when only the playhead/selection changed. Include every
   // save input, including uncommitted text, but not rebuildable media caches.
-  draftFingerprint: () => JSON.stringify([
-    window.AsrEditorUtils.stripInlineCaches(DATA), projectExtensionFields, STICKER_ROOT,
-    buildCurrentWorkspaceData(), getPreviewGeometry(), getSubtitleAppearance(), getStoredExtensionSubtitleAppearance(),
-    editingState && [editingState.idx, editingState.textEl.innerText],
-    extensionEditingState && [extensionEditingState.trackId, extensionEditingState.index, extensionEditingState.textEl.innerText],
-  ]),
+  draftFingerprint: options=>projectDraftFingerprint(options),
+  get draftRevision() { return `${mswProjectGeneration}:${fixedPreviewRevision}:${projectImportDirty}:${previewGeometryDirty}:${gapRemoveDirty}`; },
   draftSnapshot: () => {
     const snapshot = JSON.parse(buildSavedProjectJson());
     for (const key of ['waveform', 'spectral', 'waveform_reapeaks']) delete snapshot[key];

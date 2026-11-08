@@ -9,6 +9,9 @@
   let active = null, target = null, working = false;
   let recovering = false, draftBusy = false, draftTimer = null, lastDraft = null, lastGeneration = host.generation;
   let lastDraftFingerprint = null;
+  let draftPromise=null,activity=0,lastInteraction=0,lastBackgroundToken=null,lastVersionFingerprint=null;
+  const backgroundToken=()=>`${host.generation}:${host.draftRevision}:${activity}`;
+  const interacting=()=>Date.now()-lastInteraction<1500 || global.MSWE.resolve('processing-host')?.editingGestureActive;
   let session = global.MSWProject.id('session');
   let versionSettings={enabled:true,interval:300,limit:20},versionBusy=false,lastVersion=Date.now();
   const recoveryModal = el('project-recovery-modal');
@@ -134,8 +137,19 @@
       if (generation === host.generation) status(result.assets, '已检查磁盘工程', null, true);
     } catch (error) { host.hint(error.message); }
   });
-  async function captureDraft({ force = false } = {}) {
-    if (!available() || (host.saving() && !(active && !working)) || draftBusy) return false;
+  async function captureDraft({ force = false, background = false } = {}) {
+    while(draftPromise) {
+      const generation=host.generation,result=await draftPromise;
+      if(!force||generation!==host.generation)return result;
+    }
+    const token=backgroundToken();
+    if(background&&(interacting()||token===lastBackgroundToken))return false;
+    draftPromise=writeDraft({force,token});
+    try { return await draftPromise; }
+    finally { draftPromise=null; }
+  }
+  async function writeDraft({force,token}) {
+    if (!available() || (host.saving() && !(active && !working))) return false;
     // An in-progress drag is not committed content. Snapshotting it would run
     // save normalization against the panel's old time fields.
     if(global.MSWE.resolve('processing-host')?.editingGestureActive)return false;
@@ -143,16 +157,17 @@
     const generation = host.generation;
     try {
       const fingerprint=host.draftFingerprint?.();
-      if(!force&&fingerprint!==undefined&&generation===lastGeneration&&fingerprint===lastDraftFingerprint)return true;
+      if(!force&&fingerprint!==undefined&&generation===lastGeneration&&fingerprint===lastDraftFingerprint){lastBackgroundToken=token;return true;}
       const project = host.draftSnapshot();
       const source = JSON.stringify(project);
       // Snapshot normalization may itself update the live project. Capture its
       // new fingerprint before awaiting I/O so edits made in flight stay dirty.
       const normalizedFingerprint=host.draftFingerprint?.();
-      if (!force && generation === lastGeneration && source === lastDraft) {lastDraftFingerprint=normalizedFingerprint;return true;}
+      const normalizedToken=backgroundToken();
+      if (!force && generation === lastGeneration && source === lastDraft) {lastDraftFingerprint=normalizedFingerprint;lastBackgroundToken=normalizedToken;return true;}
       await request('recovery-draft', { project, session, filename: host.name(), recovery: recovering,
         binding: host.config.processingContext?.binding });
-      if (generation === host.generation) { lastDraft = source; lastGeneration = generation; lastDraftFingerprint=normalizedFingerprint; }
+      if (generation === host.generation) { lastDraft = source; lastGeneration = generation; lastDraftFingerprint=normalizedFingerprint;lastBackgroundToken=normalizedToken; }
       return true;
     } catch (error) {
       // A failed draft is never acknowledged as a saved project.
@@ -207,12 +222,16 @@
   async function createVersion(manual=false) {
     if(!available())return;
     if(recovering||!host.config.canSave){if(manual)versionStatus(t('请先另存为工程，再创建磁盘版本'));return;}
-    if(versionBusy||working||host.saving()||global.MSWE.resolve('processing-host')?.isEditing?.()){if(manual)versionStatus(t('当前正在编辑或保存，请稍后创建版本'));return;}
+    if(versionBusy||draftBusy||working||host.saving()||(!manual&&interacting())||global.MSWE.resolve('processing-host')?.isEditing?.()){if(manual)versionStatus(t('当前正在编辑或保存，请稍后创建版本'));return;}
     if(!manual&&(!versionSettings.enabled||Date.now()-lastVersion<versionSettings.interval*1000))return;
     versionBusy=true;const generation=host.generation;
     try{
-      const result=await request('version-create',{project:host.snapshot(),backupOnly:true,...host.config.processingContext});
+      const fingerprint=host.draftFingerprint?.();
+      if(!manual&&lastVersionFingerprint?.generation===generation&&fingerprint!==undefined&&lastVersionFingerprint.key===fingerprint){lastVersion=Date.now();return;}
+      const project=host.snapshot(),key=host.draftFingerprint?.();
+      const result=await request('version-create',{project,backupOnly:true,...host.config.processingContext});
       if(generation!==host.generation)return;
+      lastVersionFingerprint={generation,key};
       lastVersion=Date.now();versionStatus(result.warning||t(result.deduplicated?'内容未变化，已保留现有版本':'磁盘版本已创建')+' · '+result.name);
     }catch(error){lastVersion=Date.now();versionStatus(t('磁盘版本备份失败')+' · '+error.message);}
     finally{versionBusy=false;}
@@ -232,13 +251,17 @@
   el('project-recovery-close').addEventListener('click', () => { if (!working) recoveryModal.classList.remove('show'); });
   if (available()) {
     // No browser storage quota dependency; the server owns bounded snapshots.
-    lastDraft = JSON.stringify(host.draftSnapshot());
-    lastDraftFingerprint=host.draftFingerprint?.();
+    // The loaded document is the baseline. Do not normalize and serialize it
+    // again merely to initialize a background timer during page startup.
+    lastBackgroundToken=backgroundToken();
+    const changed=()=>{activity++;};
+    for(const name of ['msw:subtitles-changed','msw:assets-changed','msw:burn-style','msw:project-changed','msw:media-changed'])global.addEventListener(name,changed);
+    for(const name of ['input','change','pointerdown','keydown'])document.addEventListener(name,()=>{changed();lastInteraction=Date.now();},true);
     document.addEventListener('input', event => {
       if (!event.target.closest('.cues-container, #cue-panel')) return;
-      clearTimeout(draftTimer); draftTimer = setTimeout(() => { void captureDraft(); }, 1500);
+      clearTimeout(draftTimer); draftTimer = setTimeout(() => { void captureDraft({background:true}); }, 1600);
     });
-    setInterval(() => { if (!working) void captureDraft(); }, 5000);
+    setInterval(() => { if (!working&&!versionBusy) void captureDraft({background:true}); }, 5000);
   }
-  global.MSWE.register('project-persistence', () => Object.freeze({ available, saveAs, status, captureDraft }));
+  global.MSWE.register('project-persistence', () => Object.freeze({ available, saveAs, status, captureDraft, backgroundBusy:interacting }));
 })(window);

@@ -545,15 +545,21 @@ class ProcessingAPI:
                 if not isinstance(payload.get("binding"), str) or not isinstance(payload.get("saveRevision"), str):
                     raise ValueError("缺少工程保存版本，请重新打开编辑器")
                 try:
-                    target, backup, context = self.server.save_project(
-                        payload.get("project"), payload.get("filename"),
-                        expected_binding=payload["binding"], expected_revision=payload["saveRevision"],
-                        include_context=True,
-                    )
+                    if payload.get('unchanged') is True:
+                        if payload.get('project') is not None or payload.get('filename') is not None:
+                            raise ValueError('无变化保存不能同时提供工程内容或新文件名')
+                        result = self.server.confirm_saved_project(payload['binding'], payload['saveRevision'])
+                    else:
+                        target, backup, context = self.server.save_project(
+                            payload.get("project"), payload.get("filename"),
+                            expected_binding=payload["binding"], expected_revision=payload["saveRevision"],
+                            include_context=True,
+                        )
+                        result = {"filename": target.name, "backup": backup.name if backup else None, **context}
+                    result['saveUnchanged'] = True
                 except ValueError as error:
                     status = HTTPStatus.CONFLICT
                     raise ValueError(str(error)) from error
-                result = {"filename": target.name, "backup": backup.name if backup else None, **context}
             else:
                 project_id = payload.get("project_id")
                 if not valid_id(project_id):

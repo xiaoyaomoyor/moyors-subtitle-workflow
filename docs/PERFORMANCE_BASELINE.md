@@ -89,3 +89,5 @@ node scripts/benchmark_editor.mjs --compare output/performance/before/bound-1000
 阶段结果及尚未解决的问题见 [第一阶段账本](TEST_FEEDBACK_PERFORMANCE_BASELINE_20261107.md)；事务与索引的实现、回归及性能对照见 [第二阶段账本](TEST_FEEDBACK_EDIT_TRANSACTIONS_20261107.md)；界面增量刷新及按需卡片见 [第三阶段账本](TEST_FEEDBACK_INCREMENTAL_UI_20261108.md)；样式、ASS 预览与字体见 [第四阶段账本](TEST_FEEDBACK_ASS_PREVIEW_20261108.md)。
 
 第四阶段专项：`node scripts/benchmark_preview.mjs --baseline d40d9ff8 --out output/perf-ass-preview`。使用相同当前后端和万条合成工程，分别加载历史／当前前端，测量文字与样式操作至 ASS 更新完成、空闲投影次数及长注释范围；每项预热一次、正式三次。不替代完整 27 类操作矩阵，也不当作历史后端的性能对照。
+
+第五阶段专项：`node scripts/benchmark_persistence.mjs --baseline 7a16c442 --out output/perf-persistence`。绑定、混合与迁移后三种万条合成工程，使用相同当前后端分别加载历史／当前前端，独立测量修改后保存、仅播放头保存、无变化保存和恢复草稿，每项预热一次、正式三次；保存重开比对字幕模型、说话人、音频贴片及播放头，并观察 10.5 秒空闲活动与回收后内存。请求只记录大小与状态，输出目录不可覆盖。加载时间仅作观察，不用于证明历史后端加速；完整矩阵、长时间播放和持续编辑仍由第六阶段验证。结果见 [第五阶段账本](TEST_FEEDBACK_SAVE_BACKGROUND_20261108.md)。

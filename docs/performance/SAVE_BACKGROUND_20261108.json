@@ -1,0 +1,3612 @@
+{
+  "schema": "msw.persistence-performance.v1",
+  "baseline": "7a16c442",
+  "backend": "current for both sides",
+  "modes": [
+    "previous",
+    "current"
+  ],
+  "sources": {
+    "editor.js": "e986975eae5ea769013c2e877f594e37e7688acbe20b09e84c311ca8f9b1e734",
+    "msw-persistence.js": "6fbc9c25748bb553b9e86cdacb44e2a04b3a91b5c480e80126f6377c603ff828"
+  },
+  "node": "v24.19.0",
+  "samples": 3,
+  "warmups": 1,
+  "environment": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900H",
+    "memoryBytes": 34070192128,
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "video": {
+      "width": 640,
+      "height": 360,
+      "fps": 2,
+      "durationSeconds": 7200
+    }
+  },
+  "backendSources": {
+    "server-editor/serve.py": "74891e10a44337a1820b35eb3051600a5c4dff4c6cafcd6e197c010f01a5e6b5",
+    "maw/msw/api.py": "dd64acd1b753736109bd86a72c06c5d57276ec2294ea829ec88b54d3e126c40c",
+    "maw/msw/versions.py": "0caae5c67ce0cb65383281a8b3366691a20208a7857f4e54f292b22224dcfde9"
+  },
+  "scenarios": [
+    {
+      "profile": "bound",
+      "mode": "previous",
+      "errors": [],
+      "responses": [
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900175
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900177
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900138
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900138
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900138
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900138
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900128
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900128
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900128
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900130
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900128
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900128
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900128
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900128
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900128
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900130
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900130
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900130
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900130
+        }
+      ],
+      "operations": {
+        "changed": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0.2000000011175871,
+              "feedbackMs": 2288.800000000745,
+              "settledMs": 7560.800000000745,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 57.90000000037253
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 48.19999999925494
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 2082,
+                "max": 1803
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 2586.4000000003725,
+              "settledMs": 8199.400000000373,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 72.80000000074506
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 50.29999999888241
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 2341,
+                "max": 2069
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2505.60000000149,
+              "settledMs": 7996.700000001118,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 69.40000000037253
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 54
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 2271,
+                "max": 1979
+              },
+              "previewRequests": [
+                {
+                  "start": 68573.39999999851,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22952,
+                  "ms": 538.9000000003725
+                }
+              ]
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0.09999999962747097,
+              "p95": null,
+              "max": 0.2000000011175871
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2505.60000000149,
+              "p95": null,
+              "max": 2586.4000000003725
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 7996.700000001118,
+              "p95": null,
+              "max": 8199.400000000373
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1979,
+              "p95": null,
+              "max": 2069
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 2271,
+              "p95": null,
+              "max": 2341
+            },
+            "frameGapMs": {
+              "n": 1024,
+              "median": 16.69999999999709,
+              "p95": 16.70000000001164,
+              "max": 2083.300000000003
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 69.40000000037253,
+                  "p95": null,
+                  "max": 72.80000000074506
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 50.29999999888241,
+                  "p95": null,
+                  "max": 54
+                }
+              }
+            }
+          }
+        },
+        "playhead": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 2561.699999999255,
+              "settledMs": 8598.799999998882,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 74.19999999925494
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 57.499999998137355
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 2272,
+                "max": 2029
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2264.4000000003725,
+              "settledMs": 7452.300000000745,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 57.40000000037253
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 42.09999999962747
+                }
+              },
+              "longTasks": {
+                "count": 3,
+                "total": 2063,
+                "max": 1799
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 1534.3999999985099,
+              "settledMs": 9342.599999999627,
+              "calls": {},
+              "longTasks": {
+                "count": 5,
+                "total": 1393,
+                "max": 980
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0.09999999962747097,
+              "p95": null,
+              "max": 0.09999999962747097
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2264.4000000003725,
+              "p95": null,
+              "max": 2561.699999999255
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 8598.799999998882,
+              "p95": null,
+              "max": 9342.599999999627
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1799,
+              "p95": null,
+              "max": 2029
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 2063,
+              "p95": null,
+              "max": 2272
+            },
+            "frameGapMs": {
+              "n": 1182,
+              "median": 16.69999999999709,
+              "p95": 16.80000000000291,
+              "max": 2049.9000000000087
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 57.40000000037253,
+                  "p95": null,
+                  "max": 74.19999999925494
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 42.09999999962747,
+                  "p95": null,
+                  "max": 57.499999998137355
+                }
+              }
+            }
+          }
+        },
+        "unchanged": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1441.5,
+              "settledMs": 2601.7999999988824,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1151,
+                "max": 925
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1411.9000000003725,
+              "settledMs": 2418.0999999996275,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1154,
+                "max": 963
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1382.0999999996275,
+              "settledMs": 2461.2000000011176,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1121,
+                "max": 861
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1411.9000000003725,
+              "p95": null,
+              "max": 1441.5
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 2461.2000000011176,
+              "p95": null,
+              "max": 2601.7999999988824
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 925,
+              "p95": null,
+              "max": 963
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1151,
+              "p95": null,
+              "max": 1154
+            },
+            "frameGapMs": {
+              "n": 247,
+              "median": 16.69999999999709,
+              "p95": 16.80000000000291,
+              "max": 966.6999999999971
+            },
+            "calls": {}
+          }
+        },
+        "draft": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 1063.5,
+              "feedbackMs": 1915.800000000745,
+              "settledMs": 4227.60000000149,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1378,
+                "max": 1378
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 942.1999999992549,
+              "feedbackMs": 1791.5999999996275,
+              "settledMs": 4201.9000000003725,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1255,
+                "max": 1255
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 901.0999999996275,
+              "feedbackMs": 1683.800000000745,
+              "settledMs": 4486.699999999255,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1210,
+                "max": 1210
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 942.1999999992549,
+              "p95": null,
+              "max": 1063.5
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1791.5999999996275,
+              "p95": null,
+              "max": 1915.800000000745
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 4227.60000000149,
+              "p95": null,
+              "max": 4486.699999999255
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1255,
+              "p95": null,
+              "max": 1378
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1255,
+              "p95": null,
+              "max": 1378
+            },
+            "frameGapMs": {
+              "n": 543,
+              "median": 16.699999999982538,
+              "p95": 16.70000000001164,
+              "max": 1400.1000000000058
+            },
+            "calls": {}
+          }
+        }
+      },
+      "serverReadyMs": 1714.3471999999997,
+      "previewReadyMs": 39059.658299999996,
+      "memoryLoaded": {
+        "label": "loaded",
+        "heapBeforeGC": {
+          "usedSize": 212697304,
+          "totalSize": 287272960,
+          "embedderHeapUsedSize": 72748504,
+          "backingStorageSize": 63548082
+        },
+        "heapAfterGC": {
+          "usedSize": 141354280,
+          "totalSize": 143388672,
+          "embedderHeapUsedSize": 71258976,
+          "backingStorageSize": 63381538
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 38454,
+          "jsEventListeners": 3479
+        }
+      },
+      "idle": {
+        "status": "ok",
+        "syncMs": 0,
+        "feedbackMs": 36.59999999962747,
+        "settledMs": 10549.699999999255,
+        "calls": {},
+        "longTasks": {
+          "count": 2,
+          "total": 272,
+          "max": 140
+        },
+        "previewRequests": []
+      },
+      "memoryAfter": {
+        "label": "after",
+        "heapBeforeGC": {
+          "usedSize": 154163012,
+          "totalSize": 171585536,
+          "embedderHeapUsedSize": 72231368,
+          "backingStorageSize": 63382688
+        },
+        "heapAfterGC": {
+          "usedSize": 153811572,
+          "totalSize": 155070464,
+          "embedderHeapUsedSize": 71367736,
+          "backingStorageSize": 63382203
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 38610,
+          "jsEventListeners": 3563
+        }
+      },
+      "reopenMs": 19425.762400000007,
+      "originalUnchanged": true,
+      "reopenEqual": true
+    },
+    {
+      "profile": "bound",
+      "mode": "current",
+      "errors": [],
+      "responses": [
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900177
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900140
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900140
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900142
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900140
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900142
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900140
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900142
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900144
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900144
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900144
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 7900144
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900146
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900146
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900146
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 7900146
+        }
+      ],
+      "operations": {
+        "changed": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0.10000000149011612,
+              "feedbackMs": 2372.300000000745,
+              "settledMs": 9834.199999999255,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 64.40000000037253
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 66.09999999962747
+                }
+              },
+              "longTasks": {
+                "count": 4,
+                "total": 3253,
+                "max": 1912
+              },
+              "previewRequests": [
+                {
+                  "start": 45172.29999999888,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22952,
+                  "ms": 449.90000000037253
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2229.5,
+              "settledMs": 8003.4000000003725,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 63.69999999925494
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 51.80000000074506
+                }
+              },
+              "longTasks": {
+                "count": 3,
+                "total": 2209,
+                "max": 1780
+              },
+              "previewRequests": [
+                {
+                  "start": 55235.09999999963,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22952,
+                  "ms": 455.40000000037253
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 621,
+              "settledMs": 1693.800000000745,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 383,
+                "max": 245
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0.09999999962747097,
+              "p95": null,
+              "max": 0.10000000149011612
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2229.5,
+              "p95": null,
+              "max": 2372.300000000745
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 8003.4000000003725,
+              "p95": null,
+              "max": 9834.199999999255
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1780,
+              "p95": null,
+              "max": 1912
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 2209,
+              "p95": null,
+              "max": 3253
+            },
+            "frameGapMs": {
+              "n": 821,
+              "median": 16.69999999999709,
+              "p95": 16.799999999995634,
+              "max": 1933.199999999997
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 63.69999999925494,
+                  "p95": null,
+                  "max": 64.40000000037253
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 51.80000000074506,
+                  "p95": null,
+                  "max": 66.09999999962747
+                }
+              }
+            }
+          }
+        },
+        "playhead": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1559.2000000011176,
+              "settledMs": 6685.5,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1336,
+                "max": 1106
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1520.7000000011176,
+              "settledMs": 6408.60000000149,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1200,
+                "max": 978
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1842.7999999988824,
+              "settledMs": 8386.599999999627,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1577,
+                "max": 1391
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1559.2000000011176,
+              "p95": null,
+              "max": 1842.7999999988824
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 6685.5,
+              "p95": null,
+              "max": 8386.599999999627
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1106,
+              "p95": null,
+              "max": 1391
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1336,
+              "p95": null,
+              "max": 1577
+            },
+            "frameGapMs": {
+              "n": 1043,
+              "median": 16.69999999999709,
+              "p95": 16.70000000001164,
+              "max": 1416.5999999999913
+            },
+            "calls": {}
+          }
+        },
+        "unchanged": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 168.09999999962747,
+              "settledMs": 473.40000000037253,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 340,
+                "max": 210
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 164.2000000011176,
+              "settledMs": 481,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 352,
+                "max": 221
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.10000000149011612,
+              "feedbackMs": 161.2000000011176,
+              "settledMs": 468.40000000037253,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 376,
+                "max": 245
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0.09999999962747097,
+              "p95": null,
+              "max": 0.10000000149011612
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 164.2000000011176,
+              "p95": null,
+              "max": 168.09999999962747
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 473.40000000037253,
+              "p95": null,
+              "max": 481
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 221,
+              "p95": null,
+              "max": 245
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 352,
+              "p95": null,
+              "max": 376
+            },
+            "frameGapMs": {
+              "n": 26,
+              "median": 16.69999999999709,
+              "p95": 216.70000000001164,
+              "max": 233.3000000000029
+            },
+            "calls": {}
+          }
+        },
+        "draft": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 815.3999999985099,
+              "feedbackMs": 1554.7000000011176,
+              "settledMs": 4064.5999999996275,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1109,
+                "max": 1109
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 789.1999999992549,
+              "feedbackMs": 1600.699999999255,
+              "settledMs": 4097.39999999851,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1084,
+                "max": 1084
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 655.8000000007451,
+              "feedbackMs": 1484.8999999985099,
+              "settledMs": 4228.699999999255,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 946,
+                "max": 946
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 789.1999999992549,
+              "p95": null,
+              "max": 815.3999999985099
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1554.7000000011176,
+              "p95": null,
+              "max": 1600.699999999255
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 4097.39999999851,
+              "p95": null,
+              "max": 4228.699999999255
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1084,
+              "p95": null,
+              "max": 1109
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1084,
+              "p95": null,
+              "max": 1109
+            },
+            "frameGapMs": {
+              "n": 556,
+              "median": 16.69999999999709,
+              "p95": 16.70000000001164,
+              "max": 1100
+            },
+            "calls": {}
+          }
+        }
+      },
+      "serverReadyMs": 1795.2377000000001,
+      "previewReadyMs": 32403.903900000005,
+      "memoryLoaded": {
+        "label": "loaded",
+        "heapBeforeGC": {
+          "usedSize": 92975452,
+          "totalSize": 106254336,
+          "embedderHeapUsedSize": 72226448,
+          "backingStorageSize": 63424705
+        },
+        "heapAfterGC": {
+          "usedSize": 82729168,
+          "totalSize": 84439040,
+          "embedderHeapUsedSize": 71213128,
+          "backingStorageSize": 63386470
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 38454,
+          "jsEventListeners": 3488
+        }
+      },
+      "idle": {
+        "status": "ok",
+        "syncMs": 0,
+        "feedbackMs": 45.80000000074506,
+        "settledMs": 10562.599999999627,
+        "calls": {},
+        "longTasks": {
+          "count": 0,
+          "total": 0,
+          "max": 0
+        },
+        "previewRequests": []
+      },
+      "memoryAfter": {
+        "label": "after",
+        "heapBeforeGC": {
+          "usedSize": 114510204,
+          "totalSize": 176697344,
+          "embedderHeapUsedSize": 72622664,
+          "backingStorageSize": 63387646
+        },
+        "heapAfterGC": {
+          "usedSize": 92085456,
+          "totalSize": 93278208,
+          "embedderHeapUsedSize": 70916088,
+          "backingStorageSize": 63387099
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 38610,
+          "jsEventListeners": 3572
+        }
+      },
+      "reopenMs": 16587.9216,
+      "originalUnchanged": true,
+      "reopenEqual": true
+    },
+    {
+      "profile": "mixed",
+      "mode": "previous",
+      "errors": [],
+      "responses": [
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781164
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781166
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781127
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781127
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781127
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781129
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781127
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781117
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781117
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781117
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781117
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781117
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781117
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781117
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781117
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781119
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781119
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781119
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781119
+        }
+      ],
+      "operations": {
+        "changed": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0.10000000149011612,
+              "feedbackMs": 3003.9000000003725,
+              "settledMs": 9358,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 69.30000000074506
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 51.5
+                }
+              },
+              "longTasks": {
+                "count": 5,
+                "total": 2917,
+                "max": 2446
+              },
+              "previewRequests": [
+                {
+                  "start": 56086.40000000037,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 877964,
+                  "ms": 693
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.19999999925494194,
+              "feedbackMs": 2887.5,
+              "settledMs": 11213.800000000745,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 78.39999999850988
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 59.80000000074506
+                }
+              },
+              "longTasks": {
+                "count": 8,
+                "total": 4167,
+                "max": 2284
+              },
+              "previewRequests": [
+                {
+                  "start": 65696.59999999963,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 877964,
+                  "ms": 1694.5
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2625.0999999996275,
+              "settledMs": 8838,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 64.69999999925494
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 50
+                }
+              },
+              "longTasks": {
+                "count": 4,
+                "total": 2448,
+                "max": 2029
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0.10000000149011612,
+              "p95": null,
+              "max": 0.19999999925494194
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2887.5,
+              "p95": null,
+              "max": 3003.9000000003725
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 9358,
+              "p95": null,
+              "max": 11213.800000000745
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 2284,
+              "p95": null,
+              "max": 2446
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 2917,
+              "p95": null,
+              "max": 4167
+            },
+            "frameGapMs": {
+              "n": 1202,
+              "median": 16.69999999999709,
+              "p95": 16.799999999995634,
+              "max": 2449.9000000000015
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 69.30000000074506,
+                  "p95": null,
+                  "max": 78.39999999850988
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 51.5,
+                  "p95": null,
+                  "max": 59.80000000074506
+                }
+              }
+            }
+          }
+        },
+        "playhead": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2645.7999999988824,
+              "settledMs": 9094.89999999851,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 67.69999999925494
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 51.09999999962747
+                }
+              },
+              "longTasks": {
+                "count": 5,
+                "total": 2527,
+                "max": 2115
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 2598.5999999996275,
+              "settledMs": 8434.700000001118,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 61.100000001490116
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 54.80000000074506
+                }
+              },
+              "longTasks": {
+                "count": 5,
+                "total": 2517,
+                "max": 2053
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2399,
+              "settledMs": 8161.9000000003725,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 65.60000000149012
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 50.500000001862645
+                }
+              },
+              "longTasks": {
+                "count": 6,
+                "total": 2434,
+                "max": 1921
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0.09999999962747097
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2598.5999999996275,
+              "p95": null,
+              "max": 2645.7999999988824
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 8434.700000001118,
+              "p95": null,
+              "max": 9094.89999999851
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 2053,
+              "p95": null,
+              "max": 2115
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 2517,
+              "p95": null,
+              "max": 2527
+            },
+            "frameGapMs": {
+              "n": 1109,
+              "median": 16.69999999999709,
+              "p95": 16.80000000000291,
+              "max": 2100
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 65.60000000149012,
+                  "p95": null,
+                  "max": 67.69999999925494
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 51.09999999962747,
+                  "p95": null,
+                  "max": 54.80000000074506
+                }
+              }
+            }
+          }
+        },
+        "unchanged": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 1618.1000000014901,
+              "settledMs": 7252.700000001118,
+              "calls": {},
+              "longTasks": {
+                "count": 4,
+                "total": 1450,
+                "max": 1091
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1718.800000000745,
+              "settledMs": 7729.9000000003725,
+              "calls": {},
+              "longTasks": {
+                "count": 4,
+                "total": 1546,
+                "max": 1177
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1977.9000000003725,
+              "settledMs": 8823.5,
+              "calls": {},
+              "longTasks": {
+                "count": 4,
+                "total": 1741,
+                "max": 1338
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0.09999999962747097
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1718.800000000745,
+              "p95": null,
+              "max": 1977.9000000003725
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 7729.9000000003725,
+              "p95": null,
+              "max": 8823.5
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1177,
+              "p95": null,
+              "max": 1338
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1546,
+              "p95": null,
+              "max": 1741
+            },
+            "frameGapMs": {
+              "n": 1150,
+              "median": 16.699999999982538,
+              "p95": 16.79999999998836,
+              "max": 1383.2999999999884
+            },
+            "calls": {}
+          }
+        },
+        "draft": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 1197.5999999996275,
+              "feedbackMs": 2134.800000000745,
+              "settledMs": 5328.9000000003725,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1631,
+                "max": 1571
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 871.1999999992549,
+              "feedbackMs": 1736.3999999985099,
+              "settledMs": 4558,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1230,
+                "max": 1230
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 964,
+              "feedbackMs": 1790.0999999996275,
+              "settledMs": 4817.299999998882,
+              "calls": {},
+              "longTasks": {
+                "count": 4,
+                "total": 1468,
+                "max": 1298
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 964,
+              "p95": null,
+              "max": 1197.5999999996275
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1790.0999999996275,
+              "p95": null,
+              "max": 2134.800000000745
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 4817.299999998882,
+              "p95": null,
+              "max": 5328.9000000003725
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1298,
+              "p95": null,
+              "max": 1571
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1468,
+              "p95": null,
+              "max": 1631
+            },
+            "frameGapMs": {
+              "n": 631,
+              "median": 16.699999999982538,
+              "p95": 16.79999999998836,
+              "max": 1549.8999999999942
+            },
+            "calls": {}
+          }
+        }
+      },
+      "serverReadyMs": 1889.7302999999956,
+      "previewReadyMs": 42490.28110000002,
+      "memoryLoaded": {
+        "label": "loaded",
+        "heapBeforeGC": {
+          "usedSize": 174724800,
+          "totalSize": 200626176,
+          "embedderHeapUsedSize": 72864936,
+          "backingStorageSize": 64706325
+        },
+        "heapAfterGC": {
+          "usedSize": 160180340,
+          "totalSize": 162721792,
+          "embedderHeapUsedSize": 72576912,
+          "backingStorageSize": 64667834
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 39343,
+          "jsEventListeners": 3544
+        }
+      },
+      "idle": {
+        "status": "ok",
+        "syncMs": 0,
+        "feedbackMs": 23.699999999254942,
+        "settledMs": 10549.5,
+        "calls": {},
+        "longTasks": {
+          "count": 2,
+          "total": 234,
+          "max": 125
+        },
+        "previewRequests": []
+      },
+      "memoryAfter": {
+        "label": "after",
+        "heapBeforeGC": {
+          "usedSize": 169291812,
+          "totalSize": 175845376,
+          "embedderHeapUsedSize": 73052904,
+          "backingStorageSize": 64668832
+        },
+        "heapAfterGC": {
+          "usedSize": 148529556,
+          "totalSize": 150269952,
+          "embedderHeapUsedSize": 72487136,
+          "backingStorageSize": 64668363
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 39486,
+          "jsEventListeners": 3621
+        }
+      },
+      "reopenMs": 24217.543600000092,
+      "originalUnchanged": true,
+      "reopenEqual": true
+    },
+    {
+      "profile": "mixed",
+      "mode": "current",
+      "errors": [],
+      "responses": [
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781166
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781129
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781131
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781129
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781129
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781131
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781129
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781133
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781133
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781135
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781133
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781133
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781133
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781133
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781133
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 8781133
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781135
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781135
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781135
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 8781135
+        }
+      ],
+      "operations": {
+        "changed": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1454.2000000011176,
+              "settledMs": 8941.10000000149,
+              "calls": {},
+              "longTasks": {
+                "count": 5,
+                "total": 1526,
+                "max": 886
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 2894.5,
+              "settledMs": 9650.800000000745,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 69.5
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 66.09999999962747
+                }
+              },
+              "longTasks": {
+                "count": 7,
+                "total": 3064,
+                "max": 2237
+              },
+              "previewRequests": [
+                {
+                  "start": 69440.5,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 877964,
+                  "ms": 904.8000000007451
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1372.5999999996275,
+              "settledMs": 9354.199999999255,
+              "calls": {},
+              "longTasks": {
+                "count": 6,
+                "total": 1818,
+                "max": 839
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0.09999999962747097
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1454.2000000011176,
+              "p95": null,
+              "max": 2894.5
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 9354.199999999255,
+              "p95": null,
+              "max": 9650.800000000745
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 886,
+              "p95": null,
+              "max": 2237
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1818,
+              "p95": null,
+              "max": 3064
+            },
+            "frameGapMs": {
+              "n": 1300,
+              "median": 16.69999999999709,
+              "p95": 16.799999999995634,
+              "max": 2233.199999999997
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 0,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 0,
+                  "p95": null,
+                  "max": 69.5
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 0,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 0,
+                  "p95": null,
+                  "max": 66.09999999962747
+                }
+              }
+            }
+          }
+        },
+        "playhead": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1817.4000000003725,
+              "settledMs": 9858,
+              "calls": {},
+              "longTasks": {
+                "count": 6,
+                "total": 3040,
+                "max": 1287
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1674.5,
+              "settledMs": 8902.699999999255,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1457,
+                "max": 1167
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1937.5,
+              "settledMs": 8013.700000001118,
+              "calls": {},
+              "longTasks": {
+                "count": 5,
+                "total": 1934,
+                "max": 1435
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1817.4000000003725,
+              "p95": null,
+              "max": 1937.5
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 8902.699999999255,
+              "p95": null,
+              "max": 9858
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1287,
+              "p95": null,
+              "max": 1435
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1934,
+              "p95": null,
+              "max": 3040
+            },
+            "frameGapMs": {
+              "n": 1217,
+              "median": 16.69999999999709,
+              "p95": 16.80000000000291,
+              "max": 1483.300000000003
+            },
+            "calls": {}
+          }
+        },
+        "unchanged": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1364.699999999255,
+              "settledMs": 7556.5,
+              "calls": {},
+              "longTasks": {
+                "count": 4,
+                "total": 1200,
+                "max": 860
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1329.5999999996275,
+              "settledMs": 6654,
+              "calls": {},
+              "longTasks": {
+                "count": 4,
+                "total": 1169,
+                "max": 857
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 1448.5,
+              "settledMs": 7082.199999999255,
+              "calls": {},
+              "longTasks": {
+                "count": 5,
+                "total": 1264,
+                "max": 869
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1364.699999999255,
+              "p95": null,
+              "max": 1448.5
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 7082.199999999255,
+              "p95": null,
+              "max": 7556.5
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 860,
+              "p95": null,
+              "max": 869
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1200,
+              "p95": null,
+              "max": 1264
+            },
+            "frameGapMs": {
+              "n": 1068,
+              "median": 16.699999999982538,
+              "p95": 16.79999999998836,
+              "max": 900
+            },
+            "calls": {}
+          }
+        },
+        "draft": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 770.3000000007451,
+              "feedbackMs": 1879.7000000011176,
+              "settledMs": 4884.60000000149,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1246,
+                "max": 1185
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 887.1000000014901,
+              "feedbackMs": 1820.2000000011176,
+              "settledMs": 4626.800000000745,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1374,
+                "max": 1320
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 772.0999999996275,
+              "feedbackMs": 1602.7999999988824,
+              "settledMs": 4441.0999999996275,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1157,
+                "max": 1107
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 772.0999999996275,
+              "p95": null,
+              "max": 887.1000000014901
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 1820.2000000011176,
+              "p95": null,
+              "max": 1879.7000000011176
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 4626.800000000745,
+              "p95": null,
+              "max": 4884.60000000149
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1185,
+              "p95": null,
+              "max": 1320
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1246,
+              "p95": null,
+              "max": 1374
+            },
+            "frameGapMs": {
+              "n": 616,
+              "median": 16.699999999982538,
+              "p95": 16.79999999998836,
+              "max": 1299.9000000000233
+            },
+            "calls": {}
+          }
+        }
+      },
+      "serverReadyMs": 2444.150900000008,
+      "previewReadyMs": 41246.40599999999,
+      "memoryLoaded": {
+        "label": "loaded",
+        "heapBeforeGC": {
+          "usedSize": 114247584,
+          "totalSize": 120672256,
+          "embedderHeapUsedSize": 76131160,
+          "backingStorageSize": 64711488
+        },
+        "heapAfterGC": {
+          "usedSize": 94923520,
+          "totalSize": 96428032,
+          "embedderHeapUsedSize": 72672664,
+          "backingStorageSize": 64672856
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 39343,
+          "jsEventListeners": 3553
+        }
+      },
+      "idle": {
+        "status": "ok",
+        "syncMs": 0,
+        "feedbackMs": 65.90000000037253,
+        "settledMs": 10586.599999999627,
+        "calls": {},
+        "longTasks": {
+          "count": 3,
+          "total": 191,
+          "max": 67
+        },
+        "previewRequests": []
+      },
+      "memoryAfter": {
+        "label": "after",
+        "heapBeforeGC": {
+          "usedSize": 100646172,
+          "totalSize": 104935424,
+          "embedderHeapUsedSize": 73669904,
+          "backingStorageSize": 64673736
+        },
+        "heapAfterGC": {
+          "usedSize": 100237772,
+          "totalSize": 101789696,
+          "embedderHeapUsedSize": 72524984,
+          "backingStorageSize": 64673259
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 39486,
+          "jsEventListeners": 3630
+        }
+      },
+      "reopenMs": 21381.936600000015,
+      "originalUnchanged": true,
+      "reopenEqual": true
+    },
+    {
+      "profile": "migrated",
+      "mode": "previous",
+      "errors": [],
+      "responses": [
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520525
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520527
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520488
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520488
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520488
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520488
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520478
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520478
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520478
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520480
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520478
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520478
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520478
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520478
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520478
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520480
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520480
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520480
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520480
+        }
+      ],
+      "operations": {
+        "changed": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0.10000000149011612,
+              "feedbackMs": 3509.9000000003725,
+              "settledMs": 10672.5,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 66
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 49.59999999962747
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 3069,
+                "max": 2834
+              },
+              "previewRequests": [
+                {
+                  "start": 63774.09999999963,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22868,
+                  "ms": 1093.2000000011176
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 3375.4000000003725,
+              "settledMs": 10482.700000001118,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 71.20000000111759
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 48.29999999888241
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 3007,
+                "max": 2680
+              },
+              "previewRequests": [
+                {
+                  "start": 74652.90000000037,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22868,
+                  "ms": 719.7999999988824
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 3256.300000000745,
+              "settledMs": 10617.5,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 72.10000000149012
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 50.70000000111759
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 2870,
+                "max": 2597
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0.10000000149011612
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 3375.4000000003725,
+              "p95": null,
+              "max": 3509.9000000003725
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 10617.5,
+              "p95": null,
+              "max": 10672.5
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 2680,
+              "p95": null,
+              "max": 2834
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 3007,
+              "p95": null,
+              "max": 3069
+            },
+            "frameGapMs": {
+              "n": 1368,
+              "median": 16.69999999999709,
+              "p95": 16.70000000001164,
+              "max": 2849.9000000000015
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 71.20000000111759,
+                  "p95": null,
+                  "max": 72.10000000149012
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 49.59999999962747,
+                  "p95": null,
+                  "max": 50.70000000111759
+                }
+              }
+            }
+          }
+        },
+        "playhead": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 3720.7000000011176,
+              "settledMs": 11534.900000000373,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 115.19999999925494
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 80.20000000111759
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 3264,
+                "max": 2955
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 3480.5999999996275,
+              "settledMs": 14826.89999999851,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 110.30000000074506
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 53.500000001862645
+                }
+              },
+              "longTasks": {
+                "count": 4,
+                "total": 4767,
+                "max": 2780
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 3359.5999999996275,
+              "settledMs": 10943.400000000373,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 85
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 52.19999999925494
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 2982,
+                "max": 2688
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0.09999999962747097,
+              "p95": null,
+              "max": 0.09999999962747097
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 3480.5999999996275,
+              "p95": null,
+              "max": 3720.7000000011176
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 11534.900000000373,
+              "p95": null,
+              "max": 14826.89999999851
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 2780,
+              "p95": null,
+              "max": 2955
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 3264,
+              "p95": null,
+              "max": 4767
+            },
+            "frameGapMs": {
+              "n": 1573,
+              "median": 16.69999999999709,
+              "p95": 16.79999999998836,
+              "max": 2966.5
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 110.30000000074506,
+                  "p95": null,
+                  "max": 115.19999999925494
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 53.500000001862645,
+                  "p95": null,
+                  "max": 80.20000000111759
+                }
+              }
+            }
+          }
+        },
+        "unchanged": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2180.7000000011176,
+              "settledMs": 3658.300000000745,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1692,
+                "max": 1419
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2229,
+              "settledMs": 3732.800000000745,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1703,
+                "max": 1419
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2005,
+              "settledMs": 3414.4000000003725,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1576,
+                "max": 1291
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2180.7000000011176,
+              "p95": null,
+              "max": 2229
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 3658.300000000745,
+              "p95": null,
+              "max": 3732.800000000745
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1419,
+              "p95": null,
+              "max": 1419
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1692,
+              "p95": null,
+              "max": 1703
+            },
+            "frameGapMs": {
+              "n": 351,
+              "median": 16.699999999982538,
+              "p95": 16.79999999998836,
+              "max": 1416.7000000000116
+            },
+            "calls": {}
+          }
+        },
+        "draft": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 1117,
+              "feedbackMs": 2420.2999999988824,
+              "settledMs": 6941,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1585,
+                "max": 1585
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 1417,
+              "feedbackMs": 2663.5,
+              "settledMs": 6416,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1864,
+                "max": 1864
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 1147.7000000011176,
+              "feedbackMs": 2371.0999999996275,
+              "settledMs": 6467.89999999851,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1569,
+                "max": 1569
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 1147.7000000011176,
+              "p95": null,
+              "max": 1417
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2420.2999999988824,
+              "p95": null,
+              "max": 2663.5
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 6467.89999999851,
+              "p95": null,
+              "max": 6941
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1585,
+              "p95": null,
+              "max": 1864
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1585,
+              "p95": null,
+              "max": 1864
+            },
+            "frameGapMs": {
+              "n": 888,
+              "median": 16.699999999982538,
+              "p95": 16.70000000001164,
+              "max": 1883.2000000000116
+            },
+            "calls": {}
+          }
+        }
+      },
+      "serverReadyMs": 2122.955799999996,
+      "previewReadyMs": 46671.055399999954,
+      "memoryLoaded": {
+        "label": "loaded",
+        "heapBeforeGC": {
+          "usedSize": 306914248,
+          "totalSize": 326369280,
+          "embedderHeapUsedSize": 71975880,
+          "backingStorageSize": 67479050
+        },
+        "heapAfterGC": {
+          "usedSize": 271131908,
+          "totalSize": 272797696,
+          "embedderHeapUsedSize": 71287208,
+          "backingStorageSize": 67308169
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 38454,
+          "jsEventListeners": 3479
+        }
+      },
+      "idle": {
+        "status": "ok",
+        "syncMs": 0,
+        "feedbackMs": 29.90000000037253,
+        "settledMs": 10550.199999999255,
+        "calls": {},
+        "longTasks": {
+          "count": 2,
+          "total": 350,
+          "max": 176
+        },
+        "previewRequests": []
+      },
+      "memoryAfter": {
+        "label": "after",
+        "heapBeforeGC": {
+          "usedSize": 205620352,
+          "totalSize": 208982016,
+          "embedderHeapUsedSize": 72031840,
+          "backingStorageSize": 67309263
+        },
+        "heapAfterGC": {
+          "usedSize": 179413136,
+          "totalSize": 181420032,
+          "embedderHeapUsedSize": 71152912,
+          "backingStorageSize": 67308775
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 38610,
+          "jsEventListeners": 3563
+        }
+      },
+      "reopenMs": 24699.350199999986,
+      "originalUnchanged": true,
+      "reopenEqual": true
+    },
+    {
+      "profile": "migrated",
+      "mode": "current",
+      "errors": [],
+      "responses": [
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520527
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520490
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520490
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520490
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520492
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520490
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520494
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520494
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520494
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 11520494
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/project",
+          "status": 200,
+          "bytes": 145
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520496
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520496
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520496
+        },
+        {
+          "route": "/api/msw/recovery-draft",
+          "status": 200,
+          "bytes": 11520496
+        }
+      ],
+      "operations": {
+        "changed": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 3614.300000000745,
+              "settledMs": 10823.700000001118,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 82.80000000074506
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 58.90000000037253
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 3482,
+                "max": 2927
+              },
+              "previewRequests": [
+                {
+                  "start": 52656.09999999963,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22868,
+                  "ms": 693.5
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 3573.699999999255,
+              "settledMs": 11654.099999999627,
+              "calls": {
+                "fixedAcceptEdit": {
+                  "count": 1,
+                  "ms": 99.09999999962747
+                },
+                "syncProjectTimebaseAndBindingOffsets": {
+                  "count": 2,
+                  "ms": 75.40000000223517
+                }
+              },
+              "longTasks": {
+                "count": 2,
+                "total": 3358,
+                "max": 2902
+              },
+              "previewRequests": [
+                {
+                  "start": 63843.699999999255,
+                  "cues": 84,
+                  "status": "ok",
+                  "assBytes": 22868,
+                  "ms": 1658.4000000003725
+                }
+              ]
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.10000000149011612,
+              "feedbackMs": 1601.5999999996275,
+              "settledMs": 11179.5,
+              "calls": {},
+              "longTasks": {
+                "count": 3,
+                "total": 2010,
+                "max": 962
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0.09999999962747097,
+              "p95": null,
+              "max": 0.10000000149011612
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 3573.699999999255,
+              "p95": null,
+              "max": 3614.300000000745
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 11179.5,
+              "p95": null,
+              "max": 11654.099999999627
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 2902,
+              "p95": null,
+              "max": 2927
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 3358,
+              "p95": null,
+              "max": 3482
+            },
+            "frameGapMs": {
+              "n": 1481,
+              "median": 16.69999999999709,
+              "p95": 16.70000000001164,
+              "max": 2933.2000000000044
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 3,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 82.80000000074506,
+                  "p95": null,
+                  "max": 99.09999999962747
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 3,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 3,
+                  "median": 58.90000000037253,
+                  "p95": null,
+                  "max": 75.40000000223517
+                }
+              }
+            }
+          }
+        },
+        "playhead": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 2406.5,
+              "settledMs": 10795.900000000373,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1746,
+                "max": 1510
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 2210.5,
+              "settledMs": 9439.5,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1745,
+                "max": 1488
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0.09999999962747097,
+              "feedbackMs": 2378.300000000745,
+              "settledMs": 9540,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 1972,
+                "max": 1725
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0.09999999962747097,
+              "p95": null,
+              "max": 0.09999999962747097
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2378.300000000745,
+              "p95": null,
+              "max": 2406.5
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 9540,
+              "p95": null,
+              "max": 10795.900000000373
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1510,
+              "p95": null,
+              "max": 1725
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1746,
+              "p95": null,
+              "max": 1972
+            },
+            "frameGapMs": {
+              "n": 1452,
+              "median": 16.69999999999709,
+              "p95": 16.70000000001164,
+              "max": 1733.2999999999884
+            },
+            "calls": {}
+          }
+        },
+        "unchanged": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 171.5,
+              "settledMs": 481.09999999962747,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 387,
+                "max": 229
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 192,
+              "settledMs": 512.1999999992549,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 421,
+                "max": 266
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 0,
+              "feedbackMs": 217.09999999962747,
+              "settledMs": 562.8999999985099,
+              "calls": {},
+              "longTasks": {
+                "count": 2,
+                "total": 445,
+                "max": 264
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 0,
+              "p95": null,
+              "max": 0
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 192,
+              "p95": null,
+              "max": 217.09999999962747
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 512.1999999992549,
+              "p95": null,
+              "max": 562.8999999985099
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 264,
+              "p95": null,
+              "max": 266
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 421,
+              "p95": null,
+              "max": 445
+            },
+            "frameGapMs": {
+              "n": 26,
+              "median": 16.69999999999709,
+              "p95": 250.10000000000582,
+              "max": 266.6999999999971
+            },
+            "calls": {}
+          }
+        },
+        "draft": {
+          "samples": [
+            {
+              "status": "ok",
+              "syncMs": 1054.6000000014901,
+              "feedbackMs": 2306.39999999851,
+              "settledMs": 6125.0999999996275,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1567,
+                "max": 1567
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 1108.800000000745,
+              "feedbackMs": 2289.7000000011176,
+              "settledMs": 6633.700000001118,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1545,
+                "max": 1545
+              },
+              "previewRequests": []
+            },
+            {
+              "status": "ok",
+              "syncMs": 1372.699999999255,
+              "feedbackMs": 2730.9000000003725,
+              "settledMs": 7001.5999999996275,
+              "calls": {},
+              "longTasks": {
+                "count": 1,
+                "total": 1844,
+                "max": 1844
+              },
+              "previewRequests": []
+            }
+          ],
+          "summary": {
+            "samples": 3,
+            "successful": 3,
+            "failed": 0,
+            "syncMs": {
+              "n": 3,
+              "median": 1108.800000000745,
+              "p95": null,
+              "max": 1372.699999999255
+            },
+            "feedbackMs": {
+              "n": 3,
+              "median": 2306.39999999851,
+              "p95": null,
+              "max": 2730.9000000003725
+            },
+            "settledMs": {
+              "n": 3,
+              "median": 6633.700000001118,
+              "p95": null,
+              "max": 7001.5999999996275
+            },
+            "longestTaskMs": {
+              "n": 3,
+              "median": 1567,
+              "p95": null,
+              "max": 1844
+            },
+            "blockedMs": {
+              "n": 3,
+              "median": 1567,
+              "p95": null,
+              "max": 1844
+            },
+            "frameGapMs": {
+              "n": 892,
+              "median": 16.699999999982538,
+              "p95": 16.79999999998836,
+              "max": 1833.2999999999884
+            },
+            "calls": {}
+          }
+        }
+      },
+      "serverReadyMs": 1981.5331000000006,
+      "previewReadyMs": 36229.62090000004,
+      "memoryLoaded": {
+        "label": "loaded",
+        "heapBeforeGC": {
+          "usedSize": 128381380,
+          "totalSize": 215465984,
+          "embedderHeapUsedSize": 73758176,
+          "backingStorageSize": 67484728
+        },
+        "heapAfterGC": {
+          "usedSize": 103033288,
+          "totalSize": 105046016,
+          "embedderHeapUsedSize": 71666064,
+          "backingStorageSize": 67313052
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 38454,
+          "jsEventListeners": 3488
+        }
+      },
+      "idle": {
+        "status": "ok",
+        "syncMs": 0,
+        "feedbackMs": 28.5,
+        "settledMs": 10543.700000001118,
+        "calls": {},
+        "longTasks": {
+          "count": 0,
+          "total": 0,
+          "max": 0
+        },
+        "previewRequests": []
+      },
+      "memoryAfter": {
+        "label": "after",
+        "heapBeforeGC": {
+          "usedSize": 119508680,
+          "totalSize": 122433536,
+          "embedderHeapUsedSize": 72241008,
+          "backingStorageSize": 67314167
+        },
+        "heapAfterGC": {
+          "usedSize": 119280704,
+          "totalSize": 121384960,
+          "embedderHeapUsedSize": 71440864,
+          "backingStorageSize": 67313676
+        },
+        "dom": {
+          "documents": 5,
+          "nodes": 38610,
+          "jsEventListeners": 3572
+        }
+      },
+      "reopenMs": 19431.626099999994,
+      "originalUnchanged": true,
+      "reopenEqual": true
+    }
+  ],
+  "browser": "151.0.7922.34",
+  "complete": true,
+  "measurementRounds": {
+    "baseline": "first full comparison",
+    "candidate": "compact persistence recheck",
+    "note": "Same backend and measured workload; baseline samples retained from first run. Final current samples use compact JSON."
+  },
+  "postMeasurementCompatibilityFix": {
+    "file": "web/editor.js",
+    "sha256": "21c5bf60c12ae4efcb10ddacbf6695f8e5d783de6323e5bfb8b6736b29aba7c8",
+    "scope": "Require a defined fingerprint for unchanged acknowledgment; compare compact JSON in the no-fingerprint fallback. Standard measured hosts provide fingerprints. No new performance samples after these compatibility guards."
+  }
+}

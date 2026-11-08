@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 import wave
@@ -29,6 +30,54 @@ def wav_data():
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_deferred_waveform_waits_for_save_and_preserves_current_content(self):
+        project=self.server.project;loaded=threading.Event()
+        def spectral(*args,**kwargs):
+            loaded.set();return {'marker':'spectrum','peak_count':1,'division':80}
+        with patch.object(server_module.reapeaks,'load_spectral_payload',side_effect=spectral), \
+             patch.object(server_module.reapeaks,'load_waveform_payload',return_value={'marker':'peaks','peak_count':1,'peaks_per_second':100}), \
+             patch.object(server_module.reapeaks,'load_loudness_stats',return_value=None):
+            with self.server.save_lock:
+                thread=threading.Thread(target=self.server._load_deferred_reapeaks,args=(project,self.server.reapeaks_generation))
+                thread.start();self.assertTrue(loaded.wait(5))
+                thread.join(.1)
+                self.assertTrue(thread.is_alive(),'cache publish must wait for the save boundary')
+                self.server.project=replace(project,data={**project.data,'language':'edited'})
+            thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(self.server.project.data['language'],'edited')
+        self.assertEqual(self.server.project.data['spectral']['marker'],'spectrum')
+
+    def test_deferred_waveform_cannot_publish_into_another_audio_track(self):
+        project=self.server.project
+        self.server.project=replace(project,audio_track=project.audio_track+1)
+        with patch.object(server_module.reapeaks,'load_spectral_payload',return_value={'marker':'old','peak_count':1,'division':80}), \
+             patch.object(server_module.reapeaks,'load_waveform_payload',return_value=None), \
+             patch.object(server_module.reapeaks,'load_loudness_stats',return_value=None):
+            self.server._load_deferred_reapeaks(project,self.server.reapeaks_generation)
+        self.assertNotIn('spectral',self.server.project.data)
+
+    def test_confirm_unchanged_save_requires_prior_save_and_exact_disk_revision(self):
+        context=self.api.context()
+        self.assertTrue(self.server.confirm_saved_project(context['binding'], context['saveRevision'])['resendProject'])
+        self.server.save_project(copy.deepcopy(self.server.project.data))
+        context=self.api.context();before=self.path.stat().st_mtime_ns
+        with patch.object(server_module, 'normalize_project', side_effect=AssertionError('unnecessary normalization')):
+            result=self.server.confirm_saved_project(context['binding'], context['saveRevision'])
+        self.assertEqual(result['filename'],self.path.name)
+        self.assertEqual(before,self.path.stat().st_mtime_ns)
+        self.path.write_bytes(self.path.read_bytes()+b' ')
+        with self.assertRaisesRegex(ValueError,'磁盘内容'):
+            self.server.confirm_saved_project(context['binding'], context['saveRevision'])
+        with self.assertRaises(ValueError):
+            self.server.confirm_saved_project('wrong',self.api.context()['saveRevision'])
+
+    def test_confirm_save_with_assets_requests_full_verification(self):
+        self.asset()
+        self.server.save_project(copy.deepcopy(self.server.project.data))
+        context=self.api.context()
+        self.assertTrue(self.server.confirm_saved_project(context['binding'],context['saveRevision'])['resendProject'])
+
     def test_recovery_draft_validates_once_and_releases_project_lock_before_storage(self):
         import threading
         import maw.msw.persistence as persistence
