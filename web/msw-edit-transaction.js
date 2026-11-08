@@ -7,12 +7,12 @@
   const identity = value => object(value) ? typeof value.id === 'string' ? value.id
     : typeof value.cue_id === 'string' && Object.hasOwn(value,'subtitle_track_id')
       ? JSON.stringify([value.role,value.track_id,value.cue_id]) : null : null;
-  function equal(a,b) {
+  function equal(a,b,ignoreDirty=false) {
     if (a === b) return true;
     if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
     if(Array.isArray(a)) {
       if(!Array.isArray(b)||a.length!==b.length)return false;
-      for(let i=0;i<a.length;i++)if(!equal(a[i],b[i]))return false;
+      for(let i=0;i<a.length;i++)if(!equal(a[i],b[i],ignoreDirty))return false;
       return true;
     }
     if(Array.isArray(b))return false;
@@ -21,10 +21,11 @@
     // and diff(), an absent field and an undefined field are equivalent.
     let missing=keys.length!==other.length;
     for(const key of keys) {
+      if(ignoreDirty&&key==='_dirty'){missing=true;continue;}
       if(!Object.hasOwn(b,key)){if(a[key]!==undefined)return false;missing=true;}
-      else if(!equal(a[key],b[key]))return false;
+      else if(!equal(a[key],b[key],ignoreDirty))return false;
     }
-    if(missing)for(const key of other)if(!Object.hasOwn(a,key)&&b[key]!==undefined)return false;
+    if(missing)for(const key of other)if(!(ignoreDirty&&key==='_dirty')&&!Object.hasOwn(a,key)&&b[key]!==undefined)return false;
     return true;
   }
   function diff(before,after) {
@@ -52,7 +53,9 @@
     if (!patch) return current;
     const from=forward?'before':'after', to=forward?'after':'before';
     if (patch.kind==='value') {
-      if(check&&!equal(current,patch[from]))throw Error('编辑目标已改变，未提交操作');
+      // Saving clears presentation-only dirty flags, without changing the
+      // edited content. Keep all content conflict checks, including nested rows.
+      if(check&&!equal(current,patch[from],true))throw Error('编辑目标已改变，未提交操作');
       return copy(patch[to]);
     }
     if (patch.kind==='rows') {
@@ -68,7 +71,7 @@
     if(!object(current))throw Error('编辑对象已改变，未提交操作');
     const next={...current};
     for(const [key,change] of patch.entries) {
-      const value=apply(Object.hasOwn(current,key)?current[key]:undefined,change,forward,{check});
+      const value=apply(Object.hasOwn(current,key)?current[key]:undefined,change,forward,{check:check&&key!=='_dirty'});
       if(value===undefined)delete next[key];
       else if(key==='__proto__')Object.defineProperty(next,key,{value,writable:true,enumerable:true,configurable:true});
       else next[key]=value;

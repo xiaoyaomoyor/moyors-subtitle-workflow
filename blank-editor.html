@@ -19855,12 +19855,12 @@ export default MawDynamicCaptions;
   const identity = value => object(value) ? typeof value.id === 'string' ? value.id
     : typeof value.cue_id === 'string' && Object.hasOwn(value,'subtitle_track_id')
       ? JSON.stringify([value.role,value.track_id,value.cue_id]) : null : null;
-  function equal(a,b) {
+  function equal(a,b,ignoreDirty=false) {
     if (a === b) return true;
     if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
     if(Array.isArray(a)) {
       if(!Array.isArray(b)||a.length!==b.length)return false;
-      for(let i=0;i<a.length;i++)if(!equal(a[i],b[i]))return false;
+      for(let i=0;i<a.length;i++)if(!equal(a[i],b[i],ignoreDirty))return false;
       return true;
     }
     if(Array.isArray(b))return false;
@@ -19869,10 +19869,11 @@ export default MawDynamicCaptions;
     // and diff(), an absent field and an undefined field are equivalent.
     let missing=keys.length!==other.length;
     for(const key of keys) {
+      if(ignoreDirty&&key==='_dirty'){missing=true;continue;}
       if(!Object.hasOwn(b,key)){if(a[key]!==undefined)return false;missing=true;}
-      else if(!equal(a[key],b[key]))return false;
+      else if(!equal(a[key],b[key],ignoreDirty))return false;
     }
-    if(missing)for(const key of other)if(!Object.hasOwn(a,key)&&b[key]!==undefined)return false;
+    if(missing)for(const key of other)if(!(ignoreDirty&&key==='_dirty')&&!Object.hasOwn(a,key)&&b[key]!==undefined)return false;
     return true;
   }
   function diff(before,after) {
@@ -19900,7 +19901,9 @@ export default MawDynamicCaptions;
     if (!patch) return current;
     const from=forward?'before':'after', to=forward?'after':'before';
     if (patch.kind==='value') {
-      if(check&&!equal(current,patch[from]))throw Error('编辑目标已改变，未提交操作');
+      // Saving clears presentation-only dirty flags, without changing the
+      // edited content. Keep all content conflict checks, including nested rows.
+      if(check&&!equal(current,patch[from],true))throw Error('编辑目标已改变，未提交操作');
       return copy(patch[to]);
     }
     if (patch.kind==='rows') {
@@ -19916,7 +19919,7 @@ export default MawDynamicCaptions;
     if(!object(current))throw Error('编辑对象已改变，未提交操作');
     const next={...current};
     for(const [key,change] of patch.entries) {
-      const value=apply(Object.hasOwn(current,key)?current[key]:undefined,change,forward,{check});
+      const value=apply(Object.hasOwn(current,key)?current[key]:undefined,change,forward,{check:check&&key!=='_dirty'});
       if(value===undefined)delete next[key];
       else if(key==='__proto__')Object.defineProperty(next,key,{value,writable:true,enumerable:true,configurable:true});
       else next[key]=value;
@@ -30987,11 +30990,31 @@ export default MawDynamicCaptions;
       const moving = new Set(motions.map(motion => motion.segment));
       let lower = -Infinity, upper = Infinity;
       const allowOverlap = this.options.getAllowSubtitleOverlap?.();
+      // Large selections used to scan the entire project for every moving cue
+      // on every pointer event. Index the current obstacles once per physical
+      // track/source instead. Rebuild per event so changes are never hidden by
+      // a stale gesture cache; small selections retain the cheaper linear path.
+      const groups = motions.length > 8 && motions.every(m => m.end > m.start) ? [] : null;
+      const firstAt = (values, value, afterEqual = false) => {
+        let low = 0, high = values.length;
+        while (low < high) {
+          const middle = (low + high) >>> 1;
+          if (values[middle] < value || afterEqual && values[middle] === value) low = middle + 1;
+          else high = middle;
+        }
+        return low;
+      };
+      if (groups) for (const motion of motions) {
+        let group = groups.find(g => g.segments === motion.segments
+          && this.options.sameSubtitleTrack?.(g.motions[0].segment, motion.segment) !== false);
+        if (!group) { group = { segments: motion.segments, motions: [] }; groups.push(group); }
+        group.motions.push(motion);
+      }
       for (const motion of motions) {
         if (motion.moveStart) lower = Math.max(lower, -motion.start);
         if (motion.moveStart && !motion.moveEnd) upper = Math.min(upper, motion.end - motion.start - clock.minDuration);
         if (motion.moveEnd && !motion.moveStart) lower = Math.max(lower, motion.start + clock.minDuration - motion.end);
-        if (allowOverlap || drag.relocating) continue;
+        if (allowOverlap || drag.relocating || groups) continue;
         for (const other of this.options.getSubtitleCollisionSegments?.(motion.segments) || motion.segments) {
           if (moving.has(other)) {
             const partner = motions.find(m => m.segment === other);
@@ -31008,12 +31031,40 @@ export default MawDynamicCaptions;
           if (start >= motion.end && motion.moveEnd) upper = Math.min(upper, start - motion.end);
         }
       }
+      if (groups && !allowOverlap && !drag.relocating) {
+        const bySegment = new Map();
+        for (const motion of motions) if (!bySegment.has(motion.segment)) bySegment.set(motion.segment, motion);
+        for (const group of groups) {
+          const starts = [], ends = [], representative = group.motions[0].segment;
+          for (const other of this.options.getSubtitleCollisionSegments?.(group.segments) || group.segments) {
+            if (this.options.sameSubtitleTrack?.(representative, other) === false) continue;
+            const partner = bySegment.get(other);
+            if (partner) {
+              // A selected cue's stationary edge still limits its neighbours.
+              if (!partner.moveStart) starts.push(partner.start);
+              if (!partner.moveEnd) ends.push(partner.end);
+            } else { starts.push(clock.fromMs(other.start)); ends.push(clock.fromMs(other.end)); }
+          }
+          starts.sort((a, b) => a - b); ends.sort((a, b) => a - b);
+          for (const motion of group.motions) {
+            if (motion.moveStart) {
+              const index = firstAt(ends, motion.start, true) - 1;
+              if (index >= 0) lower = Math.max(lower, ends[index] - motion.start);
+            }
+            if (motion.moveEnd) {
+              const index = firstAt(starts, motion.end);
+              if (index < starts.length) upper = Math.min(upper, starts[index] - motion.end);
+            }
+          }
+        }
+      }
       if (lower > upper) { this.hideMagnetGuide(); return null; }
       const requested = clock.round(rawDelta);
       let delta = clamp(requested, lower, upper);
       if(disableSnap){this.hideMagnetGuide();return delta;}
+      const snapTracks = groups ? groups.map(g => g.motions[0]) : motions;
       const targets = (this.options.getSubtitleCollisionSegments?.(segments) || segments).filter(segment => !moving.has(segment)
-        && motions.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
+        && snapTracks.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
         .flatMap(segment => [segment.start, segment.end]);
       targets.push(...(this.options.getCrossTrackSnapTargets?.(drag.track, moving) || []),
         ...(this.audioLayer?.edges?.() || []), this.currentTimeMs());
@@ -31021,11 +31072,24 @@ export default MawDynamicCaptions;
         ...(motion.moveStart ? [motion.start] : []), ...(motion.moveEnd ? [motion.end] : []),
       ]);
       const thresholdMs = (drag.msPerPixel || 0) * 8;
+      const positionOrder = new Map();
+      if (groups) positions.forEach((position, index) => { if (!positionOrder.has(position)) positionOrder.set(position, index); });
+      const orderedPositions = groups ? [...positionOrder.keys()].sort((a, b) => a - b) : null;
       let best = null;
       if (!disableSnap) for (const targetMs of targets) {
         if (!Number.isFinite(targetMs)) continue;
         const target = clock.fromMs(targetMs);
-        for (const position of positions) {
+        let candidates = positions;
+        if (orderedPositions) {
+          const low = firstAt(orderedPositions, target - upper);
+          const high = firstAt(orderedPositions, target - lower, true);
+          if (low >= high) continue;
+          const near = firstAt(orderedPositions, target - delta);
+          candidates = [orderedPositions[clamp(near - 1, low, high - 1)], orderedPositions[clamp(near, low, high - 1)]];
+          // Equal-distance snaps retain the original cue/edge ordering.
+          candidates.sort((a, b) => positionOrder.get(a) - positionOrder.get(b));
+        }
+        for (const position of candidates) {
           const candidate = target - position;
           const distance = Math.abs(clock.toMs(position + delta) - clock.toMs(target));
           if (candidate < lower || candidate > upper || distance > thresholdMs) continue;
@@ -35403,6 +35467,10 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
   const panelId=getCurrentCuePanelTarget()?.segment.id;
   const next=window.MSWProductionProject.fromProject(project);
   MULTI_SUBTITLE_UTILS.normalizeMultiSubtitleProject(next);
+  // Frame fields and binding offsets are part of the same committed state.
+  // Deferring this until renderAll made the freshly recorded delta disagree
+  // with live data, so undo rejected valid splits and batch timing edits.
+  syncProjectTimebaseAndBindingOffsets(next,{preferFrames:false});
   if(displayOnly) {
     const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
     if(JSON.stringify(ordered(MSWProductionProject.toProject(DATA)))!==JSON.stringify(ordered(MSWProductionProject.toProject(next))))throw Error('显示操作不能修改字幕内容');
@@ -43093,6 +43161,9 @@ function createFloatingPanel({ panel, dragHandle, manageButton, bindManageButton
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || !isOpen() || editingState || event.defaultPrevented || ctxmenu.classList.contains('show')) return;
+    const z = Number.parseInt(getComputedStyle(panel).zIndex, 10) || 0;
+    if ([...document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show')]
+      .some(other => other !== panel && (Number.parseInt(getComputedStyle(other).zIndex, 10) || 0) > z)) return;
     event.preventDefault();
     close();
   });
@@ -59799,6 +59870,9 @@ const MENUBAR_SUBMENU_CLOSE_DELAY_MS = 160;
 const MENUBAR_SUBMENU_AIM_TOLERANCE_PX = 8;
 
 function closeMenubarMenus() {
+  // A clicked action otherwise keeps focus in the hidden menu and consumes
+  // the next Escape before the newly opened settings window can receive it.
+  if (document.activeElement?.closest('.menubar-menu')) document.activeElement.blur();
   menubarItems.forEach((item) => {
     item.classList.remove('open');
     item.querySelector(':scope > .menubar-tab')?.setAttribute('aria-expanded', 'false');
@@ -60174,6 +60248,10 @@ menubarItems.forEach((item) => {
     if (!menuItem || !menu.contains(menuItem)) return;
     if (menuItem.classList.contains('dropdown-submenu-toggle')) return;
     if (menuItem.classList.contains('disabled') || menuItem.disabled) return;
+    // An action can be clicked before the delayed tab hover opens. Cancel it
+    // so a newly opened panel is not followed by a silently reopened menu.
+    clearTimeout(tabHoverTimer);
+    tabHoverTimer = null;
     closeMenubarMenus();
   });
 });

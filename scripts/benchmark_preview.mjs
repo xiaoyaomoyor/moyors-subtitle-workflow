@@ -64,7 +64,8 @@ try {
       console.log(profile,mode,'starting');save();
       await page.goto(server.url,{timeout:180000,waitUntil:'domcontentloaded'});await settled();console.log(profile,mode,'ready');
       await page.evaluate(()=>{
-        player.pause();updateEditorSettings({autoSaveProject:false,selectBoundSubtitlePair:false});
+        player.pause();updateEditorSettings({selectBoundSubtitlePair:false});
+        autoSaveProjectToggle.checked=false;autoSaveProjectToggle.dispatchEvent(new Event('change',{bubbles:true}));
         window.previewProbe={reads:0,ms:0};const read=MSWProductionProject.toProject;
         MSWProductionProject.toProject=(...args)=>{const start=performance.now();try{return read(...args);}finally{if(args[1]?.previewWindow){previewProbe.reads++;previewProbe.ms+=performance.now()-start;}}};
       });

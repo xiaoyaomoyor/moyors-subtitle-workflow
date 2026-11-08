@@ -4018,11 +4018,31 @@
       const moving = new Set(motions.map(motion => motion.segment));
       let lower = -Infinity, upper = Infinity;
       const allowOverlap = this.options.getAllowSubtitleOverlap?.();
+      // Large selections used to scan the entire project for every moving cue
+      // on every pointer event. Index the current obstacles once per physical
+      // track/source instead. Rebuild per event so changes are never hidden by
+      // a stale gesture cache; small selections retain the cheaper linear path.
+      const groups = motions.length > 8 && motions.every(m => m.end > m.start) ? [] : null;
+      const firstAt = (values, value, afterEqual = false) => {
+        let low = 0, high = values.length;
+        while (low < high) {
+          const middle = (low + high) >>> 1;
+          if (values[middle] < value || afterEqual && values[middle] === value) low = middle + 1;
+          else high = middle;
+        }
+        return low;
+      };
+      if (groups) for (const motion of motions) {
+        let group = groups.find(g => g.segments === motion.segments
+          && this.options.sameSubtitleTrack?.(g.motions[0].segment, motion.segment) !== false);
+        if (!group) { group = { segments: motion.segments, motions: [] }; groups.push(group); }
+        group.motions.push(motion);
+      }
       for (const motion of motions) {
         if (motion.moveStart) lower = Math.max(lower, -motion.start);
         if (motion.moveStart && !motion.moveEnd) upper = Math.min(upper, motion.end - motion.start - clock.minDuration);
         if (motion.moveEnd && !motion.moveStart) lower = Math.max(lower, motion.start + clock.minDuration - motion.end);
-        if (allowOverlap || drag.relocating) continue;
+        if (allowOverlap || drag.relocating || groups) continue;
         for (const other of this.options.getSubtitleCollisionSegments?.(motion.segments) || motion.segments) {
           if (moving.has(other)) {
             const partner = motions.find(m => m.segment === other);
@@ -4039,12 +4059,40 @@
           if (start >= motion.end && motion.moveEnd) upper = Math.min(upper, start - motion.end);
         }
       }
+      if (groups && !allowOverlap && !drag.relocating) {
+        const bySegment = new Map();
+        for (const motion of motions) if (!bySegment.has(motion.segment)) bySegment.set(motion.segment, motion);
+        for (const group of groups) {
+          const starts = [], ends = [], representative = group.motions[0].segment;
+          for (const other of this.options.getSubtitleCollisionSegments?.(group.segments) || group.segments) {
+            if (this.options.sameSubtitleTrack?.(representative, other) === false) continue;
+            const partner = bySegment.get(other);
+            if (partner) {
+              // A selected cue's stationary edge still limits its neighbours.
+              if (!partner.moveStart) starts.push(partner.start);
+              if (!partner.moveEnd) ends.push(partner.end);
+            } else { starts.push(clock.fromMs(other.start)); ends.push(clock.fromMs(other.end)); }
+          }
+          starts.sort((a, b) => a - b); ends.sort((a, b) => a - b);
+          for (const motion of group.motions) {
+            if (motion.moveStart) {
+              const index = firstAt(ends, motion.start, true) - 1;
+              if (index >= 0) lower = Math.max(lower, ends[index] - motion.start);
+            }
+            if (motion.moveEnd) {
+              const index = firstAt(starts, motion.end);
+              if (index < starts.length) upper = Math.min(upper, starts[index] - motion.end);
+            }
+          }
+        }
+      }
       if (lower > upper) { this.hideMagnetGuide(); return null; }
       const requested = clock.round(rawDelta);
       let delta = clamp(requested, lower, upper);
       if(disableSnap){this.hideMagnetGuide();return delta;}
+      const snapTracks = groups ? groups.map(g => g.motions[0]) : motions;
       const targets = (this.options.getSubtitleCollisionSegments?.(segments) || segments).filter(segment => !moving.has(segment)
-        && motions.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
+        && snapTracks.some(motion => this.options.sameSubtitleTrack?.(motion.segment, segment) !== false))
         .flatMap(segment => [segment.start, segment.end]);
       targets.push(...(this.options.getCrossTrackSnapTargets?.(drag.track, moving) || []),
         ...(this.audioLayer?.edges?.() || []), this.currentTimeMs());
@@ -4052,11 +4100,24 @@
         ...(motion.moveStart ? [motion.start] : []), ...(motion.moveEnd ? [motion.end] : []),
       ]);
       const thresholdMs = (drag.msPerPixel || 0) * 8;
+      const positionOrder = new Map();
+      if (groups) positions.forEach((position, index) => { if (!positionOrder.has(position)) positionOrder.set(position, index); });
+      const orderedPositions = groups ? [...positionOrder.keys()].sort((a, b) => a - b) : null;
       let best = null;
       if (!disableSnap) for (const targetMs of targets) {
         if (!Number.isFinite(targetMs)) continue;
         const target = clock.fromMs(targetMs);
-        for (const position of positions) {
+        let candidates = positions;
+        if (orderedPositions) {
+          const low = firstAt(orderedPositions, target - upper);
+          const high = firstAt(orderedPositions, target - lower, true);
+          if (low >= high) continue;
+          const near = firstAt(orderedPositions, target - delta);
+          candidates = [orderedPositions[clamp(near - 1, low, high - 1)], orderedPositions[clamp(near, low, high - 1)]];
+          // Equal-distance snaps retain the original cue/edge ordering.
+          candidates.sort((a, b) => positionOrder.get(a) - positionOrder.get(b));
+        }
+        for (const position of candidates) {
           const candidate = target - position;
           const distance = Math.abs(clock.toMs(position + delta) - clock.toMs(target));
           if (candidate < lower || candidate > upper || distance > thresholdMs) continue;

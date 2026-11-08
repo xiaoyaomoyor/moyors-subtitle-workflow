@@ -74,7 +74,13 @@ for(const scenario of scenarios) {
     const navigation=performance.now();await page.goto(server.url,{timeout:120000,waitUntil:'domcontentloaded'});report.startup.domContentLoadedMs=performance.now()-navigation;
     write();await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready&&player.readyState>=2&&waveformEditor?.peaks?.length>0,null,{timeout:120000});report.startup.editorReadyMs=performance.now()-navigation;write();
     await ready(page);report.startup.previewReadyMs=performance.now()-navigation;write();console.log(`[${name}] preview ready`);
-    await page.evaluate(()=>{updateEditorSettings({autoSaveProject:false,selectBoundSubtitlePair:false,clickBehavior:'select-only'});player.pause();waveformEditor.settings.mode='multi';waveformEditor.settings.secondsPerRow=10;waveformEditor.settings.rowHeight=220;waveformEditor.render();seekFromWaveform(.1);});
+    await page.evaluate(()=>{
+      updateEditorSettings({selectBoundSubtitlePair:false,clickBehavior:'select-only'});
+      // The UI handler also cancels the interval created during initialization.
+      autoSaveProjectToggle.checked=false;autoSaveProjectToggle.dispatchEvent(new Event('change',{bubbles:true}));
+      if(EDITOR_SETTINGS.autoSaveProject||autoSaveTimer!==null)throw Error('Automatic save was not disabled');
+      player.pause();waveformEditor.settings.mode='multi';waveformEditor.settings.secondsPerRow=10;waveformEditor.settings.rowHeight=220;waveformEditor.render();seekFromWaveform(.1);
+    });
     await ready(page);await page.evaluate(installProbe);
     cdp=await context.newCDPSession(page);report.memory.push(await memory(cdp,'loaded'));
     const before=await page.evaluate(()=>__perf.snapshot());
@@ -173,7 +179,7 @@ for(const scenario of scenarios) {
     report.status='complete';
   }catch(error){
     failures++;report.status='failed';report.failure=String(error.message).replaceAll(root,'<run>');
-    if(page&&!page.isClosed())report.diagnostics=await page.evaluate(()=>({renderer:window.MSWSubtitleRenderer?{status:MSWSubtitleRenderer.status,pending:MSWSubtitleRenderer.pending,diagnostics:MSWSubtitleRenderer.diagnostics}:null,readyState:window.player?.readyState})).catch(()=>null);
+    if(page&&!page.isClosed())report.diagnostics=await page.evaluate(()=>({renderer:window.MSWSubtitleRenderer?{status:MSWSubtitleRenderer.status,pending:MSWSubtitleRenderer.pending,diagnostics:MSWSubtitleRenderer.diagnostics}:null,readyState:window.player?.readyState,hint:window.__perf?.lastHint,saving:projectSaveInFlight,checkpoint:projectCheckpointInFlight})).catch(()=>null);
     console.log(`[${name}] FAILED: ${report.failure}`);
   }
   finally {write();await cdp?.detach().catch(()=>{});await browser?.close();await server?.stop();}

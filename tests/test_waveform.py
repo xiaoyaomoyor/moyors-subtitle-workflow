@@ -418,7 +418,7 @@ class EditorAssetTests(unittest.TestCase):
         )
         self.assertIn('function syncProjectTimebaseAndBindingOffsets(', page)
         self.assertIn('window.AsrEditorUtils.normalizeFrameItemTimingRanges(segment);', page)
-        self.assertIn('function buildJson() {', page)
+        self.assertIn('function buildJson({compact=false}={}) {', page)
         self.assertIn('syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: false });', page)
         self.assertIn('const msw = validateProjectForLoad(DATA);', page)
         self.assertIn('id="help-media-seek-step"', page)

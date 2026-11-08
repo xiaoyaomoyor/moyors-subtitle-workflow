@@ -253,10 +253,8 @@ test('fully unaligned items still split at the mapped word boundary', async ({ p
   expect(right.items).toEqual([{ text: '乙', start: 2000, end: 3000 }]);
 });
 
-// 漂移提示场景：失配词「傲」（500–1500ms）强制归左后，左段边界前移到
-// 1500ms，与下刀 250ms 相距 1250ms（>500ms 阈值）——走主字幕波形拆分
-// 弹窗入口（openMainWaveformSplitModal → commitMainWaveformSplit）时必须
-// 出现「文本与词时间戳不一致」提示；拆分本身仍按词边界完成。
+// 失配词「傲」被改为 X。波形切点固定在 250ms，确认区可单独选择
+// 甲X|乙丙丁 的文字断点，不能再自动将时间推到旧词的 1500ms 边界。
 const DRIFT_WARNING_SEGMENT = {
   id: 'desync-drift-warning',
   start: 0,
@@ -278,6 +276,9 @@ test('waveform split confirmation keeps the chosen time even with desynced repla
     return pendingLinkedSplit.cutMs;
   });
   await expect(page.locator('#multi-subtitle-split-modal.show')).toBeVisible();
+  // The whitespace after X belongs to the selectable boundary (offset 3).
+  await page.locator('#multi-subtitle-split-main-text .multi-subtitle-split-gap[data-offset="3"]').click();
+  expect(await page.evaluate(()=>pendingLinkedSplit.cutMs)).toBe(cut);
   await page.evaluate(() => confirmLinkedSplit());
 
   const [left, right] = await readSplitState(page);

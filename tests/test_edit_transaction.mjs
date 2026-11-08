@@ -5,6 +5,19 @@ import tracks from '../web/msw-subtitle-tracks.js';
 import flat from '../web/msw-flat-subtitles.js';
 import bridge from '../web/msw-production-project.js';
 
+test('saving dirty flags does not invalidate structural undo or redo',()=>{
+  const before={segments:[{id:'a',text:'AB'}]},after={segments:[{id:'a-1',text:'A',_dirty:true},{id:'a-2',text:'B',_dirty:true}],_dirty:true};
+  const patch=tx.diff(before,after),saved=structuredClone(after);
+  delete saved._dirty;saved.segments.forEach(c=>delete c._dirty);
+  assert.deepEqual(tx.apply(saved,patch,false),before);
+  assert.deepEqual(tx.apply(before,patch),after);
+  saved.segments[1].text='external';
+  assert.throws(()=>tx.apply(saved,patch,false),/已改变/);
+  assert.equal(saved.segments[0].text,'A');
+  assert.equal(tx.equal({_dirty:true},{text:'external'},true),false);
+  assert.equal(tx.equal({text:'external'},{_dirty:true},true),false);
+});
+
 test('delta is reversible, isolated and retains unchanged rows',()=>{
   const before={segments:[{id:'a',start:0,end:100,text:'A'},{id:'b',start:100,end:200,text:'B'}],meta:{name:'x'}};
   const after=structuredClone(before);after.segments[0].text='changed';after.segments.push({id:'c',start:200,end:300,text:'C'});

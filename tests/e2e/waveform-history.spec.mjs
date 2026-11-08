@@ -1,26 +1,47 @@
 import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
-import { DURATION_MS, addBwfTimeReference, cleanupTempDir, clickMenubarItem, openMenubarMenu, findFreePort, generateProjectJson, generateWav, makeFirstCueWordSplittable, makeTempDir, openHelpPanel, startServer, testSegments, toggleEditorSettings, toggleCueEditorSettings, toggleCueListSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
+import { execFileSync } from 'node:child_process';
+import { DURATION_MS, addBwfTimeReference, disableOnboarding, clickMenubarItem, openMenubarMenu, findFreePort, generateProjectJson, generateWav, makeFirstCueWordSplittable, makeTempDir, openHelpPanel, startServer, toggleEditorSettings, toggleCueEditorSettings, toggleCueListSettings, toggleMediaSettings, toggleWaveSettings } from './helpers.mjs';
 
 let tempDir;
 let server;
 
-test.beforeAll(async () => {
+async function videoPreview(page) {
+  await page.waitForFunction(()=>player.readyState>=2&&player.videoWidth===640);
+  await page.evaluate(()=>seekFromWaveform(1));
+  try { await page.waitForFunction(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:30000}); }
+  catch(e){console.log('PREVIEW_FAILURE',await page.evaluate(()=>({status:MSWSubtitleRenderer.status,badge:document.getElementById('subtitle-render-status').textContent,diagnostics:MSWSubtitleRenderer.diagnostics})));throw e;}
+}
+async function previewText(page) {
+  return page.evaluate(async()=>{
+    if(MSWSubtitleRenderer.pending||MSWSubtitleRenderer.status!=='libass')return '';
+    const now=player.currentTime*1000;
+    return (await MSWSubtitleRenderer.renderer.renderer.getEvents()).filter(e=>e.Start<=now&&e.Start+e.Duration>now).map(e=>e.Text.replace(/\{[^}]*\}/g,'')).join('\n');
+  });
+}
+test.beforeEach(async ({},info) => {
+  // Preferences now live on the server. Each case needs its own project AND
+  // settings store; a fresh browser context alone no longer isolates filters.
+  delete process.env.MSW_APP_DATA_ROOT;
+  delete process.env.MAW_APP_DATA_ROOT;
   tempDir = makeTempDir('history');
-  const mediaPath = join(tempDir, 'synthetic.wav');
+  const video=/paused main subtitle preview|under the cue-list pointer/.test(info.title);
+  const mediaPath = join(tempDir, video?'synthetic.mp4':'synthetic.wav');
   const projectPath = join(tempDir, 'project.json');
-  generateWav(mediaPath, DURATION_MS / 1000);
-  addBwfTimeReference(mediaPath, 1234);
+  if(video)execFileSync(process.env.MSW_E2E_FFMPEG||'ffmpeg',['-v','error','-f','lavfi','-i',`color=black:s=640x360:r=2:d=${DURATION_MS/1000}`,'-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p',mediaPath],{windowsHide:true});
+  else{generateWav(mediaPath, DURATION_MS / 1000);addBwfTimeReference(mediaPath, 1234);}
   generateProjectJson(projectPath);
   server = await startServer(projectPath, mediaPath, await findFreePort());
 });
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await server?.stop();
-  cleanupTempDir(tempDir);
+  // Keep isolated fixtures with the acceptance evidence. Windows may still
+  // hold a browser media handle until the page fixture closes.
 });
 
 test.beforeEach(async ({ page }) => {
+  await disableOnboarding(page);
   await page.addInitScript(() => {
     localStorage.setItem('moy.asr.editor.settings.v1', JSON.stringify({ autoSaveProject: false }));
   });
@@ -299,11 +320,14 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
   await page.evaluate(() => {
     DATA.segments.length = 0;
     [
-      { id: 'full-gap', start: 1000, end: 2000, text: '完全在空隙内' },
+      { id: 'full-gap', start: 10000, end: 11000, text: '完全在空隙内' },
       { id: 'partial', start: 0, end: 2000, text: '覆盖一半' },
-      { id: 'near-gap', start: 800, end: 2000, text: '覆盖率和剩余时长都满足' },
+      { id: 'near-gap', start: 20000, end: 21200, text: '覆盖率和剩余时长都满足' },
       { id: 'retained-half', start: 3000, end: 4000, text: '保留空隙覆盖一半，也参与筛选' },
     ].forEach((segment) => DATA.segments.push(segment));
+    DATA.segments.sort((a,b)=>a.start-b.start);
+    fixedTrackCore.reconcile(DATA,()=>DATA.subtitle_tracks.tracks[0].id);
+    fixedReset();
     DATA.gap_remove = {
       schema: 'moy.asr.gap_remove.v1',
       detector: 'audio_gate',
@@ -318,6 +342,8 @@ test('disables subtitles by removed-gap coverage and remaining duration threshol
       gaps: [
         { start: 1000, end: 1500, removed: true },
         { start: 1450, end: 2000, removed: true },
+        { start: 10000, end: 11000, removed: true },
+        { start: 20200, end: 21200, removed: true },
         { start: 3000, end: 3500, removed: false },
       ],
     };
@@ -563,7 +589,7 @@ test('waveform cue context split supports undo and redo', async ({ page }) => {
 test('manual text split keeps malformed item timing inside both cues and restores it with undo', async ({ page }) => {
   await page.goto(server.url);
   const original = {
-    id: 'manual-item-split',
+    id: await page.evaluate(()=>DATA.segments[0].id),
     start: 25160,
     end: 26526,
     text: '有这么多新的模型来',
@@ -577,6 +603,7 @@ test('manual text split keeps malformed item timing inside both cues and restore
   };
   await page.evaluate((segment) => {
     DATA.segments[0] = segment;
+    fixedReset();
     renderAll({ waveform: 'full' });
   }, original);
 
@@ -643,17 +670,7 @@ test('manual text split keeps malformed item timing inside both cues and restore
     }
   }
 
-  // 本测试通过 Ctrl+S 把拆分后的工程写回了服务器（磁盘 + 内存）。
-  // 恢复原始工程并保存，避免同 spec 后续测试加载到被改写的数据。
-  const restoreResponse = page.waitForResponse((response) => (
-    response.url().endsWith('/api/msw/project') && response.request().method() === 'POST'
-  ));
-  await page.evaluate((segments) => {
-    DATA.segments = segments.map((segment) => JSON.parse(JSON.stringify(segment)));
-    renderAll();
-  }, testSegments());
-  await page.keyboard.press('Control+s');
-  expect((await restoreResponse).ok()).toBe(true);
+  // Each test owns its saved project; no raw-array restoration can leak to the next case.
 });
 
 test('current-cue text keeps the list and waveform labels in sync through undo and redo', async ({ page }) => {
@@ -744,8 +761,8 @@ test('C merge refreshes the paused main subtitle preview', async ({ page }) => {
     player.currentTime = 1;
     player.dispatchEvent(new Event('timeupdate'));
   });
-  const preview = page.locator('#msw-layer-preview [data-role="main"]');
-  await expect(preview).toHaveText('Alpha');
+  await videoPreview(page);
+  await expect.poll(()=>previewText(page)).toBe('Alpha');
 
   const cues = page.locator('.cue');
   await cues.nth(0).click();
@@ -753,25 +770,30 @@ test('C merge refreshes the paused main subtitle preview', async ({ page }) => {
   await page.keyboard.press('c');
 
   await expect(page.locator('.cue .text').first()).toHaveText('Alpha Bravo');
-  await expect(preview).toHaveText('Alpha Bravo');
+  await expect.poll(()=>previewText(page)).toBe('Alpha Bravo');
 });
 
 test('C merge keeps the subtitle list at its current position', async ({ page }) => {
   await page.goto(server.url);
   await page.evaluate(() => {
     const segments = Array.from({ length: 40 }, (_, index) => ({
+      id: `scroll-${index}`,
       start: index * 5000,
       end: index * 5000 + 3000,
       text: `Cue ${index + 1}`,
       items: [],
     }));
     DATA.segments.splice(0, DATA.segments.length, ...segments);
+    fixedTrackCore.reconcile(DATA,()=>DATA.subtitle_tracks.tracks[0].id);
+    fixedReset();
     const clickBehavior = document.getElementById('click-behavior');
     clickBehavior.value = 'select-only';
     clickBehavior.dispatchEvent(new Event('change', { bubbles: true }));
     EDITOR_SETTINGS.cueListAutoScrollOnClick = false;
     renderAll({ waveform: 'none' });
     const list = document.getElementById('cues-container');
+    interruptCueListFollowing();
+    cueListScroll.layoutAnchor=null;
     const target = list.querySelector('.cue[data-idx="30"]');
     list.scrollTop = Math.max(
       0,
@@ -814,7 +836,8 @@ test('B splits the selected subtitle under the cue-list pointer and supports und
     player.currentTime = 1;
     player.dispatchEvent(new Event('timeupdate'));
   });
-  await expect(page.locator('#msw-layer-preview .msw-layer-preview-text[data-role="main"]')).toHaveText('Alpha Bravo');
+  await videoPreview(page);
+  await expect.poll(()=>previewText(page)).toBe('Alpha Bravo');
   await page.locator('.cue[data-idx="0"]').click();
   const splitPoint = await text.evaluate((element) => {
     const node = element.firstChild;
@@ -830,7 +853,7 @@ test('B splits the selected subtitle under the cue-list pointer and supports und
   await expect.poll(() => page.locator('.cue').count()).toBe(7);
   await expect(page.locator('.cue .text').nth(0)).toHaveText('Alpha');
   await expect(page.locator('.cue .text').nth(1)).toHaveText('Bravo');
-  await expect(page.locator('#msw-layer-preview .msw-layer-preview-text[data-role="main"]')).toHaveText('Alpha');
+  await expect.poll(()=>previewText(page)).toBe('Alpha');
 
   await clickMenubarItem(page, '编辑', 'undo-btn');
   await expect.poll(() => page.locator('.cue').count()).toBe(6);
@@ -925,8 +948,7 @@ test('long-only filtering temporarily keeps split results visible until focus le
   await expect(page.locator('.cue[data-idx="0"] .text')).toHaveText('Alpha');
   await expect(page.locator('.cue[data-idx="1"] .text')).toHaveText('Bravo');
 
-  await toggleCueListSettings(page);
-  await toggleCueListSettings(page);
+  await page.locator('#cue-list-settings-modal').evaluate(el=>el.classList.contains('show')).then(async open=>{if(!open)await toggleCueListSettings(page);});
   await page.locator('#search').click();
   await expect(page.locator('.cue:not(.hidden)')).toHaveCount(0);
   await expect(page.locator('#visible-count')).toHaveText('0');
@@ -1212,10 +1234,12 @@ test('Home and End keep extension cue-list navigation on the exact track', async
       }],
       bindings: [],
     };
-    renderAll({ waveform: 'full' });
+    const migrated=MSWProductionProject.fromProject({schema:'moy.asr.project.v1',segments:DATA.segments,multi_subtitle:DATA.multi_subtitle});
+    for(const key of ['schema','segments','multi_subtitle','subtitle_tracks','subtitle_layers'])DATA[key]=migrated[key];
+    fixedReset();renderAll({waveform:'full'});
   });
   const extensionCue = page.locator(
-    '.multi-dual-cue[data-ext-idx="1"] .multi-cue-column.extension',
+    '.cue[data-ext-idx="1"]',
   );
   await extensionCue.click();
   await page.evaluate(() => {
@@ -1225,13 +1249,13 @@ test('Home and End keep extension cue-list navigation on the exact track', async
   });
 
   await page.keyboard.press('Home');
-  await expect(page.locator('.multi-dual-cue[data-ext-idx="0"]')).toHaveClass(/selected/);
-  expect(await page.evaluate(() => getCurrentCuePanelTarget()?.trackId)).toBe('extension-home-end');
+  await expect(page.locator('.cue[data-ext-idx="0"]')).toHaveClass(/selected/);
+  expect(await page.evaluate(() => getCurrentCuePanelTarget()?.segment?.text)).toBe('Extension 1');
   await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBe(123);
 
   await page.keyboard.press('End');
-  await expect(page.locator('.multi-dual-cue[data-ext-idx="2"]')).toHaveClass(/selected/);
-  expect(await page.evaluate(() => getCurrentCuePanelTarget()?.trackId)).toBe('extension-home-end');
+  await expect(page.locator('.cue[data-ext-idx="2"]')).toHaveClass(/selected/);
+  expect(await page.evaluate(() => getCurrentCuePanelTarget()?.segment?.text)).toBe('Extension 3');
   await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBe(123);
 });
 
@@ -1244,7 +1268,7 @@ test('Home and End help explains cue-list and media routing in Chinese and Engli
 
   await page.locator('#help-close').click();
   await toggleEditorSettings(page);
-  await page.locator('.settings-nav-item[data-settings-category="all"]').click();
+  await page.locator('#editor-settings-panel .settings-nav-item[data-settings-category="all"]').click();
   await page.locator('#language-select').selectOption('en');
   await page.locator('#editor-settings-close').click();
   await openHelpPanel(page);
@@ -1632,7 +1656,7 @@ test('help reflects the selected subtitle-edit split key', async ({ page }) => {
 
   const multiSubtitleHelp = helpPanel.locator('.help-subgroup').filter({ hasText: '绑定选中的两条不同轨道字幕' });
   await expect(multiSubtitleHelp).toHaveCount(1);
-  await expect(helpPanel.locator('#help-tab-panel-waveform .help-title').filter({ hasText: '双语字幕' })).toHaveCount(1);
+  await expect(multiSubtitleHelp).toContainText('轨道');
 
   await splitKey.selectOption('enter');
   await expect(helpSplitKey).toHaveText('Enter');
@@ -1644,9 +1668,13 @@ test('help reflects the selected subtitle-edit split key', async ({ page }) => {
   await expect(editorSplitKey).toHaveText(`${modKey}+Enter`);
   await expect(editorConfirmKey).toHaveText('Enter');
 
+  // The last select edit activates editor settings; bring Help to the front
+  // before testing Escape on that floating panel.
+  await page.locator('#help-panel-title').click();
   await page.keyboard.press('Escape');
   await expect(helpPanel).not.toHaveClass(/show/);
   await expect(helpPanel).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('#editor-settings-modal')).toBeVisible();
 });
 
 test('contextual help links open their matching Help tabs', async ({ page }) => {
@@ -1988,6 +2016,7 @@ test('nested export menus preserve pointer reachability and keyboard focus', asy
 });
 
 test('nested export menus keep the current submenu while the pointer crosses its aim corridor', async ({ page }) => {
+  await page.clock.install();
   await page.goto(server.url);
   await openMenubarMenu(page, '文件');
   const exportButton = page.locator('#extra-export-btn');
@@ -2006,6 +2035,8 @@ test('nested export menus keep the current submenu while the pointer crosses its
   expect(dynamicToggleBox).not.toBeNull();
   const submenuBox = await page.locator('#extra-otio-menu').boundingBox();
   const opensLeft = submenuBox.right <= otioToggleBox.x + 8 || submenuBox.x < otioToggleBox.x;
+  // Assert the 160 ms grace period, not automation/encoder scheduling latency.
+  await page.clock.pauseAt(Date.now() + 1000);
 
   await page.mouse.move(
     otioToggleBox.x + otioToggleBox.width * (opensLeft ? 0.7 : 0.3),
@@ -2016,10 +2047,10 @@ test('nested export menus keep the current submenu while the pointer crosses its
     dynamicToggleBox.y + dynamicToggleBox.height / 2,
     { steps: 12 },
   );
-  await page.waitForTimeout(40);
+  await page.clock.runFor(40);
   await expect(page.locator('#extra-otio-menu')).toBeVisible({ timeout: 100 });
   await expect(page.locator('#extra-data-menu')).toBeHidden();
-  await page.waitForTimeout(180);
+  await page.clock.runFor(180);
   await expect(page.locator('#extra-data-menu')).toBeVisible();
 });
 
@@ -2145,14 +2176,18 @@ test('gap-removed export includes color SRT and names OTIO as a timeline project
     window.showSaveFilePicker = undefined;
   });
 
-  await clickMenubarItem(page, '文件', 'gap-removed-export-btn');
-  await expect(page.locator('#download-gap-removed-color-srt')).toBeVisible();
+  await clickMenubarItem(page, '文件', 'subtitle-export-btn');
+  await expect(page.locator('#subtitle-export-panel')).toBeVisible();
+  await page.locator('#subtitle-export-remove-gaps').check();
+  await page.locator('#subtitle-export-mode').selectOption('speaker');
   await expect(page.locator('#download-gap-removed-otio')).toHaveText('源媒体时间线（OTIO）');
 
   const downloadPromise = page.waitForEvent('download');
-  await page.locator('#download-gap-removed-color-srt').click();
+  await page.locator('#subtitle-export-start').click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('project_去空隙_红色.srt');
+  expect(download.suggestedFilename()).toBe('project_红色.srt');
+  const stream=await download.createReadStream(),chunks=[];for await(const chunk of stream)chunks.push(chunk);
+  expect(Buffer.concat(chunks).toString('utf8')).toContain('00:00:40,000 --> 00:00:48,000');
 });
 
 test('server media loads from the resolved project path and OTIO keeps its absolute source URL', async ({ page }) => {

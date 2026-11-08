@@ -25,7 +25,8 @@ try {
   await page.goto(server.url,{timeout:120000});
   await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready&&player.readyState>=2&&waveformEditor?.peaks?.length>0,null,{timeout:90000});
   await page.evaluate(()=>{
-    updateEditorSettings({autoSaveProject:false,selectBoundSubtitlePair:false,clickBehavior:'select-only'});player.pause();
+    updateEditorSettings({selectBoundSubtitlePair:false,clickBehavior:'select-only'});player.pause();
+    autoSaveProjectToggle.checked=false;autoSaveProjectToggle.dispatchEvent(new Event('change',{bubbles:true}));
     waveformEditor.settings.mode='multi';waveformEditor.settings.secondsPerRow=10;waveformEditor.settings.rowHeight=220;
     waveformEditor.render();seekFromWaveform(DATA.segments[0].start/1000+.1);
     window.perfSamples=[];window.perfDetails=[];window.perfActive='';

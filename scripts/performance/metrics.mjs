@@ -1,5 +1,5 @@
 export const REPORT_SCHEMA='msw.performance-baseline.v1';
-export const HARNESS_VERSION=1;
+export const HARNESS_VERSION=2;
 export function stats(values) {
   const sorted=values.filter(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0).sort((a,b)=>a-b),n=sorted.length;
   if(!n)return {n:0,median:null,p95:null,max:null};

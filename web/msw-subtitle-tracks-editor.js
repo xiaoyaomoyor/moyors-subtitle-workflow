@@ -458,6 +458,10 @@ function productionCommitProject(project,label,ids=[],{displayOnly=false,recordH
   const panelId=getCurrentCuePanelTarget()?.segment.id;
   const next=window.MSWProductionProject.fromProject(project);
   MULTI_SUBTITLE_UTILS.normalizeMultiSubtitleProject(next);
+  // Frame fields and binding offsets are part of the same committed state.
+  // Deferring this until renderAll made the freshly recorded delta disagree
+  // with live data, so undo rejected valid splits and batch timing edits.
+  syncProjectTimebaseAndBindingOffsets(next,{preferFrames:false});
   if(displayOnly) {
     const ordered=p=>({...p.subtitles,cues:[...p.subtitles.cues].sort((a,b)=>a.id.localeCompare(b.id))});
     if(JSON.stringify(ordered(MSWProductionProject.toProject(DATA)))!==JSON.stringify(ordered(MSWProductionProject.toProject(next))))throw Error('显示操作不能修改字幕内容');

@@ -60,7 +60,7 @@ try {
     });
     await disableOnboarding(page);const navigation=performance.now();
     await page.goto(server.url,{timeout:180000,waitUntil:'domcontentloaded'});await ready(page);row.previewReadyMs=performance.now()-navigation;
-    await page.evaluate(()=>{player.pause();updateEditorSettings({autoSaveProject:false});});await ready(page);
+    await page.evaluate(()=>{player.pause();autoSaveProjectToggle.checked=false;autoSaveProjectToggle.dispatchEvent(new Event('change',{bubbles:true}));});await ready(page);
     await page.evaluate(installProbe);const cdp=await context.newCDPSession(page);row.memoryLoaded=await memory(cdp,'loaded');
     for(const action of ['changed','playhead','unchanged','draft']) {
       const samples=[];row.operations[action]={samples};

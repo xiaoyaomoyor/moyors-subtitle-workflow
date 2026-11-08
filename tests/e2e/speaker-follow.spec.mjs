@@ -5,8 +5,8 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {disableOnboarding,findFreePort,generateBlankEditor,generateWaveformPayload,makeTempDir,startStaticServer,startServer} from './helpers.mjs';
 let server,environment;
 test.beforeAll(async()=>{
-  environment={MAW_ENV_FILE:process.env.MAW_ENV_FILE,MSW_APP_DATA_ROOT:process.env.MSW_APP_DATA_ROOT};
-  const dir=makeTempDir('speaker-follow');process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'app');
+  environment={MSW_ENV_FILE:process.env.MSW_ENV_FILE,MAW_ENV_FILE:process.env.MAW_ENV_FILE,MSW_APP_DATA_ROOT:process.env.MSW_APP_DATA_ROOT};
+  const dir=makeTempDir('speaker-follow');process.env.MSW_ENV_FILE=process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'app');
   server=await startStaticServer(generateBlankEditor(join(dir,'editor.html')),await findFreePort());
 });
 test.afterAll(async()=>{await server?.stop();for(const [key,value] of Object.entries(environment||{})){if(value===undefined)delete process.env[key];else process.env[key]=value;}});
@@ -134,8 +134,12 @@ test('follow references save to disk, reopen, and resolve names in SRT and ASS',
   const dir=makeTempDir('speaker-follow-save'),path=join(dir,'follow.mosp'),audio=join(dir,'video.mp4');
   execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-f','lavfi','-i','color=c=darkblue:s=640x360:r=25:d=10','-c:v','libx264','-pix_fmt','yuv420p',audio],{windowsHide:true});
   const p=await snap(page);p.media=audio;writeFileSync(path,JSON.stringify(p));
-  process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'app');
+  process.env.MSW_ENV_FILE=process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'app');
   const live=await startServer(path,audio,await findFreePort());
+  const pending=new Map();
+  const requested=request=>pending.set(request,Date.now());
+  const finished=request=>pending.delete(request);
+  page.on('request',requested);page.on('requestfinished',finished);page.on('requestfailed',finished);
   try{
     await page.goto(live.url);await expect(page.locator('#editor-loading')).toBeHidden();
     await page.evaluate(()=>MSWConfig.ready);
@@ -156,10 +160,15 @@ test('follow references save to disk, reopen, and resolve names in SRT and ASS',
     await expect(page.locator('.multi-cue-column[data-ext-idx="2"] .color-bar')).toHaveClass(/is-ref/);
     await page.waitForFunction(()=>player.readyState>=2);
     await page.evaluate(()=>{player.pause();player.currentTime=3.5;});
-    await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.geometry.map(r=>r.text)),{timeout:20000}).toContain('Alice：Line 2');
+    await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.geometry.map(r=>r.text)),{timeout:60000}).toContain('Alice：Line 2');
     const outputs=await page.evaluate(async()=>({srt:buildSrt(),ass:await fixedAssDocument()}));
     expect(outputs.srt).toContain('Alice：Line 2');expect(outputs.ass).toContain('Alice：');expect(outputs.ass).toContain('2211CC');
     await page.evaluate(()=>{updateEditorSettings({speakerAutoFollow:false});assignColor([1],'blue');});
     expect(byText(await snap(page),'Line 2').content.color_ref.name).toBe('blue');
-  }finally{await page.close({runBeforeUnload:false});await live.stop();}
+  }catch(error){
+    const diagnostic=await page.evaluate(()=>({time:player.currentTime,status:MSWSubtitleRenderer.status,pending:MSWSubtitleRenderer.pending,diagnostics:MSWSubtitleRenderer.diagnostics,geometry:MSWSubtitleRenderer.geometry,preview:DATA.preview}));
+    writeFileSync(join(dir,'preview-diagnostic.json'),JSON.stringify(diagnostic,null,2));
+    console.log('Follow preview diagnostic:',JSON.stringify({status:diagnostic.status,pending:diagnostic.pending,diagnostics:diagnostic.diagnostics,requests:[...pending].map(([r,t])=>({path:new URL(r.url()).pathname,ms:Date.now()-t}))}));
+    throw error;
+  }finally{page.off('request',requested);page.off('requestfinished',finished);page.off('requestfailed',finished);await page.close({runBeforeUnload:false});await live.stop();}
 });

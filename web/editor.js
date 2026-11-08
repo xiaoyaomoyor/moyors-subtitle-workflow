@@ -5861,6 +5861,9 @@ function createFloatingPanel({ panel, dragHandle, manageButton, bindManageButton
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || !isOpen() || editingState || event.defaultPrevented || ctxmenu.classList.contains('show')) return;
+    const z = Number.parseInt(getComputedStyle(panel).zIndex, 10) || 0;
+    if ([...document.querySelectorAll('.gap-remove-panel.show, .settings-panel.show')]
+      .some(other => other !== panel && (Number.parseInt(getComputedStyle(other).zIndex, 10) || 0) > z)) return;
     event.preventDefault();
     close();
   });
@@ -22567,6 +22570,9 @@ const MENUBAR_SUBMENU_CLOSE_DELAY_MS = 160;
 const MENUBAR_SUBMENU_AIM_TOLERANCE_PX = 8;
 
 function closeMenubarMenus() {
+  // A clicked action otherwise keeps focus in the hidden menu and consumes
+  // the next Escape before the newly opened settings window can receive it.
+  if (document.activeElement?.closest('.menubar-menu')) document.activeElement.blur();
   menubarItems.forEach((item) => {
     item.classList.remove('open');
     item.querySelector(':scope > .menubar-tab')?.setAttribute('aria-expanded', 'false');
@@ -22942,6 +22948,10 @@ menubarItems.forEach((item) => {
     if (!menuItem || !menu.contains(menuItem)) return;
     if (menuItem.classList.contains('dropdown-submenu-toggle')) return;
     if (menuItem.classList.contains('disabled') || menuItem.disabled) return;
+    // An action can be clicked before the delayed tab hover opens. Cancel it
+    // so a newly opened panel is not followed by a silently reopened menu.
+    clearTimeout(tabHoverTimer);
+    tabHoverTimer = null;
     closeMenubarMenus();
   });
 });

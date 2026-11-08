@@ -56,7 +56,7 @@ test('speaker table and properties target the same person, undo preserves per-cu
  await expect(page.locator('#style-field-outlineColor')).toHaveValue('#33aa44');
  await expect(page.locator('#style-project-preset')).toHaveValue('speaker-palette');
  await page.locator('#style-field-fontSize').fill('64');await page.locator('#style-field-fontSize').blur();
- expect((await snap(page)).preview.speaker_palette.rows[1].style.fontSize).toBe(64);
+ expect((await snap(page)).preview.speaker_palette.rows[1].role_styles.main.style.fontSize).toBe(64);
  expect((await snap(page)).subtitles.cues).toEqual(before.subtitles.cues);
  await page.locator('#style-project-settings-open').click();
  await expect(page.locator(`#speaker-palette-rows tr[data-speaker-id="${id}"] input[type=text]`).first()).toBeFocused();

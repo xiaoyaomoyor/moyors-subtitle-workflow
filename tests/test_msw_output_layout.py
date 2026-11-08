@@ -205,7 +205,7 @@ class MswOutputLayoutTests(unittest.TestCase):
             status.return_value.path = str(target)
             status.return_value.to_payload.return_value = {"path": str(target), "status": "missing"}
             self.assertTrue(api.save_local_settings({"runtimePath": str(target)})["ok"])
-        self.assertIn("MSW_LOCAL_RUNTIME_ROOT=", self.env_path.read_text())
+        self.assertIn("MSW_LOCAL_RUNTIME_ROOT=", self.env_path.read_text(encoding="utf-8"))
         os.environ.pop("MSW_LOCAL_RUNTIME_ROOT")
         os.environ.pop("MAW_LOCAL_RUNTIME_ROOT")
         _sync_local_runtime_root(self.env_path)

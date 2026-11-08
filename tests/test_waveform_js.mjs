@@ -123,6 +123,91 @@ test('pointer snapping uses frame units throughout and leaves existing overlaps 
   assert.equal(overlap.resolve(3000), 3000);
 });
 
+// Deliberately slow reference: compare every cue/edge, independently of the
+// indexed implementation. It captures the pre-existing drag and snap rules.
+function brutePointerDelta(host, drag, raw, noSnap) {
+  const c = drag.timing, motions = drag.resizeMotions, moving = new Set(motions.map(m => m.segment));
+  let low = -Infinity, high = Infinity;
+  for (const m of motions) {
+    if (m.moveStart) low = Math.max(low, -m.start);
+    if (m.moveStart && !m.moveEnd) high = Math.min(high, m.end - m.start - c.minDuration);
+    if (m.moveEnd && !m.moveStart) low = Math.max(low, m.start + c.minDuration - m.end);
+    if (host.options.getAllowSubtitleOverlap() || drag.relocating) continue;
+    for (const other of host.options.getSubtitleCollisionSegments?.(m.segments) || m.segments) {
+      if (host.options.sameSubtitleTrack?.(m.segment, other) === false) continue;
+      const p = motions.find(p => p.segment === other);
+      if (p) {
+        if (p === m) continue;
+        if (m.moveEnd && !p.moveStart && p.start >= m.end) high = Math.min(high, p.start - m.end);
+        if (m.moveStart && !p.moveEnd && p.end <= m.start) low = Math.max(low, p.end - m.start);
+      } else {
+        if (c.fromMs(other.end) <= m.start && m.moveStart) low = Math.max(low, c.fromMs(other.end) - m.start);
+        if (c.fromMs(other.start) >= m.end && m.moveEnd) high = Math.min(high, c.fromMs(other.start) - m.end);
+      }
+    }
+  }
+  if (low > high) return { delta: null, guide: null };
+  const delta = Math.min(high, Math.max(low, c.round(raw)));
+  if (noSnap) return { delta, guide: null };
+  const targets = (host.options.getSubtitleCollisionSegments?.(host.options.getSegments()) || host.options.getSegments())
+    .filter(s => !moving.has(s) && motions.some(m => host.options.sameSubtitleTrack?.(m.segment, s) !== false))
+    .flatMap(s => [s.start, s.end]);
+  targets.push(...host.options.getCrossTrackSnapTargets(), ...host.audioLayer.edges(), host.currentTimeMs());
+  const positions = motions.flatMap(m => [...(m.moveStart ? [m.start] : []), ...(m.moveEnd ? [m.end] : [])]);
+  let best;
+  for (const targetMs of targets) for (const position of positions) {
+    const target = c.fromMs(targetMs), value = target - position;
+    const distance = Math.abs(c.toMs(position + delta) - c.toMs(target));
+    if (value < low || value > high || distance > drag.msPerPixel * 8) continue;
+    if (!best || distance < best.distance) best = { delta: value, distance, guide: c.toMs(target) };
+  }
+  return best ? { delta: best.delta, guide: best.guide } : { delta, guide: null };
+}
+
+test('indexed multi-cue movement matches exhaustive collision and snap rules', () => {
+  let seed = 41973;
+  const random = n => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed % n; };
+  for (let run = 0; run < 180; run++) {
+    const clock = helpers.resolveTiming(run % 2 ? null : {
+      unit: 'frames', minDuration: 3, round: Math.round,
+      fromMs: ms => Math.round(ms / 40), toMs: frame => Math.round(frame * 40),
+    });
+    const rows = Array.from({ length: 48 }, (_, i) => {
+      const start = Math.floor(i / 3) * 500 + random(100);
+      return { id: String(i), owner: i % 3, start, end: start + 160 + random(700) };
+    });
+    const sources = [rows.filter((_, i) => i % 2 === 0), rows.filter((_, i) => i % 2 === 1)];
+    const motions = rows.slice(0, 12).map((segment, i) => ({ segment, segments: sources[i % 2],
+      start: clock.fromMs(segment.start), end: clock.fromMs(segment.end),
+      moveStart: run % 3 !== 1, moveEnd: run % 3 !== 2 }));
+    if (run % 7 === 0) motions.forEach((m, i) => { m.moveStart = i % 2 === 0; m.moveEnd = !m.moveStart; });
+    // During a gesture the current ranges differ from its immutable origins.
+    motions.forEach(m => { m.segment.start += 40; m.segment.end += 40; });
+    const host = { options: { getSegments: () => sources[0], getAllowSubtitleOverlap: () => run % 11 === 0,
+      getCrossTrackSnapTargets: () => [777, 2501],
+      ...(run % 4 ? { getSubtitleCollisionSegments: () => rows } : {}),
+      ...(run % 5 ? { sameSubtitleTrack: (a, b) => a.owner === b.owner } : {}),
+    }, audioLayer: { edges: () => [3007, 5009] }, currentTimeMs: () => 1417,
+    showMagnetGuide(value) { this.guide = value; }, hideMagnetGuide() { this.guide = null; } };
+    const drag = { timing: clock, track: 'main', resizeMotions: motions, relocating: run % 13 === 0, msPerPixel: 20 };
+    const raw = clock.fromMs(random(12000) - 6000);
+    for (const noSnap of [true, false]) {
+      const expected = brutePointerDelta(host, drag, raw, noSnap);
+      const delta = helpers.resolveLayerPointerDelta.call(host, drag, raw, noSnap);
+      assert.deepEqual({ delta, guide: host.guide }, expected, `case ${run}, snap ${!noSnap}`);
+    }
+  }
+});
+
+test('large selection collision checks scale with tracks rather than selected cue count', () => {
+  const rows = Array.from({ length: 10000 }, (_, i) => ({ owner: i % 4, start: Math.floor(i / 4) * 1000 + 200, end: Math.floor(i / 4) * 1000 + 700 }));
+  const fixture = layerPointerFixture(rows, { indices: Array.from({ length: 200 }, (_, i) => i), kind: 'resize-right' });
+  let comparisons = 0;
+  fixture.host.options.sameSubtitleTrack = (a, b) => { comparisons++; return a.owner === b.owner; };
+  assert.equal(fixture.resolve(10000, true), 500);
+  assert(comparisons < 50000, `Repeated full scans: ${comparisons}`);
+});
+
 test('ASR group references without names use head color including custom snapshots', () => {
   const segments = [{color:{name:'yellow',value:'#c4a019'}},{color_ref:{headIdx:0}}];
   assert.equal(helpers.colorForSegment(segments[1],segments), '#c4a019');

@@ -91,3 +91,7 @@ node scripts/benchmark_editor.mjs --compare output/performance/before/bound-1000
 第四阶段专项：`node scripts/benchmark_preview.mjs --baseline d40d9ff8 --out output/perf-ass-preview`。使用相同当前后端和万条合成工程，分别加载历史／当前前端，测量文字与样式操作至 ASS 更新完成、空闲投影次数及长注释范围；每项预热一次、正式三次。不替代完整 27 类操作矩阵，也不当作历史后端的性能对照。
 
 第五阶段专项：`node scripts/benchmark_persistence.mjs --baseline 7a16c442 --out output/perf-persistence`。绑定、混合与迁移后三种万条合成工程，使用相同当前后端分别加载历史／当前前端，独立测量修改后保存、仅播放头保存、无变化保存和恢复草稿，每项预热一次、正式三次；保存重开比对字幕模型、说话人、音频贴片及播放头，并观察 10.5 秒空闲活动与回收后内存。请求只记录大小与状态，输出目录不可覆盖。加载时间仅作观察，不用于证明历史后端加速；完整矩阵、长时间播放和持续编辑仍由第六阶段验证。结果见 [第五阶段账本](TEST_FEEDBACK_SAVE_BACKGROUND_20261108.md)。
+
+第六阶段专项及最终矩阵见 [长工程验收账本](TEST_FEEDBACK_LONG_PROJECT_ACCEPTANCE_20261108.md)。新增 `acceptance_long_project.mjs` 做两小时交替播放、编辑、撤销和保存重开；`acceptance_video_export.py` 核对万条字幕覆盖并烧录完整视频；`acceptance_high_resolution.mjs` 验证 1080p 播放与预览编辑；`long-project-multiwindow.spec.mjs` 验证两个服务对同一万条工程的保存冲突保护。`profile_editor_idle.mjs` 的跟踪结果只用于归因，不能与无分析器的基线计时直接比较。全部使用隔离的合成输入，不调用云端服务。
+
+工具版本 2 修正自动保存隔离：通过真实设置控件停止初始化定时器，而非仅修改设置值。版本 1 的结果保留，但不与版本 2 自动比较；历史源码需要使用版本 2 的相同工具重新测量。此次变更不关闭恢复草稿或版本备份，也不放宽保存／撤销断言。

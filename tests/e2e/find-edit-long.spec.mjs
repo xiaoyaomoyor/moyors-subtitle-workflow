@@ -33,6 +33,14 @@ test.beforeAll(async()=>{
  server=await startServer(projectPath,media,await findFreePort(),{loadWaveform:true});
 });
 test.afterAll(async()=>{await server?.stop();if(input)expect(hash(readFileSync(input))).toBe(sourceHash);});
+test.afterEach(async({page},info)=>{
+ if(info.status!==info.expectedStatus&&!page.isClosed()){
+  const diagnostic=await page.evaluate(()=>({time:player.currentTime,ready:player.readyState,
+   renderer:{status:MSWSubtitleRenderer.status,pending:MSWSubtitleRenderer.pending,diagnostics:MSWSubtitleRenderer.diagnostics},
+   frame:[player.videoWidth,player.videoHeight],panel:document.getElementById('find-edit-message')?.textContent}));
+  writeFileSync(info.outputPath('preview-diagnostic.json'),JSON.stringify(diagnostic,null,2));
+ }
+});
 
 test('real long project: search, editing, undo, responsiveness and round trip',async({page,context},info)=>{
  test.skip(!input,'Set MSW_E2E_LONG_PROJECT to an explicit personal fixture');test.setTimeout(300000);

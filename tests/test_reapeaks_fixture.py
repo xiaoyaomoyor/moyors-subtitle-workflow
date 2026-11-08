@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from maw import reapeaks
 
@@ -158,11 +159,10 @@ class FixtureReaPeaksTests(unittest.TestCase):
 
 
 class GeneratedFixtureTests(unittest.TestCase):
-    """验证 MSW 生成的 .ReaPeaks 与 REAPER 真机 fixture 二进制极其相似。
+    """验证 MSW 的 .quapeaks 与 REAPER fixture 的公共波形结构。
 
-    测试流程：gen_fixtures.py 生成 wav → MSW 生成器生成 .ReaPeaks → 对比
-    fixture 目录里的 REAPER 真机 .ReaPeaks。头部（除 src_timestamp/
-    src_filesize 外）和数据段应完全相同。
+    自有 QPK1 容器保留兼容的采样率、声道及层结构；与 RPKN 的 magic
+    不同。时间戳及峰数量可以不同，层除数一致，数据长度误差小于 10%。
     """
 
     def _compare_reapeaks(self, name: str) -> None:
@@ -172,16 +172,18 @@ class GeneratedFixtureTests(unittest.TestCase):
         try:
             # 生成 wav
             gen_func = getattr(gen_fixtures, f"gen_{name}")
-            gen_func()
-            wav = TEST_DATA_DIR / f"{name}.wav"
-            # MSW 生成 .ReaPeaks
+            with patch.object(gen_fixtures, "OUT", Path(debug_dir.name)):
+                gen_func()
+            wav = Path(debug_dir.name) / f"{name}.wav"
+            # MSW 生成自有 .quapeaks，不写入已有的 REAPER fixture。
             maw_reapeaks = reapeaks.generate_for_media(wav)
             self.assertIsNotNone(maw_reapeaks, f"MSW 生成 {name}.wav.ReaPeaks 失败")
             maw_data = maw_reapeaks.read_bytes()
             # 写临时 .maw 供调试，避免把测试产物留在 fixture 目录。
             (Path(debug_dir.name) / f"{name}.wav.ReaPeaks.maw").write_bytes(maw_data)
-            # 对比头部（除 src_timestamp 外）
-            self.assertEqual(maw_data[:10], fixture_data[:10], f"{name} 头部前 10 字节不同")
+            self.assertEqual(maw_data[:4], b"QPK1")
+            self.assertEqual(fixture_data[:4], b"RPKN")
+            self.assertEqual(maw_data[4:10], fixture_data[4:10], f"{name} 声道、层数或采样率不同")
             self.assertEqual(maw_data[14:18], fixture_data[14:18], f"{name} src_filesize 不同")
             # 对比 mipmap headers 的 div（npeak 允许差异）
             mipmap_count = maw_data[5]
@@ -199,10 +201,6 @@ class GeneratedFixtureTests(unittest.TestCase):
         finally:
             # 清理
             debug_dir.cleanup()
-            wav = TEST_DATA_DIR / f"{name}.wav"
-            if wav.exists():
-                wav.unlink()
-            fixture_path.write_bytes(fixture_data)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg is required")
     @unittest.skipUnless(HAS_NUMPY, "numpy is required")
