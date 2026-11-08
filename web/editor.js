@@ -6752,6 +6752,38 @@ function alignSelectedExtensionSubtitleRanges() {
 }
 
 // === 渲染 ===
+var cueListVirtual=null;
+function cueListDescriptor(main,extension,track,mainIndex,extIndex,build) {
+  const dual=multiSubtitleVisible()&&(getMultiSubtitleState().display_mode||'both')==='both';
+  const stamp=cue=>cue?[cue.id,cue.text,cue.start,cue.end,cue.disabled,cue.color,cue.color_ref,cue.sticker,cue.sticker_ref]:null;
+  return {key:JSON.stringify([main?.id||'',extension?.id||'',extension?track?.id:'']),
+    ids:[main?.id,extension?.id].filter(Boolean),
+    stamp:JSON.stringify([stamp(main),stamp(extension)]),build,
+    onReplace:(old,node)=>{cueListPlaybackRows=cueListPlaybackRows.map(row=>row===old?node:row);},
+    describe:node=>{
+      if(main){setCueListIdentity(node,main);node.dataset.idx=String(mainIndex);if(dual)node.dataset.mainIdx=String(mainIndex);}
+      if(extension){setCueListIdentity(node,extension,track);node.dataset.extIdx=String(extIndex);}
+      if(!node.classList.contains('cue-virtual'))return;
+      node.classList.toggle('multi-cue',multiSubtitleVisible());
+      node.classList.toggle('multi-dual-cue',dual);node.classList.toggle('single-sided',dual&&(!main||!extension));
+      node.classList.toggle('multi-extension-cue',!dual&&!!extension);
+      if(dual)for(const [cue,role,index] of [[main,'main',mainIndex],[extension,'extension',extIndex]])if(cue){
+        let col=node.querySelector('.'+role);if(!col){col=document.createElement('div');col.className='multi-cue-column '+role;node.append(col);}
+        col.dataset[role==='main'?'mainIdx':'extIdx']=String(index);col.classList.toggle('disabled',!!cue.disabled);
+      }
+      node.classList.toggle('disabled',!dual&&!!(main||extension)?.disabled);
+    },
+    sync:node=>{
+      reindexCueRow(node,main,extension,track,mainIndex,extIndex);
+      const selected=main&&selectedIdxs.has(mainIndex)||extension&&selectedExtensionIdxs.has(extIndex);
+      node.classList.toggle('selected',!!selected);
+      for(const [cue,role,index] of [[main,'main',mainIndex],[extension,'extension',extIndex]])if(cue){
+        const col=dual?node.querySelector('.multi-cue-column.'+role):node;
+        col?.classList.toggle('dirty',!!cue._dirty);
+        if(dual){const own=(role==='main'?selectedIdxs:selectedExtensionIdxs).has(index);col?.classList.toggle('selected',own);col?.classList.toggle('related-selected',!!selected&&!own);}
+      }
+    }};
+}
 function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null, validated = false } = {}) {
   queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
@@ -6771,26 +6803,30 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   const dockHandle = container.querySelector(':scope > .dock-handle');
   const cueListToolbar = container.querySelector(':scope > .cue-list-toolbar');
   const emptyState = cuesEmpty;
+  const virtual=productionFlatMode()&&!overlayTrackVisible()&&DATA.segments.length+(getActiveExtensionTrack()?.segments?.length||0)>=1000&&window.IntersectionObserver;
+  if(!virtual&&cueListVirtual){cueListVirtual.dispose();cueListVirtual=null;}
+  if(virtual&&!cueListVirtual){container.querySelectorAll(':scope > .cue').forEach(node=>node.remove());cueListVirtual=new MSWCueListView(container);}
   // Reuse unchanged identities even when insertion shifts their list indices.
   // Update event targets and marker links before the row returns to the DOM.
   const rowKey=(main,extension,track)=>JSON.stringify([main||'',extension||'',track||'']);
-  const reusable=changedCueIds?new Map([...container.querySelectorAll(':scope > .cue')]
+  const reusable=!virtual&&changedCueIds?new Map([...container.querySelectorAll(':scope > .cue')]
     .map(el=>[rowKey(el.dataset.mainId,el.dataset.extId,el.dataset.trackId),el])):null;
   const cueRow=(main,extension,track,mainIndex,extIndex,build)=>{
+    if(virtual)return cueListDescriptor(main,extension,track,mainIndex,extIndex,build);
     const old=reusable?.get(rowKey(main?.id,extension?.id,extension?track?.id:null));
     if(old&&!changedCueIds.has(main?.id)&&!changedCueIds.has(extension?.id)) {
       reindexCueRow(old,main,extension,track,mainIndex,extIndex);return old;
     }
     return build();
   };
-  if(!reusable) {
+  if(!reusable&&!virtual) {
     container.replaceChildren();
     if (dockHandle) container.appendChild(dockHandle);
     if (cueListToolbar) container.appendChild(cueListToolbar);
   }
   if (emptyState) {
     emptyState.classList.toggle('hidden', DATA.segments.length > 0);
-    if(!reusable)container.appendChild(emptyState);
+    if(!reusable&&!virtual)container.appendChild(emptyState);
   }
   const cueFragment = document.createDocumentFragment();
   const multiVisible = multiSubtitleVisible();
@@ -6825,7 +6861,8 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   }
   overlaySegments.forEach((seg, i) => rows.push({ start: seg.start, order: 1, el: buildOverlayCueEl(seg, i) }));
   rows.sort((a, b) => a.start - b.start || a.order - b.order);
-  if(reusable) {
+  if(virtual)cueListVirtual.update(rows.map(row=>row.el),changedCueIds);
+  else if(reusable) {
     const retained=new Set(rows.map(row=>row.el));
     container.querySelectorAll(':scope > .cue').forEach(el=>{if(!retained.has(el))el.remove();});
     let cursor=container.querySelector(':scope > .cue');
@@ -6840,7 +6877,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   fixedSyncUI();
   applyCueListDisplaySettings({ preserveCueListScroll: false });
   refreshColorFilterUi();
-  totalCountEl.textContent = container.querySelectorAll(':scope > .cue').length;
+  totalCountEl.textContent = rows.length;
   // buildCueEl/buildMultiCueColumn 已经按当前搜索词生成了文本；这里仅
   // 计算隐藏状态和数量，避免长工程 renderAll() 再逐行重建一遍文本节点。
   applySearch(searchEl.value, { refreshText: false, preserveCueListScroll: false });
@@ -6858,7 +6895,7 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
     else if (waveform !== 'none') {
       // 字幕块变化不需要重新创建行和 Canvas；兼容旧版波形对象时才回退到
       // 原来的完整刷新路径。
-      if (typeof waveformEditor.refreshCueOverlay === 'function') waveformEditor.refreshCueOverlay();
+      if (typeof waveformEditor.refreshCueOverlay === 'function') waveformEditor.refreshCueOverlay({changedCueIds});
       else waveformEditor.renderSegments();
     }
   }
@@ -6884,6 +6921,7 @@ function reindexCueRow(row,main,extension,track,mainIndex,extIndex) {
   for(const [cue,index,kind] of [[main,mainIndex,'main'],[extension,extIndex,'extension']]) {
     if(!cue)continue;
     const node=dual?row.querySelector('.multi-cue-column.'+kind):row;
+    node?.classList.toggle('dirty',!!cue._dirty);
     if(kind==='main') {
       row.reindexMainCue?.(index);row.dataset.idx=String(index);
       if(dual||row.dataset.mainIdx!==undefined)row.dataset.mainIdx=String(index);
@@ -6975,6 +7013,7 @@ function getCurrentCuePanelTarget() {
 
 function getCuePanelTextElement(target) {
   if (!target) return null;
+  cueListVirtual?.ensure(container.querySelector(`.cue[data-${target.kind==='extension'?'ext-idx':'idx'}="${target.index}"]`));
   if (target.kind === 'extension') {
     return container.querySelector(
       `.multi-dual-cue[data-ext-idx="${target.index}"] .multi-cue-column.extension .text, `
@@ -8259,7 +8298,7 @@ function refreshCueTextRows(changedIds) {
   });
   // Text can cross the active text/length filters or become empty.
   applySearch(searchEl.value, {refreshText:false, preserveCueListScroll:false});
-  waveformEditor?.refreshCueOverlay?.();
+  waveformEditor?.refreshCueOverlay?.({changedCueIds:changedIds});
   renderCurrentCuePanel();
   queueCleanupPreview(); queueAutoMergePreview(); queueSubtitleTimePreview();
   updateSubtitleExportUi();
@@ -8423,6 +8462,7 @@ function startExtensionEdit(
   clickY,
   { deferCaret = false } = {},
 ) {
+  if(cueListVirtual&&el){const row=cueListVirtual.ensure(el);el=row?.querySelector('.multi-cue-column.extension')||row||el;}
   if (!el || !track?.segments?.[index]) return;
   if (!fixedCanEdit([track.segments[index]], 'extension', track.id)) return;
   hideCueSplitPreview();
@@ -8579,6 +8619,7 @@ function bindExtensionCueEvents(el, index, track = getActiveExtensionTrack(), du
 }
 
 function startEdit(el, idx, clickX, clickY, { deferCaret = false } = {}) {
+  el=cueListVirtual?.ensure(el)||el;
   if (!fixedCanEdit([DATA.segments[idx]])) return;
   if (editingState) finishEdit(true);
   hideCueSplitPreview();
@@ -11490,7 +11531,7 @@ function captureCueListVisualAnchor(cueEl) {
     scrollTop: container.scrollTop,
   };
   // 锚点被删除时，优先保持附近存活字幕自己的屏幕位置。
-  anchor.neighbors = [...container.querySelectorAll(':scope > .cue:not(.hidden)')]
+  anchor.neighbors = (cueListVirtual?cueListVirtual.visibleRows():[...container.querySelectorAll(':scope > .cue:not(.hidden)')])
     .filter(element => element !== cueEl)
     .map(element => ({ element, rect: element.getBoundingClientRect() }))
     .filter(entry => entry.rect.height > 0 && entry.rect.bottom > top && entry.rect.top < bottom)
@@ -11514,7 +11555,7 @@ function captureCueListRenderAnchor() {
     || findCueListRenderAnchor(pending, { replacement: true }));
   if (pendingRow) return captureCueListVisualAnchor(pendingRow);
   const { top, bottom } = cueListVisibleBounds();
-  const candidates = [...container.querySelectorAll(':scope > .cue:not(.hidden)')];
+  const candidates = cueListVirtual?cueListVirtual.visibleRows():[...container.querySelectorAll(':scope > .cue:not(.hidden)')];
   const visible = candidates.filter(element => {
     const rect = element.getBoundingClientRect();
     return rect.height > 0 && rect.bottom > top && rect.top < bottom;
@@ -11537,6 +11578,12 @@ function rememberCueListMutation() {
 
 function findCueListRenderAnchor(anchor, { replacement = false } = {}) {
   if (!anchor?.segmentId) return null;
+  if(cueListVirtual&&!replacement){
+    const node=cueListVirtual.byId.get(anchor.segmentId)?.node;
+    if(!node||node.classList.contains('hidden'))return null;
+    const identity=cueListIdentity(node,anchor.kind);
+    return identity.kind===anchor.kind&&identity.trackId===anchor.trackId?node:null;
+  }
   return [...container.querySelectorAll(':scope > .cue:not(.hidden)')].find(element => {
     const identity = cueListIdentity(element, anchor.kind);
     return identity.kind === anchor.kind && identity.trackId === anchor.trackId
@@ -11570,6 +11617,9 @@ function restoreCueListVisualAnchor(cueEl, anchor, owner = 'restore') {
   let frameCount = 0;
   const restore = () => {
     if (generation !== cueListScroll.generation) return;
+    // A virtual row may materialize after scrolling. Follow its stable row
+    // identity through that replacement instead of restoring a detached shell.
+    cueEl=cueEl?._cueViewRow?.node||cueEl;
     if (cueEl?.isConnected && !cueEl.classList.contains('hidden') && Number.isFinite(anchor?.top)) {
       const { containerRect, top, bottom } = cueListVisibleBounds();
       const rect = cueEl.getBoundingClientRect();

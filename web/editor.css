@@ -3287,6 +3287,7 @@
   }
   /* 记住实际卡片高度，离屏首轮以两行文本卡片估算。 */
   .cues-container > .cue { content-visibility: auto; contain-intrinsic-size: auto 86px; }
+  .cues-container > .cue.cue-virtual { content-visibility:visible; contain:strict; }
   .cue-split-flash {
     position: absolute;
     z-index: 3;

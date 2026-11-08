@@ -1,0 +1,4641 @@
+{
+  "schema": "msw.performance-incremental-ui.v1",
+  "note": "Same phase 1 harness and fixtures; phase 2 comparison before its failure-only selection rollback guard. Bound/mixed complete; migrated failed during save. Matrix predates batched geometry/selection reads and lazy navigation. Bound targeted check uses final source; migrated targeted check predates only the last scroll-anchor adjustment. No full-matrix success claim. Matrix medians are three samples, targeted checks five samples, not P95. DOM includes non-list nodes.",
+  "status": "failed",
+  "source": {
+    "base": "b9726c9c",
+    "files": {
+      "web/editor.js": "3104b82f1084ebba6ad9b5872b62440bed16ddd1513ef050dda909c884da344d",
+      "web/editor.css": "4ad6ff0aa8a248437cdd7fa028100e0704fd97e6eab6127805d655cf76aa6593",
+      "web/editor-scripts.txt": "3f5226895ee526ca040be2a9103169a97fd814ccef6029525d1cb8f08190bf67",
+      "web/msw-cue-list-view.js": "13d232f72542b1c511af45018c0e8d2d9063db4ab29059920245b67d4b307fd3",
+      "web/msw-edit-transaction.js": "04530ad5dc3dde28d9d4829ecb71c9ad813b0ae38ba261ff9eebcc164ef45c5a",
+      "web/msw-project-style-ui.js": "c0674e47a38885d8266215d723e3e325342394d5240d5277f755d66e2125f5d7",
+      "web/waveform.js": "c02f7d3ab85dd7ed5920b41a944e213b17ef636bd85c8f1818a41d7c5ab2823c"
+    }
+  },
+  "finalSource": {
+    "files": {
+      "web/editor.js": "010ba9f8c4df57a008157546916ad97acbd58fee57dc935c6cadf3d89f3f1bb8",
+      "web/editor.css": "4ad6ff0aa8a248437cdd7fa028100e0704fd97e6eab6127805d655cf76aa6593",
+      "web/editor-scripts.txt": "3f5226895ee526ca040be2a9103169a97fd814ccef6029525d1cb8f08190bf67",
+      "web/msw-cue-list-view.js": "5476026e9c5b9d1b86d4332edf36862882f479242a0320c89a1fa85c5d24c2d0",
+      "web/msw-edit-transaction.js": "04530ad5dc3dde28d9d4829ecb71c9ad813b0ae38ba261ff9eebcc164ef45c5a",
+      "web/msw-project-style-ui.js": "c0674e47a38885d8266215d723e3e325342394d5240d5277f755d66e2125f5d7",
+      "web/waveform.js": "c02f7d3ab85dd7ed5920b41a944e213b17ef636bd85c8f1818a41d7c5ab2823c"
+    }
+  },
+  "createdAt": "2026-11-08T03:10:17.037Z",
+  "scenarios": [
+    {
+      "name": "bound-10000",
+      "status": "complete",
+      "failure": null,
+      "missing": [],
+      "fixture": {
+        "version": 1,
+        "profile": "bound",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 5000,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "ab5c1b5b0ae054e6465ace6207cb0653dd1c143ea4878f315ddb98c1b25a81cb",
+        "destination": "s2",
+        "firstCue": "cue-0-main"
+      },
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 2275.2088999999996,
+        "domContentLoadedMs": 9401.4692,
+        "editorReadyMs": 12447.2949,
+        "previewReadyMs": 35587.9819,
+        "reloadPreviewReadyMs": 19145.908599999966
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [8.3,8.7],
+          "feedbackMs": [85.8,91],
+          "settledMs": [95.9,101.1],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [4.2,5.4],
+          "feedbackMs": [36.1,38.2],
+          "settledMs": [46.7,47.6],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [44.7,54.9],
+          "feedbackMs": [737.1,783.3],
+          "settledMs": [1207.1,1292.8],
+          "longestTaskMs": [607,648],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [5.2,6.8],
+          "feedbackMs": [34.2,228.3],
+          "settledMs": [45.4,255.6],
+          "longestTaskMs": [0,186],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [845.9,927.3],
+          "feedbackMs": [1054.4,1141.6],
+          "settledMs": [1201.8,1303.1],
+          "longestTaskMs": [853,935],
+          "calls": {
+            "fixedAcceptEdit": [1,1,72.1,155.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,22,24.8],
+            "fixedSyncUI": [1,1,60,68.1],
+            "applyCueListDisplaySettings": [1,1,25.9,27.9],
+            "renderAll": [1,1,571,582.8]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [757.6,770.6],
+          "feedbackMs": [995.3,1030.5],
+          "settledMs": [1179.4,1239],
+          "longestTaskMs": [794,801],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,23,23.1],
+            "fixedSyncUI": [1,1,68,91.5],
+            "applyCueListDisplaySettings": [1,1,40.6,67.5],
+            "renderAll": [1,1,602.4,609.3]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [668.7,680.6],
+          "feedbackMs": [878.4,905.7],
+          "settledMs": [1033.4,1061.3],
+          "longestTaskMs": [694,709],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,23.3,25.6],
+            "fixedSyncUI": [1,1,59.9,66.4],
+            "applyCueListDisplaySettings": [1,1,25.9,26.3],
+            "renderAll": [1,1,525.2,552.5]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [7.3,8.4],
+          "feedbackMs": [43.1,47.2],
+          "settledMs": [54.9,61.6],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1367.3,1379.1],
+          "feedbackMs": [1678.7,1703.3],
+          "settledMs": [1915.5,1934.3],
+          "longestTaskMs": [1386,1399],
+          "calls": {
+            "fixedAcceptEdit": [1,1,63.4,64.3],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,20.5,21.9],
+            "fixedSyncUI": [1,1,62.6,63.6],
+            "applyCueListDisplaySettings": [1,1,33,34.1],
+            "renderAll": [1,1,952.8,965.6]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [993.3,1066.4],
+          "feedbackMs": [1684.3,3965.2],
+          "settledMs": [1725,4294.4],
+          "longestTaskMs": [1143,2162],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,23,70.5],
+            "fixedSyncUI": [1,1,75.6,77.4],
+            "applyCueListDisplaySettings": [1,1,34.2,44.4],
+            "renderAll": [1,1,649,706.1],
+            "fixedAcceptEdit": [0,1,0,64.8]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1045.5,1104.3],
+          "feedbackMs": [1442.2,1517.7],
+          "settledMs": [1714.1,1845],
+          "longestTaskMs": [1099,1173],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,22,25.7],
+            "fixedSyncUI": [1,1,80.8,90.4],
+            "applyCueListDisplaySettings": [1,1,37,46.7],
+            "renderAll": [1,1,666.6,717]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [2408.1,3086.5],
+          "feedbackMs": [2700.4,6556.7],
+          "settledMs": [2748.4,6883.9],
+          "longestTaskMs": [2422,3102],
+          "calls": {
+            "fixedAcceptEdit": [1,2,80.6,195],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,38.9,88.8],
+            "fixedSyncUI": [1,1,91.3,104.5],
+            "applyCueListDisplaySettings": [1,1,63.4,64.1],
+            "renderAll": [1,1,877.4,918.5]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1896.3,2189.1],
+          "feedbackMs": [2235.5,2496.7],
+          "settledMs": [2418.6,2697.5],
+          "longestTaskMs": [1910,2205],
+          "calls": {
+            "fixedAcceptEdit": [2,2,506.5,518.9],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,65.4,67.3],
+            "fixedSyncUI": [1,1,75.3,88.8],
+            "applyCueListDisplaySettings": [1,1,40.6,53.2],
+            "renderAll": [1,1,1081.9,1268.3]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1938.3,1975.8],
+          "feedbackMs": [4212.9,4224.3],
+          "settledMs": [4610.4,4621.5],
+          "longestTaskMs": [1965,2002],
+          "calls": {
+            "fixedContent": [1,1,211.6,215.9],
+            "fixedAcceptEdit": [4,4,671.1,796.9],
+            "syncProjectTimebaseAndBindingOffsets": [4,4,97.2,102.6],
+            "fixedSyncUI": [1,1,67.8,75.3],
+            "applyCueListDisplaySettings": [1,1,33,50.9],
+            "renderAll": [1,1,824.1,876.1]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [549.3,552.7],
+          "feedbackMs": [3243.4,3440.4],
+          "settledMs": [3905.8,4351.2],
+          "longestTaskMs": [2205,2222],
+          "calls": {
+            "fixedAcceptEdit": [3,3,342.4,351.9],
+            "snapshotSegments": [1,1,144.2,148.4],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,50.1,53.4]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [131.9,141.5],
+          "feedbackMs": [191.3,206.3],
+          "settledMs": [806.8,840.7],
+          "longestTaskMs": [149,163],
+          "calls": {
+            "fixedAcceptEdit": [1,1,69.1,77.3]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [480.6,489.2],
+          "feedbackMs": [550.5,557.9],
+          "settledMs": [845.1,876.6],
+          "longestTaskMs": [495,503],
+          "calls": {
+            "fixedAcceptEdit": [1,1,67,81.5]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [109.1,110.3],
+          "feedbackMs": [162.6,179.9],
+          "settledMs": [477.7,478],
+          "longestTaskMs": [141,160],
+          "calls": {
+            "fixedAcceptEdit": [1,1,61,63.5]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1.4,1.7],
+          "feedbackMs": [83.6,92.8],
+          "settledMs": [250.2,286.7],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [2150.7,2218.4],
+          "settledMs": [2282.9,2327.5],
+          "longestTaskMs": [761,764],
+          "calls": {
+            "beginCueDrag": [1,1,1.4,2.4],
+            "fixedAcceptEdit": [1,1,60.4,62],
+            "moveCueDrag": [12,12,417,444.7],
+            "fixedTimingCheckpoint": [1,1,8.1,8.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,27.2,30.2],
+            "fixedSyncUI": [1,1,60.3,63.7],
+            "applyCueListDisplaySettings": [1,1,1,1.1],
+            "renderAll": [1,1,548.2,556.9],
+            "endCueDrag": [1,1,710.9,714.2]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [2094.9,2120.4],
+          "settledMs": [2225.7,2300.4],
+          "longestTaskMs": [757,808],
+          "calls": {
+            "beginCueDrag": [1,1,4.8,6],
+            "fixedAcceptEdit": [1,1,59.2,67.9],
+            "moveCueDrag": [12,12,133.6,139.4],
+            "fixedTimingCheckpoint": [1,1,7.6,10.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,24.5,24.7],
+            "fixedSyncUI": [1,1,68.4,70.1],
+            "applyCueListDisplaySettings": [1,1,1.2,2.1],
+            "renderAll": [1,1,548.1,565.1],
+            "endCueDrag": [1,1,701.5,756.5]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [5474.8,5499.1],
+          "settledMs": [5593.2,5662.2],
+          "longestTaskMs": [875,904],
+          "calls": {
+            "beginCueDrag": [1,1,5.4,7.2],
+            "fixedAcceptEdit": [1,1,65.1,77.6],
+            "moveCueDrag": [12,12,3132.5,3208.6],
+            "fixedTimingCheckpoint": [1,1,13.1,15.3],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,24.2,25],
+            "fixedSyncUI": [1,1,80.7,86.2],
+            "applyCueListDisplaySettings": [1,1,1,1.1],
+            "renderAll": [1,1,607.9,627.7],
+            "endCueDrag": [1,1,819.6,844.8]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [0.1,0.1],
+          "feedbackMs": [1708,2651.3],
+          "settledMs": [7645.5,8469.7],
+          "longestTaskMs": [1193,2165],
+          "calls": {
+            "fixedAcceptEdit": [0,1,0,68.8],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,63.7]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [0,0],
+          "feedbackMs": [3051.7,3166.7],
+          "settledMs": [9149.9,9849.4],
+          "longestTaskMs": [2503,2628],
+          "calls": {
+            "fixedAcceptEdit": [1,1,81.4,108.1],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,56.3,81.2]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [0,0.1],
+          "feedbackMs": [1839.1,2135.4],
+          "settledMs": [3333.3,3655],
+          "longestTaskMs": [1319,1350],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1262.2,1279.1],
+          "feedbackMs": [2064.9,2144.2],
+          "settledMs": [4753.2,4802.6],
+          "longestTaskMs": [1569,1584],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [0,0],
+          "feedbackMs": [38,45.2],
+          "settledMs": [6058.8,6060.5],
+          "longestTaskMs": [208,208],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 188920900,
+            "totalSize": 240021504,
+            "embedderHeapUsedSize": 74338352,
+            "backingStorageSize": 63466794
+          },
+          "heapAfterGC": {
+            "usedSize": 160954224,
+            "totalSize": 166912000,
+            "embedderHeapUsedSize": 70772376,
+            "backingStorageSize": 63379665
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 38260,
+            "jsEventListeners": 3301
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 188573408,
+            "totalSize": 200294400,
+            "embedderHeapUsedSize": 72570488,
+            "backingStorageSize": 63359606
+          },
+          "heapAfterGC": {
+            "usedSize": 183207800,
+            "totalSize": 185581568,
+            "embedderHeapUsedSize": 70457640,
+            "backingStorageSize": 63358983
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 39046,
+            "jsEventListeners": 3437
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 261432776,
+            "totalSize": 316743680,
+            "embedderHeapUsedSize": 139759344,
+            "backingStorageSize": 66549154
+          },
+          "heapAfterGC": {
+            "usedSize": 161331564,
+            "totalSize": 169082880,
+            "embedderHeapUsedSize": 71926064,
+            "backingStorageSize": 66240916
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 38469,
+            "jsEventListeners": 3442
+          }
+        }
+      ],
+      "comparison": [
+        {
+          "name": "select",
+          "metric": "syncMs",
+          "before": 35.1,
+          "after": 8.3,
+          "deltaMs": -26.8,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "feedbackMs",
+          "before": 111.1,
+          "after": 85.8,
+          "deltaMs": -25.3,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "settledMs",
+          "before": 118.9,
+          "after": 95.9,
+          "deltaMs": -23,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "longestTaskMs",
+          "before": 65,
+          "after": 0,
+          "deltaMs": -65,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "syncMs",
+          "before": 2.8,
+          "after": 4.2,
+          "deltaMs": 1.4,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "feedbackMs",
+          "before": 37.8,
+          "after": 36.1,
+          "deltaMs": -1.7,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "settledMs",
+          "before": 45.5,
+          "after": 46.7,
+          "deltaMs": 1.2,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "seek-preview",
+          "metric": "syncMs",
+          "before": 6.2,
+          "after": 44.7,
+          "deltaMs": 38.5,
+          "regression": false
+        },
+        {
+          "name": "seek-preview",
+          "metric": "feedbackMs",
+          "before": 153.5,
+          "after": 737.1,
+          "deltaMs": 583.6,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "settledMs",
+          "before": 632.2,
+          "after": 1207.1,
+          "deltaMs": 574.9,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "longestTaskMs",
+          "before": 324,
+          "after": 607,
+          "deltaMs": 283,
+          "regression": true
+        },
+        {
+          "name": "copy-1",
+          "metric": "syncMs",
+          "before": 7.4,
+          "after": 5.2,
+          "deltaMs": -2.2,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "feedbackMs",
+          "before": 37,
+          "after": 34.2,
+          "deltaMs": -2.8,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "settledMs",
+          "before": 48.1,
+          "after": 45.4,
+          "deltaMs": -2.7,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "paste-1",
+          "metric": "syncMs",
+          "before": 1257,
+          "after": 845.9,
+          "deltaMs": -411.1,
+          "regression": false
+        },
+        {
+          "name": "paste-1",
+          "metric": "feedbackMs",
+          "before": 3926.6,
+          "after": 1054.4,
+          "deltaMs": -2872.2,
+          "regression": false
+        },
+        {
+          "name": "paste-1",
+          "metric": "settledMs",
+          "before": 4265,
+          "after": 1201.8,
+          "deltaMs": -3063.2,
+          "regression": false
+        },
+        {
+          "name": "paste-1",
+          "metric": "longestTaskMs",
+          "before": 2319,
+          "after": 853,
+          "deltaMs": -1466,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "syncMs",
+          "before": 1243.1,
+          "after": 757.6,
+          "deltaMs": -485.5,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "feedbackMs",
+          "before": 1567.6,
+          "after": 995.3,
+          "deltaMs": -572.3,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "settledMs",
+          "before": 1602.6,
+          "after": 1179.4,
+          "deltaMs": -423.2,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 1298,
+          "after": 794,
+          "deltaMs": -504,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "syncMs",
+          "before": 1182.1,
+          "after": 668.7,
+          "deltaMs": -513.4,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "feedbackMs",
+          "before": 1891.9,
+          "after": 878.4,
+          "deltaMs": -1013.5,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "settledMs",
+          "before": 1927,
+          "after": 1033.4,
+          "deltaMs": -893.6,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 1493,
+          "after": 694,
+          "deltaMs": -799,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "syncMs",
+          "before": 9.5,
+          "after": 7.3,
+          "deltaMs": -2.2,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "feedbackMs",
+          "before": 37.3,
+          "after": 43.1,
+          "deltaMs": 5.8,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "settledMs",
+          "before": 44.7,
+          "after": 54.9,
+          "deltaMs": 10.2,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "syncMs",
+          "before": 3282.5,
+          "after": 1367.3,
+          "deltaMs": -1915.2,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "feedbackMs",
+          "before": 7253.2,
+          "after": 1678.7,
+          "deltaMs": -5574.5,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "settledMs",
+          "before": 8266.9,
+          "after": 1915.5,
+          "deltaMs": -6351.4,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "longestTaskMs",
+          "before": 3348,
+          "after": 1386,
+          "deltaMs": -1962,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "syncMs",
+          "before": 2076.9,
+          "after": 993.3,
+          "deltaMs": -1083.6,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "feedbackMs",
+          "before": 4119.1,
+          "after": 1684.3,
+          "deltaMs": -2434.8,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "settledMs",
+          "before": 4512.1,
+          "after": 1725,
+          "deltaMs": -2787.1,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 2155,
+          "after": 1143,
+          "deltaMs": -1012,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "syncMs",
+          "before": 2369,
+          "after": 1045.5,
+          "deltaMs": -1323.5,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "feedbackMs",
+          "before": 2874.9,
+          "after": 1442.2,
+          "deltaMs": -1432.7,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "settledMs",
+          "before": 2930.5,
+          "after": 1714.1,
+          "deltaMs": -1216.4,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 2497,
+          "after": 1099,
+          "deltaMs": -1398,
+          "regression": false
+        },
+        {
+          "name": "cut-pair",
+          "metric": "syncMs",
+          "before": 2365.1,
+          "after": 2408.1,
+          "deltaMs": 43,
+          "regression": false
+        },
+        {
+          "name": "cut-pair",
+          "metric": "feedbackMs",
+          "before": 2935.1,
+          "after": 2700.4,
+          "deltaMs": -234.7,
+          "regression": false
+        },
+        {
+          "name": "cut-pair",
+          "metric": "settledMs",
+          "before": 2965.5,
+          "after": 2748.4,
+          "deltaMs": -217.1,
+          "regression": false
+        },
+        {
+          "name": "cut-pair",
+          "metric": "longestTaskMs",
+          "before": 2669,
+          "after": 2422,
+          "deltaMs": -247,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "syncMs",
+          "before": 5327.5,
+          "after": 1896.3,
+          "deltaMs": -3431.2,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "feedbackMs",
+          "before": 9663,
+          "after": 2235.5,
+          "deltaMs": -7427.5,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "settledMs",
+          "before": 10115.8,
+          "after": 2418.6,
+          "deltaMs": -7697.2,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "longestTaskMs",
+          "before": 7260,
+          "after": 1910,
+          "deltaMs": -5350,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "syncMs",
+          "before": 2978,
+          "after": 1938.3,
+          "deltaMs": -1039.7,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "feedbackMs",
+          "before": 6603.5,
+          "after": 4212.9,
+          "deltaMs": -2390.6,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "settledMs",
+          "before": 7106.6,
+          "after": 4610.4,
+          "deltaMs": -2496.2,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "longestTaskMs",
+          "before": 3472,
+          "after": 1965,
+          "deltaMs": -1507,
+          "regression": false
+        },
+        {
+          "name": "text-preview",
+          "metric": "syncMs",
+          "before": 680.7,
+          "after": 549.3,
+          "deltaMs": -131.4,
+          "regression": false
+        },
+        {
+          "name": "text-preview",
+          "metric": "feedbackMs",
+          "before": 885.3,
+          "after": 3243.4,
+          "deltaMs": 2358.1,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "settledMs",
+          "before": 4491.4,
+          "after": 3905.8,
+          "deltaMs": -585.6,
+          "regression": false
+        },
+        {
+          "name": "text-preview",
+          "metric": "longestTaskMs",
+          "before": 2396,
+          "after": 2205,
+          "deltaMs": -191,
+          "regression": false
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "syncMs",
+          "before": 129.1,
+          "after": 131.9,
+          "deltaMs": 2.8,
+          "regression": false
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "feedbackMs",
+          "before": 188.6,
+          "after": 191.3,
+          "deltaMs": 2.7,
+          "regression": false
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "settledMs",
+          "before": 577.1,
+          "after": 806.8,
+          "deltaMs": 229.7,
+          "regression": true
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "longestTaskMs",
+          "before": 151,
+          "after": 149,
+          "deltaMs": -2,
+          "regression": false
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "syncMs",
+          "before": 513.9,
+          "after": 480.6,
+          "deltaMs": -33.3,
+          "regression": false
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "feedbackMs",
+          "before": 677.2,
+          "after": 550.5,
+          "deltaMs": -126.7,
+          "regression": false
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "settledMs",
+          "before": 980.8,
+          "after": 845.1,
+          "deltaMs": -135.7,
+          "regression": false
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "longestTaskMs",
+          "before": 604,
+          "after": 495,
+          "deltaMs": -109,
+          "regression": false
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "syncMs",
+          "before": 109.9,
+          "after": 109.1,
+          "deltaMs": -0.8,
+          "regression": false
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "feedbackMs",
+          "before": 174.9,
+          "after": 162.6,
+          "deltaMs": -12.3,
+          "regression": false
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "settledMs",
+          "before": 543.3,
+          "after": 477.7,
+          "deltaMs": -65.6,
+          "regression": false
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "longestTaskMs",
+          "before": 159,
+          "after": 141,
+          "deltaMs": -18,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "syncMs",
+          "before": 1.3,
+          "after": 1.4,
+          "deltaMs": 0.1,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "feedbackMs",
+          "before": 75.1,
+          "after": 83.6,
+          "deltaMs": 8.5,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "settledMs",
+          "before": 257.1,
+          "after": 250.2,
+          "deltaMs": -6.9,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "drag-pair",
+          "metric": "feedbackMs",
+          "before": 3650.4,
+          "after": 2150.7,
+          "deltaMs": -1499.7,
+          "regression": false
+        },
+        {
+          "name": "drag-pair",
+          "metric": "settledMs",
+          "before": 5145.2,
+          "after": 2282.9,
+          "deltaMs": -2862.3,
+          "regression": false
+        },
+        {
+          "name": "drag-pair",
+          "metric": "longestTaskMs",
+          "before": 1813,
+          "after": 761,
+          "deltaMs": -1052,
+          "regression": false
+        },
+        {
+          "name": "resize-pair",
+          "metric": "feedbackMs",
+          "before": 2797.8,
+          "after": 2094.9,
+          "deltaMs": -702.9,
+          "regression": false
+        },
+        {
+          "name": "resize-pair",
+          "metric": "settledMs",
+          "before": 2804.1,
+          "after": 2225.7,
+          "deltaMs": -578.4,
+          "regression": false
+        },
+        {
+          "name": "resize-pair",
+          "metric": "longestTaskMs",
+          "before": 1082,
+          "after": 757,
+          "deltaMs": -325,
+          "regression": false
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "feedbackMs",
+          "before": 9191.9,
+          "after": 5474.8,
+          "deltaMs": -3717.1,
+          "regression": false
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "settledMs",
+          "before": 9621.6,
+          "after": 5593.2,
+          "deltaMs": -4028.4,
+          "regression": false
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "longestTaskMs",
+          "before": 1887,
+          "after": 875,
+          "deltaMs": -1012,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "syncMs",
+          "before": 0,
+          "after": 0.1,
+          "deltaMs": 0.1,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "feedbackMs",
+          "before": 2613.7,
+          "after": 1708,
+          "deltaMs": -905.7,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "settledMs",
+          "before": 8603.2,
+          "after": 7645.5,
+          "deltaMs": -957.7,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "longestTaskMs",
+          "before": 2107,
+          "after": 1193,
+          "deltaMs": -914,
+          "regression": false
+        },
+        {
+          "name": "save-playhead",
+          "metric": "syncMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "save-playhead",
+          "metric": "feedbackMs",
+          "before": 3037.6,
+          "after": 3051.7,
+          "deltaMs": 14.1,
+          "regression": false
+        },
+        {
+          "name": "save-playhead",
+          "metric": "settledMs",
+          "before": 9363.7,
+          "after": 9149.9,
+          "deltaMs": -213.8,
+          "regression": false
+        },
+        {
+          "name": "save-playhead",
+          "metric": "longestTaskMs",
+          "before": 2562,
+          "after": 2503,
+          "deltaMs": -59,
+          "regression": false
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "syncMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "feedbackMs",
+          "before": 1699.2,
+          "after": 1839.1,
+          "deltaMs": 139.9,
+          "regression": false
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "settledMs",
+          "before": 3048.3,
+          "after": 3333.3,
+          "deltaMs": 285,
+          "regression": false
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "longestTaskMs",
+          "before": 1165,
+          "after": 1319,
+          "deltaMs": 154,
+          "regression": false
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "syncMs",
+          "before": 1324.2,
+          "after": 1262.2,
+          "deltaMs": -62,
+          "regression": false
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "feedbackMs",
+          "before": 2226.5,
+          "after": 2064.9,
+          "deltaMs": -161.6,
+          "regression": false
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "settledMs",
+          "before": 4874.5,
+          "after": 4753.2,
+          "deltaMs": -121.3,
+          "regression": false
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "longestTaskMs",
+          "before": 1664,
+          "after": 1569,
+          "deltaMs": -95,
+          "regression": false
+        },
+        {
+          "name": "idle",
+          "metric": "syncMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "idle",
+          "metric": "feedbackMs",
+          "before": 32.4,
+          "after": 38,
+          "deltaMs": 5.6,
+          "regression": false
+        },
+        {
+          "name": "idle",
+          "metric": "settledMs",
+          "before": 6048.6,
+          "after": 6058.8,
+          "deltaMs": 10.2,
+          "regression": false
+        },
+        {
+          "name": "idle",
+          "metric": "longestTaskMs",
+          "before": 251,
+          "after": 208,
+          "deltaMs": -43,
+          "regression": false
+        }
+      ]
+    },
+    {
+      "name": "mixed-10000",
+      "status": "complete",
+      "failure": null,
+      "missing": [],
+      "fixture": {
+        "version": 1,
+        "profile": "mixed",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 4800,
+        "tracks": 9,
+        "speakers": 12,
+        "audioClips": 100,
+        "styledCues": 980,
+        "animatedCues": 1046,
+        "contentHash": "316279f3ffe90055f8f49a078700bef4406e5612598ba2aec3b60cf83affe6ec",
+        "destination": "s4",
+        "firstCue": "cue-0-main"
+      },
+      "integrity": {
+        "originalUnchanged": true,
+        "undoRestoredModel": true,
+        "speakerPaletteRestored": true,
+        "savedAndReopened": true
+      },
+      "startup": {
+        "serverReadyMs": 2577.447599999956,
+        "domContentLoadedMs": 15247.915500000003,
+        "editorReadyMs": 19048.18040000007,
+        "previewReadyMs": 45036.37730000005,
+        "reloadPreviewReadyMs": 21592.63839999982
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [6.7,13.4],
+          "feedbackMs": [87,134.2],
+          "settledMs": [97.8,142.9],
+          "longestTaskMs": [0,83],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [4.2,5.4],
+          "feedbackMs": [36.1,49.6],
+          "settledMs": [57,61.2],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [44.4,50.4],
+          "feedbackMs": [1318.2,1516.4],
+          "settledMs": [3771,3772.7],
+          "longestTaskMs": [1140,1151],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [5.5,10.1],
+          "feedbackMs": [39.7,40.7],
+          "settledMs": [54.6,71.8],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1251.5,1313.3],
+          "feedbackMs": [4486.9,4980.1],
+          "settledMs": [4760.2,5312.3],
+          "longestTaskMs": [2497,2814],
+          "calls": {
+            "fixedAcceptEdit": [2,2,362.6,395.5],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,88.1,105.6],
+            "fixedSyncUI": [1,1,93.2,106.6],
+            "applyCueListDisplaySettings": [1,1,39.6,41.9],
+            "renderAll": [1,1,713.4,752.7]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [945.8,987.6],
+          "feedbackMs": [1265.6,4518.4],
+          "settledMs": [1439.9,4810.3],
+          "longestTaskMs": [1027,2602],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,31.2,97.7],
+            "fixedSyncUI": [1,1,100.8,102.3],
+            "applyCueListDisplaySettings": [1,1,38.5,45.5],
+            "renderAll": [1,1,774.6,787.7],
+            "fixedAcceptEdit": [0,1,0,82]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1034.4,1075.5],
+          "feedbackMs": [1467.9,4360.9],
+          "settledMs": [1629.6,4704.3],
+          "longestTaskMs": [1119,2606],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,41.4,93.9],
+            "fixedSyncUI": [1,1,98.7,112.5],
+            "applyCueListDisplaySettings": [1,1,34.9,49.9],
+            "renderAll": [1,1,790,861.7],
+            "fixedAcceptEdit": [0,1,0,290.6]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [8.8,11.2],
+          "feedbackMs": [44.9,48.9],
+          "settledMs": [54.4,58.7],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1798.8,1817.3],
+          "feedbackMs": [2103.8,2188.2],
+          "settledMs": [2294,2362.7],
+          "longestTaskMs": [1816,1836],
+          "calls": {
+            "fixedAcceptEdit": [1,1,64.8,72.9],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,32.6,35.4],
+            "fixedSyncUI": [1,1,99.4,99.4],
+            "applyCueListDisplaySettings": [1,1,36.2,37.3],
+            "renderAll": [1,1,1053.3,1065.4]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1193.1,1337.2],
+          "feedbackMs": [4099.4,4633.3],
+          "settledMs": [4591.2,5079.7],
+          "longestTaskMs": [2076,2581],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [3,3,73.1,106.7],
+            "fixedSyncUI": [1,1,103.8,105.5],
+            "applyCueListDisplaySettings": [1,1,42.6,44.1],
+            "renderAll": [1,1,765.4,817.3],
+            "fixedAcceptEdit": [1,1,68.1,68.7]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1138.9,1285.1],
+          "feedbackMs": [1640.4,4646.4],
+          "settledMs": [1892.3,5180.6],
+          "longestTaskMs": [1336,2726],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,46.6,77.4],
+            "fixedSyncUI": [1,1,93,107.4],
+            "applyCueListDisplaySettings": [1,1,41.1,44.7],
+            "renderAll": [1,1,731.4,816.6],
+            "fixedAcceptEdit": [0,1,0,312.6]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [923.4,2282.7],
+          "feedbackMs": [1009,2515.6],
+          "settledMs": [1107.3,2752.9],
+          "longestTaskMs": [934,2297],
+          "calls": {
+            "fixedAcceptEdit": [1,1,25.8,71.3],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,10.8,38.8],
+            "fixedSyncUI": [1,1,29.5,98.1],
+            "applyCueListDisplaySettings": [1,1,18.5,67.1],
+            "renderAll": [1,1,243.5,779.2]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1843.8,1844.6],
+          "feedbackMs": [2106.9,2110.2],
+          "settledMs": [2292.1,2295.6],
+          "longestTaskMs": [1859,1860],
+          "calls": {
+            "fixedAcceptEdit": [2,2,481.7,499.9],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,60.1,70.5],
+            "fixedSyncUI": [1,1,96,106.1],
+            "applyCueListDisplaySettings": [1,1,39,40.3],
+            "renderAll": [1,1,1101,1115.7]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [2198.9,2253.2],
+          "feedbackMs": [4742.4,4893.1],
+          "settledMs": [5195.6,5356.3],
+          "longestTaskMs": [2217,2280],
+          "calls": {
+            "fixedContent": [1,1,243.2,247],
+            "fixedAcceptEdit": [4,4,776.9,784.8],
+            "syncProjectTimebaseAndBindingOffsets": [4,4,108.6,114.6],
+            "fixedSyncUI": [1,1,78.3,89.2],
+            "applyCueListDisplaySettings": [1,1,32.1,33.4],
+            "renderAll": [1,1,900.3,922.2]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [927.9,946.1],
+          "feedbackMs": [3687.9,5442.6],
+          "settledMs": [4392.4,6164.6],
+          "longestTaskMs": [2233,3670],
+          "calls": {
+            "fixedAcceptEdit": [3,3,755.5,926.1],
+            "snapshotSegments": [1,1,172.3,186.1],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,59.3,82.1]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [154.8,159.3],
+          "feedbackMs": [208.7,214.5],
+          "settledMs": [2178,4830.7],
+          "longestTaskMs": [229,1931],
+          "calls": {
+            "fixedAcceptEdit": [1,2,71.4,128.4],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,50.2]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [433.9,452],
+          "feedbackMs": [501.7,575.2],
+          "settledMs": [2940.9,3066.7],
+          "longestTaskMs": [450,468],
+          "calls": {
+            "fixedAcceptEdit": [1,1,73.6,86.2]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [131.3,153.5],
+          "feedbackMs": [187.1,217.9],
+          "settledMs": [4346.4,5565.3],
+          "longestTaskMs": [1801,2051],
+          "calls": {
+            "fixedAcceptEdit": [2,2,132.9,161.7],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,52.8,69.9]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1.5,1.6],
+          "feedbackMs": [78.7,87],
+          "settledMs": [255,258.5],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "drag-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [2265.2,2405.3],
+          "settledMs": [2315.4,2519.5],
+          "longestTaskMs": [770,877],
+          "calls": {
+            "beginCueDrag": [1,1,2,3.2],
+            "fixedAcceptEdit": [1,2,83.4,142],
+            "moveCueDrag": [12,12,347.8,360.2],
+            "fixedTimingCheckpoint": [1,1,9.2,10],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,27.8,28.7],
+            "fixedSyncUI": [1,1,93.3,97.7],
+            "applyCueListDisplaySettings": [1,1,1.6,1.7],
+            "renderAll": [1,1,578.7,630.8],
+            "endCueDrag": [1,1,746.3,827.7]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [2259.7,2321.4],
+          "settledMs": [2381.8,2446.5],
+          "longestTaskMs": [864,876],
+          "calls": {
+            "beginCueDrag": [1,1,6.3,7.7],
+            "fixedAcceptEdit": [1,1,72.2,74.7],
+            "moveCueDrag": [12,12,154.1,162.2],
+            "fixedTimingCheckpoint": [1,1,8.5,10.4],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,25.1,31.3],
+            "fixedSyncUI": [1,1,83.6,100.4],
+            "applyCueListDisplaySettings": [1,1,1.6,2],
+            "renderAll": [1,1,616.6,633.9],
+            "endCueDrag": [1,1,801.7,823.8]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [6228.9,6829.6],
+          "settledMs": [6365.6,6855.7],
+          "longestTaskMs": [1092,1145],
+          "calls": {
+            "beginCueDrag": [1,1,6.3,7.9],
+            "fixedAcceptEdit": [1,2,71.8,137.8],
+            "moveCueDrag": [12,12,3486.1,3730.1],
+            "fixedTimingCheckpoint": [1,1,13.6,15.1],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,25.2,32.7],
+            "fixedSyncUI": [1,1,90.2,102.3],
+            "applyCueListDisplaySettings": [1,1,1.7,1.8],
+            "renderAll": [1,1,726.4,778.6],
+            "endCueDrag": [1,1,1027.3,1085.6]
+          }
+        },
+        "save-changed": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [0,0],
+          "feedbackMs": [3006.6,3283.2],
+          "settledMs": [9515.8,10104.1],
+          "longestTaskMs": [2432,2704],
+          "calls": {
+            "fixedAcceptEdit": [1,1,74.9,76.7],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,53.2,58.5]
+          }
+        },
+        "save-playhead": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [0,0.1],
+          "feedbackMs": [3236.8,3473],
+          "settledMs": [9882.4,10041],
+          "longestTaskMs": [2736,2910],
+          "calls": {
+            "fixedAcceptEdit": [1,1,92.2,132.6],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,56.3,56.6]
+          }
+        },
+        "save-unchanged": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [0,0.1],
+          "feedbackMs": [1971.9,2207.4],
+          "settledMs": [8411.9,9338.4],
+          "longestTaskMs": [1346,1593],
+          "calls": {}
+        },
+        "recovery-draft": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1251.5,1348.4],
+          "feedbackMs": [2132.9,2981.3],
+          "settledMs": [4956.5,11511.4],
+          "longestTaskMs": [1626,1719],
+          "calls": {}
+        },
+        "idle": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [0,0],
+          "feedbackMs": [36,39.3],
+          "settledMs": [6060.8,6074.4],
+          "longestTaskMs": [246,273],
+          "calls": {}
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 188355736,
+            "totalSize": 263307264,
+            "embedderHeapUsedSize": 72723144,
+            "backingStorageSize": 64745487
+          },
+          "heapAfterGC": {
+            "usedSize": 181853488,
+            "totalSize": 187113472,
+            "embedderHeapUsedSize": 72636928,
+            "backingStorageSize": 64681821
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 39343,
+            "jsEventListeners": 3544
+          }
+        },
+        {
+          "label": "after-editing",
+          "heapBeforeGC": {
+            "usedSize": 207686792,
+            "totalSize": 242601984,
+            "embedderHeapUsedSize": 74647224,
+            "backingStorageSize": 64660878
+          },
+          "heapAfterGC": {
+            "usedSize": 206932096,
+            "totalSize": 211460096,
+            "embedderHeapUsedSize": 73452216,
+            "backingStorageSize": 64660295
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 40177,
+            "jsEventListeners": 3701
+          }
+        },
+        {
+          "label": "reopened",
+          "heapBeforeGC": {
+            "usedSize": 279855896,
+            "totalSize": 350248960,
+            "embedderHeapUsedSize": 157794768,
+            "backingStorageSize": 71346149
+          },
+          "heapAfterGC": {
+            "usedSize": 181835644,
+            "totalSize": 188735488,
+            "embedderHeapUsedSize": 74006736,
+            "backingStorageSize": 67429188
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 39164,
+            "jsEventListeners": 3507
+          }
+        }
+      ],
+      "comparison": [
+        {
+          "name": "select",
+          "metric": "syncMs",
+          "before": 36,
+          "after": 6.7,
+          "deltaMs": -29.3,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "feedbackMs",
+          "before": 138.1,
+          "after": 87,
+          "deltaMs": -51.1,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "settledMs",
+          "before": 145.6,
+          "after": 97.8,
+          "deltaMs": -47.8,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "longestTaskMs",
+          "before": 64,
+          "after": 0,
+          "deltaMs": -64,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "syncMs",
+          "before": 4.7,
+          "after": 4.2,
+          "deltaMs": -0.5,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "feedbackMs",
+          "before": 51.1,
+          "after": 36.1,
+          "deltaMs": -15,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "settledMs",
+          "before": 59.9,
+          "after": 57,
+          "deltaMs": -2.9,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "seek-preview",
+          "metric": "syncMs",
+          "before": 9.7,
+          "after": 44.4,
+          "deltaMs": 34.7,
+          "regression": false
+        },
+        {
+          "name": "seek-preview",
+          "metric": "feedbackMs",
+          "before": 174.7,
+          "after": 1318.2,
+          "deltaMs": 1143.5,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "settledMs",
+          "before": 2799.6,
+          "after": 3771,
+          "deltaMs": 971.4,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "longestTaskMs",
+          "before": 533,
+          "after": 1140,
+          "deltaMs": 607,
+          "regression": true
+        },
+        {
+          "name": "copy-1",
+          "metric": "syncMs",
+          "before": 5.8,
+          "after": 5.5,
+          "deltaMs": -0.3,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "feedbackMs",
+          "before": 40.3,
+          "after": 39.7,
+          "deltaMs": -0.6,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "settledMs",
+          "before": 48,
+          "after": 54.6,
+          "deltaMs": 6.6,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "paste-1",
+          "metric": "syncMs",
+          "before": 1517.4,
+          "after": 1251.5,
+          "deltaMs": -265.9,
+          "regression": false
+        },
+        {
+          "name": "paste-1",
+          "metric": "feedbackMs",
+          "before": 1919.9,
+          "after": 4486.9,
+          "deltaMs": 2567,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "settledMs",
+          "before": 1931,
+          "after": 4760.2,
+          "deltaMs": 2829.2,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "longestTaskMs",
+          "before": 1620,
+          "after": 2497,
+          "deltaMs": 877,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "syncMs",
+          "before": 1148.4,
+          "after": 945.8,
+          "deltaMs": -202.6,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "feedbackMs",
+          "before": 1531.4,
+          "after": 1265.6,
+          "deltaMs": -265.8,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "settledMs",
+          "before": 1541,
+          "after": 1439.9,
+          "deltaMs": -101.1,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 1207,
+          "after": 1027,
+          "deltaMs": -180,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "syncMs",
+          "before": 1026.5,
+          "after": 1034.4,
+          "deltaMs": 7.9,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "feedbackMs",
+          "before": 1410.2,
+          "after": 1467.9,
+          "deltaMs": 57.7,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "settledMs",
+          "before": 1424.1,
+          "after": 1629.6,
+          "deltaMs": 205.5,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 1085,
+          "after": 1119,
+          "deltaMs": 34,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "syncMs",
+          "before": 14.2,
+          "after": 8.8,
+          "deltaMs": -5.4,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "feedbackMs",
+          "before": 48.2,
+          "after": 44.9,
+          "deltaMs": -3.3,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "settledMs",
+          "before": 58.8,
+          "after": 54.4,
+          "deltaMs": -4.4,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "syncMs",
+          "before": 3027,
+          "after": 1798.8,
+          "deltaMs": -1228.2,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "feedbackMs",
+          "before": 3874.3,
+          "after": 2103.8,
+          "deltaMs": -1770.5,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "settledMs",
+          "before": 3887.2,
+          "after": 2294,
+          "deltaMs": -1593.2,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "longestTaskMs",
+          "before": 3047,
+          "after": 1816,
+          "deltaMs": -1231,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "syncMs",
+          "before": 2298,
+          "after": 1193.1,
+          "deltaMs": -1104.9,
+          "regression": false
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "feedbackMs",
+          "before": 2843.6,
+          "after": 4099.4,
+          "deltaMs": 1255.8,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "settledMs",
+          "before": 2850.8,
+          "after": 4591.2,
+          "deltaMs": 1740.4,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 2364,
+          "after": 2076,
+          "deltaMs": -288,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "syncMs",
+          "before": 2479.5,
+          "after": 1138.9,
+          "deltaMs": -1340.6,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "feedbackMs",
+          "before": 3025.7,
+          "after": 1640.4,
+          "deltaMs": -1385.3,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "settledMs",
+          "before": 3039.7,
+          "after": 1892.3,
+          "deltaMs": -1147.4,
+          "regression": false
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 2582,
+          "after": 1336,
+          "deltaMs": -1246,
+          "regression": false
+        },
+        {
+          "name": "cut-pair",
+          "metric": "syncMs",
+          "before": 3071.1,
+          "after": 923.4,
+          "deltaMs": -2147.7,
+          "regression": false
+        },
+        {
+          "name": "cut-pair",
+          "metric": "feedbackMs",
+          "before": 4732.5,
+          "after": 1009,
+          "deltaMs": -3723.5,
+          "regression": false
+        },
+        {
+          "name": "cut-pair",
+          "metric": "settledMs",
+          "before": 5135.2,
+          "after": 1107.3,
+          "deltaMs": -4027.9,
+          "regression": false
+        },
+        {
+          "name": "cut-pair",
+          "metric": "longestTaskMs",
+          "before": 3219,
+          "after": 934,
+          "deltaMs": -2285,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "syncMs",
+          "before": 4626.7,
+          "after": 1843.8,
+          "deltaMs": -2782.9,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "feedbackMs",
+          "before": 9618.9,
+          "after": 2106.9,
+          "deltaMs": -7512,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "settledMs",
+          "before": 9976.9,
+          "after": 2292.1,
+          "deltaMs": -7684.8,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "longestTaskMs",
+          "before": 6499,
+          "after": 1859,
+          "deltaMs": -4640,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "syncMs",
+          "before": 3240.8,
+          "after": 2198.9,
+          "deltaMs": -1041.9,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "feedbackMs",
+          "before": 6328.2,
+          "after": 4742.4,
+          "deltaMs": -1585.8,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "settledMs",
+          "before": 6816.6,
+          "after": 5195.6,
+          "deltaMs": -1621,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "longestTaskMs",
+          "before": 3394,
+          "after": 2217,
+          "deltaMs": -1177,
+          "regression": false
+        },
+        {
+          "name": "text-preview",
+          "metric": "syncMs",
+          "before": 934.8,
+          "after": 927.9,
+          "deltaMs": -6.9,
+          "regression": false
+        },
+        {
+          "name": "text-preview",
+          "metric": "feedbackMs",
+          "before": 1060.2,
+          "after": 3687.9,
+          "deltaMs": 2627.7,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "settledMs",
+          "before": 5491.1,
+          "after": 4392.4,
+          "deltaMs": -1098.7,
+          "regression": false
+        },
+        {
+          "name": "text-preview",
+          "metric": "longestTaskMs",
+          "before": 2698,
+          "after": 2233,
+          "deltaMs": -465,
+          "regression": false
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "syncMs",
+          "before": 200.7,
+          "after": 154.8,
+          "deltaMs": -45.9,
+          "regression": false
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "feedbackMs",
+          "before": 304.3,
+          "after": 208.7,
+          "deltaMs": -95.6,
+          "regression": false
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "settledMs",
+          "before": 1828.5,
+          "after": 2178,
+          "deltaMs": 349.5,
+          "regression": false
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "longestTaskMs",
+          "before": 253,
+          "after": 229,
+          "deltaMs": -24,
+          "regression": false
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "syncMs",
+          "before": 527.7,
+          "after": 433.9,
+          "deltaMs": -93.8,
+          "regression": false
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "feedbackMs",
+          "before": 594.7,
+          "after": 501.7,
+          "deltaMs": -93,
+          "regression": false
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "settledMs",
+          "before": 4142.8,
+          "after": 2940.9,
+          "deltaMs": -1201.9,
+          "regression": false
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "longestTaskMs",
+          "before": 1023,
+          "after": 450,
+          "deltaMs": -573,
+          "regression": false
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "syncMs",
+          "before": 45.1,
+          "after": 131.3,
+          "deltaMs": 86.2,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "feedbackMs",
+          "before": 81.6,
+          "after": 187.1,
+          "deltaMs": 105.5,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "settledMs",
+          "before": 1273.3,
+          "after": 4346.4,
+          "deltaMs": 3073.1,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "longestTaskMs",
+          "before": 413,
+          "after": 1801,
+          "deltaMs": 1388,
+          "regression": true
+        },
+        {
+          "name": "search",
+          "metric": "syncMs",
+          "before": 2.4,
+          "after": 1.5,
+          "deltaMs": -0.9,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "feedbackMs",
+          "before": 56.4,
+          "after": 78.7,
+          "deltaMs": 22.3,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "settledMs",
+          "before": 296.1,
+          "after": 255,
+          "deltaMs": -41.1,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "longestTaskMs",
+          "before": 53,
+          "after": 0,
+          "deltaMs": -53,
+          "regression": false
+        },
+        {
+          "name": "drag-pair",
+          "metric": "feedbackMs",
+          "before": 3256.9,
+          "after": 2265.2,
+          "deltaMs": -991.7,
+          "regression": false
+        },
+        {
+          "name": "drag-pair",
+          "metric": "settledMs",
+          "before": 3261.6,
+          "after": 2315.4,
+          "deltaMs": -946.2,
+          "regression": false
+        },
+        {
+          "name": "drag-pair",
+          "metric": "longestTaskMs",
+          "before": 1498,
+          "after": 770,
+          "deltaMs": -728,
+          "regression": false
+        },
+        {
+          "name": "resize-pair",
+          "metric": "feedbackMs",
+          "before": 3047.2,
+          "after": 2259.7,
+          "deltaMs": -787.5,
+          "regression": false
+        },
+        {
+          "name": "resize-pair",
+          "metric": "settledMs",
+          "before": 3051.4,
+          "after": 2381.8,
+          "deltaMs": -669.6,
+          "regression": false
+        },
+        {
+          "name": "resize-pair",
+          "metric": "longestTaskMs",
+          "before": 1314,
+          "after": 864,
+          "deltaMs": -450,
+          "regression": false
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "feedbackMs",
+          "before": 7719.1,
+          "after": 6228.9,
+          "deltaMs": -1490.2,
+          "regression": false
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "settledMs",
+          "before": 7753.2,
+          "after": 6365.6,
+          "deltaMs": -1387.6,
+          "regression": false
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "longestTaskMs",
+          "before": 1692,
+          "after": 1092,
+          "deltaMs": -600,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "syncMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "feedbackMs",
+          "before": 3262.1,
+          "after": 3006.6,
+          "deltaMs": -255.5,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "settledMs",
+          "before": 10494.2,
+          "after": 9515.8,
+          "deltaMs": -978.4,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "longestTaskMs",
+          "before": 2610,
+          "after": 2432,
+          "deltaMs": -178,
+          "regression": false
+        },
+        {
+          "name": "save-playhead",
+          "metric": "syncMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "save-playhead",
+          "metric": "feedbackMs",
+          "before": 3439.5,
+          "after": 3236.8,
+          "deltaMs": -202.7,
+          "regression": false
+        },
+        {
+          "name": "save-playhead",
+          "metric": "settledMs",
+          "before": 10146.8,
+          "after": 9882.4,
+          "deltaMs": -264.4,
+          "regression": false
+        },
+        {
+          "name": "save-playhead",
+          "metric": "longestTaskMs",
+          "before": 2916,
+          "after": 2736,
+          "deltaMs": -180,
+          "regression": false
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "syncMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "feedbackMs",
+          "before": 888.1,
+          "after": 1971.9,
+          "deltaMs": 1083.8,
+          "regression": true
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "settledMs",
+          "before": 3569.6,
+          "after": 8411.9,
+          "deltaMs": 4842.3,
+          "regression": true
+        },
+        {
+          "name": "save-unchanged",
+          "metric": "longestTaskMs",
+          "before": 609,
+          "after": 1346,
+          "deltaMs": 737,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "syncMs",
+          "before": 523.6,
+          "after": 1251.5,
+          "deltaMs": 727.9,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "feedbackMs",
+          "before": 1022.1,
+          "after": 2132.9,
+          "deltaMs": 1110.8,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "settledMs",
+          "before": 2325.6,
+          "after": 4956.5,
+          "deltaMs": 2630.9,
+          "regression": true
+        },
+        {
+          "name": "recovery-draft",
+          "metric": "longestTaskMs",
+          "before": 713,
+          "after": 1626,
+          "deltaMs": 913,
+          "regression": true
+        },
+        {
+          "name": "idle",
+          "metric": "syncMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "idle",
+          "metric": "feedbackMs",
+          "before": 33.6,
+          "after": 36,
+          "deltaMs": 2.4,
+          "regression": false
+        },
+        {
+          "name": "idle",
+          "metric": "settledMs",
+          "before": 6052.7,
+          "after": 6060.8,
+          "deltaMs": 8.1,
+          "regression": false
+        },
+        {
+          "name": "idle",
+          "metric": "longestTaskMs",
+          "before": 123,
+          "after": 246,
+          "deltaMs": 123,
+          "regression": true
+        }
+      ]
+    },
+    {
+      "name": "migrated-10000",
+      "status": "failed",
+      "failure": "save-changed: Operation returned false",
+      "missing": [
+        "save-playhead",
+        "save-unchanged",
+        "recovery-draft",
+        "idle"
+      ],
+      "fixture": {
+        "version": 1,
+        "profile": "migrated",
+        "count": 10000,
+        "durationMs": 7200000,
+        "bindings": 5000,
+        "tracks": 4,
+        "speakers": 5,
+        "audioClips": 0,
+        "styledCues": 0,
+        "animatedCues": 0,
+        "contentHash": "cf63910b2c981f10791dea5433b5498e10408e10acb8d8c87f47aba55982556d",
+        "destination": "s2",
+        "firstCue": "cue-ff9d42d8de9f8883"
+      },
+      "integrity": null,
+      "startup": {
+        "serverReadyMs": 3183.2002000000793,
+        "domContentLoadedMs": 17010.37400000007,
+        "editorReadyMs": 21030.85770000005,
+        "previewReadyMs": 44101.75410000002
+      },
+      "operations": {
+        "select": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [6.9,7.2],
+          "feedbackMs": [82.3,100.8],
+          "settledMs": [90.9,109.1],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "context-menu": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [3.2,3.6],
+          "feedbackMs": [38.1,38.3],
+          "settledMs": [45.2,45.5],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "seek-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [32,37.4],
+          "feedbackMs": [789.9,858.7],
+          "settledMs": [1278.9,1423.7],
+          "longestTaskMs": [673,718],
+          "calls": {}
+        },
+        "copy-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [5.3,5.8],
+          "feedbackMs": [34.4,41.6],
+          "settledMs": [43.4,50.9],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [905.7,1024.4],
+          "feedbackMs": [4664.5,5146.8],
+          "settledMs": [5719.4,6894.6],
+          "longestTaskMs": [3037,3347],
+          "calls": {
+            "fixedAcceptEdit": [2,2,371.7,462.2],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,67.2,75.5],
+            "fixedSyncUI": [1,1,74.2,92.5],
+            "applyCueListDisplaySettings": [1,1,28.3,29.1],
+            "renderAll": [1,1,620.9,724.1]
+          }
+        },
+        "undo-paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [824.2,825.1],
+          "feedbackMs": [1104.6,1141.7],
+          "settledMs": [1279.5,1389.5],
+          "longestTaskMs": [858,873],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,1,23.4,24.9],
+            "fixedSyncUI": [1,1,84.5,85.4],
+            "applyCueListDisplaySettings": [1,1,44.9,45.7],
+            "renderAll": [1,1,682.1,694.3]
+          }
+        },
+        "redo-paste-1": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [760.6,772.6],
+          "feedbackMs": [4642.7,4764.3],
+          "settledMs": [7073.4,8028.7],
+          "longestTaskMs": [3201,3510],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [3,3,75.8,80.9],
+            "fixedSyncUI": [1,1,70.9,90.4],
+            "applyCueListDisplaySettings": [1,1,29.6,34.1],
+            "renderAll": [1,1,614.7,629.9],
+            "fixedAcceptEdit": [1,1,361.8,386.3]
+          }
+        },
+        "copy-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [9.3,10.7],
+          "feedbackMs": [46.5,47.6],
+          "settledMs": [56.2,62.1],
+          "longestTaskMs": [0,0],
+          "calls": {}
+        },
+        "paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1459.8,1656.7],
+          "feedbackMs": [2095.3,7354.1],
+          "settledMs": [6744.6,7973.5],
+          "longestTaskMs": [3294,3356],
+          "calls": {
+            "fixedAcceptEdit": [2,2,390.8,445.7],
+            "syncProjectTimebaseAndBindingOffsets": [3,3,65.7,83.1],
+            "fixedSyncUI": [1,1,69.4,78.3],
+            "applyCueListDisplaySettings": [1,1,31.8,48.2],
+            "renderAll": [1,1,998.4,1128.7]
+          }
+        },
+        "undo-paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1078.6,1128.4],
+          "feedbackMs": [1426.5,1859.6],
+          "settledMs": [2024.5,5719.5],
+          "longestTaskMs": [1132,2889],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,25.8,70.2],
+            "fixedSyncUI": [1,1,74.5,80.1],
+            "applyCueListDisplaySettings": [1,1,30.3,40.1],
+            "renderAll": [1,1,710.9,726],
+            "fixedAcceptEdit": [0,1,0,68.9]
+          }
+        },
+        "redo-paste-100": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1030.5,1157],
+          "feedbackMs": [1578.1,7086.6],
+          "settledMs": [1784.4,7719.1],
+          "longestTaskMs": [1231,3252],
+          "calls": {
+            "syncProjectTimebaseAndBindingOffsets": [1,3,22.4,66.3],
+            "fixedSyncUI": [1,1,72.9,82.9],
+            "applyCueListDisplaySettings": [1,1,34.1,38.3],
+            "renderAll": [1,1,641.2,749.8],
+            "fixedAcceptEdit": [0,1,0,346.3]
+          }
+        },
+        "cut-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [2615.8,2659.8],
+          "feedbackMs": [3100.4,4728.7],
+          "settledMs": [3112.1,5328.4],
+          "longestTaskMs": [2626,2669],
+          "calls": {
+            "fixedAcceptEdit": [1,1,74.8,75.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,1,28.7,36.4],
+            "fixedSyncUI": [1,1,61.1,68.2],
+            "applyCueListDisplaySettings": [1,1,34.2,38.2],
+            "renderAll": [1,1,601.8,653.9]
+          }
+        },
+        "split-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1784.6,2236],
+          "feedbackMs": [2334.5,4467],
+          "settledMs": [2643.7,5028],
+          "longestTaskMs": [1802,2252],
+          "calls": {
+            "fixedAcceptEdit": [2,2,494.1,620],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,54.6,83.1],
+            "fixedSyncUI": [1,1,60.6,118.1],
+            "applyCueListDisplaySettings": [1,1,37,55.2],
+            "renderAll": [1,1,1023,1363.2]
+          }
+        },
+        "merge-pairs": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [2336.2,2519.5],
+          "feedbackMs": [4833.4,6151.3],
+          "settledMs": [5301.4,6688.2],
+          "longestTaskMs": [2364,2822],
+          "calls": {
+            "fixedContent": [1,1,290.3,295],
+            "fixedAcceptEdit": [4,4,951.9,1105.4],
+            "syncProjectTimebaseAndBindingOffsets": [4,4,98.2,162.8],
+            "fixedSyncUI": [1,1,77.4,97.2],
+            "applyCueListDisplaySettings": [1,1,34.7,41.4],
+            "renderAll": [1,1,1053.6,1118.1]
+          }
+        },
+        "text-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [720.9,726.1],
+          "feedbackMs": [870.6,878.2],
+          "settledMs": [1778.4,4761.8],
+          "longestTaskMs": [727,2739],
+          "calls": {
+            "fixedAcceptEdit": [2,3,461.4,468.2],
+            "snapshotSegments": [1,1,224.6,243.1],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,55.6]
+          }
+        },
+        "cue-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [139,278.7],
+          "feedbackMs": [331.6,2560.9],
+          "settledMs": [3505,4269.8],
+          "longestTaskMs": [1143,1994],
+          "calls": {
+            "fixedAcceptEdit": [1,2,96.5,152.3],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,51.5]
+          }
+        },
+        "track-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [461.8,480],
+          "feedbackMs": [531.7,547.3],
+          "settledMs": [827.9,871.2],
+          "longestTaskMs": [476,494],
+          "calls": {
+            "fixedAcceptEdit": [1,1,77.4,81.9]
+          }
+        },
+        "speaker-style-preview": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [130.1,147.3],
+          "feedbackMs": [197.9,232.4],
+          "settledMs": [524,526.9],
+          "longestTaskMs": [166,186],
+          "calls": {
+            "fixedAcceptEdit": [1,1,86.8,90.5]
+          }
+        },
+        "search": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [1.4,1.4],
+          "feedbackMs": [85.1,89.8],
+          "settledMs": [267.1,3246.2],
+          "longestTaskMs": [0,2551],
+          "calls": {
+            "fixedAcceptEdit": [0,1,0,102.7],
+            "syncProjectTimebaseAndBindingOffsets": [0,2,0,61.9]
+          }
+        },
+        "drag-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [2446.7,5373.4],
+          "settledMs": [2556.8,5958.8],
+          "longestTaskMs": [822,2638],
+          "calls": {
+            "beginCueDrag": [1,1,1.4,1.4],
+            "fixedAcceptEdit": [1,2,83.4,406],
+            "moveCueDrag": [12,12,464.2,496.2],
+            "fixedTimingCheckpoint": [1,1,7.8,8],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,26.9,74.2],
+            "fixedSyncUI": [1,1,69.4,87],
+            "applyCueListDisplaySettings": [1,1,0.9,2.8],
+            "renderAll": [1,1,586.3,593.1],
+            "endCueDrag": [1,1,757.2,768]
+          }
+        },
+        "resize-pair": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [2302.1,5731.8],
+          "settledMs": [2440.5,7158.7],
+          "longestTaskMs": [854,2938],
+          "calls": {
+            "beginCueDrag": [1,1,5.6,6],
+            "fixedAcceptEdit": [1,2,91,454.5],
+            "moveCueDrag": [12,12,166.8,171.1],
+            "fixedTimingCheckpoint": [1,1,7.5,10.5],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,27.9,85.2],
+            "fixedSyncUI": [1,1,65.7,82.9],
+            "applyCueListDisplaySettings": [1,1,1.2,1.6],
+            "renderAll": [1,1,620.4,623.4],
+            "endCueDrag": [1,1,791,803.3]
+          }
+        },
+        "resize-100-pairs": {
+          "samples": 3,
+          "successful": 3,
+          "failed": 0,
+          "syncMs": [null,null],
+          "feedbackMs": [5862.5,9034.4],
+          "settledMs": [5973.5,9587.1],
+          "longestTaskMs": [912,2866],
+          "calls": {
+            "beginCueDrag": [1,1,4.6,5.8],
+            "fixedAcceptEdit": [1,2,72.8,404.5],
+            "moveCueDrag": [12,12,3418.9,3454.4],
+            "fixedTimingCheckpoint": [1,1,12.4,13.8],
+            "syncProjectTimebaseAndBindingOffsets": [1,3,24.9,97.8],
+            "fixedSyncUI": [1,1,84.8,90.6],
+            "applyCueListDisplaySettings": [1,1,1.1,1.7],
+            "renderAll": [1,1,622.5,694.7],
+            "endCueDrag": [1,1,852.9,917.8]
+          }
+        },
+        "save-changed": {
+          "samples": 2,
+          "successful": 1,
+          "failed": 1,
+          "syncMs": [0,0],
+          "feedbackMs": [3854.1,3854.1],
+          "settledMs": [12603.8,12603.8],
+          "longestTaskMs": [3063,3063],
+          "calls": {
+            "fixedAcceptEdit": [1,1,79.5,79.5],
+            "syncProjectTimebaseAndBindingOffsets": [2,2,51.7,51.7]
+          }
+        }
+      },
+      "memory": [
+        {
+          "label": "loaded",
+          "heapBeforeGC": {
+            "usedSize": 337684720,
+            "totalSize": 404176896,
+            "embedderHeapUsedSize": 116825840,
+            "backingStorageSize": 67468254
+          },
+          "heapAfterGC": {
+            "usedSize": 298354136,
+            "totalSize": 304201728,
+            "embedderHeapUsedSize": 70785576,
+            "backingStorageSize": 67288032
+          },
+          "dom": {
+            "documents": 5,
+            "nodes": 38260,
+            "jsEventListeners": 3301
+          }
+        }
+      ],
+      "comparison": [
+        {
+          "name": "select",
+          "metric": "syncMs",
+          "before": 13,
+          "after": 6.9,
+          "deltaMs": -6.1,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "feedbackMs",
+          "before": 47.5,
+          "after": 82.3,
+          "deltaMs": 34.8,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "settledMs",
+          "before": 51,
+          "after": 90.9,
+          "deltaMs": 39.9,
+          "regression": false
+        },
+        {
+          "name": "select",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "syncMs",
+          "before": 1.6,
+          "after": 3.2,
+          "deltaMs": 1.6,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "feedbackMs",
+          "before": 24,
+          "after": 38.1,
+          "deltaMs": 14.1,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "settledMs",
+          "before": 27.3,
+          "after": 45.2,
+          "deltaMs": 17.9,
+          "regression": false
+        },
+        {
+          "name": "context-menu",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "seek-preview",
+          "metric": "syncMs",
+          "before": 2.6,
+          "after": 32,
+          "deltaMs": 29.4,
+          "regression": false
+        },
+        {
+          "name": "seek-preview",
+          "metric": "feedbackMs",
+          "before": 25.2,
+          "after": 789.9,
+          "deltaMs": 764.7,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "settledMs",
+          "before": 304,
+          "after": 1278.9,
+          "deltaMs": 974.9,
+          "regression": true
+        },
+        {
+          "name": "seek-preview",
+          "metric": "longestTaskMs",
+          "before": 123,
+          "after": 673,
+          "deltaMs": 550,
+          "regression": true
+        },
+        {
+          "name": "copy-1",
+          "metric": "syncMs",
+          "before": 2.2,
+          "after": 5.3,
+          "deltaMs": 3.1,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "feedbackMs",
+          "before": 30.6,
+          "after": 34.4,
+          "deltaMs": 3.8,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "settledMs",
+          "before": 34,
+          "after": 43.4,
+          "deltaMs": 9.4,
+          "regression": false
+        },
+        {
+          "name": "copy-1",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "paste-1",
+          "metric": "syncMs",
+          "before": 338.9,
+          "after": 905.7,
+          "deltaMs": 566.8,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "feedbackMs",
+          "before": 412.4,
+          "after": 4664.5,
+          "deltaMs": 4252.1,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "settledMs",
+          "before": 415.7,
+          "after": 5719.4,
+          "deltaMs": 5303.7,
+          "regression": true
+        },
+        {
+          "name": "paste-1",
+          "metric": "longestTaskMs",
+          "before": 344,
+          "after": 3037,
+          "deltaMs": 2693,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "syncMs",
+          "before": 293.3,
+          "after": 824.2,
+          "deltaMs": 530.9,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "feedbackMs",
+          "before": 367.3,
+          "after": 1104.6,
+          "deltaMs": 737.3,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "settledMs",
+          "before": 382.6,
+          "after": 1279.5,
+          "deltaMs": 896.9,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 306,
+          "after": 858,
+          "deltaMs": 552,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "syncMs",
+          "before": 322.2,
+          "after": 760.6,
+          "deltaMs": 438.4,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "feedbackMs",
+          "before": 430.7,
+          "after": 4642.7,
+          "deltaMs": 4212,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "settledMs",
+          "before": 452.9,
+          "after": 7073.4,
+          "deltaMs": 6620.5,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-1",
+          "metric": "longestTaskMs",
+          "before": 347,
+          "after": 3201,
+          "deltaMs": 2854,
+          "regression": true
+        },
+        {
+          "name": "copy-100",
+          "metric": "syncMs",
+          "before": 3.4,
+          "after": 9.3,
+          "deltaMs": 5.9,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "feedbackMs",
+          "before": 27.6,
+          "after": 46.5,
+          "deltaMs": 18.9,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "settledMs",
+          "before": 32.2,
+          "after": 56.2,
+          "deltaMs": 24,
+          "regression": false
+        },
+        {
+          "name": "copy-100",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "syncMs",
+          "before": 1291.3,
+          "after": 1459.8,
+          "deltaMs": 168.5,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "feedbackMs",
+          "before": 3074.4,
+          "after": 2095.3,
+          "deltaMs": -979.1,
+          "regression": false
+        },
+        {
+          "name": "paste-100",
+          "metric": "settledMs",
+          "before": 3513.5,
+          "after": 6744.6,
+          "deltaMs": 3231.1,
+          "regression": true
+        },
+        {
+          "name": "paste-100",
+          "metric": "longestTaskMs",
+          "before": 1374,
+          "after": 3294,
+          "deltaMs": 1920,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "syncMs",
+          "before": 788.3,
+          "after": 1078.6,
+          "deltaMs": 290.3,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "feedbackMs",
+          "before": 896.1,
+          "after": 1426.5,
+          "deltaMs": 530.4,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "settledMs",
+          "before": 925.8,
+          "after": 2024.5,
+          "deltaMs": 1098.7,
+          "regression": true
+        },
+        {
+          "name": "undo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 821,
+          "after": 1132,
+          "deltaMs": 311,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "syncMs",
+          "before": 848.4,
+          "after": 1030.5,
+          "deltaMs": 182.1,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "feedbackMs",
+          "before": 993.5,
+          "after": 1578.1,
+          "deltaMs": 584.6,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "settledMs",
+          "before": 1012.1,
+          "after": 1784.4,
+          "deltaMs": 772.3,
+          "regression": true
+        },
+        {
+          "name": "redo-paste-100",
+          "metric": "longestTaskMs",
+          "before": 882,
+          "after": 1231,
+          "deltaMs": 349,
+          "regression": true
+        },
+        {
+          "name": "cut-pair",
+          "metric": "syncMs",
+          "before": 1111.9,
+          "after": 2615.8,
+          "deltaMs": 1503.9,
+          "regression": true
+        },
+        {
+          "name": "cut-pair",
+          "metric": "feedbackMs",
+          "before": 1280.6,
+          "after": 3100.4,
+          "deltaMs": 1819.8,
+          "regression": true
+        },
+        {
+          "name": "cut-pair",
+          "metric": "settledMs",
+          "before": 1293.3,
+          "after": 3112.1,
+          "deltaMs": 1818.8,
+          "regression": true
+        },
+        {
+          "name": "cut-pair",
+          "metric": "longestTaskMs",
+          "before": 1206,
+          "after": 2626,
+          "deltaMs": 1420,
+          "regression": true
+        },
+        {
+          "name": "split-pair",
+          "metric": "syncMs",
+          "before": 1662.9,
+          "after": 1784.6,
+          "deltaMs": 121.7,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "feedbackMs",
+          "before": 2428.3,
+          "after": 2334.5,
+          "deltaMs": -93.8,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "settledMs",
+          "before": 2467.1,
+          "after": 2643.7,
+          "deltaMs": 176.6,
+          "regression": false
+        },
+        {
+          "name": "split-pair",
+          "metric": "longestTaskMs",
+          "before": 2263,
+          "after": 1802,
+          "deltaMs": -461,
+          "regression": false
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "syncMs",
+          "before": 906.5,
+          "after": 2336.2,
+          "deltaMs": 1429.7,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "feedbackMs",
+          "before": 1113.6,
+          "after": 4833.4,
+          "deltaMs": 3719.8,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "settledMs",
+          "before": 1127.5,
+          "after": 5301.4,
+          "deltaMs": 4173.9,
+          "regression": true
+        },
+        {
+          "name": "merge-pairs",
+          "metric": "longestTaskMs",
+          "before": 1007,
+          "after": 2364,
+          "deltaMs": 1357,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "syncMs",
+          "before": 325.2,
+          "after": 720.9,
+          "deltaMs": 395.7,
+          "regression": true
+        },
+        {
+          "name": "text-preview",
+          "metric": "feedbackMs",
+          "before": 1957.7,
+          "after": 870.6,
+          "deltaMs": -1087.1,
+          "regression": false
+        },
+        {
+          "name": "text-preview",
+          "metric": "settledMs",
+          "before": 2413.7,
+          "after": 1778.4,
+          "deltaMs": -635.3,
+          "regression": false
+        },
+        {
+          "name": "text-preview",
+          "metric": "longestTaskMs",
+          "before": 1281,
+          "after": 727,
+          "deltaMs": -554,
+          "regression": false
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "syncMs",
+          "before": 67.7,
+          "after": 139,
+          "deltaMs": 71.3,
+          "regression": true
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "feedbackMs",
+          "before": 92,
+          "after": 331.6,
+          "deltaMs": 239.6,
+          "regression": true
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "settledMs",
+          "before": 395.6,
+          "after": 3505,
+          "deltaMs": 3109.4,
+          "regression": true
+        },
+        {
+          "name": "cue-style-preview",
+          "metric": "longestTaskMs",
+          "before": 79,
+          "after": 1143,
+          "deltaMs": 1064,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "syncMs",
+          "before": 171,
+          "after": 461.8,
+          "deltaMs": 290.8,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "feedbackMs",
+          "before": 197.9,
+          "after": 531.7,
+          "deltaMs": 333.8,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "settledMs",
+          "before": 480.8,
+          "after": 827.9,
+          "deltaMs": 347.1,
+          "regression": true
+        },
+        {
+          "name": "track-style-preview",
+          "metric": "longestTaskMs",
+          "before": 175,
+          "after": 476,
+          "deltaMs": 301,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "syncMs",
+          "before": 50,
+          "after": 130.1,
+          "deltaMs": 80.1,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "feedbackMs",
+          "before": 80.2,
+          "after": 197.9,
+          "deltaMs": 117.7,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "settledMs",
+          "before": 326.3,
+          "after": 524,
+          "deltaMs": 197.7,
+          "regression": true
+        },
+        {
+          "name": "speaker-style-preview",
+          "metric": "longestTaskMs",
+          "before": 77,
+          "after": 166,
+          "deltaMs": 89,
+          "regression": true
+        },
+        {
+          "name": "search",
+          "metric": "syncMs",
+          "before": 0.9,
+          "after": 1.4,
+          "deltaMs": 0.5,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "feedbackMs",
+          "before": 54,
+          "after": 85.1,
+          "deltaMs": 31.1,
+          "regression": false
+        },
+        {
+          "name": "search",
+          "metric": "settledMs",
+          "before": 215.8,
+          "after": 267.1,
+          "deltaMs": 51.3,
+          "regression": true
+        },
+        {
+          "name": "search",
+          "metric": "longestTaskMs",
+          "before": 0,
+          "after": 0,
+          "deltaMs": 0,
+          "regression": false
+        },
+        {
+          "name": "drag-pair",
+          "metric": "feedbackMs",
+          "before": 1050.3,
+          "after": 2446.7,
+          "deltaMs": 1396.4,
+          "regression": true
+        },
+        {
+          "name": "drag-pair",
+          "metric": "settledMs",
+          "before": 1051.9,
+          "after": 2556.8,
+          "deltaMs": 1504.9,
+          "regression": true
+        },
+        {
+          "name": "drag-pair",
+          "metric": "longestTaskMs",
+          "before": 429,
+          "after": 822,
+          "deltaMs": 393,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "feedbackMs",
+          "before": 1405.2,
+          "after": 2302.1,
+          "deltaMs": 896.9,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "settledMs",
+          "before": 1408.4,
+          "after": 2440.5,
+          "deltaMs": 1032.1,
+          "regression": true
+        },
+        {
+          "name": "resize-pair",
+          "metric": "longestTaskMs",
+          "before": 595,
+          "after": 854,
+          "deltaMs": 259,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "feedbackMs",
+          "before": 2983.5,
+          "after": 5862.5,
+          "deltaMs": 2879,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "settledMs",
+          "before": 2986,
+          "after": 5973.5,
+          "deltaMs": 2987.5,
+          "regression": true
+        },
+        {
+          "name": "resize-100-pairs",
+          "metric": "longestTaskMs",
+          "before": 538,
+          "after": 912,
+          "deltaMs": 374,
+          "regression": true
+        },
+        {
+          "name": "save-changed",
+          "metric": "syncMs",
+          "before": 0.1,
+          "after": 0,
+          "deltaMs": -0.1,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "feedbackMs",
+          "before": 1895.6,
+          "after": 3854.1,
+          "deltaMs": 1958.5,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "settledMs",
+          "before": 5035.9,
+          "after": 12603.8,
+          "deltaMs": 7567.9,
+          "regression": false
+        },
+        {
+          "name": "save-changed",
+          "metric": "longestTaskMs",
+          "before": 1468,
+          "after": 3063,
+          "deltaMs": 1595,
+          "regression": false
+        }
+      ]
+    }
+  ],
+  "modelProbes": {
+    "count": 10000,
+    "repeats": 3,
+    "cases": {
+      "preview-window-90s": {
+        "samples": [46.96629999997094,39.97979999985546,45.6042999997735],
+        "ms": {
+          "n": 3,
+          "median": 45.6042999997735,
+          "p95": null,
+          "max": 46.96629999997094
+        },
+        "outputCues": 126
+      },
+      "full-project-conversion": {
+        "samples": [419.35559999989346,400.1496999999508,378.36140000028536],
+        "ms": {
+          "n": 3,
+          "median": 400.1496999999508,
+          "p95": null,
+          "max": 419.35559999989346
+        },
+        "outputCues": 10000
+      },
+      "locks-none": {
+        "samples": [0.4484000001102686,0.006799999624490738,0.3601000001654029],
+        "ms": {
+          "n": 3,
+          "median": 0.3601000001654029,
+          "p95": null,
+          "max": 0.4484000001102686
+        }
+      },
+      "locks-half-project": {
+        "samples": [497.7092999997549,357.5128000001423,411.90540000004694],
+        "ms": {
+          "n": 3,
+          "median": 411.90540000004694,
+          "p95": null,
+          "max": 497.7092999997549
+        }
+      },
+      "preview-window-with-fixed-long-note": {
+        "samples": [227.5797999999486,218.04769999999553,271.1722999997437],
+        "ms": {
+          "n": 3,
+          "median": 227.5797999999486,
+          "p95": null,
+          "max": 271.1722999997437
+        },
+        "outputCues": 10000
+      }
+    }
+  },
+  "environment": {
+    "commit": "b9726c9c0cd0afeab4d344613a0f96541ff3f023",
+    "node": "v24.19.0",
+    "python": "Python 3.11.16",
+    "ffmpeg": "ffmpeg version 8.1.2-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "platform": "win32",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900H",
+    "cpuThreads": 20,
+    "memoryBytes": 34070192128,
+    "headless": true,
+    "harnessHash": "d92bbba6fc9d3e439ca70e9626c6f8c200220087597db840f0383d0bcfc03dbd",
+    "fontInventoryHash": "3ed3ffac30743741d9ec14cf79c8ea1f07f701ce72e61ae0363a7d5476bdb6b9",
+    "browser": "151.0.7922.34"
+  },
+  "config": {
+    "repeats": 3,
+    "warmup": 1,
+    "idleMs": 6000,
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "video": {
+      "width": 640,
+      "height": 360,
+      "fps": 2,
+      "durationMs": 7200000
+    }
+  },
+  "finalChecks": {
+    "bound": [
+      {
+        "mode": "previous",
+        "errors": [],
+        "httpErrors": [],
+        "operations": {
+          "seek": {
+            "samples": 5,
+            "successful": 5,
+            "failed": 0,
+            "syncMs": {
+              "n": 5,
+              "median": 6.3999999994412065,
+              "p95": null,
+              "max": 11.600000000558794
+            },
+            "feedbackMs": {
+              "n": 5,
+              "median": 153.8999999994412,
+              "p95": null,
+              "max": 2716
+            },
+            "settledMs": {
+              "n": 5,
+              "median": 692.2999999998137,
+              "p95": null,
+              "max": 3593
+            },
+            "longestTaskMs": {
+              "n": 5,
+              "median": 276,
+              "p95": null,
+              "max": 2253
+            },
+            "blockedMs": {
+              "n": 5,
+              "median": 428,
+              "p95": null,
+              "max": 2580
+            },
+            "frameGapMs": {
+              "n": 109,
+              "median": 16.700000000000728,
+              "p95": 233.3000000000029,
+              "max": 2583.100000000002
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 5,
+                  "median": 0,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 0,
+                  "p95": null,
+                  "max": 58.799999999813735
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 5,
+                  "median": 0,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 0,
+                  "p95": null,
+                  "max": 33.90000000130385
+                }
+              }
+            }
+          },
+          "text": {
+            "samples": 5,
+            "successful": 5,
+            "failed": 0,
+            "syncMs": {
+              "n": 5,
+              "median": 674.5999999996275,
+              "p95": null,
+              "max": 847.7000000001863
+            },
+            "feedbackMs": {
+              "n": 5,
+              "median": 1013,
+              "p95": null,
+              "max": 3648.899999999441
+            },
+            "settledMs": {
+              "n": 5,
+              "median": 1689.0999999996275,
+              "p95": null,
+              "max": 4595
+            },
+            "longestTaskMs": {
+              "n": 5,
+              "median": 756,
+              "p95": null,
+              "max": 2426
+            },
+            "blockedMs": {
+              "n": 5,
+              "median": 1509,
+              "p95": null,
+              "max": 3548
+            },
+            "frameGapMs": {
+              "n": 92,
+              "median": 16.69999999999709,
+              "p95": 700,
+              "max": 2783.300000000003
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 5,
+                  "median": 2,
+                  "p95": null,
+                  "max": 3
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 387.20000000018626,
+                  "p95": null,
+                  "max": 460.1000000005588
+                }
+              },
+              "snapshotSegments": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 166.3999999994412,
+                  "p95": null,
+                  "max": 204.90000000037253
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 5,
+                  "median": 0,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 0,
+                  "p95": null,
+                  "max": 50.80000000074506
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "mode": "current",
+        "errors": [],
+        "httpErrors": [],
+        "operations": {
+          "seek": {
+            "samples": 5,
+            "successful": 5,
+            "failed": 0,
+            "syncMs": {
+              "n": 5,
+              "median": 3.800000000745058,
+              "p95": null,
+              "max": 5
+            },
+            "feedbackMs": {
+              "n": 5,
+              "median": 153.6000000005588,
+              "p95": null,
+              "max": 184.79999999981374
+            },
+            "settledMs": {
+              "n": 5,
+              "median": 961.2000000001863,
+              "p95": null,
+              "max": 1077.7999999998137
+            },
+            "longestTaskMs": {
+              "n": 5,
+              "median": 234,
+              "p95": null,
+              "max": 269
+            },
+            "blockedMs": {
+              "n": 5,
+              "median": 512,
+              "p95": null,
+              "max": 943
+            },
+            "frameGapMs": {
+              "n": 93,
+              "median": 16.700000000000728,
+              "p95": 216.70000000000073,
+              "max": 233.40000000000146
+            },
+            "calls": {}
+          },
+          "text": {
+            "samples": 5,
+            "successful": 5,
+            "failed": 0,
+            "syncMs": {
+              "n": 5,
+              "median": 563.6000000005588,
+              "p95": null,
+              "max": 626.4000000003725
+            },
+            "feedbackMs": {
+              "n": 5,
+              "median": 736,
+              "p95": null,
+              "max": 3642.0999999996275
+            },
+            "settledMs": {
+              "n": 5,
+              "median": 3778.2999999998137,
+              "p95": null,
+              "max": 4078.2000000001863
+            },
+            "longestTaskMs": {
+              "n": 5,
+              "median": 2110,
+              "p95": null,
+              "max": 2582
+            },
+            "blockedMs": {
+              "n": 5,
+              "median": 3154,
+              "p95": null,
+              "max": 3598
+            },
+            "frameGapMs": {
+              "n": 76,
+              "median": 16.700000000004366,
+              "p95": 599.9100000000035,
+              "max": 2883.2000000000007
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 5,
+                  "median": 3,
+                  "p95": null,
+                  "max": 3
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 343.40000000037253,
+                  "p95": null,
+                  "max": 465.59999999869615
+                }
+              },
+              "snapshotSegments": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 129.40000000037253,
+                  "p95": null,
+                  "max": 169.70000000018626
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 5,
+                  "median": 2,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 22.700000000186265,
+                  "p95": null,
+                  "max": 44.40000000037253
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "migrated": [
+      {
+        "mode": "previous",
+        "errors": [],
+        "httpErrors": [],
+        "operations": {
+          "paste": {
+            "samples": 5,
+            "successful": 5,
+            "failed": 0,
+            "syncMs": {
+              "n": 5,
+              "median": 1135.5999999996275,
+              "p95": null,
+              "max": 1320.8999999994412
+            },
+            "feedbackMs": {
+              "n": 5,
+              "median": 1441.199999999255,
+              "p95": null,
+              "max": 1632.8999999994412
+            },
+            "settledMs": {
+              "n": 5,
+              "median": 1496.5,
+              "p95": null,
+              "max": 1667.7999999998137
+            },
+            "longestTaskMs": {
+              "n": 5,
+              "median": 1165,
+              "p95": null,
+              "max": 1345
+            },
+            "blockedMs": {
+              "n": 5,
+              "median": 1371,
+              "p95": null,
+              "max": 1565
+            },
+            "frameGapMs": {
+              "n": 30,
+              "median": 33.39999999999782,
+              "p95": 1133.2119999999995,
+              "max": 1483.2999999999956
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 79.1000000005588,
+                  "p95": null,
+                  "max": 89.3999999994412
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 24.299999999813735,
+                  "p95": null,
+                  "max": 28.90000000037253
+                }
+              },
+              "fixedSyncUI": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 84.59999999962747,
+                  "p95": null,
+                  "max": 92.1000000005588
+                }
+              },
+              "applyCueListDisplaySettings": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 43.09999999962747,
+                  "p95": null,
+                  "max": 66.1000000005588
+                }
+              },
+              "renderAll": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 805.6000000005588,
+                  "p95": null,
+                  "max": 952
+                }
+              }
+            }
+          },
+          "cut": {
+            "samples": 5,
+            "successful": 5,
+            "failed": 0,
+            "syncMs": {
+              "n": 5,
+              "median": 2811.2000000001863,
+              "p95": null,
+              "max": 3211.5
+            },
+            "feedbackMs": {
+              "n": 5,
+              "median": 3472.5,
+              "p95": null,
+              "max": 6732.799999999814
+            },
+            "settledMs": {
+              "n": 5,
+              "median": 3534.2999999998137,
+              "p95": null,
+              "max": 7419
+            },
+            "longestTaskMs": {
+              "n": 5,
+              "median": 3123,
+              "p95": null,
+              "max": 3519
+            },
+            "blockedMs": {
+              "n": 5,
+              "median": 3423,
+              "p95": null,
+              "max": 6962
+            },
+            "frameGapMs": {
+              "n": 51,
+              "median": 16.69999999999709,
+              "p95": 3166.600000000006,
+              "max": 3416.5
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 80.79999999981374,
+                  "p95": null,
+                  "max": 139.79999999981374
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 3
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 26.199999999254942,
+                  "p95": null,
+                  "max": 75.29999999981374
+                }
+              },
+              "fixedSyncUI": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 79.79999999981374,
+                  "p95": null,
+                  "max": 100.70000000018626
+                }
+              },
+              "applyCueListDisplaySettings": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 61,
+                  "p95": null,
+                  "max": 66.70000000018626
+                }
+              },
+              "renderAll": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 766.2999999998137,
+                  "p95": null,
+                  "max": 816.4000000003725
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "mode": "current",
+        "errors": [],
+        "httpErrors": [],
+        "operations": {
+          "paste": {
+            "samples": 5,
+            "successful": 5,
+            "failed": 0,
+            "syncMs": {
+              "n": 5,
+              "median": 779.8000000007451,
+              "p95": null,
+              "max": 794.0999999996275
+            },
+            "feedbackMs": {
+              "n": 5,
+              "median": 987.0999999996275,
+              "p95": null,
+              "max": 4497.200000000186
+            },
+            "settledMs": {
+              "n": 5,
+              "median": 1167.4000000003725,
+              "p95": null,
+              "max": 5110.5
+            },
+            "longestTaskMs": {
+              "n": 5,
+              "median": 795,
+              "p95": null,
+              "max": 2975
+            },
+            "blockedMs": {
+              "n": 5,
+              "median": 998,
+              "p95": null,
+              "max": 4780
+            },
+            "frameGapMs": {
+              "n": 68,
+              "median": 16.69999999999891,
+              "p95": 850,
+              "max": 3483.199999999997
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 80.20000000018626,
+                  "p95": null,
+                  "max": 459.20000000018626
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 3
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 23.100000000558794,
+                  "p95": null,
+                  "max": 66.20000000018626
+                }
+              },
+              "fixedSyncUI": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 61,
+                  "p95": null,
+                  "max": 67.6000000005588
+                }
+              },
+              "applyCueListDisplaySettings": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 23,
+                  "p95": null,
+                  "max": 23.5
+                }
+              },
+              "renderAll": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 517.9000000003725,
+                  "p95": null,
+                  "max": 531.6000000005588
+                }
+              }
+            }
+          },
+          "cut": {
+            "samples": 5,
+            "successful": 5,
+            "failed": 0,
+            "syncMs": {
+              "n": 5,
+              "median": 2387.5999999996275,
+              "p95": null,
+              "max": 2531.9000000003725
+            },
+            "feedbackMs": {
+              "n": 5,
+              "median": 2569.2000000001863,
+              "p95": null,
+              "max": 5833.699999999255
+            },
+            "settledMs": {
+              "n": 5,
+              "median": 2702.7999999998137,
+              "p95": null,
+              "max": 6368.0999999996275
+            },
+            "longestTaskMs": {
+              "n": 5,
+              "median": 2394,
+              "p95": null,
+              "max": 2687
+            },
+            "blockedMs": {
+              "n": 5,
+              "median": 2575,
+              "p95": null,
+              "max": 5729
+            },
+            "frameGapMs": {
+              "n": 60,
+              "median": 16.69999999999709,
+              "p95": 1920.6199999998207,
+              "max": 3149.9000000000087
+            },
+            "calls": {
+              "fixedAcceptEdit": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 2
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 79.6000000005588,
+                  "p95": null,
+                  "max": 151.80000000074506
+                }
+              },
+              "syncProjectTimebaseAndBindingOffsets": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 3
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 26.299999999813735,
+                  "p95": null,
+                  "max": 67.79999999981374
+                }
+              },
+              "fixedSyncUI": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 68.79999999981374,
+                  "p95": null,
+                  "max": 72.29999999981374
+                }
+              },
+              "applyCueListDisplaySettings": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 29.90000000037253,
+                  "p95": null,
+                  "max": 36.299999999813735
+                }
+              },
+              "renderAll": {
+                "count": {
+                  "n": 5,
+                  "median": 1,
+                  "p95": null,
+                  "max": 1
+                },
+                "ms": {
+                  "n": 5,
+                  "median": 510.59999999962747,
+                  "p95": null,
+                  "max": 553.2999999998137
+                }
+              }
+            }
+          }
+        },
+        "saves": [
+          {
+            "status": "ok",
+            "error": null,
+            "retry": false,
+            "settledMs": 11465.8
+          },
+          {
+            "status": "ok",
+            "error": null,
+            "retry": false,
+            "settledMs": 10182
+          },
+          {
+            "status": "ok",
+            "error": null,
+            "retry": false,
+            "settledMs": 12681.6
+          },
+          {
+            "status": "ok",
+            "error": null,
+            "retry": false,
+            "settledMs": 13084.7
+          },
+          {
+            "status": "ok",
+            "error": null,
+            "retry": false,
+            "settledMs": 11550.3
+          }
+        ],
+        "reopenVerified": true
+      }
+    ]
+  }
+}

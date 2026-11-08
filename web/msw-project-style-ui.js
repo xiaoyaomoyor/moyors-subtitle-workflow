@@ -820,7 +820,7 @@
     // A hidden dock follows selection when reopened; do not build its forms,
     // animation graphs or full-project preview geometry for a context menu.
     if(!propertiesVisible()&&!fixedPositionEditing)return;
-    const key=selectionKey();if(key!==lastSelectionKey){lastSelectionKey=key;cancelAction();rebuild();sync();}else syncPosition();
+    const key=selectionKey();if(key!==lastSelectionKey||subtitleUiDirty){subtitleUiDirty=false;lastSelectionKey=key;cancelAction();rebuild();sync();}else syncPosition();
   },syncPosition,previewLibrary:()=>S.toLibrary(currentPreview().style),
     applyExport:project=>{
       project.preview||={};project.preview.speaker_label_export=$('video-export-speaker-labels').checked;
@@ -864,7 +864,12 @@
   global.addEventListener('msw:project-changed',()=>{cancelAction();override=null;role='main';editScope='cue';speakerId='';fixedPositionScope='cue';lastSelectionKey='';lastCueSelection='';cueRoleSelection='';positionDrafts.clear();void initialize();});
   global.addEventListener('msw:speakers-changed',()=>{if(ready){rebuild();sync();refresh();}});
   global.addEventListener('msw:burn-style',()=>{if(ready){rebuild();sync();if(override)syncExport();else refresh();}});
-  global.addEventListener('msw:subtitles-changed',()=>{if(ready){if(fixedTrackMode())rebuild();sync();}});
+  let subtitleUiFrame=0,subtitleUiDirty=false;
+  global.addEventListener('msw:subtitles-changed',()=>{
+    subtitleUiDirty=true;
+    if(!ready||!propertiesVisible()||subtitleUiFrame)return;
+    subtitleUiFrame=requestAnimationFrame(()=>{subtitleUiFrame=0;if(!ready||!propertiesVisible())return;subtitleUiDirty=false;if(fixedTrackMode())rebuild();sync();});
+  });
   global.addEventListener('msw:media-changed',()=>{if(ready){sync();refresh();}});
   void initialize();
 })(window);

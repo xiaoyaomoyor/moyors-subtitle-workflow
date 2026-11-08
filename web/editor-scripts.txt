@@ -37,6 +37,7 @@ msw-subtitle-tracks-editor.js
 msw-subtitle-layers-editor.js
 msw-track-preview.js
 msw-settings-windows.js
+msw-cue-list-view.js
 editor.js
 msw-media.js
 msw-media-analysis.js

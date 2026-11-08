@@ -75,11 +75,12 @@
     }
     return next;
   }
-  function changedCues(patch) {
+  function changedCues(patch,{visual=false}={}) {
     const ids=new Set();
     function visit(node,key='') {
       if(!node)return;
-      if(key==='segments'&&node.kind==='rows')for(const [id] of node.entries)ids.add(id);
+      if(key==='segments'&&node.kind==='rows')for(const [id,change] of node.entries)
+        if(!visual||change.kind!=='object'||change.entries.some(([field])=>field!=='_dirty'))ids.add(id);
       if(key==='assignments'&&node.kind==='rows')for(const [id] of node.entries)ids.add(JSON.parse(id)[2]);
       if(['main_segment_ids','extension_segment_ids'].includes(key)&&node.kind==='value')
         for(const id of [...(node.before||[]),...(node.after||[])])ids.add(id);
@@ -97,7 +98,8 @@
     if(multi?.entries?.some(([k])=>!['tracks','bindings','_dirty'].includes(k)))return null;
     const sources=multi?.entries?.find(([k])=>k==='tracks')?.[1];
     if(sources?.order||sources?.entries?.some(([,row])=>row.kind!=='object'||row.entries.some(([k])=>!['segments','_dirty'].includes(k))))return null;
-    const ids=changedCues(patch);return ids.size?ids:null;
+    const ids=changedCues(patch,{visual:true});
+    return ids.size?ids:changedCues(patch).size?new Set():null;
   }
   const api={equal,diff,apply,changedCues,renderChanges};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;

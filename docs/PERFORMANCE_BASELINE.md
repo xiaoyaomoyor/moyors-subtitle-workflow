@@ -86,4 +86,4 @@ node scripts/benchmark_editor.mjs --compare output/performance/before/bound-1000
 
 本工具尚不覆盖长时间播放、数小时反复编辑泄漏、真实高分辨率视频解码、完整视频烧录速度、所有字体与全部历史工程。这些属于后续专项及第六阶段，不能由本次合成基线替代。
 
-阶段结果及尚未解决的问题见 [第一阶段账本](TEST_FEEDBACK_PERFORMANCE_BASELINE_20261107.md)；事务与索引的实现、回归及性能对照见 [第二阶段账本](TEST_FEEDBACK_EDIT_TRANSACTIONS_20261107.md)。
+阶段结果及尚未解决的问题见 [第一阶段账本](TEST_FEEDBACK_PERFORMANCE_BASELINE_20261107.md)；事务与索引的实现、回归及性能对照见 [第二阶段账本](TEST_FEEDBACK_EDIT_TRANSACTIONS_20261107.md)；界面增量刷新及按需卡片见 [第三阶段账本](TEST_FEEDBACK_INCREMENTAL_UI_20261108.md)。

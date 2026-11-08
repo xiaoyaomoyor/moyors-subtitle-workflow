@@ -86,3 +86,11 @@ test('ten thousand rows store changed content rather than complete subtitle snap
   assert.ok(JSON.stringify(patch).length<1000);
   assert.deepEqual(tx.apply(tx.apply(before,patch),patch,false),before);
 });
+
+test('dirty-only changes survive history without requesting full card rebuilds',()=>{
+  const before={segments:[{id:'a',text:'one'},{id:'b',text:'two'}]};
+  const after=structuredClone(before);after.segments.forEach(c=>c._dirty=true);after.segments[0].text='changed';
+  const patch=tx.diff(before,after);
+  assert.deepEqual([...tx.renderChanges(patch)],['a']);
+  assert.deepEqual(tx.apply(before,patch),after);assert.deepEqual(tx.apply(after,patch,false),before);
+});

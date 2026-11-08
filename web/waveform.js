@@ -5166,7 +5166,7 @@
       this.positionPlayheads();
     }
 
-    refreshCueOverlay() {
+    refreshCueOverlay({changedCueIds=null}={}) {
       this.invalidateSubtitleLayouts(); this.layerPlaybackKey = null;
       if (this.subtitleLayersEnabled()) {
         const row = this.content.querySelector('.waveform-row');
@@ -5178,7 +5178,17 @@
       }
       const rows = [...this.content.querySelectorAll('.waveform-row')];
       if (!rows.length) return;
+      const sources=changedCueIds?new Map(['main','extension','overlay'].map(role=>[role,this.options.getSegments(role)||[]])):null;
+      const changed=sources?[...sources.values()].flatMap(cues=>cues.filter(cue=>changedCueIds.has(cue.id))):null;
       rows.forEach((row) => {
+        if(changed){
+          const start=Number(row.dataset.startMs),end=Number(row.dataset.endMs);
+          const stale=[...row.querySelectorAll('.waveform-cue-block')].some(block=>{
+            const role=block.dataset.track||'main',index=Number(block.dataset.extIdx??block.dataset.overlayIdx??block.dataset.idx);
+            return changedCueIds.has(block.dataset.cueId)||sources.get(role)?.[index]?.id!==block.dataset.cueId;
+          });
+          if(!stale&&!changed.some(cue=>cue.start<end&&cue.end>start))return;
+        }
         // 绑定、解绑和字幕时间变化只影响覆盖层；保留已有行与 Canvas，
         // 避免重新采样/绘制波形导致操作出现一帧卡顿。
         row.querySelectorAll('.waveform-cue-block')
