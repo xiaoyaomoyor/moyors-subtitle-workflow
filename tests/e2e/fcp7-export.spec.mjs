@@ -173,6 +173,15 @@ test('emits GraphicAndType text clips when native text is enabled', async ({ pag
   const saves = await page.evaluate(() => window.__exportSaves);
   expect((saves[0].content.match(/<clipitem id="text-main-/g) || []).length).toBe(3);
   expect((saves[0].content.match(/<effectid>GraphicAndType<\/effectid>/g) || []).length).toBe(3);
+  const payloads = [...saves[0].content.matchAll(/<effectid>GraphicAndType<\/effectid>[\s\S]*?<parameterid>1<\/parameterid>[\s\S]*?<value>([^<]+)<\/value>/g)]
+    .map(match => JSON.parse(Buffer.from(match[1], 'base64').subarray(8).toString('utf16le')));
+  expect(payloads).toHaveLength(3);
+  for (const payload of payloads) {
+    expect(Object.keys(payload)).toEqual(['mTextParam', 'mVersion']);
+    expect(payload.mTextParam.mStyleSheet.mUnderline).toBeUndefined();
+    expect(payload.mTextParam.mStyleSheet.mFontName.mParamValues[0][1]).toBeTruthy();
+    expect(payload.mTextParam.mStyleSheet.mFontSize.mParamValues[0][1]).toBe(60);
+  }
   expect(saves[0].content).not.toContain('<generatoritem>');
   // 上一用例的面板编辑会被服务器自动保存，文本以当前工程状态为准。
   expect(saves[0].content).toMatch(/<value>[A-Za-z0-9+/=]+<\/value>/);

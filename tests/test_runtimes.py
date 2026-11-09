@@ -381,6 +381,20 @@ class SourceModeInstallTests(unittest.TestCase):
 
 
 class RuntimeStatusTransitionTests(unittest.TestCase):
+    def test_local_v7_requires_repair_and_keeps_downloaded_models(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root, cache = Path(temp_dir) / "runtime", Path(temp_dir) / "models"
+            cache.mkdir()
+            model = cache / "fixture.onnx"
+            model.write_bytes(b"existing model")
+            write_runtime_manifest(root, status=STATUS_READY, runtime_version="7", python_version="3.11")
+            with mock.patch.object(LOCAL, "package_dirs_ok", return_value=True):
+                status = LOCAL.status(runtime_root=root, model_cache_root=cache)
+            self.assertFalse(status.ready)
+            self.assertEqual(status.status, "broken")
+            self.assertIn("修复", status.detail)
+            self.assertEqual(model.read_bytes(), b"existing model")
+
     def test_installing_manifest_is_reported_installing_not_broken(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "local-runtime"
@@ -595,6 +609,31 @@ class AutoFreezeRequirementsTests(unittest.TestCase):
         build.mkdir(parents=True)
         self.addCleanup(lambda: shutil.rmtree(build.parent, ignore_errors=True))
         return build
+
+    def test_local_list_without_core_is_refrozen_and_keeps_core_in_cpu_input(self) -> None:
+        build = self._temp_build_dir()
+        shutil.copyfile(Path(__file__).resolve().parents[1] / "pyproject.toml", build.parent / "pyproject.toml")
+        names = base_mod.freezer.declared_direct_names(LOCAL_SPEC, build)
+        self.assertIn("sherpa-onnx-core", names)
+        complete = "\n".join(f"{name}==1.13.8" for name in sorted(names)) + "\n"
+        target = build / LOCAL_SPEC.requirements_bundle_name
+        target.write_text(complete.replace("sherpa-onnx-core==1.13.8\n", ""), encoding="utf-8")
+        calls = []
+
+        def freeze(command, **_kwargs):
+            calls.append(command)
+            target.write_text(complete, encoding="utf-8")
+            return 0
+
+        with mock.patch.object(base_mod, "_build_dir", return_value=build), \
+                mock.patch.object(base_mod, "_run_process", side_effect=freeze):
+            LOCAL._ensure_frozen_requirements(Path("uv"), cpu=False, emit=lambda *args: None, cancel=Event())
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1:3], ["export", "--frozen"])
+        pins = base_mod.freezer.direct_pins_from_export(target.read_text(encoding="utf-8"), direct_names=names)
+        cpu_input = base_mod.freezer.cpu_input_text("\n".join(pins))
+        self.assertIn("sherpa-onnx-core==1.13.8", cpu_input)
+        self.assertFalse(base_mod.freezer.requirements_stale(LOCAL_SPEC, build, cpu=False))
 
     def test_freeze_commands_mirror_build_pipeline(self) -> None:
         uv = Path("C:/tools/uv.exe")

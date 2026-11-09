@@ -5695,6 +5695,8 @@
   }
 
   function encodeGraphicAndTypeText(text, fontFamily = 'FangSong', fontSize = FCP7_TEXT_FONT_SIZE_2160P) {
+    // Match Premiere's native single-style payload. Extra style fields such as
+    // mUnderline make Premiere discard the sheet, reverting the font and size.
     const payload = {
       mTextParam: {
         // 段落对齐：实测 0=左对齐、1=右对齐、2=居中（PR 实机反馈校准）。
@@ -5745,7 +5747,6 @@
           mText: String(text ?? ''),
           mTracking: { mParamValues: [[0, 0]] },
           mTsumi: { mParamValues: [[0, 0]] },
-          mUnderline: { mParamValues: [[0, false]] },
         },
         mTabWidth: 400,
         mWidth: 0,

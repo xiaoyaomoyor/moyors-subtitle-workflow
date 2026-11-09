@@ -3975,6 +3975,36 @@ test('encodes native GraphicAndType text as Premiere UTF-16LE payload', () => {
   assert.equal(payload.mTextParam.mAlignment, 2);
   assert.equal(payload.mTextParam.mStyleSheet.mFontSize.mParamValues[0][1], 60);
   assert.equal(payload.mVersion, 1);
+  assert.deepEqual(Object.keys(payload), ['mTextParam', 'mVersion']);
+  assert.equal(payload.mTextParam.mStyleSheet.mUnderline, undefined);
+});
+
+test('Premiere native text preserves font, scaled size and multilingual tracks without unsupported style fields', () => {
+  for (const [font, height, expectedSize] of [['Microsoft YaHei', 1080, 60], ['Noto Sans CJK SC', 2160, 120]]) {
+    const project = {
+      media: {path: 'fixture.mp4', type: 'video', durationMs: 2000},
+      media_metadata: {video_width: height * 16 / 9, video_height: height},
+      preview: {subtitle: {font_family: font}},
+      segments: [{start: 100, end: 800, text: 'English & 中文\n第二行 😻'},
+        {start: 900, end: 1200, text: 'Disabled text', disabled: true}],
+      multi_subtitle: {enabled: true, tracks: [{segments: [{start: 100, end: 800, text: '副字幕 <test>'}]}]},
+    };
+    const before = JSON.stringify(project);
+    const plan = helpers.buildProjectExportPlan(project, {mode: 'source', fps: 30});
+    const xml = helpers.serializeFcp7Xml(plan, {nativeTextObjects: true, subtitleTracks: 'main_and_extension'});
+    const payloads = [...xml.matchAll(/<effectid>GraphicAndType<\/effectid>[\s\S]*?<parameterid>1<\/parameterid>[\s\S]*?<value>([^<]+)<\/value>/g)]
+      .map(match => JSON.parse(Buffer.from(match[1], 'base64').subarray(8).toString('utf16le')));
+    assert.deepEqual(payloads.map(p => p.mTextParam.mStyleSheet.mText), ['English & 中文\n第二行 😻', '副字幕 <test>']);
+    for (const payload of payloads) {
+      assert.deepEqual(Object.keys(payload), ['mTextParam', 'mVersion']);
+      const style = payload.mTextParam.mStyleSheet;
+      assert.equal(style.mFontName.mParamValues[0][1], font);
+      assert.equal(style.mFontSize.mParamValues[0][1], expectedSize);
+      assert.equal(style.mUnderline, undefined);
+      assert.equal(payload.mShadowFontMapHash, undefined);
+    }
+    assert.equal(JSON.stringify(project), before);
+  }
 });
 
 test('writes the preview subtitle font into the GraphicAndType payload', () => {

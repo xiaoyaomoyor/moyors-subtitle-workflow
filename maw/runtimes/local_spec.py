@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from maw.runtimes.base import ManagedRuntimeError, RuntimeCancelled, RuntimeSpec
 
-RUNTIME_VERSION = "7"
+RUNTIME_VERSION = "8"
 PYTHON_VERSION = "3.11"
 PYTORCH_INDEX = "https://download.pytorch.org/whl/cu130"
 EMBED_PYTHON_ZIP = "python-3.11.9-embed-amd64.zip"
 
-# 版本 7：local dependency group 新增 FireRedASR2-CTC 的 sherpa-onnx 与 soundfile，
-# 老安装需重装一次本地运行环境以补齐依赖。
+# 版本 8：补齐 sherpa-onnx-core；旧清单可能只装了 Python 绑定而缺少本机库。
+# 旧运行环境需通过“修复运行环境”补齐依赖，已下载的模型缓存保持独立。
 # 自检 import 覆盖 package_dirs 全部关键包（tests/test_runtimes.py 有对应断言）：
 # 依赖清单陈旧（如 reapeaks→quapeaks 改名后仍装旧包）时安装要当场报错，
 # 而不是静默成功后陷入「需要修复」循环。
