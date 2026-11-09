@@ -20,3 +20,5 @@
 - 新增最终包检查：主／CPU 清单必须包含相同版本的 sherpa-onnx 与 sherpa-onnx-core，便携 HTML 不得入包；Linux 解包后同样检查。
 - 官网文档同步并构建通过，15 页面；Release notes 已由正式脚本生成并审阅，次要改动并入简要条目。
 - 三平台构建预检尚未开始，当前不代表五包已验证。
+
+首轮预检 `42584369312`：macOS 任务在分配 runner 时取消，原因是 macos-14-arm64 已停用（GitHub 公告 actions/runner-images#13518，2026-11-02）。改为 macos-15；保留完整五包与测试门槛，不将平台取消记为代码通过。

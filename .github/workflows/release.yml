@@ -326,7 +326,7 @@ jobs:
         include:
           - name: macOS arm64
             platform: macos
-            os: macos-14
+            os: macos-15
             arch: arm64
             asset: MSW-macOS-arm64
             paths: |
