@@ -273,16 +273,26 @@ class BatchApiTests(unittest.TestCase):
             media = root / "clip.mp3"
             media.write_bytes(b"media")
             api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html", project_registry=root / "launcher-project-registry.json"), window_getter=lambda: None)
+            started, release, runner = self._blocked_batch_runner()
             with mock.patch("maw.gui_web._request_from_payload") as request_from_payload:
                 request_from_payload.return_value = TranscriptionRequest(media, root / "clip.srt")
-                with mock.patch("maw.gui_web.run_batch") as run_batch:
-                    run_batch.side_effect = lambda *args, **kwargs: None
+                with mock.patch("maw.gui_web.run_batch", side_effect=runner) as run_batch:
                     result = api.start_batch_transcription({"items": [{"id": "a", "mediaPath": str(media), "srtPath": str(root / "clip.srt")}], "apiKey": "secret"})
-                    self.assertTrue(result["ok"])
-                    self.assertEqual(result["itemCount"], 1)
-                    cancel_result = api.cancel_batch_transcription()
-                    self.assertTrue(cancel_result["ok"])
-            api.shutdown()
+                    worker = api.batch_worker
+                    try:
+                        self.assertTrue(result["ok"])
+                        self.assertEqual(result["itemCount"], 1)
+                        self.assertTrue(started.wait(timeout=5))
+                        cancel_result = api.cancel_batch_transcription()
+                        self.assertTrue(cancel_result["ok"])
+                        self.assertTrue(run_batch.call_args.kwargs["cancel_event"].is_set())
+                    finally:
+                        release.set()
+                        if worker is not None:
+                            worker.join(timeout=5)
+                        api.shutdown()
+                    self.assertIsNotNone(worker)
+                    self.assertFalse(worker.is_alive())
 
     def test_start_batch_derives_output_path_when_item_omits_srt_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

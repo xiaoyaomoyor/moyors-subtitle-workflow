@@ -248,6 +248,27 @@ test('auto-saves a text edit shortly after it loses focus', async ({ page }) => 
   expect(savedProject.subtitles.cues[0].content.text).toBe('Alpha autosaved');
 });
 
+test('auto-save deferred by ongoing interaction resumes without waiting for the periodic save', async ({ page }) => {
+  await page.goto(server.url);
+  await page.locator('.cue').first().click();
+  const saved = page.waitForResponse(response => response.url().endsWith('/api/msw/project')
+    && response.request().method() === 'POST'
+    && response.request().postDataJSON()?.project?.subtitles?.cues?.[0]?.content?.text === 'Deferred autosave', {timeout:10000});
+  await page.locator('#cue-panel-text').fill('Deferred autosave');
+  await page.locator('#cue-panel-target').click();
+  // Model continued user activity across the first 1.6 s debounce attempt.
+  // The 30 s periodic saver cannot satisfy this 10 s assertion.
+  await page.evaluate(() => new Promise(resolve => {
+    let events = 0;
+    const activity = setInterval(() => {
+      document.body.dispatchEvent(new Event('input', {bubbles:true}));
+      if (++events === 25) { clearInterval(activity); resolve(); }
+    }, 100);
+  }));
+  expect((await saved).ok()).toBe(true);
+  expect(JSON.parse(readFileSync(projectPath,'utf8')).subtitles.cues[0].content.text).toBe('Deferred autosave');
+});
+
 test('a disconnected save endpoint offers a JSON fallback download', async ({ page }) => {
   await page.goto(server.url);
   await page.route('**/api/msw/project', (route) => route.abort('connectionrefused'));

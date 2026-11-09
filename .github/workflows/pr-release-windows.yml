@@ -58,7 +58,7 @@ jobs:
           "FFMPEG_PATH=$BinDir" >> $env:GITHUB_ENV
           $BinDir >> $env:GITHUB_PATH
       - name: Check save and ASS paths
-        run: npx playwright test tests/e2e/save-background-efficiency.spec.mjs tests/e2e/project-subtitle-style.spec.mjs --project=chromium --repeat-each=2
+        run: npx playwright test tests/e2e/editor-i18n-save.spec.mjs tests/e2e/save-background-efficiency.spec.mjs tests/e2e/project-subtitle-style.spec.mjs --project=chromium --repeat-each=2
       - uses: actions/upload-artifact@v6
         if: failure()
         with:

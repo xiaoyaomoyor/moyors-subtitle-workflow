@@ -17517,12 +17517,22 @@ function scheduleAutoSaveFlush({deferValidation=false,validated=false}={}) {
     autoSaveFlushTimer = null;
   }
   if (!projectSaveTargetEnabled() || !EDITOR_SETTINGS.autoSaveProject) return;
-  autoSaveFlushTimer = window.setTimeout(() => {
+  const generation = mswProjectGeneration;
+  const flushWhenIdle = () => {
     autoSaveFlushTimer = null;
-    if (hasUnsavedProjectChanges() && !projectSaveInFlight) {
+    if (generation !== mswProjectGeneration || !projectSaveTargetEnabled() || !EDITOR_SETTINGS.autoSaveProject) return;
+    // Another click or save can outlast the debounce. Keep the pending flush
+    // until idle instead of losing it until the next periodic save.
+    if (projectSaveInFlight || projectCheckpointInFlight || waveformEditor?.drag
+        || window.MSWE?.resolve('project-persistence')?.backgroundBusy()) {
+      autoSaveFlushTimer = window.setTimeout(flushWhenIdle, EDIT_SAVE_DEBOUNCE_MS);
+      return;
+    }
+    if (hasUnsavedProjectChanges()) {
       void saveCurrentProject({ silent: true, background:true });
     }
-  }, EDIT_SAVE_DEBOUNCE_MS);
+  };
+  autoSaveFlushTimer = window.setTimeout(flushWhenIdle, EDIT_SAVE_DEBOUNCE_MS);
 }
 
 async function openRecentProject(project) {
