@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | `MSW-Windows-x64-v1.6.0.zip` | Windows x64 | 是 |
 | `MSW-lite-Windows-x64-v1.6.0.zip` | Windows x64 | 否 |
-| `MSW-macOS-arm64-v1.6.0.zip` | macOS Apple Silicon | 是 |
-| `MSW-lite-macOS-arm64-v1.6.0.zip` | macOS Apple Silicon | 否 |
 | `MSW-Linux-x86_64-v1.6.0.AppImage` | Linux x86_64 | 是 |
+
+macOS Apple Silicon 标准／lite 包稍后补充：GitHub 构建机器暂时不足，本轮先提供已经验证的 Windows 与 Linux 包。
 
 GitHub 另提供 **Source code (zip)** 和 **Source code (tar.gz)**，包含标签对应的源码，不是可直接启动的应用包。macOS Intel、Windows ARM64、Linux ARM64 暂无本轮官方构建产物。
 
