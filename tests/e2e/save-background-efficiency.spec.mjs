@@ -31,6 +31,9 @@ test.beforeEach(async({page})=>{
   await page.route('**/*',route=>{const url=new URL(route.request().url());return ['http:','https:'].includes(url.protocol)&&!['localhost','127.0.0.1'].includes(url.hostname)?route.abort():route.continue();});
   await page.goto(server.url,{waitUntil:'domcontentloaded',timeout:90000});await ready(page);
   await page.evaluate(()=>{EDITOR_SETTINGS.autoSaveProject=false;scheduleAutoSave();});
+  // Disabling the timer cannot cancel an automatic save already in flight.
+  // These cases exercise sequential saves; the concurrent-save guard stays intact.
+  await page.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);
 });
 
 test('10k repeated save sends only acknowledgment; playhead skips normalization and reopens correctly',async({page})=>{

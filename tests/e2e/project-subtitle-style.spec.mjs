@@ -244,7 +244,12 @@ test('negative pair spacing uses scaled text height consistently in fixed-track 
   await page.locator('#media-settings-close').click();
   const positions=[];
   for(const [size,scale] of [[80,100],[40,200]]){
-    const rendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200);
+    const rendered=page.waitForResponse(r=>{
+      if(!r.url().endsWith('/subtitle-preview')||r.status()!==200)return false;
+      const p=r.request().postDataJSON()?.project;
+      return p?.subtitles?.cues?.length===2&&p.subtitles.cues.every(c=>c.content.text==='MMMM')
+        &&p.preview?.project_style?.main?.fontSize===size;
+    });
     await page.evaluate(({size,scale})=>{
       const h=window.MSWE.resolve('processing-host'),S=window.MSWProjectStyle,style=S.defaults();
       const p=JSON.parse(JSON.stringify({media:h.data.media,waveform:h.data.waveform,msw:h.data.msw}));
