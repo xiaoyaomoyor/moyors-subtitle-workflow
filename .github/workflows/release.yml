@@ -261,6 +261,7 @@ jobs:
           $env:MSW_TEST_FFMPEG = Split-Path -Parent $env:FFMPEG_PATH
           if (-not (Test-Path -LiteralPath $env:FFMPEG_PATH)) { throw 'Missing bundled FFmpeg for media/ASR browser checks' }
           "MSW_E2E_PYTHON=$env:MSW_E2E_PYTHON" >> $env:GITHUB_ENV
+          "MSW_E2E_FFMPEG=$env:FFMPEG_PATH" >> $env:GITHUB_ENV
           "FFMPEG_PATH=$env:MSW_TEST_FFMPEG" >> $env:GITHUB_ENV
           "MSW_TEST_FFMPEG=$env:MSW_TEST_FFMPEG" >> $env:GITHUB_ENV
           $env:MSW_TEST_FFMPEG >> $env:GITHUB_PATH

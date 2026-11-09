@@ -18,6 +18,14 @@ test.beforeAll(async()=>{
 });
 test.afterAll(async()=>{await server?.stop();});
 async function ready(page){await page.waitForFunction(()=>window.MSWSubtitleStyle?.ready&&MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending,null,{timeout:90000});}
+async function expectSave(page) {
+  const result=await page.evaluate(async()=>{
+    const before={saving:projectSaveInFlight,checkpoint:projectCheckpointInFlight,generation:mswProjectGeneration};
+    const ok=await saveCurrentProject();
+    return {ok,...(!ok?{before,after:{saving:projectSaveInFlight,checkpoint:projectCheckpointInFlight,generation:mswProjectGeneration},hints:[...document.querySelectorAll('.hint-card')].map(e=>e.textContent)}:{})};
+  });
+  expect(result.ok,JSON.stringify(result)).toBe(true);
+}
 test.beforeEach(async({page})=>{
   await disableOnboarding(page);
   await page.route('**/*',route=>{const url=new URL(route.request().url());return ['http:','https:'].includes(url.protocol)&&!['localhost','127.0.0.1'].includes(url.hostname)?route.abort():route.continue();});
@@ -27,7 +35,7 @@ test.beforeEach(async({page})=>{
 
 test('10k repeated save sends only acknowledgment; playhead skips normalization and reopens correctly',async({page})=>{
   const requests=[];page.on('request',r=>{if(r.url().endsWith('/api/msw/project'))requests.push(r.postDataJSON());});
-  expect(await page.evaluate(()=>saveCurrentProject())).toBe(true);
+  await expectSave(page);
   const compact=await page.evaluate(()=>buildSavedProjectJson());
   expect(compact).toBe(JSON.stringify(JSON.parse(compact)));
   const mtime=statSync(file).mtimeMs,source=JSON.parse(readFileSync(file));
@@ -43,7 +51,7 @@ test('10k repeated save sends only acknowledgment; playhead skips normalization 
 });
 
 test('in-flight edits remain dirty; unchanged save still rejects a changed disk',async({page})=>{
-  expect(await page.evaluate(()=>saveCurrentProject())).toBe(true);
+  await expectSave(page);
   await page.route('**/api/msw/project',async route=>{
     const response=await route.fetch();
     await page.evaluate(()=>{DATA.segments[0].text='Edited while saving';DATA.segments[0]._dirty=true;projectImportDirty=true;});

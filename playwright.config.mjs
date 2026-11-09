@@ -7,8 +7,8 @@ export default defineConfig({
   workers: 1,
   timeout: 60_000,
   retries: 0,
-  trace: 'retain-on-failure',
   use: {
+    trace: 'retain-on-failure',
     browserName: 'chromium',
     headless: true,
     locale: 'zh-CN',

@@ -4,6 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      focused_editor_checks:
+        description: Run isolated save and ASS browser checks without packaging
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,8 +18,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  editor-regression:
+    name: Check Windows save and ASS regressions
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.focused_editor_checks }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Prepare isolated browser checks
+        shell: pwsh
+        run: |
+          uv sync --frozen --group build --group test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip' -OutFile ffmpeg.zip -TimeoutSec 120
+          if ((Get-FileHash ffmpeg.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec') { throw 'FFmpeg checksum mismatch' }
+          Expand-Archive ffmpeg.zip ffmpeg-test
+          $Binary = (Get-ChildItem ffmpeg-test -Filter ffmpeg.exe -Recurse | Select-Object -First 1).FullName
+          if (-not $Binary) { throw 'Missing FFmpeg binary' }
+          $BinDir = Split-Path -Parent $Binary
+          "MSW_E2E_PYTHON=$PWD/.venv/Scripts/python.exe" >> $env:GITHUB_ENV
+          "MSW_E2E_FFMPEG=$Binary" >> $env:GITHUB_ENV
+          "MSW_TEST_FFMPEG=$BinDir" >> $env:GITHUB_ENV
+          "FFMPEG_PATH=$BinDir" >> $env:GITHUB_ENV
+          $BinDir >> $env:GITHUB_PATH
+      - name: Check save and ASS paths
+        run: npx playwright test tests/e2e/save-background-efficiency.spec.mjs tests/e2e/project-subtitle-style.spec.mjs --project=chromium --repeat-each=2
+      - uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: focused-editor-diagnostics
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
   build-windows:
     name: Build Windows x64 MSW-lite preview
+    if: ${{ !inputs.focused_editor_checks }}
     runs-on: windows-2022
     env:
       PYTHONUTF8: '1'
