@@ -409,7 +409,7 @@ class PackagingContractTests(unittest.TestCase):
         """Given a macOS arm64 release, When packaging runs, Then only MSW app variants are uploaded."""
         workflow = read_text(".github/workflows/release.yml")
 
-        self.assertIn("os: macos-14", workflow)
+        self.assertIn("os: macos-15", workflow)
         self.assertIn("arch: arm64", workflow)
         self.assertIn("https://www.osxexperts.net/ffmpeg81arm.zip", workflow)
         self.assertIn("https://www.osxexperts.net/ffprobe81arm.zip", workflow)
