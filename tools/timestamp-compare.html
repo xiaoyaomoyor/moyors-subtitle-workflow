@@ -2517,12 +2517,9 @@
     }
     const roots=tracks.filter(t=>!t.secondary_for);
     const maximum=Math.max(0,...roots.map(t=>t.display_number||0));
-    const released=new Set(tracks.filter(t=>t.secondary_for&&t.display_number!==undefined
-      &&t.display_number!==tracks.find(a=>a.id===t.secondary_for)?.display_number).map(t=>t.display_number));
-    let next=Math.max(m.next_track_number||1,maximum+1);
-    // Reclaim only trailing numbers formerly reserved for a secondary track.
-    // Existing independent numbers and deleted-track reservations stay stable.
-    while(next>maximum+1&&released.has(next-1))next--;
+    // Display numbers are not identities. Preserve existing groups, but do not
+    // reserve deleted/grouped-away trailing numbers in a stale counter.
+    let next=maximum+1;
     for(const t of roots)if(t.display_number===undefined)t.display_number=next++;
     for(const t of tracks)if(t.secondary_for)t.display_number=tracks.find(a=>a.id===t.secondary_for)?.display_number;
     m.next_track_number=next;

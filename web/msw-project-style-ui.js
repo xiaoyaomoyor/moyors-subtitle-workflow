@@ -204,6 +204,12 @@
   const M=global.MSWSubtitleAnimation;
   const cueScope=()=>editScope==='cue'&&productionFlatMode();
   const rowRole=row=>fixedTrack(row.cue,row.role,row.track_id)?.flat_style_slot||'main';
+  // Group membership controls the editing target. The stored style slot only
+  // selects the original appearance and may be 'main' on a manually grouped sub.
+  const rowTargetRole=row=>{
+    const track=fixedTrack(row.cue,row.role,row.track_id),group=fixedStyleGroup(track);
+    return group?.secondary?(group.secondary.id===track.id?'secondary':'main'):rowRole(row);
+  };
   let cueRoleSelection='';
   function selectedRows(){
     const rows=fixedSelectedRows();
@@ -211,10 +217,10 @@
     const key=JSON.stringify([focused?.cue_id,...rows.map(r=>r.cue_id).sort()]);
     if(key!==cueRoleSelection){
       cueRoleSelection=key;
-      if(focused)role=rowRole(focused);
+      if(focused)role=rowTargetRole(focused);
     }
-    if(rows.length&&!rows.some(r=>rowRole(r)===role))role=rowRole(rows[0]);
-    return rows.filter(r=>rowRole(r)===role);
+    if(rows.length&&!rows.some(r=>rowTargetRole(r)===role))role=rowTargetRole(rows[0]);
+    return rows.filter(r=>rowTargetRole(r)===role);
   }
   const speakerScope=()=>editScope==='speaker'&&productionFlatMode();
   const appearanceScope=()=>cueScope()||speakerScope();
@@ -542,7 +548,7 @@
     if(blocked)message(cueScope()?rows.length?'所选字幕包含锁定轨道。':'':track.locked||group?.main.locked||group?.secondary?.locked?'此轨道已锁定。':'切换为固定轨道排布后，可调整轨道样式与位置。');
     else if(['此轨道已锁定。','所选字幕包含锁定轨道。','切换为固定轨道排布后，可调整轨道样式与位置。'].some(text=>$('style-message').textContent===t(text)))message('');
     const secondary=!appearanceScope()&&(productionFlatMode()?!!group?.secondary:host.data.multi_subtitle?.enabled===true);
-    const roleSwitch=speakerScope()||cueScope()&&new Set(fixedSelectedRows().map(rowRole)).size>1||secondary;
+    const roleSwitch=speakerScope()||cueScope()&&new Set(fixedSelectedRows().map(rowTargetRole)).size>1||secondary;
     $('style-swap').hidden=!secondary;
     if(!appearanceScope()&&!secondary)role='main';
     if(group&&!appearanceScope())role=group.secondary?.id===track.id?'secondary':'main';

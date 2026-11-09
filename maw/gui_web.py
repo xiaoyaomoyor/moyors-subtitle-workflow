@@ -4734,7 +4734,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         generate_waveform=bool(payload.get("generateWaveform", True)),
         generate_spectral=bool(payload.get("generateSpectral")),
         ui_language=_gui_lang(payload),
-        generate_html=bool(payload.get("generateHtml")) and not bool(payload.get("batchSrtOnly")),
+        generate_html=False,  # Portable HTML is no longer exposed by the launcher.
         srt_only=bool(payload.get("batchSrtOnly")),
         debug_raw=bool(payload.get("debugRaw")),
         engine=model.engine if provider.kind == "local" else "",

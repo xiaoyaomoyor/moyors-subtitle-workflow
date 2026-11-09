@@ -186,12 +186,32 @@ test('track groups reject cycles, multiple secondary tracks and locked members a
     const bad=structuredClone(p);corrupt(bad);assert.throws(()=>flat.validate(bad));
   }
 });
-test('numbered empty track deletion restores its grouped partner and does not recycle numbers',()=>{
+test('numbered empty track deletion restores its grouped partner without renumbering it',()=>{
   const E=require('../web/msw-flat-editing.js');
   let p=bridge.toProject(bridge.fromProject({segments:[]})),a=p.subtitles.tracks[0];
   p=flat.addTrack(p,{...a,id:'extra'});p=flat.setTrackGroup(p,'extra',a.id);
   p=E.deleteTrack(p,a.id);assert.equal(p.subtitles.tracks[0].name,'S1');
   p=flat.addTrack(p,{...p.subtitles.tracks[0],id:'third'});assert.equal(p.subtitles.tracks[1].name,'S2');
+});
+
+test('new tracks follow existing groups despite stale or deleted trailing reservations',()=>{
+  const E=require('../web/msw-flat-editing.js');
+  let p=bridge.toProject(bridge.fromProject(fixture())),main=p.subtitles.tracks[0];
+  p=flat.addTrack(p,{...main,id:'s2'});
+  p=flat.addTrack(p,{...main,id:'s2-sub'});
+  p=flat.setTrackGroup(p,'s2-sub','s2');
+  p.subtitles.next_track_number=9;
+  const before=structuredClone(p);
+  p=bridge.toProject(bridge.fromProject(p));
+  p=flat.addTrack(p,{...main,id:'s3'});
+  assert.deepEqual(p.subtitles.tracks.map(t=>t.name),['S1主','S1副','S2主','S2副','S3']);
+  assert.deepEqual(p.subtitles.cues,before.subtitles.cues);assert.deepEqual(p.subtitles.bindings,before.subtitles.bindings);
+  p=E.deleteTrack(p,'s3');p=flat.addTrack(p,{...main,id:'replacement'});
+  assert.equal(p.subtitles.tracks.at(-1).name,'S3');
+  // A surviving high-number track keeps its identity, even with an inner gap.
+  p=flat.addTrack(p,{...main,id:'s4'});p=E.deleteTrack(p,'replacement');
+  p=flat.addTrack(p,{...main,id:'s5'});
+  assert.deepEqual(p.subtitles.tracks.slice(-2).map(t=>t.name),['S4','S5']);
 });
 test('explicit groups without display numbers take precedence over migration inference',()=>{
   let p=fixture(),[a,b]=p.subtitles.tracks;

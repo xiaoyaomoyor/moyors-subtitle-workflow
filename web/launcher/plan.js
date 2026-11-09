@@ -28,7 +28,7 @@
         exportTranslatedSrt: enabled('translate') && (!outputOn || el("outputExportTranslatedSrt").checked),
         exportBilingualSrt: outputOn && enabled('translate') && el('translationWriteMode').value === 'bilingual' && el('outputExportBilingualSrt').checked,
         srtOnly: outputOn && Boolean(el("batchSrtOnly")?.checked),
-        generateHtml: outputOn && !el("batchSrtOnly").checked && el("generateHtml").checked,
+        generateHtml: false, // Retired portable HTML output; ignore old drafts.
       },
     };
   }

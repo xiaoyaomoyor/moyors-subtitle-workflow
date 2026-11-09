@@ -28,7 +28,6 @@ macOS ZIP 使用 `scripts/create_release_zip.py`，保留 UTF-8 中文名称、�
 uv sync --group build --frozen
 python scripts/sync_launcher_version.py --check
 python scripts/build_macos_icon.py --check
-uv run python edit.py --blank
 uv run python -m unittest discover -s tests -p "test_*.py"
 node --test tests/test_editor_utils.mjs tests/test_waveform_js.mjs
 git diff --check
@@ -37,6 +36,8 @@ git diff --check
 Windows 可执行 `scripts/build-windows.ps1`；该脚本需要工作流中列出的 Python bootstrap 缓存，并准备可选运行时依赖清单。需要最终标准／lite ZIP 时优先使用完整 Actions 流程；不要把一次本机 PyInstaller 冒烟结果标成三个平台都可发布。
 
 GUI 分发资源采用明确清单；不携带仓库历史截图、开发反馈记录、测试、`.env`、用户配置、缓存或权重。入口服务只收集运行所需文件，避免把测试生成的 `__pycache__` 带入包。随包提供 `README-开始使用.txt`、FAQ 与许可。
+
+2026-11-09 起，便携 `blank-editor.html` 退出发行包、源码归档和官网分发，不再要求生成或验收。保留本机编辑器必需的 `edit.py` 与 `web/`；解压运行的程序包、对比工具及便携 OTIO 不受影响，见[维护边界](PORTABLE_EDITOR_RETIREMENT.md)。
 
 ## 发布前最后一步
 

@@ -81,6 +81,14 @@ def _local_runtime_spec_entry(relative_path: str) -> str:
 
 
 class PackagingContractTests(unittest.TestCase):
+    def test_retired_portable_editor_is_not_distributed_but_shared_renderer_is_kept(self) -> None:
+        spec = read_text("MSW.spec")
+        self.assertNotIn('(str(ROOT / "blank-editor.html"), ".")', spec)
+        self.assertIn('(str(ROOT / "edit.py"), "local-runtime")', spec)
+        self.assertIn('(str(ROOT / "web"), "web")', spec)
+        self.assertNotIn("build_blank_html", read_text(".github/workflows/deploy-editor-pages.yml"))
+        self.assertNotIn("edit.py --blank", read_text(".github/workflows/release.yml"))
+
     def test_launcher_version_matches_project_metadata(self) -> None:
         """Given project metadata, When the Launcher is packaged, Then every displayed fallback version matches it."""
         project = tomllib.loads(read_text("pyproject.toml"))
@@ -211,7 +219,7 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("maw.runtimes.freezer", release)
         self.assertNotIn("uv export --frozen", release)
 
-        self.assertIn('RUNTIME_VERSION = "7"', local_spec)
+        self.assertIn('RUNTIME_VERSION = "8"', local_spec)
         self.assertIn('OCR_RUNTIME_VERSION = "3"', ocr_spec)
 
         self.assertIn("_has_cuda", runtimes_base)

@@ -5,7 +5,6 @@ import { sitePath } from '../lib/site-path';
 const repoUrl = 'https://github.com/xiaoyaomoyor/moyors-subtitle-workflow';
 const releasesUrl = `${repoUrl}/releases/tag/v1.6.0-beta.3`;
 const docsUrl = sitePath('docs/');
-const editorUrl = sitePath('editor/');
 ---
 
 <BaseLayout>
@@ -23,7 +22,6 @@ const editorUrl = sitePath('editor/');
         <a href="#editor">编辑器</a>
         <a href="#privacy">本地优先</a>
         <a href={docsUrl}>文档</a>
-        <a href={editorUrl}>在线编辑器</a>
         <a href={repoUrl}>GitHub ↗</a>
       </nav>
       <a class="button button-small button-outline" href={releasesUrl}>下载</a>
@@ -40,9 +38,9 @@ const editorUrl = sitePath('editor/');
         </p>
         <div class="hero-actions">
           <a class="button button-primary" href={releasesUrl}>下载 beta.3 ↗</a>
-          <a class="button button-ghost" href={editorUrl}>在线体验编辑器 ↗</a>
+          <a class="button button-ghost" href={docsUrl}>使用文档 ↗</a>
         </div>
-        <p class="hero-meta mono">完整处理功能使用桌面版；在线版可体验字幕编辑。</p>
+        <p class="hero-meta mono">启动本机服务，在浏览器中完成编辑与导出。</p>
       </div>
       <figure class="hero-figure">
         <img src={sitePath('launcher.jpg')} alt="MSW Launcher：拖入媒体文件，选择供应商并填入 API Key，一键生成字幕和工程" width="884" height="771" fetchpriority="high" />
@@ -190,7 +188,6 @@ const editorUrl = sitePath('editor/');
       </span>
     </a>
     <div class="footer-links">
-      <a href={editorUrl}>在线编辑器</a>
       <a href={docsUrl}>文档</a>
       <a href={repoUrl}>GitHub</a>
       <a href={`${repoUrl}/blob/my-feature/LICENSE`}>AGPL-3.0</a>

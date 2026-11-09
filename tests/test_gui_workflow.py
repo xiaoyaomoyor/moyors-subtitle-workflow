@@ -516,13 +516,8 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertEqual(events, ["started", "done"])
         self.assertEqual(result.srt_path, self.srt_path)
         self.assertEqual(result.json_path, self.srt_path.with_suffix(".mosp"))
-        self.assertEqual(result.html_path, self.srt_path.with_suffix(".edit.html"))
-        render_html.assert_called_once_with(
-            self.srt_path.with_suffix(".mosp"),
-            self.media_path,
-            self.media_path.parent / "_msw" / f"{self.srt_path.stem}.edit.html",
-            "en",
-        )
+        self.assertIsNone(result.html_path)
+        render_html.assert_not_called()
 
     def test_terminate_process_tree_uses_windows_taskkill_for_descendants(self) -> None:
         class FakeProcess:
@@ -723,7 +718,7 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertTrue(any("提交任务" in event for event in events))
 
     def test_run_transcription_keeps_json_when_optional_html_render_fails(self) -> None:
-        request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path)
+        request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path, generate_html=True)
         self.srt_path.write_text("1\n", encoding="utf-8")
         self.srt_path.with_suffix(".mosp").write_text('{"segments": []}\n', encoding="utf-8")
         events: list[str] = []

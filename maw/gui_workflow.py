@@ -65,7 +65,7 @@ class TranscriptionRequest:
     speaker_colors: bool = False
     generate_spectral: bool = False
     ui_language: str = "zh"
-    generate_html: bool = True
+    generate_html: bool = False
     generate_waveform: bool = True
     srt_only: bool = False
     debug_raw: bool = False

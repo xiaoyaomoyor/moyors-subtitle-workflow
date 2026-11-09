@@ -96,7 +96,7 @@ MSW.exe -i INPUT -o SRT [MOSP] [转写选项]
 - 不写 `-o` 时，SRT 会按输入媒体名、供应商和模型自动命名。需要脚本稳定定位结果时，建议显式写 `-o`。
 - `--mosp PATH` 可以单独指定工程输出路径；它不能和 `-o` 的第二个路径同时使用。
 - 输出目录不存在时，CLI 会创建 SRT 和 `.mosp` 所需的父目录。
-- CLI 默认生成 SRT 和 `.mosp`，不生成便携 `.edit.html`。需要 HTML 时加 `--html`。
+- CLI 默认生成 SRT 和 `.mosp`；便携 `.edit.html` 已停止维护，不作为常用输出。
 - `--json` 只是旧 CLI 的兼容参数。它表示“同时生成工程文件”，当前工程扩展名仍是 `.mosp`，不是要求生成 `.json`。
 
 例如，只固定 SRT 路径，让工程自动使用同名路径：
@@ -155,7 +155,7 @@ MSW.exe -i INPUT -o SRT [MOSP] [转写选项]
 | `-ll VALUE`, `--length-limit VALUE` | 只处理媒体前指定时长，例如 `2m`、`20s`、`1h`、`90`。 |
 | `--json` | 旧 CLI 兼容参数；MSW 公开 CLI 默认已经生成 `.mosp`，通常不需要写。 |
 | `--with-waveform` | 将波形峰值嵌入 `.mosp`。会额外使用 FFmpeg 扫描媒体；不指定时波形由编辑器按需建立 sidecar 缓存。 |
-| `--html` | 在 SRT 和 `.mosp` 之外，再生成便携 `.edit.html`。 |
+| `--html` | 历史便携生成参数，保留解析但不再维护；日常使用 `.mosp` 与本机编辑器。 |
 | `--no-html` | 明确关闭便携 HTML；这是默认行为，也保留用于兼容旧脚本。不能和 `--html` 同时使用。 |
 | `--debug` | 输出更多 API 调试信息。调试日志仍不会输出 API Key。 |
 | `-s PATH`, `--stickers PATH` | 指定表情包目录。它会传递给转写后生成的编辑器工程，也可用于 Server。 |
@@ -316,16 +316,9 @@ $server = Start-Process `
 
 必剪是非官方免费接口，无需配置任何 Key；不支持语言、模型和说话人参数，单文件默认上限 2 小时，请勿高频调用。
 
-### 只生成便携 HTML
+### 历史便携输出
 
-CLI 总是先生成 SRT 和 `.mosp`；如果还需要带工程数据的便携 HTML：
-
-```powershell
-.\MSW.exe `
-    -i "D:\Videos\clip.mp3" `
-    -o "D:\Output\clip.srt" `
-    --html
-```
+便携 HTML 已退出默认分发并停止维护，不再作为推荐工作流。共享生成模块和历史参数暂时保留，后续开发应遵守[维护边界](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/PORTABLE_EDITOR_RETIREMENT.md)。
 
 ## 6. 给 AI 和自动化工具的调用指引
 

@@ -27,7 +27,7 @@ npm --prefix website run build
 
 ## 计划部署
 
-GitHub Pages 发布同一仓库的官网、文档和 `/editor/`；也可以在 Vercel 中把 `website/` 设为 Root Directory 单独部署。大陆访问不保证稳定；正式上线前应在不同运营商网络实测。
+GitHub Pages 发布同一仓库的官网和文档；便携 `/editor/` 页面已停止分发。也可以在 Vercel 中把 `website/` 设为 Root Directory 单独部署。大陆访问不保证稳定；正式上线前应在不同运营商网络实测。
 
 部署细节和内容清单见 [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) 与 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)。
 

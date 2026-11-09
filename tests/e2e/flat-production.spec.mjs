@@ -202,6 +202,25 @@ test('compact numbered heads and group menus preserve bindings, ordinal cards an
   await page.screenshot({path:info.outputPath('compact-track-groups.png')});expect(errors).toEqual([]);
 });
 
+test('adding after S2 uses S3 despite an old counter and preserves groups through undo and reopen',async({page})=>{
+  await page.evaluate(p=>{
+    applyCanonicalProject(p,'numbering.mosp');fixedAddTrack('subtitle');fixedAddTrack('subtitle');
+    const tracks=DATA.subtitle_tracks.tracks;fixedUpdateTrack(tracks[3].id,{secondary_for:tracks[2].id});
+    const saved=JSON.parse(buildJson());saved.subtitles.next_track_number=4;
+    applyCanonicalProject(saved,'reopened.mosp');
+  },fixture());
+  const before=await snap(page);
+  expect(before.subtitles.tracks.map(t=>t.name)).toEqual(['S1主','S1副','S2主','S2副']);
+  await page.evaluate(()=>document.getElementById('subtitle-track-add').click());
+  let p=await snap(page);expect(p.subtitles.tracks.at(-1).name).toBe('S3');
+  const added=p.subtitles.tracks.at(-1).id;
+  expect(p.subtitles.cues).toEqual(before.subtitles.cues);expect(p.subtitles.bindings).toEqual(before.subtitles.bindings);
+  await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles.tracks).toEqual(before.subtitles.tracks);
+  await page.evaluate(()=>performRedo());expect((await snap(page)).subtitles.tracks.at(-1).id).toBe(added);
+  p=await snap(page);await page.evaluate(p=>applyCanonicalProject(p,'saved.mosp'),p);
+  expect((await snap(page)).subtitles.tracks).toEqual(p.subtitles.tracks);
+});
+
 test('style toolbar selects track groups, edits both appearances and swaps without moving subtitles',async({page},info)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.evaluate(p=>{applyCanonicalProject(p,'styles.mosp');fixedAddTrack('subtitle');},fixture());

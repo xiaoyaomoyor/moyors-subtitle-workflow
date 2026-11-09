@@ -1,6 +1,6 @@
 # 字幕工程文件规范（`.mosp` / `.json`）
 
-本文档定义 MSWE（Moyor's Subtitle Workflow Editor）、`edit.py` 生成的 `.edit.html` 以及 `blank-editor.html` 共同接受的工程文件格式。工程文件内容是 UTF-8 JSON；`.mosp` 是当前默认和推荐的扩展名，`.json` 作为旧工程与兼容输入/输出扩展名继续支持。
+本文档定义 MSWE（Moyor's Subtitle Workflow Editor）接受的工程文件格式。工程文件内容是 UTF-8 JSON；`.mosp` 是当前默认和推荐的扩展名，`.json` 作为旧工程与兼容输入/输出扩展名继续支持。历史便携 HTML 已停止维护，以本机编辑器的读写规则为准。
 
 用途：让任意来源（ASR、第三方模型生成、人工手写）的 JSON 都能直接被编辑器加载、编辑、再导出。
 
@@ -80,7 +80,7 @@ v4 字幕真源为 `subtitles`，普通编辑器内部使用可逆操作视图�
 
 ## 一、顶层结构
 
-v4 普通编辑器的轨道可含 `display_number`（轨道组的正整数编号）与 `secondary_for`（可选主轨 ID）；模型含 `next_track_number`。同组主副轨共享编号，独立轨和不同组不得重号；主副分组仅一主一副，不得自引用或嵌套，与字幕 `bindings` 分开。解除分组为副轨分配新编号。兼容旧的逐轨独立编号，规范化时回收副轨末尾预留号，保持已有独立轨编号；缺少字段时补齐 S1／S1主／S1副名称。详细契约见 [平级字幕轨道与字幕](docs/FLAT_SUBTITLE_MODEL.md#轨道与字幕)。
+v4 普通编辑器的轨道可含 `display_number`（轨道组的正整数编号）与 `secondary_for`（可选主轨 ID）；模型含 `next_track_number`。同组主副轨共享编号，独立轨和不同组不得重号；主副分组仅一主一副，不得自引用或嵌套，与字幕 `bindings` 分开。解除分组为副轨分配新编号。兼容旧的逐轨独立编号，规范化时以后续编号等于现存最大组编号加一为准，不保留已删除／已并组的末尾预留号，保持已有独立轨编号和中间空号；缺少字段时补齐 S1／S1主／S1副名称。详细契约见 [平级字幕轨道与字幕](docs/FLAT_SUBTITLE_MODEL.md#轨道与字幕)。
 
 基础生成器使用顶层 `schema: "moy.asr.project.v1"`，与 MAW beta.2 的工程版本约定兼容；MSWE 保存使用 v4。缺少此字段的旧 `.mosp`／`.json` 仍可读取；单纯打开或恢复不会改写原文件，也不会移动旧媒体或素材目录。本节的根部 `segments` 等旧格式字段仅适用于 v1，v4 对应结构见上方契约链接。
 
@@ -831,7 +831,7 @@ uv run python edit.py your_generated.mosp
 
 ### 方式 2：用空壳编辑器加载
 
-1. `file://` 双击打开本仓库根目录的 `blank-editor.html`
+1. 通过 Launcher 启动空白编辑器，或运行 `uv run python server-editor/serve.py --blank`
 2. 点「打开工程」选 `.mosp` 或 `.json` 工程文件
 3. 若弹出「文件格式不对，缺少 segments 字段」红色提示，说明顶层结构错误
 4. 若正常显示字幕列表，则格式合格

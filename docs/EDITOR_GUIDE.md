@@ -4,11 +4,10 @@ beta.5 的叠加字幕、ASS 样式迁移、字词对齐及保留手势见[升�
 
 编辑器可直接加载原视频，后台解析波形并从「媒体 → ASR」发起整段／片段识别，无需先在 Launcher 生成工程。发行包使用独立启动脚本，源码使用 `uv run python maw_gui.py --editor --blank`；空工程也可手动编辑和纯 TTS。详见 [直接导入与 ASR](EDITOR_ASR.md)。
 
-MSWE（Moyor's Subtitle Workflow Editor）是 MSW 自带的字幕编辑器，提供 Server 版和单文件 HTML 两种入口，并共享同一份工程格式与前端代码。当前以 Server 版为主；单文件 HTML 暂时只作为兼容备用入口，不作为新功能的主要更新对象。工程文件内容是 UTF-8 JSON，主扩展名为 `.mosp`；`.json` 作为旧工程和兼容扩展名继续支持。
+MSWE（Moyor's Subtitle Workflow Editor）是 MSW 自带的字幕编辑器，通过本机服务在浏览器中使用。便携单文件 HTML 已退出默认分发并停止维护。工程文件内容是 UTF-8 JSON，主扩展名为 `.mosp`；`.json` 作为旧工程和兼容扩展名继续支持。
 
 - 推荐：`uv run python server-editor\serve.py "subtitle-project.mosp"`。它通过 `http://127.0.0.1` 提供媒体 Range 请求，适合日常编辑和大型视频 Seek。
-- 便携：双击转写生成的 `.edit.html`，或打开仓库根目录的 `blank-editor.html` 后单独选择 `.mosp` / `.json` 工程；浏览器无法自动读取关联媒体时会提示选择。它不需要启动服务，适合携带和离线检查。
-- Windows 图形版：双击 Release 压缩包中的 `MSW.exe` 生成工程；完成后默认使用 Server 版编辑器，便携编辑器 HTML 仅保留兼容入口。
+- Windows 图形版：双击 Release 压缩包中的 `MSW.exe`，通过“启动编辑器”打开工程或空白编辑器。已有 `.mosp` 工程可以继续打开；已有便携 HTML 不主动删除，但不再承诺功能同步。
 
 无论用哪种方式，`.mosp` / `.json` 工程文件都是字幕真源；新工程优先使用 `.mosp`，旧 `.json` 工程无需迁移即可继续编辑。SRT 只能保留文本和时间，不能完整保留字/词级时间码、表情包、颜色、波形、工作区与静音空隙决定。
 
@@ -143,7 +142,7 @@ localhost 模式的「最近工程」菜单会列出最近打开的工程；菜�
 
 JSON 的最小要求是顶层 `segments` 数组；每条字幕至少要有毫秒整数 `start`、`end` 和文本 `text`。完整字段、字/词时间码和波形缓存说明见 [JSON_SCHEMA.md](../JSON_SCHEMA.md)。
 
-修改前端时，`web/` 是唯一源码。修改后运行 `uv run python edit.py --blank` 来重新生成根目录的 `blank-editor.html`。
+修改前端时，`web/` 是唯一源码；本机服务动态装配该源码。便携历史产物不再同步，见[维护边界](PORTABLE_EDITOR_RETIREMENT.md)。
 
 ## 设置与工程工作流
 

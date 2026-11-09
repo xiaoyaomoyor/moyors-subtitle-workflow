@@ -1062,7 +1062,7 @@
     autoPlanSaveTimer = window.setTimeout(async () => {
       const plan = autoPlanFromControls();
       plan.waveformDraft = { spectral: $('generateSpectral').checked, rebuild: $('waveformCacheMode').value === 'rebuild' };
-      plan.outputDraft = { directory: $('outputDirectory').value, name: $('outputProjectName').value, srtPath: $('srtPath').value, exportSrt: $('outputExportSrt').checked, exportTranslatedSrt: $('outputExportTranslatedSrt').checked, exportBilingualSrt: $('outputExportBilingualSrt').checked, srtOnly: $('batchSrtOnly').checked, generateHtml: $('generateHtml').checked };
+      plan.outputDraft = { directory: $('outputDirectory').value, name: $('outputProjectName').value, srtPath: $('srtPath').value, exportSrt: $('outputExportSrt').checked, exportTranslatedSrt: $('outputExportTranslatedSrt').checked, exportBilingualSrt: $('outputExportBilingualSrt').checked, srtOnly: $('batchSrtOnly').checked, generateHtml: false };
       const result = await bridge("save_postprocess_plan", { plan });
       if (result.ok && window.MSWLauncher.config) window.MSWLauncher.config.postprocessAutoPlan = result.plan;
     }, 180);
@@ -1132,7 +1132,8 @@
     if (plan.waveformDraft) { $("generateSpectral").checked = Boolean(plan.waveformDraft.spectral); $("waveformCacheMode").value = plan.waveformDraft.rebuild ? "rebuild" : "reuse"; }
     const draft = plan.outputDraft && Object.keys(plan.outputDraft).length ? plan.outputDraft : { directory: plan.outputDirectory || '', name: plan.outputStem || '', exportSrt: plan.exportSrt !== false, exportTranslatedSrt: plan.exportTranslatedSrt !== false };
     for (const [field, key] of Object.entries({outputDirectory:'directory',outputProjectName:'name',srtPath:'srtPath'})) $(field).value = draft[key] || '';
-    for (const [field,key] of Object.entries({outputExportSrt:'exportSrt',outputExportTranslatedSrt:'exportTranslatedSrt',outputExportBilingualSrt:'exportBilingualSrt',batchSrtOnly:'srtOnly',generateHtml:'generateHtml'})) $(field).checked = Boolean(draft[key]);
+    for (const [field,key] of Object.entries({outputExportSrt:'exportSrt',outputExportTranslatedSrt:'exportTranslatedSrt',outputExportBilingualSrt:'exportBilingualSrt',batchSrtOnly:'srtOnly'})) $(field).checked = Boolean(draft[key]);
+    $('generateHtml').checked = false;
     $('customSrtDetails').open = Boolean(draft.srtPath);
     $('outputLegacyNotice').classList.toggle('hidden', plan.outputSemantics === 'separate-v2' || !plan.steps?.some(step => step.id === 'translate' && step.mergeBilingual));
     const byId = new Map(Array.isArray(plan.steps) ? plan.steps.map((step) => [step.id, step]) : []);
@@ -1811,7 +1812,8 @@
     $('outputBilingualField').classList.toggle('hidden', !translateOn || $('translationWriteMode').value !== 'bilingual');
     $('customSrtDetails').classList.toggle('hidden', (window.MSWQueue?.tasks().length || 0) > 1);
     const onlySrt = Boolean(window.MSWModules?.isEnabled('output') && $('batchSrtOnly').checked);
-    $('generateHtml').disabled = onlySrt || running;
+    $('generateHtml').checked = false;
+    $('generateHtml').disabled = true;
     $('waveformApplicability').classList.toggle('hidden', !onlySrt);
     for (const id of ['waveformCacheMode', 'generateSpectral']) $(id).disabled = onlySrt || running;
     updateOutputPreview();

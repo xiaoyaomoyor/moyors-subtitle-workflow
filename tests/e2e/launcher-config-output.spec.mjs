@@ -62,6 +62,19 @@ test('output drafts are ignored when disabled; only SRT disables caches without 
   await expect(page.locator('#outputDirectory')).toHaveValue('D:/Demo/Result');
 });
 
+test('retired portable HTML stays hidden and cannot leak into a queued output plan', async ({page}) => {
+  await open(page);await expand(page,'output');
+  await expect(page.locator('#generateHtml')).toBeHidden();
+  await expect(page.locator('#generateHtml')).toBeDisabled();
+  // Even a stale checked control from an old draft cannot enable output.
+  await page.evaluate(()=>{document.getElementById('generateHtml').checked=true;});
+  expect((await page.evaluate(()=>MSWPlan.build())).output.generateHtml).toBe(false);
+  await page.evaluate(()=>{MSWModules.setEnabled('output',false);MSWModules.setEnabled('output',true);});
+  await expect(page.locator('#generateHtml')).not.toBeChecked();
+  await expect(page.locator('#generateHtml')).toBeHidden();
+  await expect(page.locator('#generateHtml')).toBeDisabled();
+});
+
 test('custom SRT has label and hides for batches; help is keyboard accessible', async ({ page }) => {
   await open(page); await page.evaluate(()=>MSWQueue.addPaths(['D:/Demo/one.srt']));
   await expand(page,'output'); await expand(page,'match');

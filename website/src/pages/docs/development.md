@@ -30,19 +30,17 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是以本机 Web 编辑器�
 
 ### 当前编辑器维护重点
 
-当前产品流程以 `server-editor/serve.py` 提供的 Server 版编辑器为主。Launcher 暂时隐藏“同时生成单文件版网页编辑器（html）”选项；单文件 HTML 和 `blank-editor.html` 仍保留用于兼容既有使用方式，但暂不作为新功能的主要更新和验收对象，后续重新启用时再统一评估维护范围。
+当前受支持的编辑器为 `server-editor/serve.py` 提供的本机服务版。2026-11-09 起便携 HTML 退出默认分发、隐藏入口并停止维护；旧配置也不再触发生成。保留本机编辑器依赖的共享渲染与临时测试页面生成，不能直接删除 `edit.py`。具体实施和后续边界见[便携页面停止分发与维护](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/PORTABLE_EDITOR_RETIREMENT.md)。
 
 从 `1.3.2` 到当前 Beta 的功能演进记录见 [版本变更回顾](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/RELEASE_REVIEW_1.3.2_TO_1.4.0.md)。
 
 前端以 `web/editor-scripts.txt` 记录装配顺序，通过 `MSWE` 注册表连接处理模块。当前不采用 React；维护时核对 `tests/test_editor_assets.py` 的装配契约与相应浏览器回归，避免依赖未随仓库分发的个人设计笔记。
 
-修改 `web/`、模板或内联资源后，必须执行：
-
-```powershell
-uv run python edit.py --blank
-```
+修改 `web/`、模板或内联资源后，验证本机服务的页面装配与对应浏览器测试；根目录 `blank-editor.html` 为历史产物，不再要求同步生成，也不作为发布门禁。
 
 ## 数据边界与持久化
+
+10,000 条字幕的性能测量入口、固定输入和对比规则见 [编辑器统一性能基线](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/PERFORMANCE_BASELINE.md)。该工具使用隔离的合成工程，不读取个人项目。
 
 | 数据 | 真源 / 存放位置 | 用途 |
 |---|---|---|

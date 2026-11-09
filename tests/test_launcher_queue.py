@@ -144,20 +144,19 @@ class QueueTests(unittest.TestCase):
         _, errors = self.prepare(self.plan([self.srt, self.srt]))
         self.assertIn("重复", errors[0]["message"])
 
-    def test_final_portable_html_uses_the_processed_project(self):
+    def test_retired_portable_output_is_ignored_in_old_plans(self):
         plan = self.plan(postprocess=["replace"])
         plan["tasks"][0]["mediaPath"] = str(self.media)
         plan["output"] = {"generateHtml": True}
         plan["postprocess"] = {"enabled": True, "steps": [{"id": "replace", "enabled": True, "replacements": [{"source": "原文", "target": "校正"}], "conversion": "off"}]}
         tasks, errors = self.prepare(plan)
         self.assertFalse(errors)
-        def render(project, media, output, language):
-            self.assertEqual(queue.read_project(project)["subtitles"]["cues"][0]["content"]["text"], "校正")
-            return output
-        with patch.object(queue, "render_editor_html", side_effect=render) as renderer:
+        self.assertFalse(tasks[0].generate_html)
+        with patch.object(queue, "render_editor_html") as renderer:
             result = self.execute(tasks[0])
-        renderer.assert_called_once()
-        self.assertTrue(result["htmlPath"].endswith(".edit.html"))
+        renderer.assert_not_called()
+        self.assertFalse(result.get("htmlPath"))
+        self.assertEqual(queue.read_project(Path(result["projectPath"]))["subtitles"]["cues"][0]["content"]["text"], "校正")
 
     def test_confirmed_pair_uses_subtitles_and_skips_asr(self):
         plan = self.plan([self.media], asr=True)

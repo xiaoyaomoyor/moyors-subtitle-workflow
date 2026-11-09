@@ -66,7 +66,7 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 ## 重要说明
 
-普通 `.mosp` 工程与波形缓存分开保存：新缓存写在媒体的 `_msw` / `视频名_msw` 目录，旧 MAW/MSW 工程和缓存仍可读取。移动项目请保留原媒体与 `.assets` 配音素材；缺失波形可重新生成。便携 `.edit.html` 继续包含波形。详情见 [工程契约](JSON_SCHEMA.md#11-waveform-波形缓存)。
+普通 `.mosp` 工程与波形缓存分开保存：新缓存写在媒体的 `_msw` / `视频名_msw` 目录，旧 MAW/MSW 工程和缓存仍可读取。移动项目请保留原媒体与 `.assets` 配音素材；缺失波形可重新生成。便携 HTML 已退出默认分发并停止维护，使用 Launcher 启动的本机编辑器；[维护边界](docs/PORTABLE_EDITOR_RETIREMENT.md)。详情见 [工程契约](JSON_SCHEMA.md#11-waveform-波形缓存)。
 
 - 选择云端服务转写时，媒体会直接上传到对应服务商；MSW 没有自己的云端服务器，也不会代管 API Key。
 - `.mosp` 工程是字幕真源；SRT 适合普通交付，ASS 可保留所选轨道的工程样式和画面位置，但两者都不会保留全部字级时间码、波形和其他工程数据。

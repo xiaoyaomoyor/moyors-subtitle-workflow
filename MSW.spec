@@ -126,7 +126,6 @@ datas = [
     (str(ROOT / "THIRD_PARTY_NOTICES.md"), "."),
     (str(ROOT / "FAQ-常见问题.txt"), "."),
     (str(ROOT / "README-开始使用.txt"), "."),
-    (str(ROOT / "blank-editor.html"), "."),
     (str(ROOT / "assets" / "maw.ico"), "assets"),
     (str(ROOT / "assets" / "msw-launcher.png"), "assets"),
     (str(ROOT / "generate_subtitle_local.py"), "local-runtime"),

@@ -294,7 +294,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
             waveform = bool(modules.get("waveform")) and bool(media) and tracks != [] and not output.get("srtOnly")
             if modules.get("waveform") and not waveform:
                 warnings.append("波形生成不适用：仅输出字幕。" if output.get("srtOnly") else "波形生成不适用：未关联可用音轨。")
-            prepared.append(PreparedTask(task_id, source, project, media, track, default_track, anchor, post, copy.deepcopy(frozen_llm), request, waveform, bool(plan.get("generateSpectral")), export_srt, warnings, bool(output.get("srtOnly")), bool(output.get("generateHtml")), str(plan.get("recognition", {}).get("guiLang") or "zh"), bool(plan.get("rebuildWaveform")), original_target))
+            prepared.append(PreparedTask(task_id, source, project, media, track, default_track, anchor, post, copy.deepcopy(frozen_llm), request, waveform, bool(plan.get("generateSpectral")), export_srt, warnings, bool(output.get("srtOnly")), False, str(plan.get("recognition", {}).get("guiLang") or "zh"), bool(plan.get("rebuildWaveform")), original_target))
         except Exception as error:
             errors.append({"taskId": task_id, "module": module, "field": getattr(error, "field", ""), "message": str(error)})
     return prepared, errors

@@ -84,6 +84,20 @@ class FlatSubtitlesTests(unittest.TestCase):
         added = core.add_track(project, dict(project["subtitles"]["tracks"][0], id="extra"))
         self.assertEqual([t["name"] for t in added["subtitles"]["tracks"]], ["S1主", "S1副", "S2"])
 
+    def test_stale_number_reservations_follow_existing_groups_with_js_parity(self):
+        project = core.normalize_groups(core.migrate_project(dict(segments=[])))
+        base = deepcopy(project["subtitles"]["tracks"][0])
+        project = core.add_track(project, dict(base, id="s2"))
+        project = core.add_track(project, dict(base, id="s2-sub"))
+        project["subtitles"]["tracks"][-1]["secondary_for"] = "s2"
+        core.normalize_groups(project)
+        project["subtitles"]["next_track_number"] = 9
+        expected = browser("c.normalizeGroups(data)", project)
+        self.assertEqual(core.normalize_groups(project), expected)
+        added = core.add_track(project, dict(base, id="s3"))
+        self.assertEqual(added, browser("c.addTrack(data.project,data.track)", dict(project=project, track=dict(base, id="s3"))))
+        self.assertEqual([t["name"] for t in added["subtitles"]["tracks"]], ["S1", "S2主", "S2副", "S3"])
+
     def test_migration_roundtrips_and_matches_javascript(self):
         fixtures = fixture("subtitle-layers") + fixture("subtitle-tracks") + [dict(name="assets", project=fixture("msw_beta1_legacy_project"))]
         unicode_project = dict(segments=[dict(id="字幕🎬", start=0, end=1001, text="a\nb", start_frame=0, end_frame=30,

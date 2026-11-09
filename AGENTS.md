@@ -23,13 +23,9 @@ web/                          # 所有前端源码
 docs/LOCAL_ASR.md             # 实验性本地 Qwen3-ASR / FunASR CLI
 ```
 
-`web/` 是唯一前端源码。`edit.py` 将它内联为便携 `.edit.html`，`server-editor` 则在每次请求时从它渲染页面。因此，修改 `web/` 或模板后必须运行：
+`web/` 是唯一前端源码，`server-editor` 每次请求通过 `edit.render_editor_page()` 渲染页面。维护者于 2026-11-09 确认便携 HTML 退出默认分发并停止维护，详见 `docs/PORTABLE_EDITOR_RETIREMENT.md`。保留共享生成模块和隔离测试所需的临时 HTML；普通前端修改不再要求生成根目录 `blank-editor.html`，不要手改该历史副本，也不要恢复便携使用入口。
 
-```powershell
-uv run python edit.py --blank
-```
-
-不要手改 `blank-editor.html` 内联副本。所有文本文件必须保持 UTF-8 与 LF（`\n`）换行，包括 Windows 上编辑的 `.py`、`.js`、`.html`、`.md`、`.yml`、`.ps1` 等文件；禁止提交 CRLF（`\r\n`）。不要依赖开发者机器的 `core.autocrlf`，以仓库 `.gitattributes` 的 `eol=lf` 规则为准。
+所有文本文件必须保持 UTF-8 与 LF（`\n`）换行，包括 Windows 上编辑的 `.py`、`.js`、`.html`、`.md`、`.yml`、`.ps1` 等文件；禁止提交 CRLF（`\r\n`）。不要依赖开发者机器的 `core.autocrlf`，以仓库 `.gitattributes` 的 `eol=lf` 规则为准。
 
 离线对比工具源码在 `web/tools/`；修改这些页面或其共享字幕模型后，运行 `uv run python scripts/build_comparison_tools.py`，生成 `tools/compare.html` 与 `tools/timestamp-compare.html`。两份产物保持单文件离线使用，不手改内联副本。
 
@@ -67,7 +63,7 @@ uv run python server-editor\serve.py --blank
 - 测试失败、环境缺依赖、浏览器未启动或无法复现时，记录为真实的 `阻塞` 或未验证项，不得为了让表格好看而标记为 `已修复`。
 - 截图只用于提取原始反馈和视觉证据。把反馈落实到任务记录后，后续以文档和代码为主；除非需要重新确认未记录的视觉细节，否则不要反复读取同一批图片。
 - 验证要分层记录：语法/单元测试、服务器或契约测试、浏览器交互、打包/产物检查、CI 或外部服务证据分别说明，不能用其中一层冒充其他层。
-- 修改 `web/` 或相关模板后，按项目约定重新生成 `blank-editor.html`，并检查源码、生成产物和测试是否一致。
+- 修改 `web/` 或相关模板后，用本机服务或临时生成的测试页面核对装配结果；不再更新已停止分发的 `blank-editor.html`。
 
 ### 中断或上下文压缩后的恢复顺序
 
@@ -110,7 +106,7 @@ git diff
 
 有明显用户感知的改动必须添加到 CHANGELOG。CHANGELOG 条目按 PR 粒度一条汇总，不要把内部 commit 拆成多条。小节归属：体验优化进【✨ 提升】，问题修复进【🐛 修复】，行为与默认值变化进【🔄 变更】，特别重磅的全新能力（通常是 PR 引入的完整能力）才考虑进【🚀 全新特性】；但具体按实际影响判断，不以 commit 数量或内部工作量代替分类，不确定是否"重磅"时宁可放提升小节，由维护者上调。
 
-发布前确认：版本号、`CHANGELOG.md`、README 命令和 `blank-editor.html` 相互一致；运行上述测试；扫描 `.env`、媒体与个人路径；确认 `LICENSE`、`THIRD_PARTY_NOTICES.md` 仍正确。不要创建远端、推送、打 tag 或 GitHub Release，除非维护者明确要求。
+发布前确认：版本号、`CHANGELOG.md`、README 命令和本机编辑器页面相互一致；运行上述测试；扫描 `.env`、媒体与个人路径；确认 `LICENSE`、`THIRD_PARTY_NOTICES.md` 仍正确。便携 HTML 不纳入发行产物或兼容性验收。不要创建远端、推送、打 tag 或 GitHub Release，除非维护者明确要求。
 
 创建 GitHub Release 前必须核对 `CHANGELOG.md`：对应版本条目必须已经归档当前发布内容，并用 `scripts/prepare_release_notes.py` 生成、检查实际 Release notes；不能仅因 tag 已创建就视为发布完成。
 

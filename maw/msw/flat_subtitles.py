@@ -272,11 +272,9 @@ def normalize_groups(project, *, infer=False):
                     by_id[target]["secondary_for"] = source
     roots = [t for t in tracks if "secondary_for" not in t]
     maximum = max([0] + [t.get("display_number", 0) for t in roots])
-    released = {t["display_number"] for t in tracks if "secondary_for" in t and "display_number" in t
-                and t["display_number"] != by_id[t["secondary_for"]].get("display_number")}
-    number = max(model.get("next_track_number", 1), maximum + 1)
-    while number > maximum + 1 and number - 1 in released:
-        number -= 1
+    # Track IDs carry identity. Keep existing group numbers, without reserving
+    # deleted/grouped-away trailing numbers from an old counter.
+    number = maximum + 1
     for track in roots:
         if "display_number" not in track:
             track["display_number"] = number

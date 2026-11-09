@@ -69,9 +69,6 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --group build --frozen
 
-      - name: Regenerate portable editor
-        run: uv run python edit.py --blank
-
       - name: Run packaging contract tests
         run: uv run python -m unittest tests/test_packaging_contract.py
 
@@ -391,9 +388,6 @@ jobs:
 
       - name: Install locked dependencies
         run: uv sync --group build --frozen
-
-      - name: Regenerate portable editor
-        run: uv run python edit.py --blank
 
       - name: Run packaging contract tests
         run: uv run python -m unittest tests/test_packaging_contract.py

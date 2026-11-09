@@ -21,11 +21,11 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/README.md) · [环境配置清单](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/ENVIRONMENT.md)
 
-beta.5 新增独立叠加字幕轨、可选 ASS 样式库、FireRed CPU 识别、字词时间码与离线对比工具；保留 MSW 现有手势、旧工程样式和配音工作流。见 [升级与新增功能](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/BETA5_UPGRADE.md)。
+当前分支正在准备 **1.6.0** ，尚未发布；已公开版本请查看 Releases。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
 
-当前版本为 **1.6.0-beta.6** ，基于 MAW 同版本发展；这是 MSW 自己的预发布版本，两个项目的版本号相同不代表功能和兼容性完全一致。
+本版整合平级字幕轨道、属性与动画、说话人方案、查找并编辑和独立配置管理，并优化长工程响应。见 [本次更新](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/CHANGELOG.md#160---2026-11-09)。
 
-beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处理原始快照，保持旧工程设置与上游工程兼容；同时纳入七引擎 TTS、时长跟随、音色别名与合成记录改进。详见 [本次更新](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/CHANGELOG.md#160-beta6---2026-09-29) 和 [升级说明](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/BETA6_UPGRADE.md)。
+旧工程打开时在内存迁移，首次保存升级为 v4 并保留原文件备份；升级后的工程请使用新版编辑。移动项目时保留原媒体及音频素材。
 
 ![MSWE：双语字幕、配音贴片与素材库](https://raw.githubusercontent.com/xiaoyaomoyor/moyors-subtitle-workflow/my-feature/docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 
@@ -33,7 +33,7 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 
 ## 快速开始
 
-1. 在[版本列表](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)选择 MSW 安装包。预发布版请进入具体版本，`latest` 可能只显示旧的正式版。各平台与标准／lite 包的区别见[安装与升级](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/INSTALLATION.md)。
+1. 在[版本列表](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)选择已公开的 MSW 安装包。v1.6.0 尚在准备中。各平台与标准／lite 包的区别见[安装与升级](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/INSTALLATION.md)。
 2. Windows 解压并启动 `MSW.exe`；macOS 打开 `MSW.app` / `MSW-lite.app`；Linux 为 AppImage 添加执行权限后运行。
 3. 可在 Launcher 批处理；也可直接打开编辑器：Windows 双击 `Start-Editor.vbs`，macOS 双击 `Start-Editor.command`，Linux 为 AppImage 增加 `--editor` 参数。源码使用 `uv run python maw_gui.py --editor --blank`。
 4. 在编辑器加载原视频，后台生成波形；通过「媒体 → ASR」整段识别或 Ctrl/Cmd+Shift 拖选片段识别，然后编辑、翻译、TTS 和导出。也可跳过 ASR 直接纯文本配音，见 [编辑器直接导入与 ASR](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_ASR.md)。
@@ -44,14 +44,14 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 
 - 使用 Qwen / Fun-ASR / Soniox / 腾讯云录音文件识别，或 OpenAI（及兼容接口）转写，生成 SRT 与 `.mosp` 工程。
 - MSWE Server 编辑器支持波形定位、拆分合并、静音空隙处理、画面预览和多种导出格式。
-- MSWE 的「媒体 → TTS」支持选中／整轨字幕配音，也可在字幕编辑器输入独立草稿直接配音，不改字幕。连接、资源、音色与预设管理集中在「全局设置 → 环境配置 → TTS」，调用参数集中在面板的「合成设置」。素材库支持试听、搜索分页、WAV 与工程音频包，见 [TTS 与素材库](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_TTS.md)。
+- MSWE 的「媒体 → TTS」支持选中／整轨字幕配音，也可在字幕编辑器输入独立草稿直接配音，不改字幕。连接、资源、音色与预设管理集中在「编辑器设置 → 服务与环境 → TTS」，调用参数集中在面板的「合成设置」。素材库支持试听、搜索分页、WAV 与工程音频包，见 [TTS 与素材库](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_TTS.md)。
 - 「媒体 → TTS」也支持 [本地油库里配音](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_YUKKURI.md)：中英文输入、八音色与语速调节；可在编辑器安装资源或加载单独离线资源包，无需 API Key。
 - 已安装 IndexTTS 的用户可连接 [IndexTTS 2.5 本机服务](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_INDEXTTS.md)，选择官方示例或自有参考音频，调节情感、时长与高级参数，生成结果继续用于素材库、贴片和导出。
 - 把素材库音频拖到波形显示器即可放置[音频贴片](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_AUDIO_CLIPS.md)，支持重叠子行、裁剪、静音、RMS 热力图、空隙保护与 1× 同步试听。
 - [工程保存与恢复](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_PERSISTENCE.md)：另存为自动收集 TTS 音频，可勾选收集原媒体；提供素材完整性检查、本机恢复草稿与保存历史。
 - [音频导出](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_AUDIO_EXPORT.md)：从音频贴片导出配音轨或原声混音 WAV，支持空隙移除、峰值保护与后台任务。
 - [视频与配音剪辑工程导出](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_VIDEO_TIMELINE_EXPORT.md)：导出混音 MP4，或包含独立配音音轨、原始 TTS 和字幕的 OTIOZ 素材包。
-- MSWE 支持可选的多重字幕：拖入第二条字幕作为副轨，支持主副字幕交换、绑定/解绑、联动编辑、跨轨道吸附，以及 `G` / `Shift+G` / `H` / `B` 快捷操作。
+- MSWE 使用平级字幕轨道 S1、S2…，可选主副分组与字幕绑定；保留双栏卡片、联动编辑、跨轨拖动与快捷操作。启动器按实际轨道处理和导出，SRT／ASS 文本导入自动按重叠分轨；离线对比工具可分别选择工程轨道。
 - 公开 CLI 可用于批处理和 AI 自动化，详见[命令行文档](../cli/)。
 - [本地 Qwen3-ASR / FunASR / Faster-Whisper](../local-asr/) 和免 Key 的必剪 ASR 均属于实验性入口，仅适合体验。
 
@@ -63,6 +63,8 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 - [常见问题](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/FAQ.md) ：Windows 下载解压、启动故障与问题反馈。
 - [ASR 服务与配置](../providers/) ：服务商选择、Key、费用和隐私边界。
 - [编辑器指南](../editor-guide/) ：MSWE 的编辑、保存和导出。
+- [配置管理](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/CONFIGURATION_MANAGEMENT.md) ：启动器与编辑器共用的 `.mswconfig` 分类导入导出、冲突预览及生效范围。
+- [平级字幕轨道](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/FLAT_SUBTITLE_MODEL.md) ：轨道、字幕与绑定关系，以及旧工程升级规则。
 - [字幕按键调整](../keyboard-adjustment/) ：快捷键和时间微调规则。
 - [命令行与自动化](../cli/) ：完整参数、范例、Server 管理和退出码。
 - [LLM 字幕后处理协议](../llm-postprocess/) ：后处理的输入输出与安全边界。
@@ -73,10 +75,10 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 
 ## 重要说明
 
-普通 `.mosp` 工程与波形缓存分开保存：新缓存写在媒体的 `_msw` / `视频名_msw` 目录，旧 MAW/MSW 工程和缓存仍可读取。移动项目请保留原媒体与 `.assets` 配音素材；缺失波形可重新生成。便携 `.edit.html` 继续包含波形。详情见 [工程契约](../json-schema/#11-waveform-波形缓存)。
+普通 `.mosp` 工程与波形缓存分开保存：新缓存写在媒体的 `_msw` / `视频名_msw` 目录，旧 MAW/MSW 工程和缓存仍可读取。移动项目请保留原媒体与 `.assets` 配音素材；缺失波形可重新生成。便携 HTML 已退出默认分发并停止维护，使用 Launcher 启动的本机编辑器；[维护边界](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/PORTABLE_EDITOR_RETIREMENT.md)。详情见 [工程契约](../json-schema/#11-waveform-波形缓存)。
 
 - 选择云端服务转写时，媒体会直接上传到对应服务商；MSW 没有自己的云端服务器，也不会代管 API Key。
-- `.mosp` 工程是字幕真源；SRT 适合普通交付，ASS 可保留主字幕预览选择的字体、字号和文字颜色，但两者都不会保留全部字级时间码、波形和其他工程数据。
+- `.mosp` 工程是字幕真源；SRT 适合普通交付，ASS 可保留所选轨道的工程样式和画面位置，但两者都不会保留全部字级时间码、波形和其他工程数据。
 - 费用、数据保留和服务可用性以服务商当前政策为准，详见[ASR 服务与配置](../providers/)。
 - [上游 MAW 的 3 分钟视频速览](https://www.bilibili.com/video/BV1hXum6yELT)（历史操作参考，未涵盖 MSW 新增的配音功能）
 
@@ -95,7 +97,3 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 MSW 的问题和建议请提 [GitHub Issues](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues)。[上游 MAW 交流群](https://qm.qq.com/q/4YtxZIpzxC)仅作为上游交流入口，MSW 特有问题请在本仓库反馈。
 
 本项目采用 [AGPL-3.0-only](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/LICENSE)。
-
-### beta.3 适配中的新增能力
-
-开发分支已接入豆包 ASR、按模型区分的 OpenAI/OpenRouter 参数，以及磁盘版本备份、颜色说话人显示和 SRT 导出。Launcher 与独立编辑器共享后端；可靠时间戳仍是生成字幕的前提。使用方法、备份目录和兼容边界见 [工作流说明](../workflow/#beta3-cd-增量识别版本与显示)。产品版本号在正式发行阶段统一更新。

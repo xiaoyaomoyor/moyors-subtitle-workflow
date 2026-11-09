@@ -38,17 +38,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install locked Python dependencies
-        run: uv sync --frozen --no-group build --no-dev
-
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
@@ -71,14 +60,8 @@ jobs:
           BASE_PATH: /moyors-subtitle-workflow
         run: npm run build
 
-      - name: Add portable editor page
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p website/dist/editor/web
-          uv run --no-sync python -c "from pathlib import Path; import edit; Path('website/dist/editor/index.html').write_bytes(edit.build_blank_html().encode('utf-8'))"
-          cp -r web/sfx website/dist/editor/web/sfx
-          touch website/dist/.nojekyll
+      - name: Configure static site
+        run: touch website/dist/.nojekyll
 
       - name: Setup Pages
         uses: actions/configure-pages@v6

@@ -9,11 +9,79 @@ source: "JSON_SCHEMA.md"
 
 # 字幕工程文件规范（`.mosp` / `.json`）
 
-本文档定义 MSWE（Moyor's Subtitle Workflow Editor）、`edit.py` 生成的 `.edit.html` 以及 `blank-editor.html` 共同接受的工程文件格式。工程文件内容是 UTF-8 JSON；`.mosp` 是当前默认和推荐的扩展名，`.json` 作为旧工程与兼容输入/输出扩展名继续支持。
+本文档定义 MSWE（Moyor's Subtitle Workflow Editor）接受的工程文件格式。工程文件内容是 UTF-8 JSON；`.mosp` 是当前默认和推荐的扩展名，`.json` 作为旧工程与兼容输入/输出扩展名继续支持。历史便携 HTML 已停止维护，以本机编辑器的读写规则为准。
 
 用途：让任意来源（ASR、第三方模型生成、人工手写）的 JSON 都能直接被编辑器加载、编辑、再导出。
 
 适用版本：对应 `edit.py` / `generate_subtitle_qwen_api.py` 当前实现。
+
+版本范围：下文基础字段以 v1 描述；当前普通编辑器默认使用[平级字幕 v4](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/FLAT_SUBTITLE_MODEL.md)。无版本／v1／v2／v3 工程在内存升级，首次写回保留原文件备份；迁移保留内容、绑定偏移、轨道样式和位置。[统一多层字幕 v2](#统一多层字幕-v2) 和[固定轨道 v3](#固定字幕轨道-v3第二阶段数据接口) 继续作为兼容输入。
+
+v4 单条定位使用可选 `subtitles.cues[*].content.subtitle_position:{x,y,alignment}`：x/y 为相对视频内容（不含黑边）的 0–1 有限数字，alignment 为 ASS 九宫格锚点整数 1–9。锚点坐标在自动排布之后覆盖本条字幕，不扩大到绑定伙伴；未选中的伙伴保持原有排布槽位，移除覆盖即恢复继承。旧 `{x,y}` 位置继续采用字幕组中心／顶部语义；从旧覆盖转换时，新对象可携带 `base:{x,y}` 保存旧组的排布依据，避免未选中的伙伴跳位，base 不允许再嵌套。轨道 `position` 仍仅接受 `{x,y}`；不得给轨道写入 alignment/base。详见平级字幕契约中的定位说明。
+
+v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对象。缺省字段继续继承该物理轨道对应样式；工程默认 → 轨道快照 → 单条覆盖 → 轨道动画。对象只接受以下字段，未知字段、错误类型和越界值拒绝：
+
+- `fontName`：中文及其他非拉丁文字的字体族名，非空字符串，至多 128 字符，不含逗号、换行和 NUL；`fontSize`：1–512。
+- 可选文字类别字体：`latinFontName`（拉丁字母、数字及半角标点）、`kanaFontName`（日文假名）、`hangulFontName`（韩文）、`cyrillicFontName`（西里尔字母）、`greekFontName`（希腊文）、`arabicFontName`（阿拉伯文）、`hebrewFontName`（希伯来文）、`devanagariFontName`（天城文）、`thaiFontName`（泰文）。均为至多 128 字符的字体族名，不含反斜线、大括号、逗号、换行和 NUL；缺省或空字符串使用 `fontName`。汉字及其他未列出的文字使用 `fontName`，不猜测汉字所属语言。工程／轨道／预设样式同样支持这些字段，单条可按字段独立覆盖与恢复。候选按字形覆盖筛选，界面显示本地化名称，工程存储实际字体族名；ASS 分段、换行测量、渐变、打字机、预览和烧录使用相同规则。
+- `primaryColor`、`outlineColor`、`backColor`：`#RRGGBB`；显式文字／描边颜色优先于字幕颜色标记的映射。
+- `bold`、`italic`、`underline`、`strikeOut`：布尔值；`borderStyle`：1 或 3。
+- `outline`、`shadow`：0–100；`spacing`：−100–100；`angle`：−360–360；`scaleX`、`scaleY`：0–1000，均为有限数字。
+- `wrapMode`：`auto` / `characters`；`charsPerLine`：1–200 的整数。
+- `textAlign`：`left` / `center` / `right`。多行文字在原字幕框内对齐，不改变 `subtitle_position`；未设置时沿用轨道锚点的水平对齐。工程样式、轨道快照、说话人外观和预设也可保存该字段，预览、ASS 和烧录使用相同规则。
+- `backgroundShape`：`none` / `rect` / `rounded`，缺省 `none`；`backgroundColor`：`#RRGGBB`，缺省黑色；`backgroundOpacity`：0–100 的有限数值，缺省 75。
+- `backgroundPaddingX` / `backgroundPaddingY` / `backgroundRadius`：0–240 的有限数值，分别为左右／上下内边距及圆角半径，缺省 16 / 8 / 12，单位为 1080p 像素。半径渲染时不超过框宽／高的一半。
+- `gradientMode`：`none` / `characters`，缺省 `none`；`gradientStart` / `gradientEnd`：`#RRGGBB`，缺省 `#ffffff` / `#b79cff`。双色沿整条字幕可见字素的阅读顺序线性插值 RGB，四舍五入到整数通道；空格、换行不占步长，换行不重置，单字使用起始颜色。一个字素内部为纯色，组合音标、ZWJ 表情不拆开。渐变启用后覆盖文字填充和说话人颜色映射，不改描边、阴影或背景；关闭后恢复原文字颜色。字段同样用于轨道样式和预设。
+
+可选 `content.subtitle_style_preset` 为非空、至多 160 字符的预设 ID，只记录编辑来源以显示“已修改”和恢复该预设；渲染始终使用已保存的覆盖字段，不依赖外部预设库。删除预设不改变工程外观，恢复轨道外观同时清除来源标识。
+
+单位沿用 1080p ASS 工程样式。位置、对齐与边距不写入外观覆盖，定位继续使用 `subtitle_position`；动画另存于下述动画对象。仅保存明确修改的字段，多选按字段分别写入，不复制首条的其他外观或自动扩展到绑定伙伴。应用预设写入该轨道角色的完整外观快照；另存预设仅保存合成后的外观，不改变原有继承字段。恢复外观删除覆盖字段而不删除定位或动画。切分两半继承覆盖；合并采用每条轨道中时间最早一条的覆盖（缺省即继承），不合并互斥样式参数。预览、独立 ASS 与烧录共用解析与测量；校对／导出其他预设替换轨道基底，单条明确覆盖仍保留。SRT 正文和时间不因外观调整而改变。
+
+背景字段也用于 `msw.subtitle-style.v1` 的 `main` / `secondary` 及轨道快照。开启背景时，文字渲染采用描边模式，原 `borderStyle` 值仍保存，关闭背景后恢复原边框模式。背景按全文（含说话人前缀、换行、描边／阴影外延）生成单独 ASS 矢量事件，不新增字幕块；内边距参与换行、组间避让与播放器控制条避让。绘图使用文字的相同锚点与时钟，跟随位移、缩放、旋转及透明度动画；背景不透明度与新动画的不透明度相乘。打字机不裁短背景。独立定位保持锚点不变，自动排布使用含背景的外框。“首条从 0 开始”同时延长该字幕的背景和文字初始片段。缺省背景关闭，不改变已有工程的外观。
+
+视频取色仅在本机浏览器读取暂停原帧，颜色按 `#RRGGBB` 写入目标外观字段；不将截图、像素缓存或取色状态写入工程，也不上传画面。取消或切换操作对象不提交修改。
+
+字幕动画：工程样式的 `main.animation` / `secondary.animation` 保存该角色的默认动画，轨道快照使用自己的物理 `style.slot`。单条 `content.subtitle_animation` 按效果覆盖，不自动扩展到绑定伙伴。结构为 `{schema:"msw.subtitle-animation.v1", mode?, timing?, effects:{...}}`。省略的效果和顶层字段继承轨道；无基底时使用关闭的默认参数。每个出现的效果必须包含完整必选字段；未知字段、非有限数及错误类型拒绝。
+
+| 效果 | 必选参数与默认值 |
+| --- | --- |
+| `fade` | `enabled:false, unit:"percent", in:10, out:10` |
+| `typewriter` | `enabled:false, unit:"percent", start:0, end:40` |
+| `blink` | `enabled:false, unit:"percent", start:0, end:100, period:600, opacity:0` |
+| `transform` | `enabled:false, unit:"percent", start:0, end:25, fromX:0, fromY:0, toX:0, toY:0, fromScale:85, toScale:100, fromRotation:0, toRotation:0, fromOpacity:100, toOpacity:100, easing:"smooth"` |
+| `slide` | `enabled:false, unit:"percent", start:0, in:15, out:15, end:100, direction:"right", distance:120` |
+| `wave` | `enabled:false, unit:"percent", start:0, end:100, amplitude:12, period:40, periodUnit:"percent", wavelength:8, direction:"right"` |
+| `shake` | `enabled:false, unit:"percent", start:0, end:100, amplitude:6, period:6, periodUnit:"percent", direction:"both"` |
+| `curves` | `enabled:false, unit:"percent", channels:{}` |
+
+`enabled` 为布尔值，`unit` 为 `percent/ms`。时间数值范围为 0–100% 或 0–60000ms；界面秒数与存储毫秒换算。可选顶层 `timing` 同样只接受 `percent/ms`，用于动画区统一时间方式；实际渲染仍读取各效果自己的单位。切换方式以首条参考字幕换算所选对象，得到可统一编辑的时间值；未选择对象、锁定或越界时不写入。只是查看不迁移旧数据。
+
+数值预设可增加 `endAnchor:"start"|"end"`：start 总是距字幕起点的偏移；endAnchor=end 时 end 是距字幕终点的偏移，endAnchor=start 或省略时 end 是起点后的绝对时间。fade 可额外同时包含 start/end；不包含时保持从起点淡入、终点淡出的旧语义。新固定时长 fade/slide/blink/wave/shake 默认使用终点锚定；typewriter/transform 默认使用起点锚定。没有终点锚定时要求 end>start，fade/slide 的 in+out 不超过 end-start。
+
+fade/slide 四个点为 start、start+in、D−end−out、D−end（终点锚定时），D 为本条字幕时长。起点偏移、入场时长、终点偏移、退场时长之和超过 D 时，运行时统一乘以 D/总和；中间停留缩为零。起点锚定范围超过短字幕时，同样等比缩短到字幕内。仅计算结果改变，工程与预设保存值不变。无 endAnchor 的旧效果保持原读取语义。淡入淡出范围外透明；滑入滑出从相反方向进入、沿指定方向离开，使用平滑进出。
+
+`period` 是闪烁完整亮暗周期，默认 80–60000ms；可选 `periodUnit:"percent"|"ms"`，省略为 ms，percent 周期范围 1–100。固定模式周期不随字幕时长缩放。不透明度为 0–100，位移为相对原锚点的 1080p 坐标 −4096–4096，滑动 distance 为 0–4096。缩放 1–1000%，旋转 −360–360°。transform 的 easing 为 linear/ease-in/ease-out/smooth（线性、平方、反向平方、三次平滑）；新的舒展预设从 100% 到 115%，强度编辑只改终值。旧起止值不在读取时改写。
+
+`curves.channels` 仅接受 x/y/scale/rotation/opacity，数值范围沿用上述各参数。每个通道包含 1–32 个 `{time,value,easing,anchor?}`。anchor 可选 start/end，省略=start；时间分别表示起点后／终点前。数组顺序是全部 start 点时间递增，再全部 end 点时间递减，同一锚点与时间不能重复。关键帧支持两种单位，固定模式右键选择起点后／终点前。切换单位保留端点语义。
+
+曲线运行时分别求各通道最大的起点偏移 A 与终点偏移 B；有锚点字段且 A+B>D 时，对全部偏移使用 D/(A+B) 压缩。相遇的点使用后一个点控制该瞬间，避免零分母；原数组不改写。easing 为 linear/smooth/hold，控制到下一点的过渡，smooth 使用 p²(3−2p) 无过冲，hold 到下一点跳变。首末点外保持端点值。曲线覆盖 transform/slide 的同名参数，透明度与其他激活效果相乘。
+
+可选 `curves.pulse` 保存一个完整 blink 参数对象，作为自定义曲线的循环闪烁调制。它保留周期、强度、起终点规则，避免用首条字幕的有限关键帧烘焙后，长字幕丢失后续循环。自定义界面显示可展开的“循环闪烁”，可改周期／最低不透明度或移除；不额外启用预设模式中的 blink。
+
+`mode` 为 presets/custom，仅控制基础变换（fade/slide/blink/transform 与 curves）的切换。单条可只覆盖模式，省略时继承轨道，两层均省略保留旧组合渲染。特殊效果 typewriter/wave/shake 的控件在两种模式下均可编辑，不改变当前基础模式；wave/shake 在两种模式都生效，typewriter 沿用旧 custom 标志以保持旧工程外观，新编辑或转换会同步它。关闭特殊效果保留参数；不将特殊效果烘焙为基础曲线。固定时长预设转自定义保留起终点锚定、固定周期及特殊效果，换用更短／更长的字幕仍按相同规则求值。比例模式沿用参考时长采样，最多每通道 32 点。旧复杂变换与滑入滑出重合、或透明度变换与淡入淡出重合而不能无损转为固定曲线时拒绝转换并保留原值，不静默改变画面。
+
+shake 为整句原地震动，文字与背景同步：amplitude 为每轴最大偏移（1080 高画布的 0–120px），direction 为 both/horizontal/vertical，periodUnit 必填，抖动间隔为 1–100% 或 80–60000ms。按固定整数序列生成偏移并线性连接，起止点为零，不使用实时随机数；预览、Seek、裁剪与导出使用相同源时间。区间短于两个间隔时仅在运行时压缩间隔，保存值不变。效果叠加在基础位移或曲线之后，自定义转换及播放头关键帧不会重复写入震动偏移。ASS 每个间隔生成一段整句移动，不逐字复制，沿用每条最多 4096 个时间片段的限制。
+
+wave 按可见字素计算正弦纵向位移：amplitude 为 1080 高画布的 0–120px 振幅，wavelength 为一轮波形的 2–64 个字素，direction 为 left/right。periodUnit 必填，周期范围 5–100% 或 200–60000ms；固定周期不随字幕长度改变。空格保留但不计相位，显式换行重置相位。时段首尾以较小的「四分之一周期／半个区间」平滑归零；时段外回到原位置，原时间参数不变。整句 ASS 排版通过透明遮罩逐字移动，保留字号、空格、字体与换行；独立背景保持整体，基础位移、旋转、缩放、透明度继续叠加。按 40ms 与周期/16 中的较小值采样，间隔不小于 10ms，受 ASS 厘秒精度约束。每条启用波动的字幕限 128 个可见字素、16000 个片段；超出时明确拒绝，避免默默丢失效果或产生无界输出。
+
+返回预设保留原参数，关闭效果只改 enabled；恢复默认重置对应预设，保留当前时间方式及开关；恢复轨道动画删除整个单条覆盖。批量滑条拖动仅统一时间字段，强度等其他参数分别保留；自定义按当前通道更新，其他通道保留。松手一次提交，Esc 取消，选择变化或锁定取消未提交拖动。播放头设帧按每条起点计算，须位于所有目标字幕内，创建／更新起点锚定帧。图表选中通道、悬停与参考范围不保存到工程。
+
+渐变使用原生 ASS `\1c` 字素标签，不增加事件条数，字素颜色由完整文本确定，打字机隐藏尾部不重新计算颜色。关键帧使用相同源时钟编译成有界的 ASS `\move` / `\t` 片段，平滑曲线以最多 40ms 间隔近似，最终时间受 ASS 厘秒精度约束。精确浏览器预览、独立 ASS 和烧录共用编译器。未实现单字内部连续渐变或 CSS 专有渐变。
+
+淡入淡出、闪烁及变换不透明度相乘；打字机只控制可见字素，空格和换行不占一次出字，隐藏尾部保留全文排布，开始前隐藏、结束后全显。变换在时段前后保持起始/结束值，闪烁只在指定时段生效。渲染按原字幕起点求值，裁剪、去空隙及跳转不重播；缓动编译为标准 ASS 分段线性事件，时间受 ASS 厘秒精度约束。“首条从 0 开始”仅延长首个输出片段的初始画面，不提前播放其变换。单条关键边界超过 4096 或工程输出超过 200000 行时拒绝生成并给出错误，不静默裁掉效果。
+
+未设置新动画时保留既有 `animations` ASS 标签；轨道或单条设置新动画后替代旧标签，不混用互斥时间规则。单条关闭某效果保存 `enabled:false`，恢复继承则删除该效果，删除最后一项移除整个覆盖对象。复制/切分复制覆盖，切分后每半段按自身时长计算；合并采用每轨时间最早一条的覆盖并按合并时长重新计算。仅改变字幕起止时间会相应改变比例动画，毫秒参数保持原值。外观恢复与外观预设不改写单条动画；轨道预设保存各角色默认动画，交换主副外观保留各自位置和动画。
+
+v4 字幕真源为 `subtitles`，普通编辑器内部使用可逆操作视图复用原有卡片及波形组件；视图不会写入文件或发送给处理服务。普通保存、另存为、恢复、任务快照、字幕预览、ASS／音视频渲染与工程音频包接受经验证的 v4。`subtitle_view` 记录双栏显示偏好（`display_mode`、`secondary_cue_ids`），不决定物理轨道身份或绑定方向。轨道可含 `split_mode: auto/word/continuous`，缺省自动判断；旧两侧切分方式在打开时迁入实际轨道，保存设置 `subtitle_view.track_split_modes_migrated: true` 并删除旧两侧切分字段，避免重开后重复套用。配音 `source_ref.subtitle_cue_id` 记录全局字幕 ID，`track_id` 记录物理轨道；旧来源通过迁移别名解析。旧专用 codec 继续拒绝 v4，不能只修改版本字段来转换数据。
 
 编辑器独立媒体工作流可在 `msw.source_audio_index` 保存所选源音轨的逻辑序号（整数 0–255），与容器 `stream_index` 区分；缺省沿用波形缓存的 `audio_track`，再缺省为 0。播放代理与后台分析任务保存在本机可重建缓存，不能替代工程的 `media` 原素材引用。
 
@@ -21,9 +89,11 @@ source: "JSON_SCHEMA.md"
 
 ## 一、顶层结构
 
-新写出的工程使用顶层 `schema: "moy.asr.project.v1"`，与 MAW beta.2 的工程版本约定兼容。缺少此字段的旧 `.mosp`／`.json` 仍可读取，在内存规范化及下一次保存时补上版本；单纯打开或恢复不会改写原文件，也不会移动旧媒体或素材目录。
+v4 普通编辑器的轨道可含 `display_number`（轨道组的正整数编号）与 `secondary_for`（可选主轨 ID）；模型含 `next_track_number`。同组主副轨共享编号，独立轨和不同组不得重号；主副分组仅一主一副，不得自引用或嵌套，与字幕 `bindings` 分开。解除分组为副轨分配新编号。兼容旧的逐轨独立编号，规范化时以后续编号等于现存最大组编号加一为准，不保留已删除／已并组的末尾预留号，保持已有独立轨编号和中间空号；缺少字段时补齐 S1／S1主／S1副名称。详细契约见 [平级字幕轨道与字幕](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/FLAT_SUBTITLE_MODEL.md#轨道与字幕)。
 
-显式提供 `schema` 时必须是上述字符串。未知版本、空字符串、`null` 或其他类型一律拒绝，不能通过保存把它们静默降为 v1。Python 工程边界、统一写出、文本匹配脚本及编辑器打开／拖入／恢复／另存为回载均执行版本检查；浏览器先验证再切换工程与任务关联。顶层版本和可选 `msw.schema` 分别验证，不能互相替代。
+基础生成器使用顶层 `schema: "moy.asr.project.v1"`，与 MAW beta.2 的工程版本约定兼容；MSWE 保存使用 v4。缺少此字段的旧 `.mosp`／`.json` 仍可读取；单纯打开或恢复不会改写原文件，也不会移动旧媒体或素材目录。本节的根部 `segments` 等旧格式字段仅适用于 v1，v4 对应结构见上方契约链接。
+
+显式提供 `schema` 时必须是 `moy.asr.project.v1`、`msw.project.v2`、`msw.project.v3` 或 `msw.project.v4`。未知版本、空字符串、`null` 或其他类型一律拒绝，不能通过保存静默降级。Python 工程边界、统一写出及编辑器打开／拖入／恢复／另存为回载执行版本检查；各处理工具可另外限制支持的版本。顶层版本和可选 `msw.schema` 分别验证，不能互相替代。
 
 浏览器保存保留 `language_source`、`split_mode`、`timestamp_granularity`，以及未识别的可选顶层 JSON 字段；切换工程时替换这一组扩展字段。`msw` 是已知字段，始终按当前编辑状态验证并写出，不使用加载时的旧快照。其他已知字段继续按各自规范重建，因此这里不承诺任意未知嵌套字段都能保留，也不承诺 MSW 配音工程经其他编辑器保存后仍完整保真。
 
@@ -58,6 +128,7 @@ source: "JSON_SCHEMA.md"
   "gap_remove": { ... },
   "script_alignment": { ... },
   "workspace": { ... },
+  "editor_state": { "playhead_ms": 12345 },
   "preview": { ... },
   "segments": [ ... ]
 }
@@ -82,7 +153,10 @@ source: "JSON_SCHEMA.md"
 | `overlay_track` | `object` | 否 | 与上游兼容的独立叠加字幕轨 `{enabled, segments}`；关闭时保留数据，与副字幕及配音贴片不同 |
 | `transcription_warnings` | `array<string>` | 否 | 识别结果的可读警告，如部分句子缺少可靠时间范围；不包含密钥，不改变字幕或时间码语义 |
 | `workspace` | `object` | 否 | 编辑器工作区：四个功能区的窗口布局与显示状态；不影响字幕和波形缓存。服务器版也可使用独立的本机命名工作区库跨工程复用 |
+| `editor_state` | `object` | 否 | 工程导航状态。`playhead_ms` 为上次保存的播放头位置，使用源时间轴的非负整数毫秒；与个人配置及字幕时间码分开保存 |
 | `preview` | `object` | 否 | 预览呈现设置。含 `preview.subtitle`（主字幕预览框与样式）、可选的 `preview.extension_subtitle`（拓展字幕样式）和 `preview.sticker`（表情包预览层）。不影响字幕时间与文本 |
+
+`editor_state.playhead_ms` 同样适用于 v4。实际保存、另存为与恢复快照时读取共享播放时钟，包括视频结尾以后的音频贴片；普通预览读取与保存后的内容比较不会更新它。打开工程等待媒体就绪后恢复并保持暂停，超出当前媒体／贴片范围时限制到结尾；等待期间的主动跳转优先。旧工程缺省从 0 开始，无效导航值忽略，不阻止加载字幕；仅移动播放头不触发内容未保存提示，需保存工程才能更新磁盘记录。`editor_state` 的其他字段保留，不进入独立配置导出。
 
 `media_metadata.video_fps` 是生成工程时从源视频读取的媒体 FPS，仅作为编辑器切入帧模式时的默认值；它不替代编辑器自己的 `timebase.fps`，用户仍可在全局设置中修改。旧工程没有 `media_metadata` 时继续使用编辑器原有默认值。`video_fps_ratio` 用于保留 `30000/1001` 这类非整数帧率的原始比例。
 
@@ -260,69 +334,50 @@ source: "JSON_SCHEMA.md"
 
 ### 1.3 gap_remove 空隙移除
 
-`gap_remove` 是编辑决策，不会重写 `segments[*].start/end` 或原媒体。编辑器把其中 `removed: true` 的区间从**派生时间轴**压缩掉，用于自动跳过播放、去空隙 SRT 和去空隙 OTIO；`removed: false` 表示用户已恢复该空隙。
+`gap_remove` 不重写字幕时间或原媒体。当前 MSWE 使用 `retention_mode: "locked"`：固定表示**锁定标记**，不是保留声音；所有现存空隙仍参与播放跳过、去空隙导出及空隙内字幕筛选，受配音保护约束。
 
 ```json
 {
   "schema": "moy.asr.gap_remove.v1",
   "detector": "audio_gate",
-  "minimum_ms": 500,
-  "threshold_db": -24,
+  "retention_mode": "locked",
+  "retained_ranges": [{"start": 2000, "end": 3000}],
+  "minimum_ms": 400,
+  "threshold_db": -28,
   "hysteresis_db": 2,
-  "lead_in_ms": 40,
+  "lead_in_ms": 120,
   "lead_out_ms": 80,
   "skip_playback": true,
-  "manual_corrections": false,
-  "operation_mode": "middle_drag",
-  "disable_coverage_percent": 80,
-  "disable_remaining_ms": 300,
+  "operation_mode": "boundary_drag",
+  "generation_mode": "audio_gate",
+  "reference_track_ids": ["track-1"],
+  "disable_track_id": "track-1",
+  "disable_linked": true,
+  "generated_sources": ["audio_gate"],
+  "cleared": false,
   "gaps": [
-    {
-      "start": 1280,
-      "end": 2440,
-      "removed": true,
-      "source": "audio_gate",
-      "origins": ["audio_gate"]
-    },
-    {
-      "start": 6120,
-      "end": 7050,
-      "removed": false,
-      "source": "audio_gate",
-      "origins": ["audio_gate", "manual"]
-    }
-  ],
-  "provenance": {
-    "schema": "moy.asr.gap_provenance.v1",
-    "sources": {
-      "script_alignment": [],
-      "audio_gate": [
-        { "id": "silence-001", "start": 1280, "end": 2440 }
-      ]
-    },
-    "manual_overrides": [
-      { "id": "manual-001", "start": 6120, "end": 7050, "removed": false }
-    ],
-    "legacy": []
-  }
+    {"start": 1000, "end": 2000, "removed": true, "retained": false},
+    {"start": 2000, "end": 3000, "removed": true, "retained": true},
+    {"start": 3000, "end": 4000, "removed": true, "retained": false}
+  ]
 }
 ```
 
-- `detector` 固定为 `audio_gate`：扫描波形峰值包络，声音高于 `threshold_db` 时打开 gate，低于 `threshold_db - hysteresis_db` 后才关闭；不会用字幕之间的时间差推断空隙。
-- `gaps[*].source` 和 `gaps[*].origins` 是根据 `provenance` 派生的可读字段：`source` 表示唯一的初始自动来源；`origins` 列出当前区间的全部贡献来源。多个自动来源重叠时 `source` 为 `null`；只有人工覆盖时才为 `manual`。它们不是来源真源，旧客户端可以忽略。
-- `provenance` 是可选的来源真源，当前来源层为 `script_alignment`、`audio_gate` 与 `manual_overrides`；`legacy` 是兼容读取字段，启用的旧范围会迁入 `audio_gate`，旧的 `removed: false` 范围会迁入 `manual_overrides`，规范化输出中的 `legacy` 为空数组。支持它的新客户端据此分层重扫和重建最终 `gaps`。
-- `minimum_ms` 的允许范围是 100–60000，单位为毫秒；默认 500。判定基于应用前/后端预留后的最终移除区间，预留吃完整段时不纳入移除。
-- `threshold_db` 的范围是 -96–0，默认 -24；`hysteresis_db` 的范围是 0–30，默认 2。比如阈值 -24、滞回 2 时，声音达到 -24 才算有声，低于 -26 才重新算静音。建议使用 1–3dB；过高会延迟回到静音。滞回位于「空隙检测与调整」折叠区内。
-- `lead_in_ms` / `lead_out_ms` 是每段空隙两侧保留的静音毫秒数，范围 0–2000，默认前端 40、后端 80。扫描得到的原始静音区间会在起点加 `lead_in_ms`、终点减 `lead_out_ms` 后再写入 `gaps`，避免剪掉空隙后两句贴得太急；预留后的区间短于 `minimum_ms` 时整段保留。这两个值在扫描生成空隙时继续生效；对已有结果点击「收缩空隙」时，会再次按当前值向内调整现有区间，是额外的可撤销微调。
-- `manual_corrections` 表示当前结果是否包含人工修正。新客户端根据 `provenance.manual_overrides` 是否为空维护它；旧客户端仍可把它当作全局摘要。Alt+左键切换整段、Ctrl/Cmd+复制拖动、中键范围操作和“全部恢复”都会留下普通人工覆盖；整体拖动会留下 `operation: "move"` 的内部记录，保存 `base_start`/`base_end` 和 `target_start`/`target_end`，重复拖动时更新原记录；旧移动目标被后续操作从中间覆盖时，记录可使用 `target_ranges` 保存剩余目标片段。边界拖动会留下 `operation: "boundary_resize"` 的内部记录，保存 `edge`、`base`、`boundary` 与可选 `cleared_ranges`。两类记录都直接调整同一条 Gap 的范围，不会在原位置追加 `removed: false` 恢复块；重新扫描不会删除这些人工调整。
-- `operation: "move"` 移动的是用户看到的整条 Gap：先清除原可见范围，再把相同状态放到固定长度的目标范围。通常使用 `target_start`/`target_end`；旧移动目标被后续操作从中间覆盖时，使用可选 `target_ranges` 保存剩余片段（可以为空以继续清除 base）。同状态的被覆盖 Gap 会被吸收，`removed` 状态不同的 Gap 只缩小其重叠部分，因此相邻的 active/inactive Gap 仍是独立对象。普通 `removed: false` 仍然表示用户明确保留、但不参与跳过的恢复区。
-- `removed: false` 的恢复区段仍保留在时间轴上，但不参与播放跳过、去空隙导出或“禁用空隙内字幕”；“清理区段”则从来源层删除选中范围内的记录，不留下恢复覆盖，因此之后重新扫描可能再次生成同一段静音 Gap。
-- `operation_mode` 控制人工修正交互：`none` 仅保留 Alt+点击整段切换，`boundary_drag` 在 hover 空隙时显示左右边界手柄，`middle_drag` 默认用中键增加静音、按住 Alt 才恢复声音，`boundary_and_middle`（界面显示「边界与中键」）同时启用边界手柄和中键范围操作；当前界面默认 `boundary_drag`。边界只移动被点中的 Gap，不会联动相邻 Gap；向内缩小启用或未激活 Gap 时，被让出的边缘会从最终投影清除，未激活 Gap 不会凭此产生启用 Gap。向外覆盖另一段时，完整覆盖会清理整段，部分覆盖只裁掉相交范围，并在 `cleared_ranges` 中保留已覆盖范围以防回拖时旧 Gap 复活。重复拖动同一边界会更新已有的 `boundary_resize` 记录。
-- `disable_coverage_percent` 与 `disable_remaining_ms` 是“禁用空隙内字幕”设置，均为可选字段，缺失时默认分别为 80% 和 300ms。执行“禁用字幕”时，编辑器先把所有 `removed: true` 空隙合并，再筛选空隙覆盖字幕时长达到该比例、且未被覆盖的剩余字幕时长不超过该阈值的主字幕；完全落在空隙内的字幕会命中。该操作只设置字幕的 `disabled` 标记，不改写起止时间，并可通过撤销恢复。
-- 「空隙检测与调整」中的「收缩空隙」是对现有 `audio_gate` 空隙的额外处理：每段起点增加当前 `lead_in_ms`，终点减少当前 `lead_out_ms`；被预留量完全吃掉的区间会丢弃，其他区间保留原有 `removed` 状态。它直接重写 `provenance.sources.audio_gate` 的区间并据此重建 `gaps`，不新增 `manual_overrides`，也不因此标记 `manual_corrections`；已有人工覆盖仍然保留。不改写字幕起止时间；重复点击会继续收缩，且每次都可撤销。
-- 扫描不会移除开头或结尾的素材。
-- 波形将 `removed: true` 画为橙色斜纹、`removed: false` 画为灰蓝斜纹；边界把手和整体/边界拖动预览使用蓝色表示正在进行人工修改；左键仅跳转播放头，Alt+左键才在两种状态间切换。
-- 旧工程没有 provenance、或使用 `legacy_subtitle_gap` detector 时，现有 `removed: true` 范围会按 `audio_gate` 迁入并继续启用，`removed: false` 范围迁为人工恢复；重新扫描和「收缩空隙」都会处理迁入的自动静音范围。
+- `retained_ranges` 是固定标记的真源，整数毫秒 `{start,end}`，重叠或相接区间合并。固定区间不依赖检测结果存在：重新生成即使没有匹配区段，固定范围仍留下。最终 `gaps` 按固定边界切分，派生 `retained` 布尔值；全部写出 `removed: true`，使播放和导出继续使用同一有效范围。`removed` 是兼容字段，界面不再提供“待移除”状态。
+- 每次从音频空隙面板生成时，先替换全部未固定空隙，包括另一生成方式、台本对齐与手工编辑产生的未固定标记，再投影独立的固定范围。手动移动或缩放不会自动设置固定。固定标记不能移动、复制拖动或缩放；相邻未固定标记的拖动边界不会挤动它。取消固定后恢复编辑。
+- `provenance` 仍支持 `moy.asr.gap_provenance.v1`：`sources` 下的 `script_alignment`、`audio_gate`、`subtitle_outside`、`content_outside`，以及 `manual_overrides` 和兼容 `legacy` 数组。条目可有 `id/source/start/end/removed`。锁定模式下来源只用于兼容重建，不决定固定状态与外观；编辑后可重新物化来源投影。旧的 `move`、`boundary_resize` 等记录仍可读取。
+- 没有 `retention_mode` 的上游工程，原 `removed: false` 表示不参与移除的恢复区。MSWE 打开时将这些淡化区间迁为固定标记，原 `removed: true` 迁为未固定标记；随后保存为上述新模式。这一迁移会让旧淡化标记也参与跳过和去空隙导出；原文件在用户保存前不改写。共享核心对没有显式启用锁定模式的旧调用者保留原语义。旧客户端不保证保留 MSWE 的锁定字段。
+- `minimum_ms` 为 100–60000，默认 400；音量检测在扣除两侧保留量后检查最小时长。`threshold_db` 为 -96–0，默认 -28；`hysteresis_db` 为 0–30，默认 2，界面“阈值缓冲”：音量达到阈值算有声，低于阈值减缓冲值才回到静音。
+- `lead_in_ms`／`lead_out_ms` 是空隙起点／终点保留的音频毫秒数，0–2000，默认 120／80，界面“句尾保留／句首保留”；与标记固定状态不同。零值有效。生成基于原始波形、参考轨道字幕或全部内容占用范围，不累计收缩。音量检测只扫描内部静音；两种外区段方式包括媒体首尾，可能含声音，只要求扣除保留量后时长为正。
+- `operation_mode` 兼容 `none`、`boundary_drag`（默认）、`middle_drag`、`boundary_and_middle`，映射面板的独立复选框。Alt 点击切换标记固定状态；空白处 Alt 拖动添加未固定空隙，中键可添加、Alt＋中键固定已有范围。来源统一使用普通空隙样式，固定标记淡化，不常驻显示文字。
+- 右键及批量操作支持固定／取消固定、删除、仅删除未固定、转时间选区。转换将范围并入已有时间选区，删除对应空隙及锁定记录；一次撤销同时恢复转换前的选区和空隙。时间选区与 Ctrl/Cmd+Shift 框选共用运行态，不作为新工程字段持久化。
+- `disable_coverage_percent`／`disable_remaining_ms` 默认 80%／300ms。筛选同时检查可移除范围覆盖率和剩余时长，扣除配音保护，包含固定标记覆盖的字幕。`disable_track_id` 可选，指定实际目标轨道；未设置时默认第一条参考轨道，其次第一条字幕轨道。已删除的显式目标不自动替换。`disable_linked` 默认 true，双向联动实际绑定字幕；分组不会自动联动。锁定目标或锁定绑定组跳过。只有执行按钮才禁用，整次操作可一次撤销。
+- `generation_mode` 保存 `audio_gate`（默认）、`subtitle_outside` 或 `content_outside`；`generated_sources` 记录生成完成状态，即使无结果也保留，重新生成后只记录本次方式。`cleared` 默认 false，用于区分未生成、无匹配与清空。清空全部时同时清除来源、固定范围与生成记录。设置与结果随工程保存、撤销恢复。
+- 台本对齐的 Python 往返保留锁定字段，并在来源重建后重新物化固定区间。来源重建不能使固定标记失效。
+- `subtitle_outside` 在媒体范围内计算所选实际轨道字幕块并集的补集。`reference_track_ids` 是可选的去重轨道 ID 数组（空数组表示主动清空，不等同于未设置）；缺省时选择第一条有字幕的轨道，没有字幕时选第一条轨道。禁用、折叠、列表列及筛选不影响占用；明确引用已删除轨道、空选或媒体范围内没有参考字幕时中止生成，不改写标记。首次生成或主动选择后保存 ID；加载旧工程和改变选择都不自动重新生成。
+- `content_outside` 计算所有字幕轨道、旧叠加字幕和音频贴片占用范围并集的补集，不使用参考选择；禁用、静音及关闭轨道不影响占用。音频贴片按源裁剪采样数与素材采样率计算结束点，非整数毫秒向外取整；只在原媒体时长内生成，素材引用缺失时中止且不替换旧标记。
+- 菜单“字幕外区段设为空隙”立即使用相同参考轨道、`subtitle_outside` 和零句首／句尾保留量，不打开面板、不改写面板选定方式及保留量。替换未固定标记，保持固定范围，整次操作一步撤销。`generated_sources` 记录实际生成来源，允许与面板当前方式不同。参考选择及字幕处理设置随工程保存、撤销，Python 对齐往返保留这些可选字段；不改变已有标记来源和时间。
+- 固定状态继续使用 `retention_mode`、`retained_ranges` 和 `retained` 字段，无需迁移已保存工程；界面不再用“保留”指代锁定状态。
 
 ### 1.3a script_alignment 录制对齐记录
 
@@ -385,6 +440,34 @@ source: "JSON_SCHEMA.md"
 
 ### 1.4 preview 预览呈现
 
+`preview.project_style`（可选）是工程正式字幕样式快照，结构为
+`{schema: "msw.subtitle-style.v1", name, main, secondary, animations}`。
+
+可选 `annotation` 是同格式的画面文字基础样式，禁止继续嵌套 `annotation`。新保存的预设同时包含对白和画面文字基础样式：编辑画面文字轨时保存其当前样式作为 annotation，其他情况下保留工程画面文字基础配置。轨道独立快照优先于工程基础样式。导出改用预设时，包含 annotation 则应用其样式；旧预设未包含时保留工程原注释配置。显式位置和轨道用途始终不随预设改变。
+`main`／`secondary` 使用 ASS 样式库的样式字段，字号、描边和边距以
+1080 高画布为基准；`animations` 使用原 ASS 方案的 `fad`／`fade`／`move`／`t`。
+ASS 导出、播放器工程预览和视频烧录默认读取这个快照，不实时引用用户预设库。
+`legacyBurn` 仅用于迁移，保存原 `preview.burn_subtitles`，直到用户明确转换高级样式。
+
+`main`、`secondary` 还可分别包含 `wrapMode: "auto"|"characters"`（缺省 `auto`）和 `charsPerLine: 1..200`（整数，缺省 20）。自动模式沿用渲染器按画面宽度换行；按字数模式仅对呈现快照中的字幕正文插入换行，保留手动换行。汉字、英文字母、标点、空格各计 1；组合附加符、常见 ZWJ 表情及旗帜组合保持完整。原字幕 `text/items`、时间码和 SRT 不被改写，自动添加的说话人前缀不计入正文上限；画面过窄时渲染器仍可提前换行。主副分别随工程、自定义快照和样式预设保存；布局计算使用已换行的呈现文本，预览、ASS（含副轨单独输出、去空隙版本）及烧录共享规则。
+
+可选 `pairLayout: {order: "main-above"|"secondary-above", gap: -240..240}` 指定主副排列和组内间距（整数，1080p 基准）。`gap` 是估算文字行框之间的附加距离，不是字形可见边缘的像素距离；0 不增加额外间距，负值使行框重叠。单行行框高度按 `fontSize × 1.2 × scaleY / 100` 计算，多行及同轨重叠继续累加；未声明纵向缩放的旧烧录样式使用 100%。字号、字体自身留白、描边和换行均可能使相同 gap 的可见距离不同。负值压缩间距，允许视觉重叠；极限压缩受行高约束，防止颠倒上下顺序。缺省保留已有位置及排布；用户调整时更新上下位置，保持下方轨道的底部锚点。绑定主副字幕在预览和导出中使用相同的行高估算及组内间距；未绑定的主副字幕按相交区间的连通组仅在呈现时成组，不写入绑定，首尾恰好相接不视为重叠。组内连续字幕复用位置，不将整段序列堆成多行。主副组内排列独立于重叠组的自动避让开关，单轨输出保留该轨在双语组中的位置；旧样式显式排列时主副使用不同 ASS 图层，避免 libass 再次避让覆盖间距，所有背景保持在文字下方。直接编辑对齐锚点会退出明确主副排列；固定轨道的手动垂直边距使用下述独立偏移规则。
+
+`pairLayout.marginBase` 可选 `{main:number,secondary:number}`，两项均为有限数值 0–9999；只在第一次手动修改轨道垂直边距时记录修改前的基准，旧工程不自动添加。自动排布继续使用基准边距，之后各角色按当前 `marginV` 与基准差值独立偏移：底部对齐时减小边距向下、顶部对齐时减小边距向上，中部对齐不使用垂直边距。手动偏移优先于自动避让，不反向推挤绑定伙伴或其他轨道；可能产生用户指定的重叠。显式轨道位置和单条位置仍优先。重新调整主副排列／间距会清除基准并重新排布；恢复或应用预设采用预设本身的设置。基准随工程、用户样式预设及撤销保存，映射轨道样式槽时与样式一起映射。JS 与 Python 统一排布协议更新为 19。
+
+`preview.project_style_custom`（可选）保存同格式的最近手动编辑快照；`preview.project_style_selection`（可选）为 `current` 或预设 ID（1–160 位字母、数字、下划线、连字符）。切换预设不覆盖自定义快照，选择“当前自定义”恢复它；尚无快照时以当前外观建立。选择与快照随工程保存、撤销、恢复，输出仅使用 `project_style`。
+
+新工程及默认样式的 `pairLayout` 为 `{order: "main-above", gap: 0}`；主／副垂直边距分别为 96／48。已有快照及旧样式迁移不自动套用这组新默认值。
+
+上文按时间相交推导主副显示组仅适用于旧排布。v3 固定排布只按明确绑定成组；旧预设没有 pairLayout 时，从样式垂直位置推导上下顺序和间距，与面板读数一致。精确预览、ASS 与烧录均使用同一推导和字体度量。
+
+`preview.style_migration` 记录 `{version: 1, source: "ass"|"burn", presets, notice}`；
+`presets` 保留原 ASS 和预览外观。首次加入工程样式并覆盖旧文件前，在同目录
+创建短文件名 `.msw-style-backup-<hash>.mosp`，不覆盖已有备份。
+旧字段继续保留供兼容读取；有 `project_style` 时正式输出优先使用它。
+校对预览仅选择跟随工程或已有预设，选择保存在本机偏好中，不覆盖 `project_style`；旧独立自定义预览配置自动转存为用户预设，不丢弃已调参数。
+本次导出选择其他预设时仅写入任务快照，工程原样式不变。
+
 `preview` 记录预览呈现层的设置，与字幕时间/文本完全解耦。目前定义两个子几何：`preview.subtitle`（字幕预览框，编辑器里 `#overlay`）与 `preview.sticker`（表情包预览层，编辑器里 `#sticker-overlay-layer`），都是在播放器区域内的几何，以 player-wrap 矩形的**归一化分数**存储，因此在播放器缩放和跨机传输后仍然一致。
 
 ```json
@@ -429,7 +512,7 @@ source: "JSON_SCHEMA.md"
 
 - 叠加段与主轨采用相同的整数毫秒、字词、帧字段、禁用、颜色及表情包契约。它们可以与主字幕重叠，叠加轨内部须按时间排序且不重叠。
 - 缺失稳定 ID 按 `overlay-001` 等确定性规则补齐，原有 ID 保持。颜色／表情包 `headIdx` 只引用叠加轨自身，不引用主轨。
-- SRT 和启动器文本模式 ASS 导入共享两层分配规则，超过主轨＋叠加轨容量明确报错；文稿匹配的严格 SRT 读取仍拒绝任何重叠。ASS 导入仅保留时间与文本，不等于样式文档往返。
+- 启动器 SRT 与文本模式 ASS 导入按时间冲突建立所需的普通平级轨道，直接生成 v4，不再限制两层并发。媒体关联和派生保存保留所有导入轨道；轨道之间不自动建立主副分组或绑定。旧算法的 SRT 中间协议仍独立保留，文稿匹配的严格 SRT 读取拒绝任何重叠。ASS 导入仅保留时间与文本，不等于样式文档往返。
 - 合并 SRT 导出按起点排序，同起点主轨在前；跳过禁用、空文本以及关闭的叠加轨，输出序号连续。空主轨也可导出启用的叠加轨。
 - `multi_subtitle` 继续表示副字幕，`msw.audio_clips` 继续表示配音贴片；二者不能用作叠加轨替代结构。MSW 未知可选字段和素材引用继续保留。
 - `preview.subtitle.ass_color_style` 为独立 ASS 颜色映射：`text`／`speaker`／`stroke`／`none`；`speaker` 仅着色映射生成的名称及分隔符，正文恢复有效基础色。原 CSS `color_style` 的历史 `shadow` 值仍兼容读取。
@@ -757,7 +840,7 @@ uv run python edit.py your_generated.mosp
 
 ### 方式 2：用空壳编辑器加载
 
-1. `file://` 双击打开本仓库根目录的 `blank-editor.html`
+1. 通过 Launcher 启动空白编辑器，或运行 `uv run python server-editor/serve.py --blank`
 2. 点「打开工程」选 `.mosp` 或 `.json` 工程文件
 3. 若弹出「文件格式不对，缺少 segments 字段」红色提示，说明顶层结构错误
 4. 若正常显示字幕列表，则格式合格
@@ -923,7 +1006,7 @@ Edge 使用 `generation.provider = "edge"`、`model = "edge-online"`，`voice` �
 
 贴片与字幕块独立；移动、裁剪和静音只修改贴片，不改素材音频或字幕。多个贴片可以引用同一素材，并在同一配音轨内重叠混合。界面子行由时间重叠计算，不另存行号。
 
-`audio_tracks` 最多 32 项，每项包含唯一 `id`（沿用工程 ASCII ID 规则）、`name`（最多 160 字符）、`gain_db`（有限数值 −60 至 +12）和 `muted`（布尔）。当前界面自动建立一个配音轨，保留多轨的工程契约。
+`audio_tracks` 最多 32 项，每项包含唯一 `id`（沿用工程 ASCII ID 规则）、`name`（最多 160 字符）、`gain_db`（有限数值 −60 至 +12）和 `muted`（布尔）。可选 `collapsed` 为布尔，缺省 false，只折叠编辑器中的显示，不影响试听、空隙保护或导出。界面自动建立一个配音轨，按实际轨道显示 A1、A2 等编号；同轨重叠贴片的子行不产生新轨道或新编号。
 
 `audio_clips` 最多 10000 项，单条示例（引用的素材及轨道须同时存在）：
 
@@ -970,6 +1053,12 @@ Edge 使用 `generation.provider = "edge"`、`model = "edge-online"`，`voice` �
 
 快照中的 `gap_remove.gaps` 是编辑器 `buildJson()` 已投影的当前空隙决定；后台验证这些区间，再独立应用贴片保护和时间映射，不接受客户端提交的 FFmpeg 图或任意素材路径。共同计划夹具位于 `tests/fixtures/msw_audio_render.json`。导出格式、范围和总音量记录于本机导出任务，不成为工程设置；WAV 成品不自动添加到 TTS 素材库。
 
+### 视频导出范围对齐
+
+视频导出请求 `options.video_tail` 默认为 `truncate`（对齐至视频），另支持 `freeze`（对齐至音频，末帧延长）与 `black`（对齐至音频，黑屏填充）。旧 API 的 `ask` 仅保留兼容，新界面不提供。音频对齐以所选原声音轨与未静音配音末尾为准，`mode=voice` 不计原声；音频短于画面时裁切画面，空音频范围报错。监听音量、字幕末尾不参与音频长度计算。`start_ms/end_ms` 仍限定源范围，空隙移除在对齐后按共享计划执行。
+
+视频上下文增加 `video_alignment_version: 2`，`audio_tracks[*].duration_ms` 为音轨在源时间线上的结束位置（包含起点偏移）；以流时长或容器的音轨时长标签探测，缺少时长信息时回退到媒体总时长。前后端使用同一范围规则，后台重新探测实际媒体，不信任前端时长。此配置仅属于导出任务，不写入工程。
+
 ### 编辑器 ASR 应用与派生内容复核
 
 ASR 任务快照支持 `mode: whole/range/clips`，可选 `batch_id` 将同次操作的子任务归组。`clips` 的 `source.kind` 为 `clip`，`source.id/revision` 为音频素材 ID/SHA-256，`source.clip` 记录贴片 `id/asset_id/start_ms/source_in_sample/source_out_sample/playback_rate`（当前仅 1）；`source.duration_ms` 为完整素材样本时长向上取整，`range` 为裁剪后音频在时间线上的整数毫秒范围。后端仅按合法素材引用读取，以样本点裁剪，再将识别相对时间加上 `range.start`。增益／静音不属于识别内容版本。`batch_overlap` 标记同次选择的贴片范围重叠，阻止直接覆盖；该标记保留到重试。`targets` 保存当时受影响的主字幕，用于应用前比较；整个视频模式也只取视频时段内字幕。
@@ -994,7 +1083,9 @@ ASR 素材的 `original_start` 保留映射后的时间线位置，`start/end/it
 
 ### D3 / D4 媒体与剪辑工程派生输出
 
-视频和 OTIOZ 复用 `msw.audio-render.v1`，不升级 `.mosp` 或 `msw.editor.v1`。导出任务的 `options.format` 为 `wav`（兼容默认值）、`mp4` 或 `otioz`；`video_encoding` 为 `auto` / `h264`，`video_tail` 为 `ask` / `truncate` / `freeze`，`collect_media` 为布尔。上述值仅保存在本机任务与包的导出记录中，不写入工程或试听设置。
+视频和 OTIOZ 复用 `msw.audio-render.v1`，不升级 `.mosp` 或 `msw.editor.v1`。导出任务的 `options.format` 为 `wav`（兼容默认值）、`mp4` 或 `otioz`；`video_encoding` 为 `auto`（默认）/ `hardware` / `h264`（软件 CPU，兼容旧值）；`hardware_encoder` 为 `auto`（默认）/ `h264_nvenc` / `h264_qsv` / `h264_amf`，只在明确硬件模式选择对应编码器。`video_tail` 为 `ask`（旧客户端兼容）/ `truncate`（默认）/ `freeze` / `black`，`collect_media` 为布尔。上述值仅保存在本机任务与包的导出记录中，不写入工程或试听设置。
+
+视频上下文返回 `video_encoding_version: 1` 与 `video_encoders`（`id`、`label`、`available`、`reason`），可用性须通过真实短编码，不以 FFmpeg 编码器列表为准。任务的 `video_encoder`、`encoder_label`、`encoding_note` 记录实际编码器及回退原因；成功 `result` 中同样保留，`video_encoding` 仍为 `copy` / `h264`。`encoding_eta_seconds` 为当前编码阶段剩余秒数或 `null`，基于 `.55` 至 `.92` 的真实帧进度；`progress_at` 为该进度的 Unix 秒时间戳。准备、样本不足、重试起始与合并阶段不提供数值，不表示整个任务剩余时间。
 
 `options.burn_subtitles` 为 `none`（默认）／`main`／`secondary`／`both`，仅影响 MP4 画面，启用时强制重新编码。使用快照中的启用字幕，与音频计划共享范围及空隙映射；主副字幕分别按 `preview.burn_subtitles` 渲染独立 ASS 样式。不会修改字幕或音频贴片。素材库密度为浏览器偏好，同样不写入工程。
 
@@ -1010,7 +1101,56 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 
 重新生成贴片时，可选 `source_ref.spoken_text`（1–12000 字符）记录需要原样重放的已保存读音；油库里绕过文本到假名的再次转换，IndexTTS 仍限制其输入为 600 字符。显示文字仍来自 `text`。任务快照的正文和重放读音总计最多 1000000 字符。重新生成从素材白名单配方读取调用参数，凭据／服务地址／本地资源位置使用当前环境配置；外部音频不伪造 TTS 配方。
 
-### beta.6 说话人导出兼容
+### 说话人色系（2026-10）
+
+当前工程使用 `preview.speaker_palette = {"version":1,"rows":[...]}` 保存说话人配置，独立于浏览器偏好。每行包含：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | 稳定身份，1–160 个英文字母、数字、`_` 或 `-`，表内唯一；改名、改色不改变它 |
+| `name` | 默认显示名称，1–64 字符，可重名，不含控制字符 |
+| `names` | 可选语言名称字典，如 `{"en":"Erwyn","zh-hans":"艾尔文"}`；最多 64 项，每个名称 1–64 字符、不含控制字符，空白译名不保存 |
+| `name_visibility` | 可选语言显示字典，如 `{"en":false,"zh-hans":true}`；值必须为布尔值，最多 65 项。键为规范语言代码，空键 `""` 为默认显示开关（缺省 true）；未填写名称的语言继承它，各语言明确设置优先 |
+| `color` | `#RRGGBB` 指定颜色 |
+| `mode` | `none` / `text` / `stroke` / `background` / `speaker` |
+| `separator` | 名称与正文间的分隔符，0–16 字符，不含控制字符 |
+| `style` | 可选的部分外观覆盖，字段与单条 `subtitle_style` 相同；不包含轨道位置、边距或锚点 |
+| `style_preset` | 可选的预设 ID，仅记录编辑来源；实际外观由 `style` 保存 |
+| `animation` | 可选动画覆盖，与 `subtitle_animation` 使用同一校验和按效果继承规则 |
+| `role_styles` | 可选主副对象字典，只允许 `main`／`secondary`，每项仅含可选的 `style`、`style_preset`、`animation`；规则与行级同名字段一致 |
+| `scheme_ref` | 可选 `{scheme_id,person_id}`，两个值均为 1–160 个英文字母、数字、`_` 或 `-`；只记录明确确认的方案人物对应，不作为渲染依赖，也不替代本工程 `id` |
+
+默认五行 SP1–SP5、旧五色色值、不着色、分隔符 `：`。可添加至 1024 行。第 0 行是界面的批量操作，不写入 `rows`。当前 `color.name` / `color_ref.name` 存储说话人行的稳定 ID；沿用前五个 ID `yellow/green/red/purple/blue`，新增一般为 `speaker-N`。同色、同名的两行仍是不同身份。原始 ASR `speaker` 元数据不改变；旧工程已有颜色标记按 ID 迁入，不从 RGB 反推或改写人工标记。
+
+名称按字幕实际所属轨道的 `language` 解析，不依赖主副角色或列表左右列。先找语言代码的精确译名，再找基础语言，最后回退 `name`；简繁中文分别回退到 `zh-hans`／`zh-hant`，不跨简繁猜名。代码匹配时忽略大小写并把下划线转为连字符：`zh/zh-CN/zh-SG/Chinese` 对应 `zh-hans`，`zh-TW/zh-HK/zh-MO` 对应 `zh-hant`，`English/Japanese/Korean` 对应 `en/ja/ko`。`names` 的键必须是规范化后的代码（最多 35 字符）；未指定或无法识别的轨道语言使用默认名称。改名、清空译名、移动字幕和交换显示列均不更改说话人 ID、正文、绑定、颜色或外观覆盖。
+
+界面通过说话人表顶部的“名称语言”编辑各语言译名及“显示”勾选，切换语言本身不写入工程；第 0 行显示勾选只批量修改当前语言。显示规则按精确语言、中文简繁变体、基础语言查找明确设置；均未配置时，已有对应语言名称则显示，没有名称则继承默认显示开关 `name_visibility[""]`（缺省 true）。因此默认隐藏不会隐藏已填写的译名，各语言明确的显示选择也不会被默认开关或名称编辑覆盖。未单独选择显示的语言填写名称后默认显示，清空后重新继承默认；不批量改写或补齐语言字段。轨道右键“轨道语言”修改语言，支持撤销。已知识别／翻译语言只自动补入尚未指定语言的目标轨道，不覆盖人工选择。预览、SRT（含合并显示）、ASS 和视频烧录同时满足该语言显示开关与各自预览／导出总开关才输出前缀；悬浮提示仍显示身份，不受名称隐藏影响。按说话人分别导出的文件后缀继续使用默认名称，避免混合语言轨道产生不稳定文件名。
+
+外观优先级为轨道默认 → `mode` 着色 → 说话人 `style` → 单条 `subtitle_style`。`none` 保留字幕块标记；背景着色没有形状时采用圆角框。动画按轨道 → 说话人 → 单条逐效果继承。改动说话人不逐条复制样式，后来标记的字幕同样生效；位置仍由轨道和单条管理。
+
+主副对象按实际轨道 `style.slot` 解析，不依赖绑定方向或字幕列表显示列。存在 `role_styles[slot]` 时，该对象替代行级 `style/style_preset/animation`；空对象表示该侧恢复色系及轨道默认。不存在该项时，沿用旧的行级共享设置。首次编辑复制该侧当前设置再修改，另一侧保持不变。恢复外观保留该侧动画；在色系表选择简单着色模式会清除两侧外观覆盖、保留动画。多选主副字幕时，属性对象切换仅筛选本次外观、动画及定位操作，不改变实际字幕选区。
+
+媒体播放器设置的“预览说话人”保存为 `preview.speaker_labels_visible` 布尔值，与着色模式独立。缺省时保持旧规则：只有 `speaker` 模式显示前缀。该模式只给名称着色；其他模式显示名称时使用正文外观。SRT、ASS 和视频导出独立选择是否添加名称；ASS/视频请求使用 `preview.speaker_label_export` 布尔值覆盖预览总开关，但不能覆盖各语言的隐藏规则，这个临时字段不属于普通工程保存。名称和前缀从不写回正文、TTS 文本或原始识别身份。每人的分隔符独立保存；按说话人分别导出时文件后缀可用名称，重名自动消歧、非法文件名字符自动替换。
+
+### 说话人跟随与独立标记
+
+`color` 为明确指定的说话人（实心标记），`color_ref: {cue_id, name}` 为跟随来源字幕的说话人（空心标记）；引用不依赖数组下标或列表显示列。现有引用在来源重新标记时继续跟随。清除来源会将其他引用转为独立标记，保留其当前说话人；删除／切分来源也需解析引用，不能留下失效 ID。表情包引用不随说话人操作改变。
+
+个人设置 `moy.asr.editor.settings.v1.speakerAutoFollow` 默认 `false`，由配置管理的编辑器分类保存／导出，不写入工程。开启后，标记操作在同一实际轨道上按时间延续至下一条明确标记；已绑定字幕按现有双向规则联动，遇到锁定内容停止。显式选中的字幕均保存独立 `color`；生成的跟随关系作为 `color_ref` 随工程保存。关闭设置只停止创建新跟随，不移除已有关系，也不自动回填新建字幕。右键“独立标记”将所选引用及绑定另一侧解析成当前颜色，保留其他引用和绑定，可一次撤销。已有跟随位于锁定轨道时，修改来源会影响锁定内容，需先解锁。
+
+### 可复用说话人方案
+
+用户配置的 `sections.speakerSchemes` 保存 `{version:1,schemes:[{id,name,rows}]}`，默认空库，最多 64 个方案。方案 `id` 为 1–160 字符稳定标识，名称为 1–80 字符、非空且无控制字符；库内方案 ID 和名称分别唯一。每个方案最多 1024 人，至少 1 人；人物 `id` 是独立生成的稳定标识，不复用工程中的 `yellow`、`green` 或 SP 序号来推断身份。
+
+人物行只允许 `id/name/names/name_visibility/color/mode/separator/style/animation/role_styles`，描述字段规则沿用工程说话人表；未知字段拒绝。外观和动画保存实际覆盖参数，不保存行级或主副对象内的 `style_preset`、工程 `scheme_ref`、字幕 ID、原始 ASR speaker、媒体路径、音色或密钥；没有独立覆盖的参数继续继承目标工程轨道。通过配置管理的 `speakerSchemes` 分类导入导出，不自动应用到工程。
+
+“对应并应用”输入为工程行 ID → 方案人物 ID；留空保留原行。只对已有且相同 `scheme_id/person_id` 的关系自动预选，不按名称、SP 编号、RGB 或顺序推断。允许多个识别身份对应同一方案人物，工程行及字幕绑定不合并；更新方案时若这些行的描述不同则拒绝静默覆盖。可显式补充尚未对应的方案人物，使用新的工程行 ID，不重复添加已有对应的人。
+
+应用复制名称／译名、颜色、模式、分隔符及样式／动画覆盖到工程，并记录 `scheme_ref`；不改字幕正文、时间、归属、绑定、原始识别身份或单条手动覆盖，操作支持一次撤销。保存新方案或更新方案时记录已保存人物的对应；更新默认只处理已有对应，可显式加入未对应的人，未出现在本工程的方案人物保留。删除或导入覆盖本机方案库不改变已保存工程；缺少方案时仍按工程快照渲染。
+
+### beta.6 说话人导出兼容（历史）
+
+以下 beta.3/beta.6 字段仅用于读取旧工程；一旦存在 `speaker_palette`，以新表格为准。
 
 新建空工程显式设置 `preview.subtitle.speaker_labels.enabled: true`，映射仍默认关闭。缺字段的旧工程保持预览关闭；显式 true/false 原样读取。名称导出偏好保留用户明确关闭的值，`exportSpeakerLabelsExplicit` 只保存于本机编辑器偏好。
 
@@ -1025,3 +1165,169 @@ OTIOZ 的 `content.otio` 为 `Timeline.1` / `Stack.1` / `Track.1` / `Clip.2` 结
 - Mossland 存单人音色 ID 和模型／快照 ID；Flash 可指定语言，Pro 为 `auto`。可选 `expected_duration_sec` 为 0.1–600 秒的期望时长，省略时由模型决定；这是生成引导，不是裁切上限，素材及贴片重新生成沿用该值。设置和任务配方可带布尔 `follow_subtitle_duration`，仅用于字幕批次提交时按整数毫秒起止差转换为秒；草稿或超出 0.1–600 秒拒绝提交。每条素材配方移除此策略字段，仅保存计算后的 `expected_duration_sec`，重生成不跟随后续字幕修改。不伪造字词时间码、音高或合成音量字段。
 - 连接地址由受控地域决定；API Key、超时、参考上传数据、创建请求记录和账号音色缓存均留在本机，不进入工程。完整结果转换成现有素材 WAV；不保存临时下载 URL。
 - 重新生成使用上述白名单参数，显示文本与实际朗读分开；现有七引擎旧配方及已保存的低频 Index／GPT 参数继续保留。播放增益与导出增益不写回供应商合成倍率。
+
+
+## 统一多层字幕 v2
+
+v2 是固定轨道之前的兼容格式；当前 MSWE 继续迁移到下文 v3。打开本身不改写原文件；保存、另存为、自动保存、恢复草稿、便携 HTML 及处理结果应用使用同一版本与身份规则。Launcher 生成的旧格式仍可打开；尚未适配多层的预制 ASR／后处理拒绝 v2／v3 输入，避免抹平重叠。编辑器内 ASR、翻译、TTS 支持 v3。上文未注明版本的旧字段继续保留。
+
+### 身份与时间
+
+- 顶层版本定为 `msw.project.v2`；`msw.schema`、`multi_subtitle.schema` 不随之升级。
+- 主字幕继续使用 `segments`，副字幕继续使用 `multi_subtitle.tracks[*].segments`。不复制正文到另一个“层”数组。
+- 唯一定位为 `{role: "main" | "extension", track_id: null | string, cue_id: string}`。不同角色可使用同一个 ID，同一角色／副轨内不得重号。
+- `start`／`end` 是整数毫秒，`0 <= start < end`，半开区间 `[start,end)`。端点相接不算重叠；合法相交、嵌套和同起点不会被时间修复推开。
+- 字词时间仍在所属字幕范围内；帧时间只是投影，不用前条字幕的结尾约束下一条。列表按开始时间稳定排序，绑定仍按 ID。
+- 显示层由区间索引和稳定分层计算，缓存不落盘。层号不是说话人、内容角色或来源 ID；音频贴片的三层限制保持独立。
+
+```json
+{
+  "schema": "msw.project.v2",
+  "segments": [
+    {"id": "speaker-a", "start": 0, "end": 5000, "text": "对话 A", "items": []},
+    {"id": "speaker-b", "start": 2000, "end": 4000, "text": "对话 B", "items": []}
+  ],
+  "subtitle_layers": {
+    "schema": "msw.subtitle_layers.v1",
+    "allow_overlap": true,
+    "legacy_overlay": {"visible": false, "cue_ids": []},
+    "presentation": {"mode": "auto", "gap": 12, "order": "earlier-bottom"}
+  }
+}
+```
+
+`allow_overlap` 控制新编辑产生交叠的许可，不隐藏或删除已有重叠。`legacy_overlay` 专门保留旧叠加组的显示状态，其 `cue_ids` 只能引用主字幕、不得重复；删除成员会同步清理，撤销可恢复。首版保留单个历史组，不引入任意轨道管理。
+
+可选 `presentation` 控制画面排布，不改变时间或视觉层身份。`mode` 为 `auto`／`manual`；`gap` 为 0–120 的整数，按 1080 高度折算；`order` 为 `earlier-bottom`（默认）／`earlier-top`。缺省使用自动避让、12 间距、先出现的组靠下。绑定主副成组排布，未绑定字幕独立排布；旧工程已有预览位置或烧录样式时迁移为 `manual`，由用户明确开启自动避让。正文、颜色、表情包、待校对与来源字段在主副快照中保持，派生缓存不落盘。
+
+手动合并不新增 schema 字段：主、副角色的所选字幕及其显式绑定伙伴作为一次事务处理，多条变为新 ID，一条伙伴保持原 ID；用结果 ID 重建一对一绑定，offset 从两轨各自的合并范围重新计算。`C` 对 `disabled` 取 OR，对颜色／表情包取时间最早的非空内容；`Ctrl+Shift+C` 对 `disabled` 取 AND，颜色／表情包仅在全员内容相同时保留（忽略组索引和时间范围）。合并结果标记物化，其他条目的组引用修复但语义不变。`items` 保留原段内有效时间码，缺失时间码为 `[]`；不修改 `msw` 音频资源、贴片或历史来源引用。新旧工程均可一次撤销；旧工程连续性限制不变。
+
+颜色标记身份按调色板 `name` 比较，旧工程存储的历史 `value` 不造成同名颜色冲突；表情包按内容比较，保留路径等实际参数。
+
+### 确定性迁移
+
+JS `MSWSubtitleLayers.migrate` 与 Python `migrate_project` 均返回独立副本、不写原文件。无版本／v1 输入执行迁移，显式未知或畸形版本拒绝。v2 输入保持幂等。
+
+1. 对旧主／副／叠加字幕补齐缺失 ID；同一旧角色内部显式重号属于歧义，拒绝迁移。
+2. 在排序和合并角色前，把 `color_ref`／`sticker_ref` 指向的值物化到每条字幕。保留颜色、说话人和表情包内容，时间范围使用所属字幕范围。
+3. 旧 `overlay_track.segments` 归入主角色。主／叠加 ID 碰撞使用 `legacy-overlay-<原序号>`，必要时增加数字后缀；迁移不猜测过去转换时已经丢失的绑定。
+4. 明确标明 `track_kind: "overlay"` 或 `role: "overlay"` 的来源引用转为主角色并同步 ID。候选与配方中的任意文本／不透明修订串不进行字符串替换；无法与当前目标快照一致的旧候选保持冲突保护。
+5. 保存原叠加组 ID 集合及 `visible`。原隐藏组保持隐藏，可在字幕列表设置重新显示。旧重叠偏好取原 `enabled`；没有旧叠加字段的新工程默认允许。
+6. v2 不再接受有内容的 `overlay_track`。当前旧辅助函数可能生成空叠加结构；读取器允许这个空占位，不把它当作第三种字幕角色。
+
+### 写出、备份与旧格式出口决策
+
+`buildJson()`、Python `serialize_mosp` 和服务器读写保留 v2。首次写回现有无版本／v1 工程时，先独占创建原字节备份，再原子替换正式工程；备份或替换失败不覆盖原工程。不允许用 v1 内容覆盖已有 v2 文件。
+
+本机服务器备份名为 `<原文件名去扩展名>.v1-backup.mosp`，存在时增加 UTC 时间戳和递增序号，永不覆盖旧备份。浏览器文件句柄无法任意创建相邻文件，首次手动升级会请求选择空白备份文件；取消或原文件期间变化则停止覆盖。此模式首次静默自动保存要求先完成一次手动升级。直接下载新文件不会修改原文件。
+
+「文件 → 保存 → 旧版工程（v1 兼容）」仅导出旧角色可表达的内容：每个主／副／旧叠加组内不得重叠；旧叠加组参与新绑定或处理记录时拒绝还原。组引用先物化再分轨；源工程不变。不能表达时提示使用新版工程、ASS 或合并显示 SRT，不静默删层。普通 SRT 保留时间重叠，但不保证外部播放器位置一致；合并显示 SRT 按所有时间边界切段拼接当前显示文本，只改变导出。
+
+### 处理快照与结果
+
+- v2 ASR／翻译任务快照带 `project_schema`。ASR 目标按角色和 ID 保存，应用重叠范围需要明确 `target_ids`；仅检查所选目标修订，保留其他层。截断且无可靠字词码的区外片段沿用原文并标记复核。
+- 翻译仅处理明确选择的条目，副字幕按绑定 ID 回填；没有绑定时新增独立副字幕，不按时间接近程度猜配。导入副字幕只有双方唯一匹配时才建立绑定。
+- TTS 冻结每条自身的来源 ID、角色、文字与时长参数；仅显示层变化不会触发素材来源变动。音频贴片仍最多三层，补齐字幕仍跳过有冲突的范围。
+- CSS／ASS／视频使用共同的自动避让排布规则；默认预览、ASS 和视频烧录跟随工程字幕样式，校对预览和单次视频预设独立覆盖。禁用与历史隐藏组在输出中排除。OTIO 标记附带字幕身份，不能表达任意画面层次、字体和双语样式，不承诺无损往返。
+
+实现与验证见 `docs/TEST_FEEDBACK_SUBTITLE_LAYERS_ABC_20261005.md`、`docs/TEST_FEEDBACK_SUBTITLE_LAYERS_DG_20261005.md`；用户入口见 `docs/EDITOR_SUBTITLE_LAYERS.md`。
+
+### 导出任务下载名称
+
+`POST audio-exports` 可携带 `project_name`（工程显示名，不含工程扩展名）。服务端生成并在任务中持久化 `download_name`，格式为 `工程名_MSW.mp4/wav/otioz`，空名称使用“未命名工程”，非法文件名字符和控制字符替换为下划线、工程名最多 120 字符；不接受该名称作为磁盘路径。名称参与新任务幂等快照，后续工程改名不影响已有结果。下载响应通过 ASCII 回退与 UTF-8 `filename*` 同时传递名称；没有此字段的旧任务继续使用原下载名。工程 JSON 不新增字段。
+
+## 固定字幕轨道 v3（第二阶段数据接口）
+
+对应[字幕轨道重设计](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/PLAN_SUBTITLE_TRACKS_20261009.md)第二阶段定稿、第五阶段接通的生产数据契约。顶层 `schema` 为 `msw.project.v3`；`msw.schema` 和 `multi_subtitle.schema` 不变。普通编辑器默认接受、保存 v3，本机精确预览、ASS、烧录及编辑器处理入口共用其轨道归属。
+
+### 元数据与稳定身份
+
+```json
+{
+  "schema": "msw.project.v3",
+  "segments": [{"id": "cue-a", "start": 0, "end": 1000, "text": "对白", "items": []}],
+  "subtitle_layers": {
+    "schema": "msw.subtitle_layers.v1",
+    "allow_overlap": true,
+    "legacy_overlay": {"visible": false, "cue_ids": []}
+  },
+  "subtitle_tracks": {
+    "schema": "msw.subtitle_tracks.v2",
+    "presentation": "legacy",
+    "tracks": [{
+      "id": "subtitle-track-1", "name": "字幕 1", "kind": "dialogue",
+      "purpose": "none", "layout": "auto", "style_base": "dialogue",
+      "origin": "main", "enabled": true, "locked": false, "collapsed": false,
+      "style": {"mode": "inherit"}
+    }],
+    "assignments": [{
+      "role": "main", "track_id": null, "cue_id": "cue-a",
+      "subtitle_track_id": "subtitle-track-1"
+    }]
+  }
+}
+```
+
+- `tracks` 数组顺序即显示轨道顺序，不另存容易失步的数字排序字段。ID 唯一且不随名称、顺序变化；ID／名称均为非空字符串、至多 160 个 UTF-16 单元。
+- 轨道元数据当前为 `msw.subtitle_tracks.v2`，顶层仍为 `msw.project.v3`。`purpose` 为 `none`／`dialogue`／`source`／`translation`／`annotation`，仅表示未指定／对白／源字幕／译字幕／画面文字标签，不限制识别或导出，也不改变主副身份。
+- `layout` 为 `auto`／`fixed`，分别表示按轨道顺序自动避让／独立固定位置；与用途无关。`style_base` 为 `dialogue`／`annotation`，单独保留旧样式继承来源，新轨道使用 `dialogue`（普通工程样式）。更改用途或排布不重设样式。
+- `kind` 保留 `dialogue`／`annotation` 作为旧格式兼容标识，不再控制行为；`origin` 为 `main`／`legacy-overlay`，仅保留来源。
+- `enabled`、`locked`、`collapsed` 必须是布尔值。迁移默认未锁定、未折叠；隐藏旧组保持隐藏。
+- 第三阶段增加可选布尔字段 `show_secondary`：为 `true` 时在波形中保留副字幕行；缺省／`false` 时按当前副字幕语言的内容和显示开关决定。仅影响编辑布局，不创建第二份字幕或改变导出角色。
+- `style` 支持 `{mode:"inherit"}` 与 `{mode:"snapshot", value:<msw.subtitle-style.v1>, selection?:<预设 ID 或 current>, custom?:<样式快照>}`。继承模式也可保留 `custom`，方便切回最近自定义；预设实际值随工程保存，不依赖外部库。快照主副对象、换行与主副排列必须合法。
+- `presentation` 为 `legacy`／`fixed`。新建工程默认 `fixed`；迁移旧工程保留 `legacy`，明确切换才使用新排布，已保存的 v3 保留其选择。切回旧排布不会删除轨道样式和注释位置。旧 `preview` 与 `subtitle_layers.presentation` 保留，新对白组间距沿用其中的 `gap`。
+- 可选 `tracks[*].position:{x,y}` 和字幕正文上的 `subtitle_position:{x,y}` 均为 0–1 有限数字，且只含 x、y 两项。x 是字幕组中心，y 是组顶部，相对于视频内容区域，不包括播放器黑边；固定位置缺省为 `{x:0.5,y:0.08}`。自动排布忽略轨道锚点但不删除它，切回固定可恢复；旧单条字幕位置覆盖继续有效。当前字幕覆盖优先于轨道位置；明确绑定的主副组只要有一侧覆盖即共同使用，两侧都有时必须一致。UI 以整对写入，切分继承，联动合并保留最早主字幕的位置。锁定轨道不能修改本轨样式、排布或显式位置；名称和用途标记可调整。
+- 正文仍只保存在 `segments` 和 `multi_subtitle.tracks[*].segments`。归属记录不得复制 `text`、`items` 等正文；每个稳定身份恰有一条 assignment。`track_id` 是副字幕的语言存储轨 ID（主字幕为 `null`），`subtitle_track_id` 才是新的显示轨道 ID。
+- 同一显示轨道、同角色和同语言存储轨内不得时间重叠，端点相接合法；跨显示轨道允许重叠。禁用／隐藏字幕同样参与占位检查，不能靠隐藏消除冲突。
+- 明确绑定的主副字幕必须归属同一显示轨道，保留各自 start/end 和绑定偏移。分配轨道接口从任意一侧发起均携带另一侧；目标碰撞、引用失效或任一涉及轨道锁定时整次失败。没有按时间接近自动绑定。
+- v1 旧叠加的非正文设置保存在可选 `legacy_overlay_settings`，包括旧名称及未识别设置；其中不允许 `segments`。迁移后的来源轨默认命名“原叠加字幕 N”，已有名称则沿用名称并附序号；不推断为注释。
+
+### 迁移与查询接口
+
+JS `MSWSubtitleTracks.migrate` / Python `maw.msw.subtitle_tracks.migrate_project` 返回独立副本。无版本／v1 先走既有 v2 迁移（补 ID、物化标记、处理旧叠加 ID 冲突）；v2 正文与资源引用逐字段保留，不调用会重定时的修复。旧语言存储轨缺 ID 时按普通读取器规则补齐。v3 输入先校验；旧轨道元数据 v1 在副本上升级为 v2：原对白映射为用途对白／自动排布，原画面文字映射为用途画面文字／固定位置，有显式轨道位置时保持固定；单独保留样式继承来源。名称、字幕、绑定、位置与原画面排布不变。未知版本或旧版本夹带 `subtitle_tracks` 拒绝。
+
+迁移按明确绑定分组，以实际成员区间做确定性的首次可容纳分配；普通组优先进入“字幕 1”，同角色相交的组分到额外轨道。绑定两侧之间的空时间范围仍可利用。始终保留一条默认字幕轨；旧叠加来源单独分组。字幕的时间、数组位置和后续排序不再决定固定归属。
+
+JS `createIndex(project)` / Python `TrackIndex(project)` 提供 `resolve`、`trackFor` / `track_for`、`records`。索引是当前数据的快照，编辑后重建；查询不排序正文。可按显示轨道、角色、隐藏或禁用状态筛选，`includeHidden/include_hidden` 和 `includeDisabled/include_disabled` 分别控制这两种状态。语言显示模式、播放器预览开关及导出主副范围仍由调用方额外筛选，不算固定轨道隐藏。
+
+旧隐藏叠加主字幕若已绑定可见副字幕，整对归属同一来源轨，该轨启用但仍保留旧主字幕的可见性遮罩；查询只返回原来可见的一侧。纯隐藏组所在轨道禁用。不能为了绑定整体迁移，额外隐藏原可见译文或重新显示旧隐藏主字幕。
+
+JS `assign(project, refs, targetId)` / Python `assign(project, refs, target_id)` 返回新的完整副本，只改变归属。字幕 ID、绑定、时间和配音素材不变；失败时输入完全不变。第三阶段的 `addTrack`、`reconcile`、`assertEditable/assertLocks`、`layout` 分别提供新增、变更后的归属维护、锁定检查和固定编辑行；它们不计算视频画面位置。编辑适配器在切分时记录原轨道，在合并前检查所有实际涉及的绑定对象，提交时更新稳定归属；轨道元数据随字幕历史一起撤销／重做。
+
+### 专用读写及版本保护
+
+`maw.msw.subtitle_tracks_io.read_project(path)` 只读取、迁移和校验，返回原文件路径、原始字节和内存工程。`serialize_project` 校验 v3 归属与已有完整内容契约，保留未知可选字段、内联缓存及所有素材路径，不调用媒体探测或缓存剥离。
+
+`save_project(document, project=None, cancelled=None)` 仅在原文件位置写回，避免改名或换目录导致相对媒体／素材路径失效：
+
+1. 完整校验待写内容；独占创建本次路径的写入锁。
+2. 检查取消状态，并比对磁盘原始字节，拒绝覆盖后来修改的版本。
+3. 首次从无版本／v1／v2 写成 v3，或将 v3 的旧轨道元数据升级为 v2 时，在同目录独占创建 `.msw-tracks-backup-<随机 ID>.mosp`，保存原始字节并同步到磁盘。已有备份永不覆盖；备份失败不写原工程。
+4. 通过同目录短临时名写入 UTF-8 / LF，刷新文件，再次检查取消和原文件变化，然后原子替换。失败时原文件保留；已完成的备份保留供恢复。
+5. 返回新 revision 文档供下次保存；使用旧文档重试会被变更检查拒绝。该锁协调专用工具写入；其他程序不应在最终系统替换瞬间并发保存。
+
+重复 JSON 字段、非有限数值、失效绑定及未知版本拒绝迁移。工具只升级原路径，不复制或搬运 `.assets`。读取备份时如需恢复原工作环境，应把备份恢复到原路径；不要把备份名直接当作重命名后的正式工程使用。
+
+普通 Python 写出和浏览器文件句柄保存均检查目标文件的版本：即便旧窗口仍持有 v1/v2 内容，也拒绝覆盖磁盘上已有的 v3。默认编辑器打开、拖入、恢复、另存回载均接受有效 v3，拒绝未知版本并保留原编辑状态。普通写回首次升级时也创建原字节备份。v3 旧轨道元数据升级也保留原字节备份，拒绝旧轨道元数据覆盖新用途／排布。此保护不代表可以控制没有版本检查的外部程序。
+
+### 默认编辑入口与处理输出
+
+直接打开本机编辑器即可，无需开发参数。无版本／v1／v2 在内存迁移，v3 先校验再载入。`subtitle-tracks=0` 仅供旧输入调试，不会降级已保存的 v3。轨道头名称点击启用／禁用整轨（含主副字幕）；右键或 Shift+F10 管理重命名、轨道设置、样式、排序、折叠、锁定和新增。仅新增普通“字幕 N”轨道，用途默认未指定、排布默认自动；空轨道只由用户明确删除。右键字幕可整体移轨，主副绑定不变；切分继承原轨道，合并只在同轨执行并保留现有状态规则。列表筛选与编辑器归属使用轨道名。
+
+媒体播放器设置 → 字幕样式中，将“画面排布”从“保留旧排布”改为“固定轨道排布”，再选择工程默认或具体轨道编辑样式。排布设为“固定位置”的任何用途轨道均支持轨道位置／当前字幕位置、百分比和直接拖动、Esc 取消本次拖动、一次撤销。碰撞及越界仅在定位时就地提示，不自动缩小或移动注释。
+
+`MSWTrackPresentation.layout` 接收字体测量结果，以 1080p 为基准，按明确绑定分组。自动排布轨道按固定轨道优先次序及实际相交的成员区间预计算位置；播放只筛选事件，不逐帧重排。内部层级采用严格优先关系，连续重叠不通过相邻事件不断累积位移。字幕内容区尺寸、字体、换行、描边及阴影进入 DOM 测量，校对预设只替换显示样式，不修改工程或显式位置。固定位置轨道不参加自动堆叠。动画保留淡入淡出／渐变；移动动画以所定位的组为起点叠加位移。静态占位不对完整动画运动路径作碰撞保证。
+
+本机服务支持原位保存、识别、翻译、配音和导出。ASR 快照包含 `subtitle_track_id`，只替换指定的已启用且未锁定字幕轨（不限制用途）；翻译快照每项记录显示轨道，回填核对来源身份、时间、绑定和锁定。新译文继承归属及注释位置；素材插入要求明确目标轨，不因其他轨的同时间内容而拒绝。
+
+精确预览接口返回 `layoutVersion:6`，ASS 及固定布局几何信息来自 Python 共享编译器，使用安装字体度量、换行和描边／阴影估算占位；JASSUB 预览与 FFmpeg 烧录同一 ASS。去空隙及范围裁切使用相同区间映射；动画静态占位不保证整个运动路径无碰撞。便携 HTML 使用近似预览，精确 ASS 下载需要本机服务；便携工程、SRT 仍可保存。文件句柄首次覆盖旧文件需选备份，取消则不保存；下载不搬运原媒体及 `.assets`，需保持原相对资源位置。
+
+SRT 范围默认“全部启用轨道”，可指定单条轨道；用途和排布不筛掉字幕；不保留字体和自由位置。ASS／烧录仍遵循主／副／双语范围以及轨道启用、字幕禁用状态。OTIO 字幕标记保留 `subtitle_track_id`、`subtitle_track_name`、`subtitle_kind`（兼容）、`subtitle_purpose`、`subtitle_layout`，不承诺外部软件还原画面排布。
+
+开发者只读检查：
+
+```powershell
+uv run --frozen python -m maw.msw.subtitle_tracks_io "测试工程.mosp"
+```
+
+显式添加 `--write` 才在备份后写回；日常工程可直接在编辑器保存。详细验收见[第二阶段](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/TEST_FEEDBACK_SUBTITLE_TRACKS_20261009.md)、[第三阶段](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/TEST_FEEDBACK_SUBTITLE_TRACK_EDIT_20261009.md)、[第四阶段](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/TEST_FEEDBACK_SUBTITLE_TRACK_PRESENTATION_20261009.md)和[第五阶段记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/TEST_FEEDBACK_SUBTITLE_TRACK_FLOW_20261009.md)。

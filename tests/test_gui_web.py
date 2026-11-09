@@ -2924,7 +2924,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         }
 
         self.assertFalse(_request_from_payload(payload, self.env_path).generate_html)
-        self.assertTrue(_request_from_payload({**payload, "generateHtml": True}, self.env_path).generate_html)
+        self.assertFalse(_request_from_payload({**payload, "generateHtml": True}, self.env_path).generate_html)
 
     def test_request_from_payload_controls_spectral_generation(self) -> None:
         media = self.root / "clip.mp3"
@@ -4415,7 +4415,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('id="port" type="number" min="1" max="65535" value="8250"', page)
         self.assertIn('id="homeServerToggle"', page)
 
-    def test_single_file_editor_controls_are_opt_in_and_contextual(self) -> None:
+    def test_single_file_editor_controls_are_retired_and_debug_controls_remain(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
@@ -4426,9 +4426,10 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('data-i18n="test_run_override">快速测试已限定前 2 分钟', page)
         self.assertGreater(page.index('id="debugRaw"'), page.index('id="speakerColorsField"'))
         self.assertGreater(page.index('id="debugRawField"'), page.index('id="advancedCard"'))
-        self.assertIn('data-i18n-title="generate_html_title"', page)
+        self.assertIn('id="generateHtml" type="checkbox" hidden disabled', page)
+        self.assertNotIn('data-i18n-title="generate_html_title"', page)
         self.assertNotIn('id="openHtml"', page)
-        self.assertIn('generateHtml: $("generateHtml").checked', script)
+        self.assertIn('generateHtml: false', script)
         self.assertIn('debugRaw: $("debugRaw").checked', script)
         self.assertIn('test_run: "快速测试"', script)
         self.assertIn('test_run: "Quick test"', script)
