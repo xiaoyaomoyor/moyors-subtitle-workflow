@@ -16,7 +16,13 @@
     const flat = fixedTrackMode();
     tracks = flat ? DATA.subtitle_tracks.tracks : sources().map((s, i) => ({ id: s.track_id || 'main', name: `S${i + 1}`, enabled: true }));
     const trackMap = new Map(tracks.map((track, order) => [track.id, { ...track, order }]));
+    const primaryTracks=new Set(tracks.map(track=>track.secondary_for).filter(Boolean));
     const owners = flat ? new Map(DATA.subtitle_tracks.assignments.map(a => [fixedTrackCore.key(a), a.subtitle_track_id])) : null;
+    const partners=new Map();
+    for(const binding of DATA.multi_subtitle?.bindings||[]){
+      const main=binding.main_segment_ids?.[0]??binding.main_segment_id,secondary=binding.extension_segment_ids?.[0]??binding.extension_segment_id;
+      if(main&&secondary){partners.set(main,{id:secondary,secondary:false});partners.set(secondary,{id:main,secondary:true});}
+    }
     const next = new Map(), refs = new Map(), groups = new Map();
     for (const source of sources()) source.segments.forEach((cue, index) => {
       const trackId = owners ? owners.get(fixedTrackCore.key({ role: source.role, track_id: source.track_id, cue_id: cue.id })) : source.track_id || 'main';
@@ -24,6 +30,7 @@
       const key = JSON.stringify([trackId, cue.id]);
       const speaker = MSWSpeaker.profile(DATA,cue,source.segments[cue.color_ref?.headIdx]);
       const row = { speakerId:speaker?.id || '', speakerName:speaker ? MSWSpeaker.displayName(speaker) : t('未指定说话人'), key, id: cue.id, trackId, trackName: track.name, order: track.order, start: cue.start, end: cue.end,
+        partnerId:partners.get(cue.id)?.id,scriptSecondary:!!track.secondary_for||(!primaryTracks.has(trackId)&&!!partners.get(cue.id)?.secondary),
         text: String(cue.text || ''), locked: !!track.locked, disabled: track.enabled === false || !!cue.disabled };
       if (!groups.has(trackId)) groups.set(trackId, []);
       groups.get(trackId).push(row); refs.set(key, { cue, source, index });
@@ -100,8 +107,7 @@
     node.append(document.createTextNode(text.slice(cursor)));
   }
   function formatTime(ms) {
-    const total = Math.max(0, Math.round(ms)), seconds = Math.floor(total / 1000), minutes = Math.floor(seconds / 60);
-    return (minutes >= 60 ? `${String(Math.floor(minutes / 60)).padStart(2, '0')}:` : '') + `${String(minutes % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.${String(total % 1000).padStart(3, '0')}`;
+    return MSWFindTextTools.formatTime(ms);
   }
   function decorateBlock(block, cue) {
     if (!floating.isOpen() && !block.classList.contains('msw-search-hit')) return;
@@ -210,23 +216,26 @@
   function buildUnits(){
     const rows=result.rows.map(hit=>records.get(hit.key)||drafts.get(hit.key)?.row||[...invalidGroups.values()].flatMap(g=>g.rows).find(r=>r.key===hit.key)).filter(Boolean),group=el('group').value;
     if(group==='rows')units=rows.map(row=>({id:row.key,title:`${row.trackName}_${row.number}`,rows:[row]}));
+    else if(group==='script')units=rows.length?[{id:'script',title:t('整段（剧本）'),rows}]:[];
     else {const groups=new Map();for(const row of rows){const key=group==='track'?row.trackId:row.speakerId;if(!groups.has(key))groups.set(key,{id:group+':'+key,title:group==='track'?row.trackName:row.speakerName,rows:[]});groups.get(key).rows.push(row);}units=[...groups.values()];}
-    for(const unit of units)unit.draftKey=JSON.stringify(unit.rows.map(r=>r.key));
-    rowHeight=group==='rows'?156:300;canvas.style.height=`${units.length*rowHeight}px`;
+    for(const unit of units)unit.draftKey=(group==='script'?'script:':'')+JSON.stringify(unit.rows.map(r=>r.key));
+    rowHeight=group==='rows'?156:group==='script'?Math.max(300,viewport.clientHeight):300;canvas.style.height=`${units.length*rowHeight}px`;
+    el('script-help').hidden=group!=='script';
     el('empty').hidden=!!rows.length;el('empty').textContent=t('当前范围没有字幕');
   }
   function draftFor(key){const row=records.get(key);let d=drafts.get(key);if(!d&&row){d={key,before:row.text,after:row.text,row:{...row}};drafts.set(key,d);}return d;}
   function inputText(row){return drafts.get(row.key)?.after??row.text;}
-  function unitText(unit){return el('group').value==='rows'?inputText(unit.rows[0]):invalidGroups.get(unit.draftKey)?.text??MSWFindTextTools.pack(unit.rows,inputText);}
+  function unitText(unit){return el('group').value==='rows'?inputText(unit.rows[0]):invalidGroups.get(unit.draftKey)?.text??(el('group').value==='script'?MSWFindTextTools.packScript:MSWFindTextTools.pack)(unit.rows,inputText);}
   function updatePlan(){
     const opts=processOptions();
     changes=result.rows.filter(hit=>!excluded.has(hit.key)).map(hit=>{
       const draft=drafts.get(hit.key),row=records.get(hit.key)||draft?.row;
       return {key:hit.key,before:draft?.before??row?.text??'',after:AsrEditorUtils.applyTextProcessing(hit.after??draft?.after??row?.text??'',opts)};
     });
-    const plan=core.planChanges(changes,records),invalid=units.some(u=>invalidGroups.has(u.draftKey)&&u.rows.some(r=>!excluded.has(r.key)));
+    const changeKeys=new Set(changes.map(c=>c.key));
+    const plan=core.planChanges(changes,records),invalid=[...invalidGroups.values()].find(g=>g.rows.some(r=>changeKeys.has(r.key)));
     el('apply').disabled=!ready||invalid||!!plan.conflicts.length||!plan.edits.length;
-    el('message').textContent=t(invalid?'请保留字幕分隔行；增删字幕请使用切分或合并':plan.conflicts.length?'目标字幕已改变，草稿已保留':notice||`修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`);
+    el('message').textContent=t(invalid?(invalid.group==='script'?MSWFindTextTools.scriptError:'请保留字幕分隔行；增删字幕请使用切分或合并'):plan.conflicts.length?'目标字幕已改变，草稿已保留':notice||`修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`);
     el('count').textContent=t(`${result.rows.length} 条 · 已选 ${changes.length}`);
     const dirty=[...drafts.values()].filter(d=>d.before!==d.after).length+invalidGroups.size;
     el('drafts').hidden=!dirty;el('drafts').textContent=t(`${dirty} 条未应用`);
@@ -235,6 +244,8 @@
   }
   function renderRows(){
     if(!floating.isOpen()||!el('result-section').open)return;cancelAnimationFrame(renderFrame);
+    const script=el('group').value==='script';
+    if(script){rowHeight=Math.max(300,viewport.clientHeight);canvas.style.height=`${units.length*rowHeight}px`;}
     const first=Math.max(0,Math.floor(viewport.scrollTop/rowHeight)-2),last=Math.min(units.length,first+Math.ceil(viewport.clientHeight/rowHeight)+5);
     const changesByKey=new Map(changes.map(c=>[c.key,c])),existing=new Map([...canvas.children].map(n=>[n.dataset.unit,n]));
     const keep=new Set();
@@ -258,7 +269,7 @@
       check.checked=selectedCount===unit.rows.length;check.indeterminate=selectedCount>0&&!check.checked;check.ariaLabel=t('选中')+' '+unit.title;
       node.querySelector('[data-locate]').textContent=unit.title+'  '+formatTime(unit.rows[0].start)+(unit.rows.length>1?' · '+t(`${unit.rows.length} 条字幕`):'');
       const input=node.querySelector('textarea'),value=unitText(unit);if(input.value!==value&&document.activeElement!==input)input.value=value;
-      input.ariaLabel=unit.title;input.readOnly=unit.rows.some(r=>r.locked||!records.has(r.key));input.style.height=el('group').value==='rows'?'74px':'214px';
+      input.ariaLabel=unit.title;input.readOnly=unit.rows.some(r=>r.locked||!records.has(r.key));input.style.height=el('group').value==='rows'?'74px':script?`${rowHeight-78}px`:'214px';
       const dirty=unit.rows.some(r=>drafts.has(r.key)&&drafts.get(r.key).after!==drafts.get(r.key).before)||invalidGroups.has(unit.draftKey);
       node.querySelector('.find-result-status').textContent=t(unit.rows.some(r=>!records.has(r.key))?'来源已删除':input.readOnly?'已锁定':dirty?'未应用':unit.rows.every(r=>r.disabled)?'已禁用':'');node.querySelector('[data-reset]').hidden=!dirty;
       const modified=unit.rows.filter(r=>changesByKey.has(r.key)&&changesByKey.get(r.key).after!==inputText(r));
@@ -307,10 +318,15 @@
   canvas.addEventListener('input',event=>{
     const input=event.target.closest('textarea');if(!input)return;const unit=units.find(u=>u.id===input.dataset.unit);if(!unit)return;
     notice='';
-    try{const values=el('group').value==='rows'?[input.value]:MSWFindTextTools.unpack(unit.rows,input.value);
+    try{const values=el('group').value==='rows'?[input.value]:(el('group').value==='script'?MSWFindTextTools.unpackScript:MSWFindTextTools.unpack)(unit.rows,input.value);
       unit.rows.forEach((row,i)=>{const d=draftFor(row.key);d.after=values[i];if(d.after===d.before)drafts.delete(row.key);});invalidGroups.delete(unit.draftKey);
     }catch(error){invalidGroups.set(unit.draftKey,{text:input.value,rows:unit.rows,group:el('group').value});notice=error.message;}
     updatePlan();if(!event.isComposing)scheduleQuery({resetScroll:false});
+  });
+  canvas.addEventListener('dblclick',event=>{
+    const input=event.target.closest('textarea');if(!input||el('group').value!=='script')return;
+    const unit=units.find(u=>u.id===input.dataset.unit);if(!unit)return;
+    try{const key=MSWFindTextTools.scriptKeyAt(unit.rows,input.value,input.selectionStart);if(key)navigate(key);}catch(_){/* Keep damaged drafts editable. */}
   });
   canvas.addEventListener('compositionend',()=>scheduleQuery({resetScroll:false}));
   el('drafts').addEventListener('click',()=>{

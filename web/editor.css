@@ -3490,6 +3490,7 @@
   #find-edit-results { height: clamp(180px, 34vh, 400px); overflow: auto; overscroll-behavior: contain; position: relative; scrollbar-gutter: stable; }
   #find-edit-rows { position: relative; }
   #find-edit-empty { color: var(--text-secondary); text-align: center; padding: 20px 10px; font-size: 13px; }
+  #find-edit-script-help { margin: 0 0 8px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
   .find-unified-row { position: absolute; left: 0; width: 100%; box-sizing: border-box; padding: 8px 4px; border-bottom: 1px solid var(--border-subtle); }
   .find-unified-row.current { background: color-mix(in srgb, var(--accent) 9%, transparent); }
   .find-result-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: var(--text-secondary); }

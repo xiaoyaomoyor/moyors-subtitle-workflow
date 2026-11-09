@@ -2642,7 +2642,8 @@ __WAVEFORM_CSS__
       <div id="find-edit-speakers" class="find-checks" hidden aria-label="筛选说话人"></div>
     </details>
     <details class="find-section find-results-section" id="find-edit-result-section" open><summary>筛选结果 <span id="find-edit-count" role="status"></span></summary>
-      <div class="find-results-toolbar"><label>编辑形式<select id="find-edit-group"><option value="rows">逐条编辑</option><option value="track">整段 · 按轨道</option><option value="speaker">整段 · 按说话人</option></select></label><span data-option-help="勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。"></span><button id="find-edit-drafts" type="button" hidden></button></div>
+      <div class="find-results-toolbar"><label>编辑形式<select id="find-edit-group"><option value="rows">逐条编辑</option><option value="track">整段 · 按轨道</option><option value="speaker">整段 · 按说话人</option><option value="script">整段（剧本）</option></select></label><span data-option-help="勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。"></span><button id="find-edit-drafts" type="button" hidden></button></div>
+      <p id="find-edit-script-help" hidden>按时间连续排列，绑定且时间、说话人相同的主副字幕同组，主在上、副在下。保留信息行和外层引号；正文可换行，同型引号前加反斜杠。双击正文或信息行定位。</p>
       <div id="find-edit-results" tabindex="0" aria-label="筛选结果" aria-busy="false"><p id="find-edit-empty">当前范围没有字幕</p><div id="find-edit-rows" data-i18n-skip></div></div>
     </details>
     <details class="find-section" id="find-edit-operations" open><summary>操作</summary>
