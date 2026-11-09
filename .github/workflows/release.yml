@@ -797,13 +797,15 @@ jobs:
           set -euo pipefail
           Tag="${{ github.ref_name }}"
           case "$Tag" in *-*) Prerelease=true;; *) Prerelease=false;; esac
-          # 并发安全：已存在则跳过创建；create 撞 already_exists 时继续上传
+          # 先上传完整包，再公开；上传失败时不会留下缺包的正式发行版。
           if ! gh release view "$Tag" >/dev/null 2>&1; then
             gh release create "$Tag" \
               --title "$Tag" \
               --notes-file release-notes.md \
+              --draft \
               --prerelease="$Prerelease" \
-              --target '${{ github.sha }}' || true
+              --target '${{ github.sha }}'
           fi
           gh release edit "$Tag" --title "$Tag" --notes-file release-notes.md
           gh release upload "$Tag" release-artifacts/* --clobber
+          gh release edit "$Tag" --draft=false --prerelease="$Prerelease"

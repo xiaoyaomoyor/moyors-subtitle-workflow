@@ -1,4 +1,4 @@
-MSW 1.6.0-beta.6 · 我的字幕流
+MSW 1.6.0 · 我的字幕流
 Moyor's Subtitle Workflow
 
 官网与下载：https://github.com/xiaoyaomoyor/moyors-subtitle-workflow
@@ -12,12 +12,12 @@ Moyor's Subtitle Workflow
    Start-Editor.command；Linux AppImage 增加 --editor 参数。
    在编辑器加载视频，通过「媒体 → ASR」配置和识别；Ctrl/Cmd+Shift
    拖选波形可识别片段。也可继续使用启动器批处理。
-4. 编辑器「编辑 → 全局设置 → 环境配置」管理 LLM 与 TTS 连接。
+4. 编辑器「编辑 → 编辑器设置 → 服务与环境」管理 LLM 与 TTS 连接。
    云端服务需要用户自己的 Key 和额度。
    油库里可单独安装资源；IndexTTS 需要用户先安装并启动本机服务。
 5. TTS 音频进入素材库，可拖到波形显示器作为配音贴片。
    保存工程会收集 TTS 音频；迁移时一并复制 .mosp 和 .assets 素材目录。
-6. 本版本为预发布版。升级前备份工程和原媒体，保留旧版便于回退。
+6. 升级前备份工程和原媒体；升级后的工程请使用新版编辑。
 
 本包不含开发者的 Key、用户项目、ASR/TTS 模型权重或本机服务环境。
 首次配置与可选资源清单：

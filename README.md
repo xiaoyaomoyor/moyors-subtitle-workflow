@@ -12,13 +12,11 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
 
-beta.5 新增独立叠加字幕轨、可选 ASS 样式库、FireRed CPU 识别、字词时间码与离线对比工具；保留 MSW 现有手势、旧工程样式和配音工作流。见 [升级与新增功能](docs/BETA5_UPGRADE.md)。
+当前正式版为 **1.6.0** ，MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
 
-当前版本为 **1.6.0-beta.6** ，基于 MAW 同版本发展；这是 MSW 自己的预发布版本，两个项目的版本号相同不代表功能和兼容性完全一致。
+本版整合平级字幕轨道、属性与动画、说话人方案、查找并编辑和独立配置管理，并优化长工程响应。见 [本次更新](CHANGELOG.md#160---2026-11-09)。
 
-beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处理原始快照，保持旧工程设置与上游工程兼容；同时纳入七引擎 TTS、时长跟随、音色别名与合成记录改进。详见 [本次更新](CHANGELOG.md#160-beta6---2026-09-29) 和 [升级说明](docs/BETA6_UPGRADE.md)。
-
-当前开发分支已将[平级字幕轨道](docs/FLAT_SUBTITLE_MODEL.md)接入普通编辑器：保留原双栏绑定卡片、右键菜单和设置面板，各轨独立归属、可选绑定。旧工程打开时在内存迁移，首次保存升级为 v4 并保留原文件备份；旧版本不能覆盖升级后的工程。识别、翻译、配音、预览和导出仍使用原来的入口。
+旧工程打开时在内存迁移，首次保存升级为 v4 并保留原文件备份；升级后的工程请使用新版编辑。移动项目时保留原媒体及音频素材。
 
 ![MSWE：双语字幕、配音贴片与素材库](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 
@@ -26,7 +24,7 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 
 ## 快速开始
 
-1. 在[版本列表](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)选择 MSW 安装包。预发布版请进入具体版本，`latest` 可能只显示旧的正式版。各平台与标准／lite 包的区别见[安装与升级](docs/INSTALLATION.md)。
+1. 在[版本列表](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)选择 v1.6.0 正式版 MSW 安装包。各平台与标准／lite 包的区别见[安装与升级](docs/INSTALLATION.md)。
 2. Windows 解压并启动 `MSW.exe`；macOS 打开 `MSW.app` / `MSW-lite.app`；Linux 为 AppImage 添加执行权限后运行。
 3. 可在 Launcher 批处理；也可直接打开编辑器：Windows 双击 `Start-Editor.vbs`，macOS 双击 `Start-Editor.command`，Linux 为 AppImage 增加 `--editor` 参数。源码使用 `uv run python maw_gui.py --editor --blank`。
 4. 在编辑器加载原视频，后台生成波形；通过「媒体 → ASR」整段识别或 Ctrl/Cmd+Shift 拖选片段识别，然后编辑、翻译、TTS 和导出。也可跳过 ASR 直接纯文本配音，见 [编辑器直接导入与 ASR](docs/EDITOR_ASR.md)。
@@ -56,8 +54,8 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 - [常见问题](docs/FAQ.md) ：Windows 下载解压、启动故障与问题反馈。
 - [ASR 服务与配置](docs/PROVIDERS.md) ：服务商选择、Key、费用和隐私边界。
 - [编辑器指南](docs/EDITOR_GUIDE.md) ：MSWE 的编辑、保存和导出。
-- [配置管理](docs/CONFIGURATION_MANAGEMENT.md) ：启动器与编辑器共用的 `.mswconfig` 分类导入导出、冲突预览、快照回退及生效范围。
-- [固定字幕轨道](docs/PLAN_SUBTITLE_TRACKS_20261009.md) ：默认启用对白／画面文字轨道，统一处理、预览和导出；旧工程保留排布，首次保存升级时备份。
+- [配置管理](docs/CONFIGURATION_MANAGEMENT.md) ：启动器与编辑器共用的 `.mswconfig` 分类导入导出、冲突预览及生效范围。
+- [平级字幕轨道](docs/FLAT_SUBTITLE_MODEL.md) ：轨道、字幕与绑定关系，以及旧工程升级规则。
 - [字幕按键调整](docs/KEYBOARD_ADJUSTMENT.md) ：快捷键和时间微调规则。
 - [命令行与自动化](docs/CLI.md) ：完整参数、范例、Server 管理和退出码。
 - [LLM 字幕后处理协议](docs/LLM_POSTPROCESS_PROTOCOL.md) ：后处理的输入输出与安全边界。
@@ -90,7 +88,3 @@ beta.6 补齐保留原文拆分、点击暂停、说话人名称着色及后处�
 MSW 的问题和建议请提 [GitHub Issues](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/issues)。[上游 MAW 交流群](https://qm.qq.com/q/4YtxZIpzxC)仅作为上游交流入口，MSW 特有问题请在本仓库反馈。
 
 本项目采用 [AGPL-3.0-only](LICENSE)。
-
-### beta.3 适配中的新增能力
-
-开发分支已接入豆包 ASR、按模型区分的 OpenAI/OpenRouter 参数，以及磁盘版本备份、颜色说话人显示和 SRT 导出。Launcher 与独立编辑器共享后端；可靠时间戳仍是生成字幕的前提。使用方法、备份目录和兼容边界见 [工作流说明](docs/WORKFLOW.md#beta3-cd-增量识别版本与显示)。产品版本号在正式发行阶段统一更新。
