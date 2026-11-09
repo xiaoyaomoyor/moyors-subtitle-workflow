@@ -32,7 +32,7 @@ class FlatProductionTests(unittest.TestCase):
             saved['subtitles']['cues'][0]['content']['text'] = 'Edited'
             previous = path.read_bytes()
             latest_backup = server.write_project_json(path, saved)
-            self.assertEqual(latest_backup, path.with_suffix('.mosp.bak'))
+            self.assertEqual(latest_backup.resolve(), path.with_suffix('.mosp.bak').resolve())
             self.assertEqual(latest_backup.read_bytes(), previous)
             self.assertEqual(json.loads(path.read_text())['subtitles']['cues'][0]['content']['text'], 'Edited')
             with self.assertRaisesRegex(ValueError, '平级轨道'):

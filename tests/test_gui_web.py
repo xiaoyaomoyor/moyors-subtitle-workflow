@@ -96,8 +96,8 @@ class GuiWebBridgeTests(unittest.TestCase):
         with mock.patch('maw.gui_web._file_dialog', side_effect=dialog):
             result = self.api.relocate_recent_project({'path': str(old)})
         self.assertTrue(result['ok'])
-        self.assertEqual(result['path'], str(new))
-        self.assertIn(str(new), self.paths.project_registry.read_text(encoding='utf-8').replace('\\\\', '\\'))
+        self.assertEqual(Path(result['path']).resolve(), new.resolve())
+        self.assertIn(str(new.resolve()), self.paths.project_registry.read_text(encoding='utf-8').replace('\\\\', '\\'))
 
     def test_delete_bridge_checks_actual_sessions_then_recycles(self):
         from maw.gui_web import EditorSession

@@ -43,7 +43,7 @@ class IndexedCacheLoadingTests(unittest.TestCase):
                 stack.enter_context(patch.object(q.ReapeaksFile, '_read_' + kind,
                     side_effect=AssertionError('full peak decoding on a loading path')))
             self.assertTrue(q._reapeaks_matches_media(self.cache, self.media))
-            self.assertEqual(q.find_self_wave_container(self.media), self.cache)
+            self.assertEqual(q.find_self_wave_container(self.media).resolve(), self.cache.resolve())
             self.assertTrue(q._self_check(self.cache, want_self_wave=True))
             self.assertTrue(q._reapeaks_contains_spectral(self.cache))
             basic = q.load_self_wave_payload(self.media)

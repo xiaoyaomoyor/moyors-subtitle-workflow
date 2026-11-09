@@ -129,6 +129,16 @@ class SubtitleTracksIOTests(unittest.TestCase):
             self.assertEqual(len(list(self.path.parent.glob("*.lock"))), 1)
         self.assertEqual(self.path.read_bytes(), self.raw)
 
+    def test_alias_of_same_project_cannot_bypass_writer_lock(self):
+        child = self.path.parent / 'nested'
+        child.mkdir()
+        alias = child / '..' / self.path.name
+        with codec._writer_lock(alias):
+            with self.assertRaisesRegex(ValueError, '写入任务'):
+                codec.save_project(codec.read_project(self.path))
+            self.assertEqual(len(list(self.path.parent.glob('*.lock'))), 1)
+        self.assertEqual(self.path.read_bytes(), self.raw)
+
     def test_invalid_migration_or_json_rejects_without_writing(self):
         invalid = [b'{"segments":[],"segments":[]}', b'{"segments":[],"x":NaN}',
                    b'{"schema":"msw.project.v4","segments":[]}',

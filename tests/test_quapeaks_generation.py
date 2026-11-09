@@ -509,6 +509,9 @@ class SameBasenameDifferentDirTests(unittest.TestCase):
                 {"media": str(self.source_media), "segments": []},
                 self.cache_media,
                 source_media_path=self.source_media,
+                # Exercise the mocked fresh decoder, not the cache-reuse path
+                # that would invoke a real FFmpeg on clean CI machines.
+                reuse_existing=False,
             )
         return seen
 

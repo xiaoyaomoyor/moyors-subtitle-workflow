@@ -105,7 +105,9 @@ def _backup(document):
 
 @contextmanager
 def _writer_lock(path):
-    digest = hashlib.sha256(os.fsencode(str(path))).hexdigest()[:20]
+    # Long/8.3 paths, relative paths and Windows casing must share one lock.
+    path = Path(path).resolve()
+    digest = hashlib.sha256(os.fsencode(os.path.normcase(str(path)))).hexdigest()[:20]
     lock = path.with_name(f".msw-tracks-{digest}.lock")
     try:
         handle = lock.open("xb")
