@@ -206,6 +206,12 @@ class UserConfig:
         self.env_path = env_path
 
     def read(self):
+        # Windows readers do not share delete access. Keep them out of the
+        # atomic replacement window too, across editor/launcher processes.
+        with _registry_file_lock(self.path):
+            return self._read_locked()
+
+    def _read_locked(self):
         try:
             if self.path.stat().st_size > LIMIT:
                 raise ValueError('配置文件过大，未覆盖原文件')
@@ -232,7 +238,7 @@ class UserConfig:
         if not self.path.exists():
             return
         with _registry_file_lock(self.path):
-            before = self.read()
+            before = self._read_locked()
             sections = migrate_sections(before['sections'])
             if sections != before['sections']:
                 after = copy.deepcopy(before)
@@ -258,7 +264,7 @@ class UserConfig:
             raise ValueError('配置更新格式无效')
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with _registry_file_lock(self.path):
-            before = self.read()
+            before = self._read_locked()
             after = copy.deepcopy(before)
             conflicts = []
             applied = list(before.get('applied', []))
@@ -298,7 +304,7 @@ class UserConfig:
         values = migrate_sections(values)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with _registry_file_lock(self.path):
-            before = self.read()
+            before = self._read_locked()
             after = copy.deepcopy(before)
             markers = set(after.get('migrations', []))
             for section, entries in values.items():

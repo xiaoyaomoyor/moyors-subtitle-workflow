@@ -161,6 +161,9 @@
     if (el('cue-panel-tts-preview').open) renderDraftPreview(parts);
     el('tts-yukkuri-pronunciation-field').hidden = isText() || scope.sources.length !== 1;
     el('tts-index-pronunciation-field').hidden = el('tts-yukkuri-pronunciation-field').hidden;
+    // Initial settings must settle before an engine choice can be overwritten by them.
+    for (const id of ['tts-engine', 'tts-key', 'tts-region', 'tts-workspace', 'tts-minimax-key', 'tts-mossland-key'])
+      el(id).disabled = !available || !configured || savingSettings;
     el('tts-start').disabled = !available || !configured || busy || (!pending && (
       (isYukkuri() && (!runtime.runtime_path || runtime.state === 'working' || runtimeRequest))
       || (isIndex() && !indexTts.ready() && !(localServices?.canStart() && indexTts.referencesReady()))

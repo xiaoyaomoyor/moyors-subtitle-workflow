@@ -33,6 +33,9 @@ test('speaker colors follow translated cues through preview, undo, save and ASS 
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.evaluate(()=>{
     let p=JSON.parse(buildJson()),first=p.subtitles.cues[0];
+    const palette=MSWSpeaker.ensure(DATA);
+    Object.assign(palette.rows.find(r=>r.id==='red'),{mode:'text',color:'#f07f6f'});
+    Object.assign(palette.rows.find(r=>r.id==='green'),{mode:'text',color:'#66bb6a'});
     first.content.speaker='0';first.content.color={name:'red',value:'#f07f6f',start:100,end:1400};
     p=MSWFlatEditing.addCue(p,first.track_id,'second',1500,2800,'Second speaker');
     const second=p.subtitles.cues.find(c=>c.id==='second');second.content.speaker='1';second.content.color={name:'green',value:'#66bb6a',start:1500,end:2800};

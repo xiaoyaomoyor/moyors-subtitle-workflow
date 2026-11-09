@@ -391,8 +391,14 @@ class BatchApiTests(unittest.TestCase):
             existing.parent.mkdir()
             existing.write_text("existing", encoding="utf-8")
             api = LauncherApi(paths=LauncherPaths(root, root / ".env", root / "launcher.html", project_registry=root / "launcher-project-registry.json"), window_getter=lambda: None)
-            with mock.patch("maw.gui_web._request_from_payload", return_value=TranscriptionRequest(media, root / "clip.srt")), mock.patch("maw.gui_web.run_batch"):
+            with mock.patch("maw.gui_web._request_from_payload", return_value=TranscriptionRequest(media, root / "clip.srt")), mock.patch("maw.gui_web.run_batch", return_value={"status": "done", "outcomes": []}):
                 result = api.start_batch_transcription({"items": [{"id": "a", "mediaPath": str(media), "srtPath": str(root / "clip.srt")}], "apiKey": "secret"})
+                # Keep the fake runner installed until the background worker
+                # finishes; otherwise it can write into a directory being removed.
+                worker = api.batch_worker
+                if worker is not None:
+                    worker.join(timeout=5)
+                    self.assertFalse(worker.is_alive())
             self.assertTrue(result["ok"])
             self.assertEqual(result["manifestPath"], str((root / "_msw" / "maw-batch-manifest-1.json").resolve()))
             api.shutdown()

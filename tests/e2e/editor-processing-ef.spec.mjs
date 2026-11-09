@@ -30,6 +30,7 @@ test.beforeEach(async({page})=>{
     writeFileSync(path,JSON.stringify({segments:[],media:''}));return path;
   });
   backend('note_project_opened',{path:paths[0]});
+  page.on('dialog',dialog=>dialog.accept());
   await disableOnboarding(page);
   server=await startBlankServer(await findFreePort(),join(root,'settings'));
   await page.goto(server.url);await expect(page.locator('#editor-loading')).toBeHidden();
@@ -86,4 +87,21 @@ test('menu refresh recovers from server errors and failed reads never show stale
   await page.unroute('**/api/recent-projects');
   await page.keyboard.press('Escape');await openMenubarMenu(page,'文件');
   await expect(page.locator('#recent-projects-list [data-project-path]')).toHaveCount(1);
+});
+
+test('a focus refresh during an earlier request also reads the newer registry',async({page})=>{
+  await page.evaluate(()=>refreshRecentProjects());
+  let release,held=false;
+  await page.route('**/api/recent-projects',async route=>{
+    const response=await route.fetch();
+    if(!held){held=true;await new Promise(resolve=>release=resolve);}
+    await route.fulfill({response});
+  });
+  await page.evaluate(()=>{void refreshRecentProjects();});
+  await expect.poll(()=>held).toBe(true);
+  backend('note_project_opened',{path:paths[1]});
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  release();
+  await expect.poll(()=>page.locator('#recent-projects-list [data-project-path]').evaluateAll(nodes=>nodes.map(n=>n.dataset.projectPath)))
+    .toEqual(backend('get_recent_projects').projects.map(p=>p.path));
 });

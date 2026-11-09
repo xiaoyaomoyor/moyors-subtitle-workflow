@@ -255,7 +255,7 @@ jobs:
           $env:MSW_TEST_FFMPEG = Split-Path -Parent $env:FFMPEG_PATH
           if (-not (Test-Path -LiteralPath $env:FFMPEG_PATH)) { throw 'Missing bundled FFmpeg for media/ASR browser checks' }
           "MSW_E2E_PYTHON=$env:MSW_E2E_PYTHON" >> $env:GITHUB_ENV
-          "FFMPEG_PATH=$env:FFMPEG_PATH" >> $env:GITHUB_ENV
+          "FFMPEG_PATH=$env:MSW_TEST_FFMPEG" >> $env:GITHUB_ENV
           "MSW_TEST_FFMPEG=$env:MSW_TEST_FFMPEG" >> $env:GITHUB_ENV
           $env:MSW_TEST_FFMPEG >> $env:GITHUB_PATH
 
@@ -267,20 +267,20 @@ jobs:
           npx playwright test tests/e2e/editor-i18n-save.spec.mjs tests/e2e/editor-video-export.spec.mjs --project=chromium
           exit $LASTEXITCODE
 
-      - name: Check beta.6 processing and new TTS in Chromium
+      - name: Check current processing, TTS and launcher in Chromium
         id: upgrade-browser
-        timeout-minutes: 20
-        shell: pwsh
-        run: |
-          npx playwright test tests/e2e/beta6-editor.spec.mjs tests/e2e/beta6-launcher.spec.mjs tests/e2e/editor-processing-ab.spec.mjs tests/e2e/editor-processing-cd.spec.mjs tests/e2e/editor-processing-ef.spec.mjs tests/e2e/editor-persistence.spec.mjs tests/e2e/launcher-feedback-sep23.spec.mjs tests/e2e/editor-tts-services.spec.mjs tests/e2e/editor-tts-cd.spec.mjs tests/e2e/editor-tts-cloud.spec.mjs tests/e2e/editor-tts-workspace.spec.mjs --project=chromium --max-failures=3 --output=test-results/upgrade
-          exit $LASTEXITCODE
-
-      - name: Check editor compatibility in Chromium
-        id: editor-browser
         timeout-minutes: 30
         shell: pwsh
         run: |
-          npx playwright test tests/e2e/branding.spec.mjs tests/e2e/editor-translation.spec.mjs tests/e2e/editor-tts.spec.mjs tests/e2e/editor-upgrade-d.spec.mjs tests/e2e/project-schema.spec.mjs tests/e2e/launcher-upgrade-bc.spec.mjs tests/e2e/export-naming.spec.mjs tests/e2e/beta3-cd.spec.mjs tests/e2e/beta3-launcher.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/multi-subtitle.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/click-behavior.spec.mjs tests/e2e/beta4-editor.spec.mjs tests/e2e/beta4-launcher.spec.mjs tests/e2e/ass-export.spec.mjs tests/e2e/cue-color-filter.spec.mjs --project=chromium
+          npx playwright test tests/e2e/flat-processing.spec.mjs tests/e2e/flat-production-flow.spec.mjs tests/e2e/editor-processing-ab.spec.mjs tests/e2e/editor-processing-cd.spec.mjs tests/e2e/editor-processing-ef.spec.mjs tests/e2e/editor-tts-services.spec.mjs tests/e2e/editor-tts-cd.spec.mjs tests/e2e/editor-tts-cloud.spec.mjs tests/e2e/editor-tts-workspace.spec.mjs tests/e2e/launcher-home.spec.mjs tests/e2e/launcher-step-models.spec.mjs tests/e2e/launcher-asr-options.spec.mjs --project=chromium --max-failures=3 --output=test-results/upgrade
+          exit $LASTEXITCODE
+
+      - name: Check flat editing, properties and project persistence in Chromium
+        id: editor-browser
+        timeout-minutes: 45
+        shell: pwsh
+        run: |
+          npx playwright test tests/e2e/flat-production.spec.mjs tests/e2e/bound-move.spec.mjs tests/e2e/bound-paste.spec.mjs tests/e2e/edit-transactions.spec.mjs tests/e2e/incremental-ui.spec.mjs tests/e2e/save-background-efficiency.spec.mjs tests/e2e/settings-windows.spec.mjs tests/e2e/settings-actions.spec.mjs tests/e2e/settings-final.spec.mjs tests/e2e/speaker-follow.spec.mjs tests/e2e/subtitle-properties.spec.mjs tests/e2e/subtitle-animation.spec.mjs tests/e2e/project-subtitle-style.spec.mjs tests/e2e/fcp7-export.spec.mjs tests/e2e/find-edit-save.spec.mjs tests/e2e/waveform-history.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/editor
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics

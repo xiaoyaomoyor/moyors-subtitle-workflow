@@ -38,11 +38,12 @@ test('translation generates editable candidates only, writes each target explici
   await expect(page.locator('#translation-output-mode')).toHaveCount(0);await expect(page.locator('#translation-selected')).toHaveText('当前批次：未选择');
   const list=await selectBatch(page);await list.locator('textarea').fill('手工译文');
   await expect(page.locator('#translation-selected')).toHaveText('当前批次：翻译批次01');
-  await page.locator('#translation-apply').click();expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('手工译文');
   await page.locator('#translation-secondary').click();expect(await page.evaluate(()=>DATA.multi_subtitle.tracks[0].segments[0].text)).toBe('手工译文');
   await page.locator('#translation-store').click();expect(await page.evaluate(()=>DATA.msw.subtitle_assets[0].text)).toBe('手工译文');
   await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.msw.subtitle_assets?.length||0)).toBe(0);
   expect(await page.evaluate(()=>DATA.multi_subtitle.tracks[0].segments[0].text)).toBe('手工译文');
+  await page.locator('#translation-apply').click();expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('手工译文');
+  await expect(page.locator('#translation-secondary')).toBeDisabled(); // Source changed: stale candidates must not overwrite it.
   await page.screenshot({path:join(root,'translation-candidates.png'),fullPage:true});
 });
 test('candidate input survives polling and reload; all 351 results remain editable',async({page})=>{
@@ -59,20 +60,20 @@ test('candidate input survives polling and reload; all 351 results remain editab
   await page.locator('#translation-jobs .msw-result-toggle').filter({hasText:'翻译批次01'}).click();
   await expect(page.locator('#translation-jobs textarea').first()).toHaveValue('Draft stays');
 });
-test('ASR can start inside a cue, trim leaves reviewed outside pieces, secondary is independent',async({page})=>{
-  await page.evaluate(()=>{MSWE.resolve('time-range').setRange({start:3000,end:5000});});
+test('ASR blocks a crossing range until expanded, applies to its target and undoes once',async({page})=>{
+  await page.evaluate(()=>MSWE.resolve('time-range').setRange({start:3000,end:5000}));
   await page.evaluate(()=>MSWE.resolve('asr').open('range'));
+  await expect(page.locator('#msw-asr-start')).toBeDisabled();
+  await expect(page.locator('#msw-asr-scope')).toContainText('范围边界穿过现有字幕');
+  expect(jobs).toHaveLength(0);
+  await page.locator('#msw-asr-expand').click();
   await expect(page.locator('#msw-asr-start')).toBeEnabled();await page.locator('#msw-asr-start').click();
-  await expect.poll(()=>jobs.length).toBe(1);expect(jobs[0].snapshot.range).toEqual({start:3000,end:5000});
+  await expect.poll(()=>jobs.length).toBe(1);expect(jobs[0].snapshot.range).toEqual({start:1000,end:9000});
   await page.evaluate(id=>MSWE.resolve('asr').showResult(id),jobs[0].id);
-  const strategy=page.getByRole('combobox',{name:'覆盖主字幕策略'});await expect(strategy).toBeVisible();await expect(page.locator('#msw-asr-apply')).toBeHidden();
-  await strategy.selectOption('trim');
-  await expect.poll(()=>page.evaluate(()=>({rows:DATA.segments.map(c=>[c.start,c.end,!!c.review_required]),message:document.querySelector('#msw-asr-message').textContent}))).toEqual({rows:[[1000,3000,true],[3100,4900,false],[5000,9000,true]],message:'ASR 结果已应用，可一次撤销'});
-  await expect(page.locator('.msw-review-badge')).toHaveCount(2);
-  await page.locator('#msw-asr-secondary').click();await expect.poll(()=>page.evaluate(()=>DATA.multi_subtitle.tracks[0]?.segments[0].text)).toBe('识别内容');
-  await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.multi_subtitle.tracks.length)).toBe(0);
+  await page.locator('#msw-asr-apply').click();
+  await expect.poll(()=>page.evaluate(()=>JSON.parse(buildJson()).subtitles.cues.map(c=>[c.content.start,c.content.end,c.content.text]))).toEqual([[1100,8900,'识别内容']]);
+  await expect(page.locator('#msw-asr-secondary')).toBeHidden();
   await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.segments.map(c=>c.text))).toEqual(['Hello world']);
-  await page.screenshot({path:join(root,'asr-boundary.png'),fullPage:true});
 });
 
 test('timeline undo preserves newer candidate edits and a revision reapplies after frame normalization',async({page})=>{
@@ -93,6 +94,7 @@ test('English compact result panels keep batch choices, editable rows and destin
   await expect(list.locator('.msw-result-toggle')).toContainText('Translation batch');
   await expect(page.locator('#translation-selected')).toContainText('Current batch');
   for(const selector of ['#translation-jobs textarea','#translation-apply','#translation-secondary','#translation-store']){
+    await page.locator(selector).scrollIntoViewIfNeeded();
     const rect=await page.locator(selector).boundingBox();
     expect(rect.x).toBeGreaterThanOrEqual(0);expect(rect.x+rect.width).toBeLessThanOrEqual(960);
     expect(rect.y+rect.height).toBeLessThanOrEqual(700);
@@ -102,14 +104,13 @@ test('English compact result panels keep batch choices, editable rows and destin
 
 test('edited batch and independent destination receipts survive disk save and reload without local drafts',async({page})=>{
   await translation(page);const list=await selectBatch(page);await list.locator('textarea').fill('Saved candidate');
-  for(const id of ['translation-apply','translation-secondary','translation-store'])await page.locator('#'+id).click();
+  for(const id of ['translation-secondary','translation-store','translation-apply'])await page.locator('#'+id).click();
   const saved=page.waitForResponse(r=>r.url().endsWith('/api/msw/project')&&r.request().method()==='POST');
   await page.keyboard.press('Escape');await page.keyboard.press('Control+s');
   const savedBody=await (await saved).json();
   expect(savedBody.ok,JSON.stringify(savedBody)).toBe(true);
   const disk=JSON.parse(readFileSync(join(root,'project.mosp'),'utf8'));
-  expect(disk.segments[0].text).toBe('Saved candidate');
-  expect(disk.multi_subtitle.tracks[0].segments[0].text).toBe('Saved candidate');
+  expect(disk.subtitles.cues.map(c=>c.content.text)).toEqual(['Saved candidate','Saved candidate']);
   expect(disk.msw.subtitle_assets[0].text).toBe('Saved candidate');
   expect(Object.keys(disk.msw.processing_results[0].applications).sort()).toEqual(['library','main','secondary']);
   await page.evaluate(()=>{for(const key of Object.keys(localStorage))if(key.startsWith('msw.processing.drafts.'))localStorage.removeItem(key);});

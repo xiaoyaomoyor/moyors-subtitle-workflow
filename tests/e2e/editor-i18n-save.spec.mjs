@@ -12,7 +12,7 @@ test.beforeEach(async ({page}) => {
   await page.addInitScript(() => { if(!localStorage.getItem('mawe.language'))localStorage.setItem('mawe.language', 'zh'); });
 });
 
-test.beforeAll(async () => {
+test.beforeEach(async () => {
   tempDir = makeTempDir('editor-i18n-save');
   environment={MAW_ENV_FILE:process.env.MAW_ENV_FILE,MSW_ENV_FILE:process.env.MSW_ENV_FILE,MSW_APP_DATA_ROOT:process.env.MSW_APP_DATA_ROOT};
   process.env.MSW_ENV_FILE=process.env.MAW_ENV_FILE=join(tempDir,'isolated.env');
@@ -24,7 +24,7 @@ test.beforeAll(async () => {
   server = await startServer(projectPath, mediaPath, await findFreePort());
 });
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await server?.stop();
   cleanupTempDir(tempDir);
   for(const [key,value] of Object.entries(environment||{})){if(value===undefined)delete process.env[key];else process.env[key]=value;}
@@ -188,78 +188,37 @@ test('validation save error previews the item and jumps to its subtitle', async 
   await expect(page.locator('#cue-panel-text')).toHaveValue('Bravo');
 });
 
-test('small subtitle-segment overlap can be auto-repaired and saved again', async ({ page }) => {
-  await disableOnboarding(page);
+// The production editor now saves v4 flat tracks. Overlap is rejected by
+// the real native validator; the old segments-only repair controls are not
+// an editing path for this model. Verify rejection leaves the file untouched
+// and that a subsequent valid save still succeeds.
+for (const overlap of [1, 2000]) test(`native save rejects ${overlap}ms overlap without overwriting and can retry`, async ({page}) => {
   await page.goto(server.url);
-  let saveAttempts = 0;
-  await page.route('**/api/msw/project', async (route) => {
-    if (route.request().method() !== 'POST') {
-      await route.continue();
-      return;
+  await page.waitForFunction(()=>MSWSubtitleStyle?.ready);
+  const original = readFileSync(projectPath, 'utf8');
+  const before = await page.evaluate(()=>JSON.parse(buildJson()).subtitles);
+  let attempts = 0;
+  await page.route('**/api/msw/project', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const body=route.request().postDataJSON();
+    if (++attempts === 1) {
+      expect(body.project.schema).toBe('msw.project.v4');
+      body.project.subtitles.cues[0].content.end=body.project.subtitles.cues[1].content.start+overlap;
+      return route.continue({postData:JSON.stringify(body)});
     }
-    saveAttempts += 1;
-    if (saveAttempts === 1) {
-      await route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ok: false,
-          error: '$.segments[1].start: must be >= previous segment end',
-        }),
-      });
-      return;
-    }
-    await route.continue();
+    return route.continue();
   });
-
-  await page.evaluate(() => {
-    DATA.segments[0].end = DATA.segments[1].start + 1;
-    DATA.segments[0]._dirty = true;
-    renderAll({ waveform: 'overlay' });
-  });
+  const failed=page.waitForResponse(r=>r.url().endsWith('/api/msw/project')&&r.request().method()==='POST');
   await page.keyboard.press('Control+s');
-  const hint = page.locator('.hint-project-error');
-  await expect(hint.locator('.hint-project-conflict')).toContainText('重叠 1ms');
-  await expect(hint.locator('.hint-project-repair-auto')).toContainText('自动修复');
-
-  const retry = page.waitForResponse((response) => (
-    response.url().endsWith('/api/msw/project') && response.request().method() === 'POST'
-  ));
-  await hint.locator('.hint-project-repair-auto').click();
-  expect((await retry).ok()).toBe(true);
-  await expect.poll(() => page.evaluate(() => DATA.segments[1].start)).toBe(50001);
-  await expect(page.locator('.hint-card').last()).toContainText('保存成功');
-  expect(saveAttempts).toBe(2);
-});
-
-test('larger subtitle-segment overlap requires an explicit repair direction', async ({ page }) => {
-  await disableOnboarding(page);
-  await page.goto(server.url);
-  await page.route('**/api/msw/project', async (route) => {
-    if (route.request().method() !== 'POST') {
-      await route.continue();
-      return;
-    }
-    await route.fulfill({
-      status: 400,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        ok: false,
-        error: '$.segments[1].start: must be >= previous segment end',
-      }),
-    });
-  });
-  await page.evaluate(() => {
-    DATA.segments[0].end = DATA.segments[1].start + 2000;
-    DATA.segments[0]._dirty = true;
-    renderAll({ waveform: 'overlay' });
-  });
-
+  expect((await failed).status()).toBe(409);
+  await expect(page.locator('.hint-card').last()).toContainText('同一轨道的字幕重叠');
+  expect(readFileSync(projectPath,'utf8')).toBe(original);
+  expect(await page.evaluate(()=>JSON.parse(buildJson()).subtitles)).toEqual(before);
+  const saved=page.waitForResponse(r=>r.url().endsWith('/api/msw/project')&&r.request().method()==='POST');
   await page.keyboard.press('Control+s');
-  const hint = page.locator('.hint-project-error');
-  await expect(hint.locator('.hint-project-conflict')).toContainText('重叠 2000ms');
-  await expect(hint.locator('.hint-project-repair-trim')).toHaveText('缩短前一句');
-  await expect(hint.locator('.hint-project-repair-shift')).toHaveText('推迟后一句');
+  expect((await saved).ok()).toBe(true);
+  expect(JSON.parse(readFileSync(projectPath,'utf8')).subtitles).toEqual(before);
+  expect(attempts).toBe(2);
 });
 
 test('auto-saves a text edit shortly after it loses focus', async ({ page }) => {
@@ -275,7 +234,7 @@ test('auto-saves a text edit shortly after it loses focus', async ({ page }) => 
 
   expect((await saveResponse).ok()).toBe(true);
   const savedProject = JSON.parse(readFileSync(projectPath, 'utf8'));
-  expect(savedProject.segments[0].text).toBe('Alpha autosaved');
+  expect(savedProject.subtitles.cues[0].content.text).toBe('Alpha autosaved');
 });
 
 test('a disconnected save endpoint offers a JSON fallback download', async ({ page }) => {

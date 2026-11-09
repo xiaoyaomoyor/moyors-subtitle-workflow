@@ -2,6 +2,7 @@ import concurrent.futures
 import json
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -61,6 +62,36 @@ class UserConfigTests(unittest.TestCase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             list(pool.map(save, range(16)))
         self.assertEqual(len(self.store.read()['sections']['server']['saved_workspaces']), 16)
+
+    def test_open_reader_cannot_overlap_atomic_config_replacement(self):
+        self.store.update(['browser', 'mawe.language'], 'en')
+        reading, release, writing = threading.Event(), threading.Event(), threading.Event()
+        original_read = Path.read_text
+
+        def hold_read(path, *args, **kwargs):
+            if path == self.store.path and not reading.is_set():
+                reading.set()
+                self.assertTrue(release.wait(5))
+            return original_read(path, *args, **kwargs)
+
+        def write():
+            writing.set()
+            return UserConfig(self.store.path).patch([
+                {'path': ['browser', 'mawe.language'], 'exists': True, 'before': 'en', 'value': 'zh'}])
+
+        with patch.object(Path, 'read_text', hold_read), concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            reader = pool.submit(self.store.read)
+            try:
+                self.assertTrue(reading.wait(5))
+                writer = pool.submit(write)
+                self.assertTrue(writing.wait(5))
+                with self.assertRaises(concurrent.futures.TimeoutError):
+                    writer.result(timeout=.1)
+            finally:
+                release.set()
+            self.assertEqual(reader.result(timeout=5)['sections']['browser']['mawe.language'], 'en')
+            self.assertEqual(writer.result(timeout=5)['sections']['browser']['mawe.language'], 'zh')
+        self.assertEqual(self.store.read()['sections']['browser']['mawe.language'], 'zh')
 
     def test_credentials_unknown_keys_future_and_corrupt_files_do_not_overwrite(self):
         for value in [{'credentials': {}}, {'browser': {'unknown': 'x'}}, {'browser': {'moy.asr.editor.settings.v1': {'apiKey': 'private'}}}]:

@@ -17652,29 +17652,36 @@ function configureRecentProjects() {
 }
 
 let recentProjectsRefresh = null;
+let recentProjectsRefreshRequested = false;
 async function refreshRecentProjects() {
   if (!SERVER_CONFIG?.recentProjectsListUrl) return;
-  if (recentProjectsRefresh) return recentProjectsRefresh;
+  if (recentProjectsRefresh) {
+    recentProjectsRefreshRequested = true;
+    return recentProjectsRefresh;
+  }
   recentProjectsRefresh = (async () => {
-    try {
-      const response = await fetch(SERVER_CONFIG.recentProjectsListUrl, {
-        headers: {'X-MSW-Token': SERVER_CONFIG.requestToken}, cache: 'no-store',
-      });
-      const result = await response.json();
-      if (!response.ok || !result.ok || !Array.isArray(result.projects)) throw Error('recent projects unavailable');
-      const changed = JSON.stringify(SERVER_CONFIG.recentProjects) !== JSON.stringify(result.projects);
-      SERVER_CONFIG.recentProjects = result.projects;
-      if (changed || recentProjectsList?.dataset.unavailable) configureRecentProjects();
-      if (recentProjectsList) delete recentProjectsList.dataset.unavailable;
-    } catch {
-      if (recentProjectsList) {
-        recentProjectsList.dataset.unavailable = 'true';
-        const item = document.createElement('div'); item.className = 'dropdown-item disabled';
-        item.textContent = window.MSWE_I18N?.translateText?.('最近工程暂不可用') || '最近工程暂不可用';
-        recentProjectsList.replaceChildren(item);
+    do {
+      recentProjectsRefreshRequested = false;
+      try {
+        const response = await fetch(SERVER_CONFIG.recentProjectsListUrl, {
+          headers: {'X-MSW-Token': SERVER_CONFIG.requestToken}, cache: 'no-store',
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok || !Array.isArray(result.projects)) throw Error('recent projects unavailable');
+        const changed = JSON.stringify(SERVER_CONFIG.recentProjects) !== JSON.stringify(result.projects);
+        SERVER_CONFIG.recentProjects = result.projects;
+        if (changed || recentProjectsList?.dataset.unavailable) configureRecentProjects();
+        if (recentProjectsList) delete recentProjectsList.dataset.unavailable;
+      } catch {
+        if (recentProjectsList) {
+          recentProjectsList.dataset.unavailable = 'true';
+          const item = document.createElement('div'); item.className = 'dropdown-item disabled';
+          item.textContent = window.MSWE_I18N?.translateText?.('最近工程暂不可用') || '最近工程暂不可用';
+          recentProjectsList.replaceChildren(item);
+        }
       }
-    } finally { recentProjectsRefresh = null; }
-  })();
+    } while (recentProjectsRefreshRequested);
+  })().finally(() => { recentProjectsRefresh = null; });
   return recentProjectsRefresh;
 }
 window.addEventListener('focus', () => void refreshRecentProjects());

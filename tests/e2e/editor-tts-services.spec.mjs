@@ -76,7 +76,8 @@ test('GPT service management is separate from synthesis, compact and never start
 
 test('start and synthesize freezes input, coalesces starts and preserves owned server on panel close',async({page,context})=>{
   await voice(page);await page.locator('#tts-start').click();
-  await expect(page.locator('#tts-jobs')).toContainText('正在等待本机服务');
+  await expect.poll(async()=>(await api(page,'tts-local-service?engine=indextts')).service.state).toBe('loading');
+  await expect(page.locator('#tts-jobs').getByRole('button',{name:'取消任务'})).toBeVisible();
   const other=await context.newPage();await other.goto(server.url);await expect(other.locator('#editor-loading')).not.toBeVisible();
   const started=await api(other,'tts-local-service',{engine:'indextts',action:'start'});
   await expect.poll(async()=>(await api(page,'tts-local-service?engine=indextts')).service.owned).toBe(true);
@@ -93,7 +94,8 @@ test('start and synthesize freezes input, coalesces starts and preserves owned s
 
 for(const operation of ['cancel','project'])test(`${operation} while models load prevents late synthesis`,async({page})=>{
   await voice(page);await page.locator('#tts-start').click();
-  await expect(page.locator('#tts-jobs')).toContainText('正在等待本机服务');
+  await expect.poll(async()=>(await api(page,'tts-local-service?engine=indextts')).service.state).toBe('loading');
+  await expect(page.locator('#tts-jobs').getByRole('button',{name:'取消任务'})).toBeVisible();
   if(operation==='cancel')await page.locator('#tts-jobs').getByRole('button',{name:'取消任务'}).click();
   else await page.evaluate(()=>dispatchEvent(new Event('msw:project-changed')));
   const id=await page.evaluate(()=>DATA.msw.project_id);

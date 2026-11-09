@@ -23,6 +23,9 @@ function pythonCommandArgs(args) {
 
 function buildE2EProcessEnv(extra = {}) {
   const environment = { ...process.env, ...extra };
+  // Each synthetic fixture owns its env file. A previous test may have set
+  // the newer alias; never let it win over this fixture's legacy alias.
+  if (environment.MAW_ENV_FILE) environment.MSW_ENV_FILE = environment.MAW_ENV_FILE;
   // An inherited PYTHONPATH can reintroduce packages from a different
   // interpreter. The explicit MAW_E2E_PYTHON escape hatch keeps its old
   // behavior, while the default uv path stays isolated and reproducible.

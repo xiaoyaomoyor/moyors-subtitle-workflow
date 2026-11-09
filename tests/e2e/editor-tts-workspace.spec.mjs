@@ -17,7 +17,7 @@ test.beforeAll(async () => {
   origin = `http://127.0.0.1:${mock.address().port}`;
 });
 test.afterAll(async () => { await new Promise(resolve => mock.close(resolve)); });
-test.beforeEach(async ({page}) => {
+test.beforeEach(async ({page}, info) => {
   calls = [];
   errors = []; page.on('pageerror', error => errors.push(error.message));
   const dir = makeTempDir('tts-workspace');
@@ -25,9 +25,10 @@ test.beforeEach(async ({page}) => {
   delete process.env.MSW_TEST_SAVE_TARGET;
   const path = join(dir, 'test.mosp'); projectPath = path;
   audio = readFileSync(generateWav(join(dir, 'result.wav'), .5));
+  const empty = info.title.startsWith('empty project can synthesize');
   writeFileSync(path, JSON.stringify({media: '', language: 'Chinese', msw: {schema: 'msw.editor.v1', project_id: randomUUID()},
-    segments: [{id: 'main-1', start: 0, end: 2000, text: '字幕原文'}], waveform: generateWaveformPayload(6000)}));
-  server = await startTtsServer(path, generateWav(join(dir, 'media.wav'), 6), await findFreePort(), origin);
+    segments: empty ? [] : [{id: 'main-1', start: 0, end: 2000, text: '字幕原文'}], waveform: empty ? null : generateWaveformPayload(6000)}));
+  server = await startTtsServer(path, empty ? null : generateWav(join(dir, 'media.wav'), 6), await findFreePort(), origin);
   await disableOnboarding(page); page.on('dialog', dialog => dialog.type()==='beforeunload'?dialog.accept():dialog.dismiss());
   // This suite mutates legacy arrays and verifies their saved representation.
   // Native selection and processing are covered by track-actions / flat-production-flow.
@@ -114,8 +115,6 @@ test('empty or oversized draft cannot synthesize and an empty subtitle selection
   expect(calls).toHaveLength(0);
 });
 test('empty project can synthesize independent text and delete its last audio clip without losing the timeline', async ({page}) => {
-  await page.evaluate(() => { clearAllSubtitles(); resetLoadedMedia(); DATA.media = ''; DATA.waveform = null;
-    waveformEditor.setPayload(null); renderAll({waveform: 'full'}); });
   await openTtsEnvironment(page); await page.locator('#tts-key').fill('synthetic-empty-key');
   await closeTtsEnvironment(page); await page.locator('#tts-target').selectOption('editor_text');
   await page.locator('#cue-panel-tts-text').fill('Empty project voice');
@@ -154,6 +153,8 @@ test('environment navigation saves a key independently and the call panel stays 
 
 test('register and rename an existing voice without changing the synthesis choice', async ({page}) => {
   await openTtsEnvironment(page);
+  await expect(page.locator('#tts-environment-save')).toBeEnabled();
+  if (!(await page.locator('#tts-key').isVisible())) await page.locator('#tts-settings > summary').click();
   await page.locator('#tts-key').fill('synthetic-workspace-key');
   await page.locator('#tts-manage-model-type').selectOption('CustomVoice');
   await page.locator('#tts-manage-name').fill('外部旁白');

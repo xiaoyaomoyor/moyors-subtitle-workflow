@@ -27,8 +27,8 @@ test.beforeEach(async({page})=>{
 test.afterEach(async()=>{await server?.stop();if(mock)await new Promise(r=>mock.close(r));delete process.env.MSW_TEST_EDGE_AUDIO;delete process.env.MSW_TEST_LOCAL_TTS_INSTALL;expect(errors).toEqual([]);});
 async function api(page,route,body){return page.evaluate(async({route,body})=>MSWE.resolve('audio-timeline').request(route,body),{route,body});}
 async function gpt(page){
-  await openTtsEnvironment(page,'gpt-sovits');await page.locator('#tts-local-gpt-sovits-directory').fill(bundle);await page.locator('#tts-gpt-url').fill(`http://127.0.0.1:${mock.address().port}`);
-  await page.locator('#tts-environment-save').click();await expect(page.locator('#tts-environment-message')).toContainText('已保存');
+  await openTtsEnvironment(page,'gpt-sovits');await page.locator('#tts-local-gpt-sovits-directory').fill(bundle,{timeout:20000});await page.locator('#tts-gpt-url').fill(`http://127.0.0.1:${mock.address().port}`);
+  await page.locator('#tts-environment-save').click();await expect(page.locator('#tts-environment-message')).toContainText('已保存',{timeout:20000});
   await page.locator('#tts-gpt-scan').click();await expect(page.locator('#tts-gpt-status')).toContainText('2');
   await page.locator('#tts-gpt-upload-file').setInputFiles(join(dir,'reference.wav'));await expect(page.locator('#tts-gpt-status')).toContainText('参考已保存');
   await page.locator('#tts-gpt-check').click();await expect(page.locator('#tts-gpt-status')).toContainText('已连接');
@@ -65,11 +65,13 @@ test('Edge filters voices, survives catalog failure and cancels an editor draft'
 });
 
 test('Edge first entry loads languages automatically and shows immediate verification feedback',async({page})=>{
-  let calls=0;
-  await page.route('**/api/msw/edge-tts',async route=>{calls++;await new Promise(r=>setTimeout(r,600));await route.continue();});
+  let calls=0,release;
+  await page.route('**/api/msw/edge-tts',async route=>{calls++;await new Promise(r=>release=r);await route.continue();});
   await openTtsEnvironment(page,'edge');
+  await expect.poll(()=>calls,{timeout:20000}).toBe(1);
   await expect(page.locator('#tts-edge-status')).toContainText('正在读取在线音色');
   await expect(page.locator('#tts-edge-refresh')).toBeDisabled();
+  release();
   await expect(page.locator('#tts-edge-status')).toContainText('已更新');
   await closeTtsEnvironment(page);await page.locator('#tts-engine').selectOption('edge');
   expect(await page.locator('#tts-edge-language option').count()).toBe(4);
@@ -102,4 +104,23 @@ test('GPT presets retain independent languages; environment and compact controls
   await expect(page.locator('#tts-gpt-language_type')).toHaveValue('zh');await expect(page.locator('#tts-gpt-prompt_lang')).toHaveValue('ja');
   const a=await page.locator('#tts-gpt-gpt_model').boundingBox(),b=await page.locator('#tts-gpt-sovits_model').boundingBox();expect(Math.abs(a.y-b.y)).toBeLessThan(2);expect(b.x).toBeGreaterThan(a.x);
   await page.screenshot({path:info.outputPath('gpt-preset.png')});
+});
+
+test('initial settings cannot overwrite a new TTS engine selection',async({page})=>{
+  let release,held=false;
+  await page.route('**/api/msw/tts-settings',async route=>{
+    const response=await route.fetch();
+    if(!held){held=true;await new Promise(resolve=>release=resolve);}
+    await route.fulfill({response});
+  });
+  await page.evaluate(()=>document.getElementById('tts-open').click());
+  await expect.poll(()=>held).toBe(true);
+  await expect(page.locator('#tts-engine')).toBeDisabled();
+  for(const id of ['tts-key','tts-minimax-key','tts-mossland-key'])await expect(page.locator('#'+id)).toBeDisabled();
+  release();
+  await expect(page.locator('#tts-engine')).toBeEnabled();
+  for(const id of ['tts-key','tts-minimax-key','tts-mossland-key'])await expect(page.locator('#'+id)).toBeEnabled();
+  await page.locator('#tts-engine').selectOption('edge');
+  await expect(page.locator('#tts-start')).toBeEnabled();
+  await expect(page.locator('#tts-engine')).toHaveValue('edge');
 });

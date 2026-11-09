@@ -108,9 +108,7 @@ test('opens the export modal with native text checked and closed choices only', 
   const trackOptions = page.locator('#fcp7-export-subtitle-tracks option');
   expect(await trackOptions.evaluateAll((options) => options.map((option) => option.value)))
     .toEqual(['main', 'main_and_extension', 'overlay', 'all']);
-  // 工程没有副轨：组合选项被禁用而不是悄悄猜测。
-  await expect(page.locator('#fcp7-export-subtitle-tracks option[value="main_and_extension"]'))
-    .toBeDisabled();
+  // 平级投影允许组合选择；空轨不能生成额外字幕，见下面的载荷验证。
   await expect(page.locator('#fcp7-export-subtitle-tracks')).toHaveValue('main');
 
   await page.locator('#fcp7-export-native-text').uncheck();
@@ -235,6 +233,7 @@ test('missing media duration fails the export with no save attempt and no false 
   await page.goto(server.url);
   await page.evaluate(() => {
     DATA.waveform = null;
+    DATA.media_metadata = null;
     // durationMs 是只读 getter：清空 payload 并让媒体时长不可读，导出计划即拒绝构建。
     if (waveformEditor) waveformEditor.payload = null;
     Object.defineProperty(player, 'duration', { configurable: true, get: () => Number.NaN });

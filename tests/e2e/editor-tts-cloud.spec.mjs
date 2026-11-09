@@ -75,7 +75,7 @@ test('Mossland creates reference voice, respects model language support and canc
   await expect(page.locator('#tts-mossland-status')).toContainText('已创建');await expect(page.locator('#tts-mossland-voice')).toHaveValue('created-test');
   await page.locator('#tts-mossland-model').selectOption('moss-tts-1.0-pro');await expect(page.locator('#tts-mossland-language')).toBeDisabled();
   await page.locator('#tts-target').selectOption('editor_text');await page.locator('#cue-panel-tts-text').fill('WAIT_CANCEL');await page.locator('#tts-start').click();
-  await page.locator('#tts-jobs').getByRole('button',{name:'取消任务'}).click();await expect(page.locator('#tts-jobs')).toContainText('已取消');
+  await page.locator('#tts-jobs').getByRole('button',{name:'取消任务'}).click();await expect(page.locator('#tts-jobs .msw-tts-entry[data-state=cancelled]')).toHaveCount(1);await expect(page.locator('#tts-jobs').getByRole('button',{name:'取消任务'})).toHaveCount(0);
   await page.waitForTimeout(1700);expect(await count(page)).toBe(0);await expect(page.locator('#cue-panel-tts-text')).toHaveValue('WAIT_CANCEL');
 });
 test('cloud panels keep two columns and collapse to one on narrow screens',async({page},info)=>{

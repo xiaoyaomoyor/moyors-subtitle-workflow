@@ -256,14 +256,14 @@ def history(store):
 def commit(store, raw, payload, *, label='导入前'):
     store.path.parent.mkdir(parents=True, exist_ok=True)
     with _registry_file_lock(store.path):
-        before = store.read()
+        before = store._read_locked()
         after_sections, preview = prepare(before, raw, payload.get('categories'), payload.get('policy'))
         if payload.get('revision') != preview['revision'] or payload.get('token') != preview['token']:
             raise ConfigConflict([['配置预览已过期，请重新预览']], '配置预览已过期，请重新预览；文件和所选分类已保留')
         if preview['errors']:
             raise ValueError('；'.join(preview['errors']))
         if not preview['changed']:
-            return dict(snapshot=store.snapshot(migrate=False), changed=False)
+            return dict(snapshot={**before, 'registry': REGISTRY, 'transfer': metadata()}, changed=False)
         snapshots = history(store)
         snapshots.append(dict(id=uuid.uuid4().hex, created=datetime.now(timezone.utc).isoformat(), label=label,
                               package=package(before['sections'], list(CATEGORIES))))
@@ -280,7 +280,7 @@ def commit(store, raw, payload, *, label='导入前'):
                     markers.add('browser:' + ':'.join(rule['path'][:2]))
         after['migrations'] = sorted(markers)
         store._write(before, after)
-        return dict(snapshot=store.snapshot(migrate=False), changed=True)
+        return dict(snapshot={**after, 'registry': REGISTRY, 'transfer': metadata()}, changed=True)
 
 
 def request(store, payload):

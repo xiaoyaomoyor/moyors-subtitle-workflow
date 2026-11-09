@@ -546,7 +546,11 @@ test('custom multiselect changes one channel, retains other channels and respect
   await page.locator('#style-animation').evaluate(el=>el.open=true);await axis(page,'Y 轴','缩放');await frame(page,0,80);
   let p=await snap(page);const [main]=p.subtitles.cues,sub=p.subtitles.cues.find(c=>c.content.text==='Translation');
   expect(main.content.subtitle_animation.effects.curves.channels.x[0].value).toBe(30);expect(sub.content.subtitle_animation.effects.curves.channels.y[0].value).toBe(60);
-  for(const c of [main,sub])expect(c.content.subtitle_animation.effects.curves.channels.scale[0].value).toBe(80);
+  // Bound selections now edit the active main/secondary role independently.
+  expect(main.content.subtitle_animation.effects.curves.channels.scale[0].value).toBe(80);
+  expect(sub.content.subtitle_animation.effects.curves.channels.scale).toBeUndefined();
+  await page.locator('#style-secondary').click();await frame(page,0,80);
+  expect((await snap(page)).subtitles.cues.find(c=>c.id===sub.id).content.subtitle_animation.effects.curves.channels.scale[0].value).toBe(80);
   const bindings=p.subtitles.bindings;
   await page.evaluate(()=>{const p=JSON.parse(buildJson());p.subtitles.tracks[1].locked=true;productionCommitProject(p,'lock',p.subtitles.cues.filter(c=>c.content.start===0).map(c=>c.id));});
   await expect(page.locator('#curve-value')).toBeDisabled();expect((await snap(page)).subtitles.bindings).toEqual(bindings);
