@@ -217,7 +217,10 @@ class PackagingContractTests(unittest.TestCase):
 
         # 构建管线不再内联 uv 冻结命令：统一走 freezer 模块（声明驱动）。
         self.assertIn("maw.runtimes.freezer", release)
-        self.assertNotIn("uv export --frozen", release)
+        for line in release.splitlines():
+            if 'uv export --frozen' in line:
+                self.assertIn('--only-group test --no-emit-project', line)
+        self.assertIn('uv pip install --python .venv/Scripts/python.exe --require-hashes -r test-requirements.txt', release)
 
         self.assertIn('RUNTIME_VERSION = "8"', local_spec)
         self.assertIn('OCR_RUNTIME_VERSION = "3"', ocr_spec)

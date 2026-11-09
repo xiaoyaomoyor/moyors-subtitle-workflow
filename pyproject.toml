@@ -89,3 +89,6 @@ ocr = [
     "pillow>=10.0.0",
     "rapidocr>=3.9.0",
 ]
+test = [
+    "pillow>=10.0.0",
+]

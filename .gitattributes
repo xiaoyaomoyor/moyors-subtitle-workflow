@@ -3,6 +3,7 @@
 
 # Archived single-file editor is not a supported release artifact.
 blank-editor.html export-ignore
+debug.log export-ignore
 
 # 二进制资源不做换行规范化
 *.ico binary
