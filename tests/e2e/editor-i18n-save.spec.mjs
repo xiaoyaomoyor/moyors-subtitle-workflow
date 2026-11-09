@@ -60,6 +60,7 @@ test('English locale covers the editor shell and recent-project setting stays fi
   // Audit the current settings windows; the old global TTS model controls
   // no longer live here. Wait for dynamic settings before reading labels.
   await page.evaluate(()=>MSWConfig.ready);
+  await expect(page.locator('#config-categories input')).not.toHaveCount(0);
   await expect(page.locator('#editor-settings-title')).toHaveText('Editor settings');
   const shellText = await page.locator('body').innerText();
   const untranslatedShellLines = shellText.split('\n')
@@ -206,6 +207,11 @@ test('validation save error previews the item and jumps to its subtitle', async 
 for (const overlap of [1, 2000]) test(`native save rejects ${overlap}ms overlap without overwriting and can retry`, async ({page}) => {
   await page.goto(server.url);
   await page.waitForFunction(()=>MSWSubtitleStyle?.ready);
+  // Exercise validation and manual retry after startup reads have finished,
+  // without racing an automatic save for the same project lock.
+  await page.evaluate(()=>{EDITOR_SETTINGS.autoSaveProject=false;scheduleAutoSave();});
+  await page.waitForFunction(()=>!projectSaveInFlight&&!projectCheckpointInFlight);
+  await page.waitForLoadState('networkidle');
   const original = readFileSync(projectPath, 'utf8');
   const before = await page.evaluate(()=>JSON.parse(buildJson()).subtitles);
   let attempts = 0;
@@ -227,7 +233,7 @@ for (const overlap of [1, 2000]) test(`native save rejects ${overlap}ms overlap 
   expect(await page.evaluate(()=>JSON.parse(buildJson()).subtitles)).toEqual(before);
   const saved=page.waitForResponse(r=>r.url().endsWith('/api/msw/project')&&r.request().method()==='POST');
   await page.keyboard.press('Control+s');
-  expect((await saved).ok()).toBe(true);
+  expect(await (await saved).json()).toMatchObject({ok:true});
   expect(JSON.parse(readFileSync(projectPath,'utf8')).subtitles).toEqual(before);
   expect(attempts).toBe(2);
 });
