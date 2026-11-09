@@ -24,10 +24,19 @@ test.beforeEach(async () => {
   server = await startServer(projectPath, mediaPath, await findFreePort());
 });
 
-test.afterEach(async () => {
-  await server?.stop();
-  cleanupTempDir(tempDir);
-  for(const [key,value] of Object.entries(environment||{})){if(value===undefined)delete process.env[key];else process.env[key]=value;}
+test.afterEach(async ({ page }) => {
+  try {
+    // Stop media requests before shutting down the server and releasing its files.
+    await page.close({ runBeforeUnload: false });
+  } finally {
+    try {
+      await server?.stop();
+      cleanupTempDir(tempDir);
+    } finally {
+      for(const [key,value] of Object.entries(environment||{})){if(value===undefined)delete process.env[key];else process.env[key]=value;}
+      server = undefined;
+    }
+  }
 });
 
 test('English locale covers the editor shell and recent-project setting stays first', async ({ page }) => {
@@ -136,6 +145,8 @@ test('GUI launch language overrides the saved editor language once and persists 
   expect(await page.evaluate(() => localStorage.getItem('mawe.language'))).toBe('en');
   expect(new URL(page.url()).searchParams.has('lang')).toBe(false);
 
+  // Settings are persisted asynchronously; reload only after the save completes.
+  await page.evaluate(() => window.MSWConfig.flush());
   await page.reload();
   await expect(page.locator('#save-project')).toHaveText(/^Save project(?: Ctrl\+S)?$/);
 });

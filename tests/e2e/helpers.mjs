@@ -2,8 +2,8 @@
 // Deterministic synthetic WAV + project JSON generated at runtime; no committed media.
 // Event/process/port-based lifecycle — no arbitrary sleeps for correctness.
 import { execFileSync, spawn } from 'node:child_process';
-import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync, statSync, realpathSync } from 'node:fs';
+import { dirname, join, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { randomBytes } from 'node:crypto';
@@ -145,7 +145,14 @@ export function makeTempDir(label) {
 
 export function cleanupTempDir(dir) {
   if (dir && existsSync(dir)) {
-    rmSync(dir, { recursive: true, force: true });
+    const target = realpathSync(dir);
+    const child = relative(realpathSync(TEMP_BASE), target);
+    if (!child || child === '..' || child.startsWith('..\\') || child.startsWith('../') || isAbsolute(child)) {
+      throw new Error('Refusing to clean a directory outside the E2E temporary fixture root');
+    }
+    // Windows can retain handles briefly after the child process exits.
+    // Retry transient locks only; a persistent cleanup failure still fails the test.
+    rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
 
