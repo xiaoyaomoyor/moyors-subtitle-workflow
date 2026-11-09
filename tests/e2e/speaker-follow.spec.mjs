@@ -54,8 +54,13 @@ test('default off; actual settings, palette, hollow menu, clear and undo share o
   await page.locator('#ctxmenu').getByText('独立标记',{exact:true}).click();
   const independent=await snap(page);
   for(const text of ['Line 2','第 2 行']){expect(byText(independent,text).content.color.name).toBe('red');expect(byText(independent,text).content.color_ref).toBeUndefined();}
+  for(const cue of marked.subtitles.cues.filter(c=>!['Line 2','第 2 行'].includes(c.content.text)))
+    expect(independent.subtitles.cues.find(c=>c.id===cue.id)).toEqual(cue);
+  expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+2);
   await expect(page.locator('.multi-cue-column[data-ext-idx="2"] .color-bar')).not.toHaveClass(/is-ref/);
   await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(marked.subtitles);
+  await page.evaluate(()=>performRedo());expect((await snap(page)).subtitles).toEqual(independent.subtitles);
+  await page.evaluate(()=>performUndo());
   await menu(page,2);await page.locator('#ctxmenu').getByText('清除标记',{exact:true}).click();
   for(const text of ['Line 2','第 2 行']){const c=byText(await snap(page),text).content;expect(c.color).toBeUndefined();expect(c.color_ref).toBeUndefined();}
   await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(marked.subtitles);
@@ -165,6 +170,17 @@ test('follow references save to disk, reopen, and resolve names in SRT and ASS',
     expect(outputs.srt).toContain('Alice：Line 2');expect(outputs.ass).toContain('Alice：');expect(outputs.ass).toContain('2211CC');
     await page.evaluate(()=>{updateEditorSettings({speakerAutoFollow:false});assignColor([1],'blue');});
     expect(byText(await snap(page),'Line 2').content.color_ref.name).toBe('blue');
+    await menu(page,2,true);await page.locator('#ctxmenu').getByText('独立标记',{exact:true}).click();
+    const detached=await snap(page);
+    for(const text of ['Line 2','第 2 行']){
+      expect(byText(detached,text).content.color.name).toBe('blue');
+      expect(byText(detached,text).content.color_ref).toBeUndefined();
+    }
+    expect(byText(detached,'Line 3').content.color_ref.cue_id).toBe(byText(detached,'Line 1').id);
+    expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
+    await page.reload();await expect(page.locator('#editor-loading')).toBeHidden();
+    expect((await snap(page)).subtitles).toEqual(detached.subtitles);
+    await expect(page.locator('.multi-cue-column[data-ext-idx="2"] .color-bar')).not.toHaveClass(/is-ref/);
   }catch(error){
     const diagnostic=await page.evaluate(()=>({time:player.currentTime,status:MSWSubtitleRenderer.status,pending:MSWSubtitleRenderer.pending,diagnostics:MSWSubtitleRenderer.diagnostics,geometry:MSWSubtitleRenderer.geometry,preview:DATA.preview}));
     writeFileSync(join(dir,'preview-diagnostic.json'),JSON.stringify(diagnostic,null,2));

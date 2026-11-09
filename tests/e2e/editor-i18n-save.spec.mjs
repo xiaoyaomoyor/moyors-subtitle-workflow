@@ -6,6 +6,7 @@ import { DURATION_MS, cleanupTempDir, clickLanguageToggleViaSettings, clickMenub
 let tempDir;
 let server;
 let projectPath;
+let environment;
 test.beforeEach(async ({page}) => {
   await disableOnboarding(page);
   await page.addInitScript(() => { if(!localStorage.getItem('mawe.language'))localStorage.setItem('mawe.language', 'zh'); });
@@ -13,6 +14,9 @@ test.beforeEach(async ({page}) => {
 
 test.beforeAll(async () => {
   tempDir = makeTempDir('editor-i18n-save');
+  environment={MAW_ENV_FILE:process.env.MAW_ENV_FILE,MSW_ENV_FILE:process.env.MSW_ENV_FILE,MSW_APP_DATA_ROOT:process.env.MSW_APP_DATA_ROOT};
+  process.env.MSW_ENV_FILE=process.env.MAW_ENV_FILE=join(tempDir,'isolated.env');
+  process.env.MSW_APP_DATA_ROOT=join(tempDir,'settings');
   const mediaPath = join(tempDir, 'synthetic.wav');
   projectPath = join(tempDir, 'project.json');
   generateWav(mediaPath, DURATION_MS / 1000);
@@ -23,6 +27,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await server?.stop();
   cleanupTempDir(tempDir);
+  for(const [key,value] of Object.entries(environment||{})){if(value===undefined)delete process.env[key];else process.env[key]=value;}
 });
 
 test('English locale covers the editor shell and recent-project setting stays first', async ({ page }) => {
@@ -43,15 +48,17 @@ test('English locale covers the editor shell and recent-project setting stays fi
   await clickMenubarItem(page, '文件', 'recent-projects-toggle');
 
   await toggleEditorSettings(page);
-  // Settings load asynchronously; include the populated model placeholders in the locale audit.
-  await expect(page.locator('#tts-gpt-gpt_model option').first()).toHaveText('Select…');
+  // Audit the current settings windows; the old global TTS model controls
+  // no longer live here. Wait for dynamic settings before reading labels.
+  await page.evaluate(()=>MSWConfig.ready);
+  await expect(page.locator('#editor-settings-title')).toHaveText('Editor settings');
   const shellText = await page.locator('body').innerText();
   const untranslatedShellLines = shellText.split('\n')
     .map((line) => line.trim())
     .filter((line) => /[\u3400-\u9fff]/u.test(line) && line !== '🌐中文');
-  expect(untranslatedShellLines).toEqual([]);
+  expect.soft(untranslatedShellLines).toEqual([]);
   const untranslatedUiStrings = await page.evaluate(() => {
-    const skip = '#cue-list, #cue-panel-text, #overlay, #sticker-overlay-layer, #media-name, #json-name, #sticker-grid, #language-select, script, style';
+    const skip = '[data-i18n-skip], #cue-list, #cue-panel-text, #overlay, #sticker-overlay-layer, #media-name, #json-name, #sticker-grid, #language-select, script, style';
     const found = new Set();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node;
@@ -82,6 +89,42 @@ test('English locale covers the editor shell and recent-project setting stays fi
   await expect(page.locator('#search')).toHaveAttribute('placeholder', '输入包含的文字…');
   await expect(page.locator('#cue-panel-text')).toHaveAttribute('placeholder', '选择一条字幕开始编辑…');
   expect(await page.evaluate(() => localStorage.getItem('mawe.language'))).toBe('zh');
+});
+
+test('English properties keep speaker names literal and translate live animation controls',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>localStorage.setItem('mawe.language','en'));
+  await page.goto(server.url);await page.waitForFunction(()=>MSWSubtitleStyle?.ready);
+  await page.evaluate(()=>{
+    updateEditorSettings({autoSaveProject:false});
+    const p=JSON.parse(buildJson());p.subtitles.cues[0].content.text='向上';p.subtitles.cues[0].content.items=[];
+    productionCommitProject(p,'Literal text fixture');
+    const row=MSWSpeaker.ensure(DATA).rows[0];row.name='向上';speakerPaletteChanged();
+    MSWSubtitleStyle.editSpeaker(row.id);
+  });
+  await expect(page.locator('#style-speaker-target option:checked')).toHaveText('向上');
+  await expect(page.locator('.waveform-cue-label').first()).toHaveText('向上');
+  const content=await page.evaluate(()=>JSON.parse(buildJson()).subtitles);
+  await page.locator('#style-field-wrapMode').locator('..').locator('.msw-help-button').hover();
+  await expect(page.locator('#msw-option-help')).toContainText('Manual line breaks and source text are preserved.');
+  await page.keyboard.press('Escape');
+  await page.locator('#style-animation').evaluate(n=>n.open=true);
+  await page.locator('#motion-preset-fade').click();
+  await page.locator('#motion-preset-slide').click();
+  await page.locator('#motion-timing').selectOption('ms');
+  await expect(page.locator('#motion-fade')).not.toContainText(/[\u3400-\u9fff]/u);
+  await expect(page.locator('#motion-slide')).not.toContainText(/[\u3400-\u9fff]/u);
+  await expect(page.locator('#motion-fade [data-edge="0"]')).toHaveAttribute('aria-valuetext','Start+0.000 s');
+  await page.locator('#motion-custom').click();
+  await expect(page.locator('#curve-time-label')).toHaveText('After start (s)');
+  await page.locator('#curve-graph').click({button:'right',position:{x:120,y:70}});
+  await expect(page.locator('#ctxmenu')).not.toContainText(/[\u3400-\u9fff]/u);
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>MSWE_I18N.applyLanguage('zh'));
+  await expect(page.locator('#style-general summary')).toHaveText('基础');
+  await expect(page.locator('#style-speaker-target option:checked')).toHaveText('向上');
+  expect(await page.evaluate(()=>JSON.parse(buildJson()).subtitles)).toEqual(content);
+  expect(errors).toEqual([]);
 });
 
 test('GUI launch language overrides the saved editor language once and persists it', async ({ page }) => {

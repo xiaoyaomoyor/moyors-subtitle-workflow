@@ -9,6 +9,81 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '左侧字幕': 'Left subtitles', '右侧字幕': 'Right subtitles', '全部字幕': 'All subtitles',
+    '字幕样式与画面位置': 'Subtitle style and position',
+    '项目设置 → 说话人：配置随工程保存。右键“标记字幕”或按 1–9 标记，0 清除；属性列表选择“说话人”可调整外观及动画，单条设置优先。播放器设置控制预览名称，导出名称独立选择，不改动正文或配音。': 'Project settings → Speakers: saved with the project. Use Mark subtitle or keys 1–9 to assign a speaker; 0 clears the mark. Choose Speaker in Properties to edit appearance and animation; cue overrides take priority. Preview and export names are controlled separately, without changing text or dubbing.',
+    '拖动字幕块': 'Drag subtitle blocks', '移动时间或跨行、跨轨放置；保留绑定，Esc 取消': 'Move in time or across rows and tracks; bindings are preserved. Esc cancels.',
+    '画面定位': 'Picture positioning', '在媒体播放器设置中开启「在画面中定位」后，': 'After enabling Position in picture in the media player settings,',
+    '微调位置，每次按 1080p 基准移动 1px。': 'nudge by 1 px at the 1080p reference resolution.',
+    '完成定位；': 'finishes positioning;', '取消本次定位的全部调整。': 'cancels all changes in this positioning session.',
+    '多选保持相对距离。完成后可一次撤销；输入框内方向键保留原本操作。': 'Multiple selections keep their spacing. Undo the completed session in one step; arrow keys keep their normal behavior in inputs.',
+    '进入／退出视频全屏预览': 'Enter / exit fullscreen video preview', '全屏（\\）': 'Fullscreen (\\)',
+    '说话人': 'Speaker', '简体中文': 'Simplified Chinese', '繁体中文': 'Traditional Chinese',
+    '日文': 'Japanese', '法文': 'French', '德文': 'German', '西班牙文': 'Spanish', '葡萄牙文': 'Portuguese',
+    '俄文': 'Russian', '意大利文': 'Italian', '越南文': 'Vietnamese', '印尼文': 'Indonesian', '印地文': 'Hindi',
+    '说话人名称': 'Speaker name', '指定颜色': 'Assigned color', '着色模式': 'Color mode', '混合': 'Mixed',
+    '不着色': 'No coloring', '字幕填充色': 'Text fill', '字幕描边色': 'Text outline', '字幕背景框色': 'Text background',
+    '说话人名称色': 'Speaker name color', '属性调整': 'Property overrides', '添加说话人': 'Add speaker',
+    '显示名称': 'Show name', '展开': 'Expand', '锁定': 'Lock', '解锁': 'Unlock',
+    '标记字幕': 'Mark subtitle', '说话人颜色': 'Speaker colors', '字幕属性': 'Subtitle properties',
+    '匀速': 'Linear', '平滑': 'Smooth', '定格': 'Hold', '起点后': 'After start', '终点前': 'Before end',
+    '起点后 (秒)': 'After start (s)', '终点前 (秒)': 'Before end (s)', '终点前 (%)': 'Before end (%)',
+    '在这里新建关键帧': 'Add keyframe here', '删除关键帧': 'Delete keyframe', 'Y 轴 · 参数': 'Y axis · Parameter',
+    '水平偏移': 'Horizontal offset', '垂直偏移': 'Vertical offset', '缩放': 'Scale',
+    '多个值：显示首条，编辑仅统一当前参数。': 'Mixed values: showing the first cue. Editing changes only this parameter.',
+    '多个值；修改后应用到全部说话人': 'Mixed values; changes apply to all speakers',
+    '属性调整表示此说话人有独立外观；选择普通模式恢复色系外观，保留动画。': 'Property overrides give this speaker a separate appearance. Choose a color mode to restore palette styling while keeping animation.',
+    '导入、导出个人设置；不会改动当前工程。': 'Import or export personal settings without changing the current project.',
+    '选择配置文件': 'Choose configuration file', '导入机制': 'Import behavior',
+    '保留本机，补充缺失项': 'Keep local settings; add missing entries', '使用导入配置，覆盖所选分类': 'Replace selected categories with imported settings',
+    '配置分类': 'Configuration categories', '详情说明': 'Details', '配置操作': 'Configuration actions',
+    '覆盖时，所选分类中未包含的设置回到默认；未选择的分类保持不变。': 'Replacing a category resets omitted settings to defaults. Unselected categories are unchanged.',
+    '工程文件（.mosp）：': 'Project file (.mosp):', '配置文件（.mswconfig）：': 'Configuration file (.mswconfig):',
+    '保存字幕、时间、轨道与绑定、工程样式和说话人、音频贴片与空隙、工程布局及上次保存的播放位置。媒体仅保存引用，原视频、音频及素材文件需一并保留。': 'Stores subtitles, timing, tracks and bindings, project styles and speakers, audio clips and gaps, project layout and the saved playhead position. Media is referenced; keep the original video, audio and assets with the project.',
+    '仅导出勾选分类的个人设置，如主题、布局、编辑与播放偏好、样式预设、说话人方案、识别／翻译／配音参数和工程备份规则；不包含工程字幕和媒体。说话人方案需在工程中确认对应后应用，不自动替换现有说话人。': 'Exports selected personal settings: theme, layout, editing and playback preferences, style and speaker presets, processing defaults and backup rules. Excludes project subtitles and media. Speaker schemes require confirmed mappings before application; existing speakers are not replaced automatically.',
+    '不导出：': 'Not exported:', '密钥、账号与私人音色、文件路径、最近工程、任务记录、备份文件和波形缓存。': 'Keys, accounts, private voices, file paths, recent projects, task history, backup files and waveform caches.',
+    '导入后：': 'After import:', '导出 .mswconfig': 'Export .mswconfig', '预览变更': 'Preview changes',
+    '请选择字幕': 'Select subtitles', '跟随轨道': 'Follow track', '画面排布': 'Picture layout',
+    '保留旧排布': 'Keep existing layout', '固定轨道排布': 'Track layout', '文字对齐': 'Text alignment',
+    '左对齐': 'Align left', '右对齐': 'Align right', '定位对象': 'Position target', '轨道默认': 'Track default',
+    '横向 (%)': 'Horizontal (%)', '纵向 (%)': 'Vertical (%)', '在画面中定位': 'Position in picture',
+    '取消定位': 'Cancel positioning', '完成定位': 'Finish positioning', '文字渐变': 'Text gradient', '双色逐字': 'Two-color per character',
+    '起始颜色': 'Start color', '结束颜色': 'End color', '文字背景': 'Text background', '矩形': 'Rectangle',
+    '填充颜色': 'Fill color', '不透明度 %': 'Opacity %', '左右内边距': 'Horizontal padding', '上下内边距': 'Vertical padding', '圆角半径': 'Corner radius',
+    '按比例': 'Proportional', '固定时长': 'Fixed duration', '基础变换': 'Basic transforms', '滑入滑出': 'Slide in/out',
+    '闪烁': 'Blink', '舒展': 'Stretch', '拖动整个效果区间': 'Drag the entire effect interval',
+    '向右': 'Right', '向左': 'Left', '向下': 'Down', '向上': 'Up',
+    '淡入开始': 'Fade-in start', '淡入结束': 'Fade-in end', '淡出开始': 'Fade-out start', '淡出结束': 'Fade-out end',
+    '滑入开始': 'Slide-in start', '滑入结束': 'Slide-in end', '滑出开始': 'Slide-out start', '滑出结束': 'Slide-out end',
+    '时间 (%)': 'Time (%)', '不透明度 (%)': 'Opacity (%)', '循环闪烁': 'Looped blink', '循环间隔': 'Cycle interval',
+    '最低不透明度': 'Minimum opacity', '特殊效果': 'Special effects', '打字机': 'Typewriter', '波动': 'Wave', '原地震动': 'Shake',
+    '波长': 'Wavelength', '字': 'characters', '双向': 'Both axes', '水平': 'Horizontal', '垂直': 'Vertical',
+    '原有 ASS 动画': 'Existing ASS animation',
+    '按比例随字幕长度变化；固定时长分别从起点、终点计算。所选字幕未覆盖的效果跟随轨道，恢复轨道动画可取消单条覆盖。': 'Proportional timing follows cue length; fixed timing is measured from the start or end. Unmodified cue effects follow the track. Restore inherited animation to remove cue overrides.',
+    'Shift+拖动字幕块': 'Shift+drag subtitle blocks', '临时吸附；直接拖动自由放置，Esc 取消': 'Temporarily enable snapping; drag normally for free placement. Esc cancels.',
+    '新建译字幕轨道': 'New translation track', '替换所选原文': 'Replace selected source text', '格式': 'Format', '文件名': 'Filename',
+    '输出方式': 'Output mode', '轨道': 'Track', '帧率': 'Frame rate', '文本（使用系统字体）': 'Text (system fonts)',
+    '矢量（内置字形）': 'Vector (embedded glyphs)', '更多选项': 'More options', '分文件使用说话人名称': 'Name separate files by speaker',
+    '选择格式和轨道，导出字幕': 'Choose a format and tracks to export subtitles',
+    '导出剪辑时间线和辅助数据': 'Export editing timelines and supporting data',
+    '导出应用空隙移除结果的时间线或保留区域计划': 'Export a timeline with gaps removed or a kept-region plan',
+    '双列并排显示；双排上下显示，不改变字幕绑定和画面样式': 'Show two columns side by side or two stacked rows; bindings and picture styles are unchanged.',
+    '文字切分作用轨道': 'Track for text splitting', '打开属性列表中的字幕样式': 'Open subtitle style in Properties',
+    '属性列表窗口标签': 'Properties tab', '关闭属性列表窗口': 'Close Properties', '字幕轨道组': 'Subtitle track group',
+    '属性对象': 'Property target', '说话人对象': 'Speaker target', '恢复继承外观': 'Restore inherited appearance',
+    '输入或选择字体': 'Type or choose a font', '沿用汉字字体': 'Use the Han character font', '从视频画面取色': 'Pick a color from the video',
+    '动画时间方式': 'Animation timing', '恢复继承动画': 'Restore inherited animation', '滑动方向': 'Slide direction',
+    '滑动距离': 'Slide distance', '缩放强度': 'Scale amount', '在此时间新建关键帧': 'Add a keyframe at this time',
+    '在播放头处设帧；需位于当前对象的字幕内': 'Set a keyframe at the playhead, within a cue of the current target',
+    '在播放头处设帧': 'Set keyframe at playhead', '自定义动画图表，右键切换坐标及编辑关键帧': 'Custom animation graph; right-click to change axes or edit keyframes',
+    '移除循环闪烁': 'Remove looped blink', '波动方向': 'Wave direction', '波长（字）': 'Wavelength (characters)',
+    '循环周期': 'Cycle duration', '震动方向': 'Shake direction', '震动强度': 'Shake amount', '抖动间隔': 'Shake interval',
+    '筛选轨道': 'Filter tracks', '筛选说话人': 'Filter speakers', '前缀': 'Prefix', '后缀': 'Suffix',
+    '自动适应画面宽度，或限制每行字符数（含空格、标点）。保留手动换行，不改写正文。': 'Fit lines to the picture width, or limit characters per line including spaces and punctuation. Manual line breaks and source text are preserved.',
+    '拖动手柄调时间，拖动色块移区间。Ctrl／Ctrl+Shift：吸附 1%／5% 或 0.010／0.050 秒。关闭效果保留参数。': 'Drag handles to change timing or the colored region to move the interval. Ctrl / Ctrl+Shift snaps to 1% / 5% or 0.010 / 0.050 s. Turning an effect off keeps its parameters.',
+    '点击空白处新建，选中帧后输入或拖动修改。固定时长可右键选起点后或终点前。Ctrl／Ctrl+Shift：时间吸附 0.010／0.050 秒，比例和数值吸附 1／5。': 'Click an empty area to prepare a new keyframe. Select a frame to edit by typing or dragging. With fixed timing, right-click to anchor after the start or before the end. Ctrl / Ctrl+Shift snaps time to 0.010 / 0.050 s and percentages or values to 1 / 5.',
+    '整条字幕和背景围绕原位抖动，结束回到原位。间隔越小越快；可叠加基础变换或自定义动画。': 'Shake the whole subtitle and background around their original position, returning there at the end. Shorter intervals shake faster. Combine with basic transforms or custom animation.',
+    '文字逐字上下起伏；波长是一轮波形包含的字数。背景保持整体。': 'Characters move up and down in a wave. Wavelength is the number of characters in one cycle; the background stays together.',
     '编辑器设置': 'Editor settings', '项目设置': 'Project settings',
     '配置管理': 'Configuration', '工作区布局': 'Workspace layout',
     '编辑说话人外观': 'Edit speaker appearance', '轨道规则': 'Track rules', '未指定': 'Unspecified',
@@ -2812,12 +2887,14 @@
   const attributeOriginals = new WeakMap();
   const SKIP_SELECTOR = [
     '[data-i18n-skip]',
+    '.waveform-cue-label', '.fixed-subtitle-text',
     '.multi-subtitle-split-char, .multi-subtitle-split-gap',
     '#cue-list', '#cue-panel-text', '#overlay', '#msw-layer-preview', '#sticker-overlay-layer',
     '#media-name', '#json-name', '#sticker-grid', '.hint-project-preview-value', '.msw-translation-results', '.msw-result-row-detail', '.msw-asset-content', 'script', 'style'
   ].join(',');
   const ATTRIBUTE_SKIP_SELECTOR = [
     '[data-i18n-skip]',
+    '.fixed-subtitle-text',
     // .waveform-cue-block 的 title 是用户字幕原文，不能参与翻译
     '#cue-list', '#overlay', '#msw-layer-preview', '#sticker-overlay-layer', '.waveform-cue-block',
     '#media-name', '#json-name', '#sticker-grid', 'script', 'style'
@@ -2880,6 +2957,28 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const anchoredTime=/^(起\+|终−)([\d.]+ s)$/.exec(text);
+    if(anchoredTime)return `${anchoredTime[1]==='起+'?'Start+':'End−'}${anchoredTime[2]}`;
+    const motionValue=/^(淡入开始|淡入结束|淡出开始|淡出结束|滑入开始|滑入结束|滑出开始|滑出结束|开始|结束|距离|间隔|不透明|缩放|振幅|周期|强度|起点后|终点前) ((?:起\+|终−)?[-+\d.][\s\S]*)$/.exec(text);
+    if(motionValue){const labels={距离:'Distance',间隔:'Interval',不透明:'Opacity',缩放:'Scale',振幅:'Amplitude',周期:'Cycle',强度:'Amount'};return `${labels[motionValue[1]]||translateText(motionValue[1],lang)} ${translateText(motionValue[2],lang)}`;}
+    const keyframe=/^关键帧 (\d+)，(.+)，([-\d.]+)$/.exec(text);
+    if(keyframe)return `Keyframe ${keyframe[1]}, ${translateText(keyframe[2],lang)}, ${keyframe[3]}`;
+    const otherFrame=/^其他参数的关键帧：(.+)$/.exec(text);
+    if(otherFrame)return `Keyframe on another parameter: ${otherFrame[1]}`;
+    const motionAxis=/^(水平偏移|垂直偏移|旋转|缩放) (\((?:px|°|%)\))$/.exec(text);
+    if(motionAxis)return `${translateText(motionAxis[1],lang)} ${motionAxis[2]}`;
+    const motionReset=/^恢复(淡入淡出|滑入滑出|闪烁|舒展|自定义|打字机|波动|原地震动)默认值$/.exec(text);
+    if(motionReset)return `Reset ${translateText(motionReset[1],lang)} defaults`;
+    const motionRange=/^(淡入淡出|滑入滑出|闪烁|舒展|打字机|波动|原地震动)时间区间$/.exec(text);
+    if(motionRange)return `${translateText(motionRange[1],lang)} interval`;
+    const speakerField=/^(.+) (名称|编辑说话人外观|显示名称|颜色|着色模式|分隔符)$/.exec(text);
+    if(speakerField)return `${speakerField[1]==='全部说话人'?'All speakers':speakerField[1]} ${translateText(speakerField[2],lang)}`;
+    const trackAction=/^(展开|折叠|锁定|解锁) (S\d+(?:主|副)?)$/.exec(text);
+    if(trackAction)return `${translateText(trackAction[1],lang)} ${translateText(trackAction[2],lang)}`;
+    const trackTitle=/^(S\d+(?:主|副)?)\n点击禁用本轨道，右键管理$/.exec(text);
+    if(trackTitle)return `${translateText(trackTitle[1],lang)}\nClick to disable this track; right-click to manage`;
+    const exportTracks=/^字幕轨道 · (全部轨道|已选 \d+ 条)$/.exec(text);
+    if(exportTracks)return `Subtitle tracks · ${exportTracks[1]==='全部轨道'?'All tracks':exportTracks[1].replace(/已选 (\d+) 条/,'$1 selected')}`;
     const unifiedPlan=/^(已)?修改 (\d+) 条 · 跳过 (\d+) 条锁定字幕$/.exec(text);
     if(unifiedPlan)return `${unifiedPlan[1]?'Changed':'Change'} ${unifiedPlan[2]} cues · Skip ${unifiedPlan[3]} locked`;
     const unifiedCount=/^(\d+) 条 · 已选 (\d+)$/.exec(text);
@@ -3284,7 +3383,7 @@
     if (element.closest?.(ATTRIBUTE_SKIP_SELECTOR)) return;
     if (!attributeOriginals.has(element)) attributeOriginals.set(element, {});
     const originals = attributeOriginals.get(element);
-    ['title', 'placeholder', 'aria-label'].forEach((name) => {
+    ['title', 'placeholder', 'aria-label', 'aria-valuetext'].forEach((name) => {
       if (!element.hasAttribute?.(name)) return;
       const current = element.getAttribute(name);
       if (!(name in originals)) {
@@ -3352,10 +3451,8 @@
 
   function start() {
     installDialogTranslation();
-    applyLanguage(language, false);
-    document.getElementById('language-select')?.addEventListener('change', (event) => {
-      applyLanguage(event.target.value === 'en' ? EN : ZH);
-    });
+    // Language-change handlers rebuild navigation and option lists. Observe
+    // before dispatching the first change so those new nodes are translated too.
     const observer = new MutationObserver((records) => {
       records.forEach((record) => {
         record.addedNodes.forEach(translateTree);
@@ -3364,7 +3461,11 @@
     });
     observer.observe(document.body, {
       childList: true, subtree: true, attributes: true,
-      attributeFilter: ['title', 'placeholder', 'aria-label'],
+      attributeFilter: ['title', 'placeholder', 'aria-label', 'aria-valuetext'],
+    });
+    applyLanguage(language, false);
+    document.getElementById('language-select')?.addEventListener('change', (event) => {
+      applyLanguage(event.target.value === 'en' ? EN : ZH);
     });
   }
 

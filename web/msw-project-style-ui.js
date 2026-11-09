@@ -466,7 +466,11 @@
       (editScope==='speaker'&&speakerId&&!speakers().some(r=>r.id===speakerId))){
       editScope='cue';fixedPositionScope='cue';speakerId='';fixedStyleTrackId='';
     }
-    const fill=(element,items,selection)=>{element.replaceChildren(...items.map(([id,name])=>new Option(t(name),id)));element.value=selection;};
+    const fill=(element,items,selection,{literal=false}={})=>{element.replaceChildren(...items.map(([id,name])=>{
+      const option=new Option(literal?name:t(name),id);
+      if(literal)option.setAttribute('data-i18n-skip','');
+      return option;
+    }));element.value=selection;};
     fill($('style-preview-mode'),[['project','跟随工程样式'],['default','默认字幕样式'],...all().filter(s=>s.id!=='default').map(s=>[s.id,s.name])],proof.mode);
     if(!$('style-preview-mode').value){proof.mode='project';$('style-preview-mode').value='project';persistProof();}
     if(productionFlatMode()&&!fixedStyleTarget()){
@@ -482,7 +486,7 @@
       $('style-track-layout').closest('label').hidden=productionFlatMode();
     }
     fill($('style-edit-scope'),[['cue','所选字幕'],['speaker','说话人'],...Array.from($('style-track-target').options,o=>[o.value,o.textContent])],speakerScope()?'speaker':cueScope()?'cue':fixedStyleGroup()?.main.id||track?.id||'');
-    speakerId=speaker()?.id||'';fill($('style-speaker-target'),speakers().map(r=>[r.id,r.name]),speakerId);
+    speakerId=speaker()?.id||'';fill($('style-speaker-target'),speakers().map(r=>[r.id,r.name]),speakerId,{literal:true});
     const chosen=track?fixedStyleGroup()?.main.style.selection||track.style.selection:host.data.preview?.project_style_selection;
     const group=fixedStyleGroup(),inherited=group?[group.main,group.secondary].filter(Boolean).every(t=>t.style.mode==='inherit'):track?.style.mode==='inherit';
     selectedPreset=find(chosen)?chosen:all().find(s=>same(s,value()))?.id||(inherited?'default':'');

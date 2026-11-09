@@ -320,6 +320,65 @@ print(json.dumps([bands(p) for p in sys.argv[1:]]))`,png,ref],{encoding:'utf8',w
   await expect(page.locator('#fixed-subtitle-preview [data-role="extension"] .fixed-subtitle-text')).toHaveText('WWWW\nWWWW');
 });
 
+test('flat ASS wrapping keeps picture-based line breaks across player resizing',async({page})=>{
+  test.setTimeout(120000);
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await disableOnboarding(page);await page.goto(server.url);
+  await page.waitForFunction(()=>MSWSubtitleStyle?.ready&&player.readyState>=2);
+  await page.evaluate(()=>{
+    const h=MSWE.resolve('processing-host'),style=MSWProjectStyle.defaults();
+    Object.assign(style.main,{fontName:'Arial',latinFontName:'Arial',fontSize:64,primaryColor:'#ff0000'});
+    Object.assign(style.secondary,{fontName:'Arial',latinFontName:'Arial',fontSize:64,primaryColor:'#00ff00'});
+    const p={media:h.data.media,waveform:h.data.waveform,msw:h.data.msw,
+      segments:[{id:'long',start:0,end:3000,text:Array(18).fill('MMMM').join(' ')}],
+      multi_subtitle:{enabled:true,tracks:[{id:'sub',segments:[{id:'manual',start:0,end:3000,text:'WWWWWW\nWW'}]}],
+        bindings:[{id:'pair',track_id:'sub',main_segment_ids:['long'],extension_segment_ids:['manual']}]},
+      preview:{project_style:style}};
+    productionCommitProject(MSWFlatSubtitles.migrate(JSON.parse(JSON.stringify(p))),'Resize wrapping fixture');
+    h.commitProjectStyle(style);
+    for(const e of [overlayToggle,extensionOverlayToggle]){e.checked=true;e.dispatchEvent(new Event('change'));}
+    h.player.currentTime=1;h.player.pause();MSWSubtitleRenderer.invalidate();
+  });
+  await expect.poll(()=>page.evaluate(()=>MSWSubtitleRenderer.status==='libass'&&!MSWSubtitleRenderer.pending),{timeout:30000}).toBe(true);
+  const source=await page.evaluate(()=>JSON.parse(buildJson()).subtitles);
+  const payload=await page.evaluate(()=>MSWSubtitleStyle.request('subtitle-preview',{
+    project:MSWE.resolve('processing-host').exportProject(),target:'both',video:{width:640,height:360}}));
+  const events=payload.ass.split('\n').filter(s=>s.startsWith('Dialogue:'));
+  expect(payload.ass).toContain('WrapStyle: 2');expect(events).toHaveLength(2);
+  const expected=events.map(s=>(s.match(/\\N/g)||[]).length+1);
+  expect(expected[0]).toBeGreaterThan(1);expect(expected[1]).toBe(2);
+  writeFileSync(join(folder,'resize-wrap.ass'),payload.ass);
+  const widths=[];
+  for(const width of [1440,960]){
+    await page.setViewportSize({width,height:900});
+    await expect.poll(()=>page.evaluate(()=>!MSWSubtitleRenderer.pending&&MSWPreviewControls.settled)).toBe(true);
+    const canvas=page.locator('.JASSUB');
+    await expect(async()=>{
+      const a=await canvas.boundingBox();await page.waitForTimeout(100);const b=await canvas.boundingBox();
+      expect(b).toEqual(a);
+    }).toPass();
+    await page.evaluate(()=>MSWSubtitleRenderer.repaint());
+    const box=await canvas.boundingBox(),png=join(folder,`wrap-${width}.png`),ref=join(folder,`wrap-${width}-reference.png`);
+    widths.push(box.width);await canvas.screenshot({path:png});
+    execFileSync(process.env.MSW_E2E_FFMPEG,['-v','error','-f','lavfi','-i','color=c=black:s=640x360:r=25:d=2',
+      '-ss','1','-vf',`ass=resize-wrap.ass,scale=${Math.round(box.width)}:${Math.round(box.height)}`,'-frames:v','1',ref],{cwd:folder,windowsHide:true});
+    const bands=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON||'python',['-c',`from PIL import Image
+import json,sys
+def bands(path):
+ im=Image.open(path).convert('RGB'); result=[]
+ for channel in (0,1):
+  rows=[y for y in range(im.height) if any((lambda c:c[channel]>80 and c[channel]>2*c[1-channel] and c[channel]>2*c[2])(im.getpixel((x,y))) for x in range(im.width))]
+  result.append([y for i,y in enumerate(rows) if i==0 or y>rows[i-1]+1])
+ return result
+print(json.dumps([bands(p) for p in sys.argv[1:]]))`,png,ref],{encoding:'utf8',windowsHide:true}));
+    for(const result of bands)expect(result.map(r=>r.length)).toEqual(expected);
+    for(let role=0;role<2;role++)for(let row=0;row<expected[role];row++)expect(Math.abs(bands[0][role][row]-bands[1][role][row])).toBeLessThan(3);
+  }
+  expect(widths[0]-widths[1]).toBeGreaterThan(50);
+  expect(await page.evaluate(()=>JSON.parse(buildJson()).subtitles)).toEqual(source);
+  expect(errors).toEqual([]);
+});
+
 test('old migration options are absent from preview, project and export selectors',async({page})=>{
   await disableOnboarding(page);
   await page.route('**/ass-styles',route=>route.abort()); // Modern styles no longer depend on the legacy library endpoint.
