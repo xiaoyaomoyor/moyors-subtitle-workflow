@@ -1,8 +1,8 @@
 # MSW 跟进上游 v1.6.0 的筛选结论
 
-本轮只评估上游内容，另行修复编辑器 ASR；不合并上游、不创建发行标签、不发布。用户已将目标从 v1.6.1 改回 v1.6.0。
+初始评估范围为筛选上游内容，另行修复编辑器 ASR，不整体合并上游；用户已将目标从 v1.6.1 改回 v1.6.0。后续分阶段实施与正式发布已获用户授权。
 
-后续进展：第一阶段的依赖与 Premiere XML 修复已完成，见[第一阶段验收记录](TEST_FEEDBACK_UPSTREAM_160_STAGE1_20261109.md)。第二阶段的 ASS 换行、独立标记、日志日期及英文界面回归也已完成，见[第二阶段验收记录](TEST_FEEDBACK_UPSTREAM_160_STAGE2_20261109.md)。以下保留评估时的基线与筛选理由，第三阶段发行检查尚未执行。
+后续进展：第一阶段的依赖与 Premiere XML 修复已完成，见[第一阶段验收记录](TEST_FEEDBACK_UPSTREAM_160_STAGE1_20261109.md)。第二阶段的 ASS 换行、独立标记、日志日期及英文界面回归也已完成，见[第二阶段验收记录](TEST_FEEDBACK_UPSTREAM_160_STAGE2_20261109.md)。第三阶段已完成用户批准范围内的发行检查，并于 2026-11-09 发布 [MSW v1.6.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.0)：先提供 Windows 标准／lite 和 Linux AppImage；macOS 因 GitHub 托管机器不足后补，未将未运行的检查记为通过。最终证据与边界见[发行验收记录](TEST_FEEDBACK_UPSTREAM_160_FINAL_20261109.md)。以下保留评估时的基线与筛选理由。
 
 ## 比较基线
 
