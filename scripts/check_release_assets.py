@@ -14,6 +14,30 @@ PACKAGES = {
 }
 
 
+def check_runtime_requirements(text: str, label: str) -> None:
+    """The optional ASR bootstrap needs matching Python and native packages."""
+    versions = {}
+    for package in ('sherpa-onnx', 'sherpa-onnx-core'):
+        match = re.search(r'^' + re.escape(package) + r'==([^\s;\\]+)', text, re.MULTILINE)
+        if not match:
+            raise ValueError(f'{label}: missing pinned {package}')
+        versions[package] = match.group(1)
+    if len(set(versions.values())) != 1:
+        raise ValueError(f'{label}: sherpa Python/native versions do not match')
+
+
+def check_bundle(directory: Path) -> None:
+    """Check unpacked bundles too, including the Linux AppImage contents."""
+    if any(directory.rglob('blank-editor.html')):
+        raise ValueError('Retired portable editor must not be distributed')
+    for filename in ('requirements-local.txt', 'requirements-local-cpu.txt'):
+        manifests = list(directory.rglob(filename))
+        if not manifests:
+            raise ValueError(f'Missing runtime manifest: {filename}')
+        for manifest in manifests:
+            check_runtime_requirements(manifest.read_text(encoding='utf-8'), filename)
+
+
 def expected_names(tag: str, platform: str = 'all') -> set[str]:
     if not re.fullmatch(r'v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', tag):
         raise ValueError('Expected a version tag such as v1.6.0-beta.1')
@@ -30,6 +54,8 @@ def check_zip(path: Path) -> None:
                 raise ValueError(f'{path.name}: unsafe archive path')
             if any(part in {'.env', '.git', '__pycache__', 'node_modules'} for part in parts):
                 raise ValueError(f'{path.name}: unexpected private/cache file {name}')
+            if PurePosixPath(name).name == 'blank-editor.html':
+                raise ValueError(f'{path.name}: retired portable editor must not be distributed')
         if archive.testzip():
             raise ValueError(f'{path.name}: ZIP CRC check failed')
         executable = 'MSW.exe' if 'Windows' in path.name else 'Contents/MacOS/MSW'
@@ -41,6 +67,12 @@ def check_zip(path: Path) -> None:
         for suffix in required:
             if not any(name == suffix or name.endswith('/' + suffix) for name in names):
                 raise ValueError(f'{path.name}: missing {suffix}')
+        for filename in ('requirements-local.txt', 'requirements-local-cpu.txt'):
+            manifests = [name for name in archive.namelist() if name.replace('\\', '/').endswith('/' + filename)]
+            if not manifests:
+                raise ValueError(f'{path.name}: missing {filename}')
+            for manifest in manifests:
+                check_runtime_requirements(archive.read(manifest).decode('utf-8'), f'{path.name}/{filename}')
         executable_names = {PurePosixPath(name).name for name in names}
         ffmpeg = {'ffmpeg.exe', 'ffprobe.exe'} if 'Windows' in path.name else {'ffmpeg', 'ffprobe'}
         if '-lite-' in path.name:
@@ -75,11 +107,19 @@ def check_release(directory: Path, tag: str, platform: str = 'all') -> list[tupl
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--directory', type=Path, required=True)
-    parser.add_argument('--tag', required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument('--directory', type=Path)
+    source.add_argument('--bundle', type=Path, help='Check an unpacked application bundle')
+    parser.add_argument('--tag')
     parser.add_argument('--platform', choices=['all', *PACKAGES], default='all')
     parser.add_argument('--notes', type=Path, help='Append SHA-256 values to release notes, without adding an extra asset')
     args = parser.parse_args()
+    if args.bundle:
+        check_bundle(args.bundle)
+        print('Validated optional ASR manifests and portable-editor exclusion.')
+        return
+    if not args.tag:
+        parser.error('--tag is required with --directory')
     digests = check_release(args.directory, args.tag, args.platform)
     if args.notes:
         table = '\n\n## SHA-256\n\n| 文件 | SHA-256 |\n| --- | --- |\n'

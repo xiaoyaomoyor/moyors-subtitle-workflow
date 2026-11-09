@@ -10,13 +10,13 @@ Direct editor workflow: Windows packages include `Start-Editor.vbs`; macOS packa
 [![GitHub Stars](https://img.shields.io/github/stars/xiaoyaomoyor/moyors-subtitle-workflow)](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/stargazers)
 [![License](https://img.shields.io/github/license/xiaoyaomoyor/moyors-subtitle-workflow)](LICENSE)
 
-MSW (Moyor's Subtitle Workflow / 我的字幕流) is a local web workflow for ASR, subtitle editing and TTS voiceover. Based on [MAW](https://github.com/Moyf/moys-asr-workflow), this independently maintained fork adds translation during editing, three TTS integrations, an asset library and audio clips on the timeline. It provides Windows, macOS and Linux launchers, a CLI and a browser editor. Project editing and storage stay on your computer.
+MSW (Moyor's Subtitle Workflow / 我的字幕流) is a local web workflow for ASR, subtitle editing and TTS voiceover. Based on [MAW](https://github.com/Moyf/moys-asr-workflow), this independently maintained fork adds translation during editing, multiple TTS integrations, an asset library and audio clips on the timeline. It provides Windows, macOS and Linux launchers, a CLI and a browser editor. Project editing and storage stay on your computer.
 
 [Project home](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [Documentation](docs/README.md) · [Optional environments](docs/ENVIRONMENT.md)
 
-Beta.5 adds an editable overlay subtitle track, an opt-in ASS style library, FireRed CPU ASR, word alignment and two offline comparison tools. Existing MSW gestures, project styles and voiceover assets are preserved. See the [upgrade guide](docs/BETA5_UPGRADE.md).
+Version 1.6.0 brings flat subtitle tracks, per-cue and speaker styles, ASS animations, reusable speaker profiles, unified text editing and separate editor/project settings. It also improves large-project editing and preview updates. See the [changelog](CHANGELOG.md#160---2026-11-09).
 
-The current version, **1.6.0-beta.5**, is MSW's own prerelease, based on the upstream release with the same version number. Equal version numbers do not imply identical features.
+This branch corresponds to MSW **1.6.0** . Download the [stable release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.0). MSW is independently maintained; equal version numbers do not imply identical features or project formats.
 
 ![MSWE with bilingual subtitles, voiceover clips and the asset library](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 
@@ -24,7 +24,7 @@ The current version, **1.6.0-beta.5**, is MSW's own prerelease, based on the ups
 
 ## Quick start
 
-1. Open the [release list](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases). Prereleases may not appear at the `latest` URL. Choose a standard package with FFmpeg, or a lite package if you already have `ffmpeg` and `ffprobe`. See [installation and upgrades](docs/INSTALLATION.md).
+1. Open the [release list](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases). Choose a standard package with FFmpeg, or a lite package if you already have `ffmpeg` and `ffprobe`. See [installation and upgrades](docs/INSTALLATION.md).
 2. Extract and launch `MSW.exe` on Windows or `MSW.app` / `MSW-lite.app` on macOS. On Linux, make the AppImage executable and run it.
 3. Configure an ASR provider API key in the Launcher, choose your media, and start transcription.
 4. Review and edit the subtitles in MSWE, then export SRT, ASS, or another supported format.
@@ -35,7 +35,7 @@ For installation, provider setup, editing, and troubleshooting, start with the [
 
 - Transcribe with Qwen, Fun-ASR, Soniox, or an OpenAI-compatible ASR endpoint and generate SRT plus a `.mosp` project.
 - Edit in the MSWE Server editor with waveform navigation, split/merge, silence-gap handling, video preview, and multiple export formats.
-- Translate selected subtitles in the editor; configure LLM connections under global Environment settings.
+- Translate selected subtitles in the editor; configure LLM connections under Edit → Editor Settings → Services and Environment.
 - Synthesize selected subtitles or an independent text draft with Bailian Qwen TTS, offline Yukkuri, or an existing IndexTTS 2.5 service. Manage connections, voices and presets separately from synthesis controls.
 - Preview assets, place voiceover clips on the waveform, adjust timing and mute, and export audio, mixed video with optional burned-in subtitles, or OTIOZ editing projects.
 - Save projects with collected TTS audio, optionally collect original media, inspect missing assets, and recover local drafts or save history.

@@ -1,6 +1,6 @@
 # 安装与升级
 
-从 [MSW Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) 下载。当前 v1.6.0 尚未发布；`releases/latest` 可能仍指向旧的正式版，应进入带目标版本号的页面。下列文件名表示发行目标，不表示已经可下载。
+从 [MSW v1.6.0 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.0) 下载对应系统的安装包。
 
 | 文件 | 系统 | 内置 FFmpeg |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ GitHub 另提供 **Source code (zip)** 和 **Source code (tar.gz)**，包含标�
 
 标准版包含媒体处理用的 `ffmpeg` / `ffprobe`；lite 需要配置现有 FFmpeg。两者都不自带云端额度或 API Key，也不捆绑大型 ASR / TTS 模型。普通用户无需安装开发用的 Python、Node、Rust 或 npm。
 
-通过 Launcher 或 `--editor` 打开的是本机 Server 编辑器，地址为 `127.0.0.1`。翻译、TTS、素材收集和媒体导出依赖这个本机服务；直接双击独立 HTML 仍可编辑字幕，但无法替代服务器处理功能。
+通过 Launcher 或 `--editor` 打开的是本机 Server 编辑器，地址为 `127.0.0.1`。翻译、TTS、素材收集和媒体导出依赖这个本机服务；独立便携 HTML 已停止分发与维护，普通使用请通过启动器打开本机编辑器。
 
 ![MSW Launcher](assets/msw-1.6.0-beta.1/launcher-overview.jpg)
 

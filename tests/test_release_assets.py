@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from zipfile import ZipFile
 
-from scripts.check_release_assets import check_release, expected_names
+from scripts.check_release_assets import check_bundle, check_release, expected_names
 
 
 class ReleaseAssetTests(unittest.TestCase):
@@ -25,6 +25,28 @@ class ReleaseAssetTests(unittest.TestCase):
                     files += ['ffmpeg/bin/ffmpeg.exe', 'ffmpeg/bin/ffprobe.exe']
                 for file in files:
                     archive.writestr('MSW/' + file, b'synthetic-test-resource')
+                for filename in ('requirements-local.txt', 'requirements-local-cpu.txt'):
+                    archive.writestr('MSW/_internal/local-runtime/' + filename,
+                                     'sherpa-onnx==1.13.8\nsherpa-onnx-core==1.13.8\n')
+
+    def test_retired_portable_editor_blocks_release(self):
+        self.make_windows()
+        with ZipFile(next(self.root.glob('*.zip')), 'a') as archive:
+            archive.writestr('MSW/blank-editor.html', b'obsolete')
+        with self.assertRaisesRegex(ValueError, 'retired portable'):
+            check_release(self.root, self.tag, 'windows')
+
+    def test_unpacked_bundle_requires_matching_native_core_in_both_manifests(self):
+        for filename in ('requirements-local.txt', 'requirements-local-cpu.txt'):
+            (self.root / filename).write_text('sherpa-onnx==1.13.8\nsherpa-onnx-core==1.13.8\n')
+        check_bundle(self.root)
+        cpu = self.root / 'requirements-local-cpu.txt'
+        cpu.write_text('sherpa-onnx==1.13.8\n')
+        with self.assertRaisesRegex(ValueError, 'missing pinned sherpa-onnx-core'):
+            check_bundle(self.root)
+        cpu.write_text('sherpa-onnx==1.13.8\nsherpa-onnx-core==1.13.7\n')
+        with self.assertRaisesRegex(ValueError, 'versions do not match'):
+            check_bundle(self.root)
 
     def test_missing_platform_or_unexpected_upload_blocks_release(self):
         self.make_windows()

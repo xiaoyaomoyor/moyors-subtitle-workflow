@@ -641,6 +641,7 @@ jobs:
           test -f squashfs-root/_internal/ocr-runtime/requirements-ocr.txt
           test -f squashfs-root/_internal/ocr-runtime/maw/text_conversion.py
           test -f squashfs-root/_internal/moss-runtime/requirements-moss.txt
+          uv run --frozen python ../scripts/check_release_assets.py --bundle squashfs-root
           echo "OK: runtime requirements txt 随包分发"
           rm -r squashfs-root
 

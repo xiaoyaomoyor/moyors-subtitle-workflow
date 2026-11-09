@@ -21,7 +21,7 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/README.md) · [环境配置清单](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/ENVIRONMENT.md)
 
-当前分支正在准备 **1.6.0** ，尚未发布；已公开版本请查看 Releases。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
+本分支对应 **1.6.0** 正式版，下载请查看 [v1.6.0 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.0)。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
 
 本版整合平级字幕轨道、属性与动画、说话人方案、查找并编辑和独立配置管理，并优化长工程响应。见 [本次更新](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/CHANGELOG.md#160---2026-11-09)。
 
@@ -33,7 +33,7 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 ## 快速开始
 
-1. 在[版本列表](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)选择已公开的 MSW 安装包。v1.6.0 尚在准备中。各平台与标准／lite 包的区别见[安装与升级](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/INSTALLATION.md)。
+1. 在[版本列表](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)选择对应系统的 MSW 安装包。各平台与标准／lite 包的区别见[安装与升级](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/INSTALLATION.md)。
 2. Windows 解压并启动 `MSW.exe`；macOS 打开 `MSW.app` / `MSW-lite.app`；Linux 为 AppImage 添加执行权限后运行。
 3. 可在 Launcher 批处理；也可直接打开编辑器：Windows 双击 `Start-Editor.vbs`，macOS 双击 `Start-Editor.command`，Linux 为 AppImage 增加 `--editor` 参数。源码使用 `uv run python maw_gui.py --editor --blank`。
 4. 在编辑器加载原视频，后台生成波形；通过「媒体 → ASR」整段识别或 Ctrl/Cmd+Shift 拖选片段识别，然后编辑、翻译、TTS 和导出。也可跳过 ASR 直接纯文本配音，见 [编辑器直接导入与 ASR](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/blob/my-feature/docs/EDITOR_ASR.md)。
