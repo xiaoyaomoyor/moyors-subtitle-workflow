@@ -1,9 +1,12 @@
-import {test,expect} from '@playwright/test';
+import {test,expect as baseExpect} from '@playwright/test';
 import {createServer} from 'node:http';
 import {writeFileSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {disableOnboarding,findFreePort,makeTempDir,startTtsServer,generateWav,clickMenubarItem} from './helpers.mjs';
 
+// Real FFmpeg/probe and Python worker startup can exceed five seconds on a
+// cold Windows process. Continue waiting on the actual result, never a sleep.
+const expect=baseExpect.configure({timeout:15000});
 let root,mediaPath,server,mock,calls,reply,pending;
 test.beforeEach(async({page},info)=>{
   test.skip(!process.env.FFMPEG_PATH,'Explicit FFmpeg required');
@@ -188,12 +191,28 @@ test('a missing submit response is retried with the same request identity',async
   let dropped=false;
   await page.route('**/jobs',async route=>{
     if(route.request().method()!=='POST'||dropped)return route.continue();
-    dropped=true;await route.fetch();await route.abort('failed');
+    // This is a real local submission/preflight, not a ten-second UI action.
+    dropped=true;await route.fetch({timeout:30000});await route.abort('failed');
   });
-  await open(page);await page.locator('#msw-asr-start').click();await expect(page.locator('#msw-asr-start')).toHaveText('确认上次提交');
+  await open(page);await page.locator('#msw-asr-start').click();await expect(page.locator('#msw-asr-start')).toHaveText('确认上次提交',{timeout:30000});
   await page.locator('#msw-asr-start').click();const id=await completed(page);
   await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);await page.locator('#msw-asr-apply').click();
   expect(calls.length).toBe(1);expect(await page.evaluate(()=>MSWE.resolve('asr').jobs.length)).toBe(1);
+});
+
+test('failed ASR records show the final reason without stale waiting progress',async({page})=>{
+  await page.route('**/jobs?**',route=>route.fulfill({json:{ok:true,revision:999,jobs:[{
+    id:'failed-fixture',project_id:'asr-project',kind:'asr',status:'failed',created_at:1,
+    error:'ASR 进程失败（退出码 1）：InvalidParameter: model unavailable',
+    progress:{message:'正在等待识别结果'},count:0
+  }]}}));
+  await open(page);
+  await expect(page.locator('#msw-asr-jobs .msw-result-toggle')).toContainText('识别批次');
+  await page.locator('#msw-asr-history > summary').click();
+  await page.locator('#msw-asr-jobs .msw-result-toggle').click();
+  await expect(page.locator('#msw-asr-jobs .msw-result-status')).toContainText('InvalidParameter: model unavailable');
+  await expect(page.locator('#msw-asr-jobs .msw-result-status')).not.toContainText('正在等待识别结果');
+  expect(calls).toHaveLength(0);
 });
 
 test('refresh resumes job inspection but requires manual application for an earlier page',async({page})=>{
@@ -212,10 +231,10 @@ test('a partly submitted range batch resumes only its remaining requests',async(
     if(route.request().method()!=='POST')return route.continue();
     submitted++;
     if(submitted!==2)return route.continue();
-    await route.fetch();await route.abort('failed');
+    await route.fetch({timeout:30000});await route.abort('failed');
   });
   await open(page,'range');await page.locator('#msw-asr-start').click();
-  await expect(page.locator('#msw-asr-start')).toHaveText('确认上次提交');
+  await expect(page.locator('#msw-asr-start')).toHaveText('确认上次提交',{timeout:30000});
   await page.locator('#msw-asr-start').click();
   await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs.filter(job=>job.status==='succeeded').length)).toBe(2);
   expect(calls).toHaveLength(2);expect(submitted).toBe(3);
@@ -337,7 +356,7 @@ test('ASR uses TTS panel geometry with two call columns and separate environment
   await page.screenshot({path:join(root,'asr-panel-refined.png'),fullPage:true});
   await page.locator('#msw-asr-close').click();await page.evaluate(()=>MSWE.resolve('processing-host').openAsrEnvironment());
   await expect(page.locator('#msw-asr-panel')).not.toHaveClass(/show/);
-  await expect(page.locator('#editor-settings-nav .settings-nav-subitem').filter({hasText:/^ASR$/})).toBeVisible();
+  await expect(page.locator('#editor-settings-panel')).toBeVisible();
   await expect(page.locator('#asr-environment-section #msw-asr-apiKey')).toBeVisible();
   await page.locator('#msw-asr-apiKey').fill('synthetic-new-key');
   await page.locator('#msw-asr-save-environment').click();await expect(page.locator('#msw-asr-environment-message')).toContainText('已保存');

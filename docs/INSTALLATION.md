@@ -1,6 +1,6 @@
 # 安装与升级
 
-从 [MSW Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) 下载。`1.6.0-beta.3` 是预发布版；`releases/latest` 可能仍指向旧的正式版，应进入带目标版本号的页面。正式上传前，下列文件名表示发行目标，不表示已经可下载。
+从 [MSW Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) 下载。当前 v1.6.0 尚未发布；`releases/latest` 可能仍指向旧的正式版，应进入带目标版本号的页面。下列文件名表示发行目标，不表示已经可下载。
 
 | 文件 | 系统 | 内置 FFmpeg |
 | --- | --- | --- |

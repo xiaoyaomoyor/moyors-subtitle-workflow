@@ -19,11 +19,22 @@
       client_token: `${pageId}.${host.generation}`, ...extra };
   }
   async function request(route, body = null, signal = null) {
-    const response = await fetch(`${host.config.processingUrl}/${route}`, {
-      method: body ? 'POST' : 'GET', cache: 'no-store', signal,
-      headers: { 'X-MSW-Token': host.config.requestToken, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
+    const encoded = body ? JSON.stringify(body) : null;
+    if (route === 'jobs' && new TextEncoder().encode(encoded || '').byteLength > 64 * 1024 * 1024) {
+      const error = Error(t('处理快照超过 64 MiB，请缩小处理范围'));
+      error.status = 413; throw error;
+    }
+    let response;
+    try {
+      response = await fetch(`${host.config.processingUrl}/${route}`, {
+        method: body ? 'POST' : 'GET', cache: 'no-store', signal,
+        headers: { 'X-MSW-Token': host.config.requestToken, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        ...(body ? { body: encoded } : {}),
+      });
+    } catch (error) {
+      if (error instanceof TypeError) error.code = 'local-service-unreachable';
+      throw error;
+    }
     const result = await response.json();
     if (!response.ok || !result.ok) {
       const error = Error(result.error || `HTTP ${response.status}`); error.status = response.status; throw error;

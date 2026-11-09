@@ -73,6 +73,11 @@ class FlatProcessingTests(unittest.TestCase):
                'source': dict(id='media-test', revision='a'*64, duration_ms=1000, audio_index=0)}
         clean = asr.validate_snapshot(raw)
         self.assertEqual(clean['flat_model'], p['subtitles'])
+        # A compact request may omit every unrelated cue, but keeps the real
+        # track identities and the same target validation.
+        compact = copy.deepcopy(raw)
+        compact['flat_model']['cues'] = []
+        self.assertEqual(asr.validate_snapshot(compact)['targets'], [])
         with self.assertRaisesRegex(ValueError, '不一致'):
             asr.validate_snapshot({**raw, 'targets': [dict(id='bad', start=0, end=1000, text='wrong')]})
         bad = copy.deepcopy(raw)

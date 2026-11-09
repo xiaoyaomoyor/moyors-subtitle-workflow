@@ -17,7 +17,45 @@ from maw.msw.asr import AsrService, validate_snapshot, map_candidates
 from maw.msw.jobs import JobManager, TERMINAL
 
 
+class AsrDiagnosticTests(unittest.TestCase):
+    def test_final_error_keeps_service_reason_without_credentials_or_paths(self):
+        from maw.gui_workflow import TranscriptionProcessError
+        from maw.msw.asr import process_failure
+        settings = SimpleNamespace(api_key='synthetic-key', base_url='https://secret.example/v1')
+        error = TranscriptionProcessError(1, ['private transcript', 'Traceback (most recent call last):',
+            'RuntimeError: InvalidParameter: model unavailable; api_key=synthetic-key; '
+            'https://secret.example/v1?token=hidden; oss://private/audio.wav; '
+            '"C:\\private\\audio.wav"; signature="private-signature"; policy=private-policy; OSSAccessKeyId=private-id'])
+        result = process_failure(error, settings)
+        self.assertIn('InvalidParameter: model unavailable', result)
+        for secret in ('private transcript', 'Traceback', 'synthetic-key', 'secret.example',
+                       'audio.wav', 'private-signature', 'private-policy', 'private-id'):
+            self.assertNotIn(secret, result)
+
+    def test_missing_diagnostic_is_not_misreported_as_a_provider_failure(self):
+        from maw.gui_workflow import TranscriptionProcessError
+        from maw.msw.asr import process_failure
+        result = process_failure(TranscriptionProcessError(1, ['recognized private text']), None)
+        self.assertIn('未获得具体错误', result)
+        self.assertNotIn('recognized', result)
+
+
 class AsrTests(unittest.TestCase):
+    def test_child_failure_persists_sanitized_diagnostic_without_a_result(self):
+        from maw.gui_workflow import TranscriptionProcessError
+        if not self.tools.complete:
+            self.skipTest('FFmpeg required')
+        manager = self.manager()
+        settings = self.settings()
+        snapshot, _ = self.service.prepare(self.payload())
+        with patch.object(self.service, 'transcribe', side_effect=TranscriptionProcessError(1, [
+                'RuntimeError: quota exhausted api_key=synthetic-asr-key'])):
+            result = self.wait(manager, manager.submit({**self.payload(), 'snapshot': snapshot}, settings))
+        self.assertEqual(result['status'], 'failed')
+        self.assertIn('quota exhausted', result['error'])
+        self.assertNotIn('synthetic-asr-key', json.dumps(result))
+        self.assertFalse(result.get('result'))
+
     def test_local_asr_needs_no_key_and_uses_existing_range_job(self):
         from maw.local_models import LocalModelStatus
         ready = LocalModelStatus('firered-asr2-ctc-local', 'firered', 'firered-asr2-ctc',

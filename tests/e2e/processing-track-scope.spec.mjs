@@ -30,6 +30,41 @@ test.beforeEach(async({page})=>{
 });
 const openTranslation=page=>page.locator('#subtitle-translate-btn').evaluate(n=>n.click());
 
+test('ASR on an empty destination in a long project sends only the range and keeps uncertain submission identity',async({page})=>{
+ test.setTimeout(90000);
+ await page.evaluate(()=>{
+  const p=MSWProductionProject.toProject(DATA);p.subtitles.bindings=[];
+  p.subtitles.cues=Array.from({length:10000},(_,i)=>({id:`long-${i}`,track_id:'one',content:{
+   start:i*1000,end:i*1000+900,text:'unrelated subtitle '.repeat(30)}}));
+  applyCanonicalProject(p,'long-asr-test.mosp');
+ });
+ await page.evaluate(()=>MSWE.resolve('media').refresh());
+ await expect.poll(()=>page.evaluate(()=>Boolean(MSWE.resolve('media').current))).toBe(true);
+ const sent=[];let release;
+ const firstResponse=new Promise(resolve=>{release=resolve;});
+ await page.route('**/jobs',async route=>{
+  if(route.request().method()!=='POST')return route.continue();
+  sent.push(route.request().postDataJSON());
+  if(sent.length===1){await firstResponse;return route.abort('failed');}
+  await route.fulfill({status:400,json:{ok:false,error:'Fixture: validation reached without cloud request'}});
+ });
+ await page.evaluate(()=>{MSWE.resolve('time-range').setRange({start:1000,end:2000});MSWE.resolve('asr').open('range');});
+ await page.locator('#msw-asr-target-track').selectOption('three');
+ await page.locator('#msw-asr-start').click();
+ try {
+  await expect(page.locator('#msw-asr-start')).toHaveText('正在提交');
+  await expect(page.locator('#msw-asr-start')).toBeDisabled();
+ } finally {release();}
+ await expect(page.locator('#msw-asr-start')).toHaveText('确认上次提交');
+ await expect(page.locator('#msw-asr-message')).toContainText('未收到本机服务的提交确认');
+ expect(sent[0].snapshot.flat_model.cues).toHaveLength(0);
+ expect(Buffer.byteLength(JSON.stringify(sent[0]))).toBeLessThan(15000);
+ await page.locator('#msw-asr-start').click();
+ await expect(page.locator('#msw-asr-message')).toContainText('Fixture: validation reached');
+ expect(sent).toHaveLength(2);expect(sent[0].request_key).toBe(sent[1].request_key);
+ expect(await page.evaluate(()=>MSWProductionProject.toProject(DATA).subtitles.cues.length)).toBe(10000);
+});
+
 test('translation source selects a physical track independently of selection and snapshots only that track',async({page},info)=>{
  await openTranslation(page);await page.locator('#translation-source').selectOption('two');
  await expect(page.locator('#translation-scope')).toHaveText('来源：S1副 · 1');

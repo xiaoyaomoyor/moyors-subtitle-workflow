@@ -111,7 +111,7 @@
     }).join('\n');
     el('readiness').textContent=ready?'':t(caps?.timestamps===false?'此模型在当前接口没有可靠字幕时间戳，请更换模型':readinessMessage());el('readiness').hidden=ready;
     el('start').disabled=!available||busy||Boolean(retrying)||media.busy||(!submission&&(!snapshot||!ready));
-    el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
+    el('start').textContent=t(busy&&submission?'正在提交':submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
     el('save-environment').disabled=!available||busy||Boolean(loading);
     for (const input of document.querySelectorAll('#msw-asr-settings input,#msw-asr-settings select,#msw-asr-settings textarea,#msw-asr-environment-fields input,#msw-asr-environment-fields select')) input.disabled=busy||Boolean(loading);
@@ -161,7 +161,9 @@
     } catch(error) {
       if (generation!==host.generation) return;
       if (error.status>=400&&error.status<500&&error.status!==429&&!batchSubmission) {submission=null;retrySource=null;}
-      message(`${error.message}${submission?'；再次点击将确认上次提交，不会重复创建任务':''}`);
+      const detail = error.code === 'local-service-unreachable'
+        ? t('未收到本机服务的提交确认，请确认编辑器服务仍在运行') : error.message;
+      message(`${detail}${submission?'；再次点击将确认上次提交，不会重复创建任务':''}`);
     } finally {if(generation===host.generation){busy=false;updateScope();renderJobs();}}
   }
   const resultView=global.MSWResultView.create({host,kind:'asr',container:el('jobs'),footer:el('result-footer'),count:el('count'),onMessage:message,

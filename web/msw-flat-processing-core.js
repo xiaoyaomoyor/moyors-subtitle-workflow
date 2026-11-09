@@ -9,6 +9,26 @@
   const same=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
   const overlap=(a,b)=>a.start<b.end&&b.start<a.end;
   const capture=p=>{core.validate(p);const model=copy(p.subtitles);delete model.migration;return {project_id:p.msw.project_id,project_schema:core.SCHEMA,flat_model:model};};
+  function captureAsr(p, rows) {
+    core.validate(p);
+    const cues = new Map(p.subtitles.cues.map(c => [c.id, c])), peers = new Map();
+    for (const b of p.subtitles.bindings) {
+      peers.set(b.source_id, b.target_id); peers.set(b.target_id, b.source_id);
+    }
+    // Keep only replacement targets and their reference closure. Unrelated
+    // tracks must not turn a four-second recognition into a whole-film upload.
+    const keep = new Set(rows.map(c => c.id)), pending = [...keep];
+    while (pending.length) {
+      const cue = cues.get(pending.pop());
+      for (const id of [peers.get(cue.id), cue.content.color_ref?.cue_id, cue.content.sticker_ref?.cue_id]) {
+        if (id && !keep.has(id)) { keep.add(id); pending.push(id); }
+      }
+    }
+    const model = {...p.subtitles, cues: p.subtitles.cues.filter(c => keep.has(c.id)),
+      bindings: p.subtitles.bindings.filter(b => keep.has(b.source_id) && keep.has(b.target_id))};
+    delete model.migration;
+    return {project_id:p.msw.project_id, project_schema:core.SCHEMA, flat_model:copy(model)};
+  }
   const native=s=>({schema:core.SCHEMA,subtitles:s.flat_model});
   function writable(p,id){const t=edit.track(p,id);if(!t||!t.enabled||t.locked)throw Error('请选择已启用且未锁定的目标字幕轨道');return t;}
   function sources(p,ids){if(!ids.length)throw Error('请先选择要处理的字幕');return ids.map(id=>{const c=edit.cue(p,id),t=c&&edit.track(p,c.track_id);if(!c||c.hidden||c.content.disabled||!t.enabled||!c.content.text.trim())throw Error('所选字幕包含隐藏、禁用或空白内容，请调整选择');return c;});}
@@ -30,7 +50,7 @@
     const rows=affected(p,track,span);
     if(rows.some(c=>c.content.start<span.start||c.content.end>span.end))throw Error('范围边界穿过现有字幕；请扩展范围或使用新轨道');
     if(rows.some(c=>edit.partner(p,c.id)))throw Error('范围内字幕已有对应关系；请识别到新轨道，或先解除对应关系');
-    return {...capture(p),subtitle_track_id:track,mode:range?'range':'whole',range:copy(span),targets:rows.map(c=>({id:c.id,...copy(c.content)})),
+    return {...captureAsr(p,rows),subtitle_track_id:track,mode:range?'range':'whole',range:copy(span),targets:rows.map(c=>({id:c.id,...copy(c.content)})),
       source:{...Object.fromEntries(['id','revision','reference','name','audio_index'].map(k=>[k,media[k]])),duration_ms:duration}};
   }
   function checkBase(p,job){core.validate(p);const ready=job.status==='succeeded'||job.kind==='tts'&&['failed','cancelled','interrupted'].includes(job.status)&&job.result?.items?.some(i=>i.status==='ready');if(!ready||job.snapshot?.project_schema!==core.SCHEMA||job.project_id!==p.msw?.project_id)throw Error('结果尚未完成或不属于当前平级工程');

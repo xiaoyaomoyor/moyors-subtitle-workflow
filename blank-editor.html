@@ -21153,6 +21153,26 @@ export default MawDynamicCaptions;
   const same=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
   const overlap=(a,b)=>a.start<b.end&&b.start<a.end;
   const capture=p=>{core.validate(p);const model=copy(p.subtitles);delete model.migration;return {project_id:p.msw.project_id,project_schema:core.SCHEMA,flat_model:model};};
+  function captureAsr(p, rows) {
+    core.validate(p);
+    const cues = new Map(p.subtitles.cues.map(c => [c.id, c])), peers = new Map();
+    for (const b of p.subtitles.bindings) {
+      peers.set(b.source_id, b.target_id); peers.set(b.target_id, b.source_id);
+    }
+    // Keep only replacement targets and their reference closure. Unrelated
+    // tracks must not turn a four-second recognition into a whole-film upload.
+    const keep = new Set(rows.map(c => c.id)), pending = [...keep];
+    while (pending.length) {
+      const cue = cues.get(pending.pop());
+      for (const id of [peers.get(cue.id), cue.content.color_ref?.cue_id, cue.content.sticker_ref?.cue_id]) {
+        if (id && !keep.has(id)) { keep.add(id); pending.push(id); }
+      }
+    }
+    const model = {...p.subtitles, cues: p.subtitles.cues.filter(c => keep.has(c.id)),
+      bindings: p.subtitles.bindings.filter(b => keep.has(b.source_id) && keep.has(b.target_id))};
+    delete model.migration;
+    return {project_id:p.msw.project_id, project_schema:core.SCHEMA, flat_model:copy(model)};
+  }
   const native=s=>({schema:core.SCHEMA,subtitles:s.flat_model});
   function writable(p,id){const t=edit.track(p,id);if(!t||!t.enabled||t.locked)throw Error('请选择已启用且未锁定的目标字幕轨道');return t;}
   function sources(p,ids){if(!ids.length)throw Error('请先选择要处理的字幕');return ids.map(id=>{const c=edit.cue(p,id),t=c&&edit.track(p,c.track_id);if(!c||c.hidden||c.content.disabled||!t.enabled||!c.content.text.trim())throw Error('所选字幕包含隐藏、禁用或空白内容，请调整选择');return c;});}
@@ -21174,7 +21194,7 @@ export default MawDynamicCaptions;
     const rows=affected(p,track,span);
     if(rows.some(c=>c.content.start<span.start||c.content.end>span.end))throw Error('范围边界穿过现有字幕；请扩展范围或使用新轨道');
     if(rows.some(c=>edit.partner(p,c.id)))throw Error('范围内字幕已有对应关系；请识别到新轨道，或先解除对应关系');
-    return {...capture(p),subtitle_track_id:track,mode:range?'range':'whole',range:copy(span),targets:rows.map(c=>({id:c.id,...copy(c.content)})),
+    return {...captureAsr(p,rows),subtitle_track_id:track,mode:range?'range':'whole',range:copy(span),targets:rows.map(c=>({id:c.id,...copy(c.content)})),
       source:{...Object.fromEntries(['id','revision','reference','name','audio_index'].map(k=>[k,media[k]])),duration_ms:duration}};
   }
   function checkBase(p,job){core.validate(p);const ready=job.status==='succeeded'||job.kind==='tts'&&['failed','cancelled','interrupted'].includes(job.status)&&job.result?.items?.some(i=>i.status==='ready');if(!ready||job.snapshot?.project_schema!==core.SCHEMA||job.project_id!==p.msw?.project_id)throw Error('结果尚未完成或不属于当前平级工程');
@@ -25379,6 +25399,9 @@ export default MawDynamicCaptions;
     '处理服务请求失败': 'Processing request failed',
     '上次提交尚未确认，请先重试相同操作以确认任务状态': 'The last submission is unconfirmed. Retry the same action to check its status.',
     '再次点击将确认上次提交，不会重复创建任务': 'Click again to confirm the last submission without creating a duplicate task',
+    '未收到本机服务的提交确认，请确认编辑器服务仍在运行': 'No submission acknowledgement from the local service; check that the editor service is running',
+    '正在提交': 'Submitting',
+    '处理快照超过 64 MiB，请缩小处理范围': 'Processing snapshot exceeds 64 MiB; select a smaller range',
     '主字幕已删除、拆分或合并': 'Main subtitle was deleted, split or merged', '主字幕文本已修改': 'Main subtitle text changed',
     '副字幕轨已变化': 'Secondary track changed', '字幕绑定已变化': 'Subtitle binding changed',
     '主字幕已绑定到其他副字幕轨': 'Main subtitle is bound to another track', '目标副字幕已删除': 'Target subtitle was deleted',
@@ -61828,11 +61851,22 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
       client_token: `${pageId}.${host.generation}`, ...extra };
   }
   async function request(route, body = null, signal = null) {
-    const response = await fetch(`${host.config.processingUrl}/${route}`, {
-      method: body ? 'POST' : 'GET', cache: 'no-store', signal,
-      headers: { 'X-MSW-Token': host.config.requestToken, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
+    const encoded = body ? JSON.stringify(body) : null;
+    if (route === 'jobs' && new TextEncoder().encode(encoded || '').byteLength > 64 * 1024 * 1024) {
+      const error = Error(t('处理快照超过 64 MiB，请缩小处理范围'));
+      error.status = 413; throw error;
+    }
+    let response;
+    try {
+      response = await fetch(`${host.config.processingUrl}/${route}`, {
+        method: body ? 'POST' : 'GET', cache: 'no-store', signal,
+        headers: { 'X-MSW-Token': host.config.requestToken, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        ...(body ? { body: encoded } : {}),
+      });
+    } catch (error) {
+      if (error instanceof TypeError) error.code = 'local-service-unreachable';
+      throw error;
+    }
     const result = await response.json();
     if (!response.ok || !result.ok) {
       const error = Error(result.error || `HTTP ${response.status}`); error.status = response.status; throw error;
@@ -62471,7 +62505,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
         card.members=members;card.raw=jobs.filter(j=>model.key(j)===key);
         const batch=model.record(host.data.msw,members[0]);card.title.textContent=t(prefix+'批次')+String(batch.number).padStart(2,'0');
         card.radio.disabled=!members.some(j=>j.result&&model.rows(j).length);
-        card.status.textContent=members.map(j=>`${t(labels[j.status]||j.status)}${j.error?' · '+j.error:''}${j.result&&!model.rows(j).length?' · '+t('没有识别到语音；保留现有字幕'):''}${j.progress?.message?' · '+t(j.progress.message):''}${j.result?.warnings?.length?' · '+j.result.warnings.join('；'):''}`).join(' / ');
+        card.status.textContent=members.map(j=>`${t(labels[j.status]||j.status)}${j.error?' · '+j.error:''}${j.result&&!model.rows(j).length?' · '+t('没有识别到语音；保留现有字幕'):''}${['queued','running','cancel_requested'].includes(j.status)&&j.progress?.message?' · '+t(j.progress.message):''}${j.result?.warnings?.length?' · '+j.result.warnings.join('；'):''}`).join(' / ');
         // Replace only task controls if status actually changed.
         const statusKey=members.map(j=>[j.id,j.status,j.retry_active]).join('|');
         if(card.statusKey!==statusKey) {
@@ -62640,7 +62674,7 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     }).join('\n');
     el('readiness').textContent=ready?'':t(caps?.timestamps===false?'此模型在当前接口没有可靠字幕时间戳，请更换模型':readinessMessage());el('readiness').hidden=ready;
     el('start').disabled=!available||busy||Boolean(retrying)||media.busy||(!submission&&(!snapshot||!ready));
-    el('start').textContent=t(submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
+    el('start').textContent=t(busy&&submission?'正在提交':submission?'确认上次提交':'开始识别');el('forget').hidden=!submission||busy;
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
     el('save-environment').disabled=!available||busy||Boolean(loading);
     for (const input of document.querySelectorAll('#msw-asr-settings input,#msw-asr-settings select,#msw-asr-settings textarea,#msw-asr-environment-fields input,#msw-asr-environment-fields select')) input.disabled=busy||Boolean(loading);
@@ -62690,7 +62724,9 @@ if(window.MSWConfig?.notice) flashHint(window.MSWConfig.notice, 'warning');
     } catch(error) {
       if (generation!==host.generation) return;
       if (error.status>=400&&error.status<500&&error.status!==429&&!batchSubmission) {submission=null;retrySource=null;}
-      message(`${error.message}${submission?'；再次点击将确认上次提交，不会重复创建任务':''}`);
+      const detail = error.code === 'local-service-unreachable'
+        ? t('未收到本机服务的提交确认，请确认编辑器服务仍在运行') : error.message;
+      message(`${detail}${submission?'；再次点击将确认上次提交，不会重复创建任务':''}`);
     } finally {if(generation===host.generation){busy=false;updateScope();renderJobs();}}
   }
   const resultView=global.MSWResultView.create({host,kind:'asr',container:el('jobs'),footer:el('result-footer'),count:el('count'),onMessage:message,

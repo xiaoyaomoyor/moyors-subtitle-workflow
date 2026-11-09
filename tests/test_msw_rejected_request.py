@@ -1,14 +1,36 @@
 """Rejected POSTs keep 403 readable without waiting on an upload body."""
 
 import io
+import threading
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from maw.msw.api import ProcessingAPI
 
 
 class RejectedRequestTests(unittest.TestCase):
+    def test_large_job_reaches_validation_but_oversized_body_stays_bounded(self):
+        api = object.__new__(ProcessingAPI)
+        api.authorize = Mock()
+        api.env_path = None
+        api.lock = threading.RLock()
+        api._manager = Mock()
+        api._manager.submit.return_value = {'id': 'job'}
+        payload = {'project_id': 'test', 'kind': 'translation', 'snapshot': {}}
+        for size, route, status in [(5 * 1024 * 1024, 'jobs', 202),
+                                     (65 * 1024 * 1024, 'jobs', 400),
+                                     (5 * 1024 * 1024, 'providers', 400)]:
+            with self.subTest(size=size, route=route):
+                handler = SimpleNamespace(path='/api/msw/' + route,
+                    headers={'Content-Length': str(size), 'Content-Type': 'application/json'},
+                    read_json_request=Mock(return_value=payload), send_json=Mock())
+                with patch('maw.msw.api.resolve_settings', return_value=object()):
+                    self.assertTrue(api.handle(handler, post=True))
+                self.assertEqual(handler.send_json.call_args.args[0], status)
+                self.assertEqual(handler.read_json_request.called, status == 202)
+        api._manager.submit.assert_called_once()
+
     def reject(self, length, stream=None, extra=None):
         api = object.__new__(ProcessingAPI)
         api.authorize = Mock(side_effect=PermissionError("denied"))

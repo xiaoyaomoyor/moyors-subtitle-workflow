@@ -8,6 +8,32 @@ const base=()=>{let p=flat.migrate({segments:[{id:'a',start:0,end:1000,text:'hel
 const job=(snapshot,kind,result)=>({id:id('job'),project_id:'test',snapshot,kind,status:'succeeded',result});
 const media={id:'media-test',revision:'a'.repeat(64),reference:'test.wav',name:'test.wav',audio_index:0,metadata:{duration_ms:2000,audio_tracks:[{audio_index:0}]}};
 
+test('ASR range snapshot excludes ten thousand unrelated cues without weakening apply conflicts',()=>{
+  const p=base(),track=p.subtitles.tracks[0].id;
+  p.subtitles.cues=Array.from({length:10000},(_,i)=>({id:`large-${i}`,track_id:track,content:{start:i*1000,end:i*1000+900,text:'unrelated '.repeat(50)}}));
+  const before=JSON.stringify(p),source={...media,metadata:{...media.metadata,duration_ms:10000000}};
+  const s=processing.asr(p,source,'target',{start:5311871,end:5316258});
+  assert.equal(s.flat_model.cues.length,0);
+  assert.ok(JSON.stringify(s).length<15000);
+  const j=job(s,'asr',{segments:[{start:5311900,end:5312500,text:'recognized'}]});
+  const out=processing.applyAsr(p,j,source,id).project;
+  assert.deepEqual(out.subtitles.cues.slice(0,10000),p.subtitles.cues);
+  const occupied=edit.addCue(p,'target','conflict',5311900,5312500,'new user text');
+  assert.throws(()=>processing.applyAsr(occupied,j,source,id),/变化|不一致/);
+  assert.equal(JSON.stringify(p),before);
+});
+
+test('ASR range retains out-of-range mark references and only required dependencies',()=>{
+  const p=base(),[head,ref]=p.subtitles.cues;
+  head.content.color={name:'green',value:'#66bb6a',start:0,end:2000};
+  ref.content.color_ref={cue_id:head.id,name:'green'};
+  p.subtitles.cues.push({id:'unrelated',track_id:'target',content:{start:0,end:1000,text:'kept'}});
+  const s=processing.asr(p,media,ref.track_id,{start:1000,end:2000});
+  assert.deepEqual(s.flat_model.cues.map(c=>c.id),[head.id,ref.id]);
+  flat.validate({schema:flat.SCHEMA,subtitles:s.flat_model});
+  assert.deepEqual(s.targets.map(c=>c.id),[ref.id]);
+});
+
 test('ASR and translation fill known track language, preserving an explicit existing language',()=>{
   const p=base(),a=p.subtitles.cues[0],snapshot=processing.translation(p,[a.id],'target');
   const translated=processing.applyTranslation(p,job(snapshot,'translation',{language:'zh',translations:[{id:a.id,text:'你好'}]}),id).project;

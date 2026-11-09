@@ -98,7 +98,7 @@
         card.members=members;card.raw=jobs.filter(j=>model.key(j)===key);
         const batch=model.record(host.data.msw,members[0]);card.title.textContent=t(prefix+'批次')+String(batch.number).padStart(2,'0');
         card.radio.disabled=!members.some(j=>j.result&&model.rows(j).length);
-        card.status.textContent=members.map(j=>`${t(labels[j.status]||j.status)}${j.error?' · '+j.error:''}${j.result&&!model.rows(j).length?' · '+t('没有识别到语音；保留现有字幕'):''}${j.progress?.message?' · '+t(j.progress.message):''}${j.result?.warnings?.length?' · '+j.result.warnings.join('；'):''}`).join(' / ');
+        card.status.textContent=members.map(j=>`${t(labels[j.status]||j.status)}${j.error?' · '+j.error:''}${j.result&&!model.rows(j).length?' · '+t('没有识别到语音；保留现有字幕'):''}${['queued','running','cancel_requested'].includes(j.status)&&j.progress?.message?' · '+t(j.progress.message):''}${j.result?.warnings?.length?' · '+j.result.warnings.join('；'):''}`).join(' / ');
         // Replace only task controls if status actually changed.
         const statusKey=members.map(j=>[j.id,j.status,j.retry_active]).join('|');
         if(card.statusKey!==statusKey) {

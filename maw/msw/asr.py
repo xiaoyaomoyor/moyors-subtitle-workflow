@@ -4,6 +4,7 @@ import copy
 from dataclasses import replace
 import json
 import math
+import re
 from pathlib import Path
 import tempfile
 import time
@@ -13,6 +14,28 @@ from maw.gui_workflow import run_transcription, TranscriptionProcessError
 from maw.msw.audio_render import check_cancel, command_prefix, run
 from maw.msw.project_codec import valid_id, valid_cue_id
 from maw.project import normalize_project
+
+
+def process_failure(error, settings):
+    """Keep the final diagnostic, never the command, traceback or transcript."""
+    from maw.local_log import redact_sensitive_text
+    from maw.postprocess_llm import _redact_diagnostic
+
+    detail = ''
+    for line in reversed(error.output):
+        match = re.match(r'\s*(?:[\w.]+(?:Error|Exception)|error)\s*:\s*(.+)', line, re.IGNORECASE)
+        if match:
+            detail = match.group(1)
+            break
+    if detail:
+        detail = _redact_diagnostic(redact_sensitive_text(detail), settings=settings)
+        detail = re.sub(r'''(?i)(\b[\w.-]*(?:signature|credential|policy|cookie|access[-_]?key(?:[-_]?id)?)\b["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)''', r'\1[REDACTED]', detail)
+        detail = re.sub(r'(?i)\b(?:oss|file|s3)://[^\s<>\'"`]+', '[已隐藏地址]', detail)
+        detail = re.sub(r'([\'"])(?:[A-Za-z]:[\\/]|/)[^\r\n]*?\1', '[已隐藏路径]', detail)
+        detail = re.sub(r'(?i)\b[A-Z]:[\\/][^\s<>\'"`]+', '[已隐藏路径]', detail)
+        detail = re.sub(r'[\x00-\x1f\x7f]+', ' ', detail).strip()[:500]
+    prefix = f'ASR 进程失败（退出码 {error.exit_code}）'
+    return f'{prefix}：{detail}' if detail else f'{prefix}；未获得具体错误，请检查模型、服务连接与额度'
 
 
 def validate_snapshot(raw):
@@ -209,9 +232,7 @@ class AsrService:
             try:
                 result = self.transcribe(request, cancel_event=cancel, on_event=on_event)
             except TranscriptionProcessError as error:
-                # Provider diagnostics can include URLs and credentials. Never
-                # persist raw child output in the shared job store.
-                raise ValueError(f'ASR 进程失败（退出码 {error.exit_code}），请检查模型、服务配置、额度及音频大小限制') from error
+                raise ValueError(process_failure(error, settings)) from error
             check_cancel(cancel)
             self.source(snapshot)
             if result.json_path.stat().st_size > 32 * 1024 * 1024:
