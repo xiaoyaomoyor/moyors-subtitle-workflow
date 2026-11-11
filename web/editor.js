@@ -15828,9 +15828,10 @@ function syncSpeakerControls() {
   const create=(entry,index)=>{
     const tr=document.createElement('tr');tr.dataset.speakerId=entry?.id||'all';
     const number=document.createElement('th');number.scope='row';number.textContent=index;tr.append(number);
+    const actions=document.createElement('td');actions.className='speaker-row-actions';
     if(entry){
-      const grip=document.createElement('button');grip.type='button';grip.className='speaker-row-grip';grip.textContent='⠿';grip.draggable=true;grip.dataset.speakerAction='drag';
-      grip.title='拖动调整说话人顺序';grip.setAttribute('aria-label',entry.name+' 拖动排序');number.prepend(grip);
+      const grip=document.createElement('button');grip.type='button';grip.className='speaker-row-grip msw-icon-button';grip.textContent='⠿';grip.draggable=true;grip.dataset.speakerAction='drag';
+      grip.title='拖动调整说话人顺序';grip.setAttribute('aria-label',entry.name+' 拖动排序');actions.append(grip);
       grip.ondragstart=event=>{event.stopPropagation();speakerDrag={id:entry.id,generation:mswProjectGeneration};event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',entry.id);};
       grip.ondragend=()=>{speakerDrag=null;body.querySelectorAll('.speaker-drop-before,.speaker-drop-after').forEach(n=>n.classList.remove('speaker-drop-before','speaker-drop-after'));};
       tr.ondragover=event=>{if(!speakerDrag||speakerDrag.generation!==mswProjectGeneration)return;event.preventDefault();event.dataTransfer.dropEffect='move';
@@ -15882,25 +15883,19 @@ function syncSpeakerControls() {
         }
         speakerPaletteChanged();
       };td.append(input);tr.append(td);
-      if(field==='name'&&entry){
-        const action=document.createElement('button');action.type='button';action.className='speaker-style-action msw-style-icon';
-        action.title='编辑说话人外观';action.setAttribute('aria-label',entry.name+' 编辑说话人外观');
-        action.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg>';
-        const generation=mswProjectGeneration;
-        action.onclick=()=>{if(generation===mswProjectGeneration&&window.MSWSubtitleStyle?.editSpeaker(entry.id)){setProjectSettingsPanelOpen(false);setEditorSettingsPanelOpen(false);}};
-        const field=document.createElement('div');field.className='speaker-name-field';field.append(input,action);td.append(field);
-      }
     }
-    const actions=document.createElement('td');actions.className='speaker-row-actions';
-    if(entry)for(const [action,label,icon,disabled,run] of [
-      ['up','上移说话人','↑',index===1,()=>moveSpeakerRow(entry.id,index-2)],
-      ['down','下移说话人','↓',index===palette.rows.length,()=>moveSpeakerRow(entry.id,index)],
-      ['delete','删除说话人','×',palette.rows.length===1,()=>requestSpeakerRemoval(entry.id)]
-    ]){
-      const button=document.createElement('button');button.type='button';button.className='msw-icon-button';button.dataset.speakerAction=action;
-      button.textContent=icon;button.disabled=disabled;button.title=action==='delete'&&disabled?'至少保留一位说话人':label;button.setAttribute('aria-label',entry.name+' '+label);
-      if(action==='delete')button.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/></svg>';
-      const generation=mswProjectGeneration;button.onclick=()=>{if(generation===mswProjectGeneration)run();};actions.append(button);
+    if(entry){
+      const action=document.createElement('button');action.type='button';action.className='speaker-style-action msw-style-icon';
+      action.dataset.speakerAction='style';
+      action.title='编辑说话人外观';action.setAttribute('aria-label',entry.name+' 编辑说话人外观');
+      action.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg>';
+      const generation=mswProjectGeneration;
+      action.onclick=()=>{if(generation===mswProjectGeneration&&window.MSWSubtitleStyle?.editSpeaker(entry.id)){setProjectSettingsPanelOpen(false);setEditorSettingsPanelOpen(false);}};
+      actions.append(action);
+      const remove=document.createElement('button');remove.type='button';remove.className='msw-icon-button';remove.dataset.speakerAction='delete';
+      remove.disabled=palette.rows.length===1;remove.title=remove.disabled?'至少保留一位说话人':'删除说话人';remove.setAttribute('aria-label',entry.name+' 删除说话人');
+      remove.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/></svg>';
+      remove.onclick=()=>{if(generation===mswProjectGeneration)requestSpeakerRemoval(entry.id);};actions.append(remove);
     }
     tr.append(actions);body.append(tr);
   };

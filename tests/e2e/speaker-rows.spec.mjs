@@ -26,14 +26,14 @@ test.beforeEach(async({page})=>{
 });
 test.afterEach(async({page})=>{await page.close({runBeforeUnload:false});await server?.stop();expect(errors.get(page)).toEqual([]);});
 
-test('drag fifth speaker to second, move buttons, undo and shortcuts preserve identities',async({page})=>{
+test('drag fifth speaker to second, undo and shortcuts preserve identities',async({page})=>{
  const before=await snapshot(page),history=await page.evaluate(()=>editorHistory.undoLength());
  await action(page,'blue','drag').dragTo(page.locator('#speaker-palette-rows tr[data-speaker-id="green"]'),{targetPosition:{x:25,y:2}});
  await expect.poll(()=>order(page)).toEqual(['yellow','blue','green','red','purple']);expect((await snapshot(page)).subtitles).toEqual(before.subtitles);
  expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+1);
  await page.evaluate(()=>performUndo());expect(await order(page)).toEqual(['yellow','green','red','purple','blue']);
- await page.evaluate(()=>performRedo());await action(page,'blue','down').click();expect(await order(page)).toEqual(['yellow','green','blue','red','purple']);
- await action(page,'blue','up').click();await expect(action(page,'yellow','up')).toBeDisabled();await expect(action(page,'purple','down')).toBeDisabled();
+ await page.evaluate(()=>performRedo());expect(await order(page)).toEqual(['yellow','blue','green','red','purple']);
+ await expect(rows(page).locator('[data-speaker-action="up"],[data-speaker-action="down"]')).toHaveCount(0);
  await expect(rows(page).first().locator('button')).toHaveCount(0);
  await page.evaluate(()=>{setProjectSettingsPanelOpen(false);selectCueByClick(2);document.activeElement?.blur();});await page.keyboard.press('2');
  expect((await snapshot(page)).subtitles.cues.find(c=>c.content.text==='Other').content.color.name).toBe('blue');
@@ -71,7 +71,8 @@ test('confirmation rejects changed usage and project switches cancel pending del
 });
 
 test('row order persists after save and new speakers do not reuse remaining identities',async({page})=>{
- await action(page,'blue','up').click();const before=await snapshot(page);
+ await action(page,'blue','drag').dragTo(page.locator('#speaker-palette-rows tr[data-speaker-id="purple"]'),{targetPosition:{x:25,y:2}});
+ expect(await order(page)).toEqual(['yellow','green','red','blue','purple']);const before=await snapshot(page);
  await expect.poll(()=>page.evaluate(()=>!projectSaveInFlight&&!projectCheckpointInFlight)).toBe(true);expect(await page.evaluate(()=>saveProjectToServer())).toBe(true);
  await page.reload();await expect(page.locator('#editor-loading')).toBeHidden();expect(await order(page)).toEqual(before.preview.speaker_palette.rows.map(r=>r.id));
  await page.evaluate(()=>setProjectSettingsPanelOpen(true,'subtitle-speakers'));await page.locator('#speaker-palette-add').click();
@@ -79,7 +80,13 @@ test('row order persists after save and new speakers do not reuse remaining iden
 });
 
 test('speaker row controls fit the project settings and remain accessible when narrow',async({page},info)=>{
+ await expect(rows(page).nth(1).locator('td:last-child button')).toHaveCount(3);
+ await expect(rows(page).locator('th button,td:nth-child(2) button')).toHaveCount(0);
+ expect(await page.locator('.speaker-palette-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
  await page.locator('#project-settings-modal').screenshot({path:info.outputPath('speaker-rows.png')});
+ await action(page,'green','style').click();await expect(page.locator('#style-edit-scope')).toHaveValue('speaker');
+ await expect(page.locator('#style-speaker-target')).toHaveValue('green');await page.locator('#style-project-settings-open').click();
  await page.setViewportSize({width:600,height:850});await expect(action(page,'yellow','delete')).toBeVisible();
  await action(page,'yellow','delete').click();await expect(page.locator('#speaker-row-remove-confirm')).toBeVisible();
+ await page.locator('#project-settings-modal').screenshot({path:info.outputPath('speaker-rows-narrow.png')});
 });

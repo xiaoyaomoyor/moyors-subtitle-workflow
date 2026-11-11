@@ -117,8 +117,8 @@
     '按文字模式查找，例如 foo|bar 匹配两者之一。替换可用 $1 引用括号中的内容；不熟悉时保持关闭。': 'Find by pattern: foo|bar matches either word. Use $1 in replacements for the first captured group. Leave off for ordinary text searches.',
     '勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。': 'Only checked results are applied. Keep cue separators in grouped text; body text can span multiple lines. Use split or merge to change cue structure. Click a cue number to locate it.',
     '全部轨道': 'All tracks', '全部说话人': 'All speakers', '未指定说话人': 'Unassigned speaker', '筛选结果': 'Filtered results',
-    '说话人表随当前工程保存。第 0 行批量设置；拖动左侧手柄或使用上移、下移排序，数字快捷键按新顺序对应。不着色仍保留字幕块标记。': 'The speaker table is saved with the project. Row 0 applies to all speakers. Drag a handle or use the arrows to reorder; number shortcuts follow the new order. No coloring still keeps cue markers.',
-    '拖动调整说话人顺序': 'Drag to reorder speakers', '拖动排序': 'Drag to reorder', '上移说话人': 'Move speaker up', '下移说话人': 'Move speaker down', '删除说话人': 'Delete speaker',
+    '说话人表随当前工程保存。第 0 行批量设置；拖动右侧操作列的手柄排序，数字快捷键按新顺序对应。不着色仍保留字幕块标记。': 'The speaker table is saved with the project. Row 0 applies to all speakers. Drag a handle in the Actions column to reorder; number shortcuts follow the new order. No coloring still keeps cue markers.',
+    '拖动调整说话人顺序': 'Drag to reorder speakers', '拖动排序': 'Drag to reorder', '删除说话人': 'Delete speaker',
     '删除说话人：': 'Delete speaker: ', '将清除以下数量字幕的说话人标记：': 'Number of cues whose speaker marks will be cleared: ',
     '。字幕正文、时间和绑定保留，可撤销恢复。已保存的说话人方案不变。': '. Cue text, timing and bindings remain intact. You can undo this. Saved speaker schemes remain unchanged.',
     '已调整顺序；数字快捷键按新顺序对应。': 'Order updated; number shortcuts now follow this order.',
@@ -2987,7 +2987,7 @@
     if(motionReset)return `Reset ${translateText(motionReset[1],lang)} defaults`;
     const motionRange=/^(淡入淡出|滑入滑出|闪烁|舒展|打字机|波动|原地震动)时间区间$/.exec(text);
     if(motionRange)return `${translateText(motionRange[1],lang)} interval`;
-    const speakerField=/^(.+) (名称|编辑说话人外观|显示名称|颜色|着色模式|分隔符|拖动排序|上移说话人|下移说话人|删除说话人)$/.exec(text);
+    const speakerField=/^(.+) (名称|编辑说话人外观|显示名称|颜色|着色模式|分隔符|拖动排序|删除说话人)$/.exec(text);
     if(speakerField)return `${speakerField[1]==='全部说话人'?'All speakers':speakerField[1]} ${translateText(speakerField[2],lang)}`;
     const trackAction=/^(展开|折叠|锁定|解锁) (S\d+(?:主|副)?)$/.exec(text);
     if(trackAction)return `${translateText(trackAction[1],lang)} ${translateText(trackAction[2],lang)}`;
