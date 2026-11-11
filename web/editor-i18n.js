@@ -9,6 +9,49 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '导入润色稿…': 'Import polished script…', '导出润色稿': 'Export for polishing', '导入外部润色稿': 'Import polished script',
+    '外部润色稿': 'Polished script', '选择 TXT 或粘贴全文': 'Choose TXT or paste the full script', 'TXT 文件': 'TXT file',
+    '在这里粘贴包含时间和轨道标签的润色稿…': 'Paste a polished script with time and track labels…', '解析并匹配': 'Parse and match',
+    '对应导出记录': 'Export record', '自动识别文件中的记录': 'Detect record from file', '不使用记录（兼容匹配）': 'No record (compatible matching)',
+    '导出记录随工程保存，最多保留最近 5 次；较旧文件仍可使用兼容匹配。': 'Export records are saved with the project, keeping up to the latest 5 exports. Older files can still use compatible matching.',
+    '导出当前筛选范围和手工草稿；完整信息不受显示勾选影响': 'Export the filtered cues and manual drafts with complete metadata, regardless of visibility settings',
+    '正文原样编辑，无需外层引号或转义。信息行只读，可与正文一并选中复制；隐藏信息不影响字幕。双击定位，Tab 切换正文。外部润色请使用“导出润色稿”和“导入润色稿”，核对差异后写入草稿。': 'Edit text directly without outer quotes or escaping. Read-only headers can be copied with the text; hiding them does not change cues. Double-click to locate; Tab moves between cues. Use Export for polishing and Import polished script to review external changes and stage drafts.',
+    '匹配当前工程全部轨道，仅回填勾选的正文。缺少的条目不会删除，多出的条目不会新建；时间、说话人、绑定和样式保持不变。': 'Match against all project tracks and import only selected text. Missing entries do not delete cues, and extra entries do not create them. Timing, speakers, bindings and styles are preserved.',
+    '轨道对应': 'Track mapping', '对应轨道': 'Target track', '请选择目标轨道': 'Choose a target track', '跳过此轨道': 'Skip this track',
+    '变化与待处理': 'Changes and review', '全部条目': 'All entries', '可更新': 'Ready to update', '未变化': 'Unchanged',
+    '保留当前修改': 'Keep current changes', '需要确认': 'Needs review', '未找到': 'Not found', '正文冲突': 'Text conflict',
+    '重复目标': 'Duplicate target', '先处理原有草稿': 'Resolve existing drafts', '已跳过': 'Skipped', '选中可更新': 'Select ready updates',
+    '取消勾选': 'Deselect all', '重新匹配': 'Match again', '导入预览分页': 'Import preview pages', '写入草稿': 'Stage drafts',
+    '导入此条正文': 'Import this text', '当前正文': 'Current text', '导入正文': 'Incoming text', '导出时正文': 'Text at export',
+    '尚未对应字幕': 'No matched cue', '（空正文）': '(Empty text)', '查找对应字幕': 'Find target cue', '对应字幕': 'Target cue',
+    '请选择对应字幕': 'Choose a cue', '跳过此条': 'Skip this entry', '按序号、时间或正文查找': 'Search by number, time or text',
+    '输入 #序号、时间或正文': 'Enter #number, time or text', '轨道、序号和时间一致': 'Track, number and time match',
+    '按同轨时间对应': 'Matched by time on the same track', '手动对应': 'Manually matched', '候选需要手动确认': 'Confirm a suggested cue',
+    '根据绑定伙伴提供候选': 'Suggested from a bound partner', '文件中的轨道序号重复': 'Duplicate track numbers in the file',
+    '请先选择目标轨道': 'Choose a target track first', '通过导出记录对应字幕': 'Matched through the export record',
+    '无法对应原导出字幕，请手动确认': 'Exported cue could not be matched; confirm manually',
+    '当前正文与导入正文存在冲突，请核对后勾选': 'Current and incoming text conflict; review before selecting',
+    '外部正文未修改，保留工程中的新修改': 'External text is unchanged; keep the newer project text',
+    '选择 TXT 或粘贴全文，解析后核对轨道和正文差异。': 'Choose a TXT file or paste the full script, then review track mappings and text differences.',
+    '正在解析并匹配…': 'Parsing and matching…', '已完成匹配。仅勾选明确需要替换的正文，再写入草稿。': 'Matching complete. Select the text you want to replace, then stage drafts.',
+    '已使用工程中的导出记录，可识别双方正文修改': 'Using the project export record to detect changes on both sides',
+    '工程中没有对应记录，已使用兼容匹配；无法判断导出后工程内的正文修改': 'No matching export record in this project. Compatible matching cannot detect project edits made since export.',
+    '未使用导出记录；按轨道和时间匹配，请核对较新的工程修改': 'No export record selected. Matching by track and time; check for newer project edits.',
+    '文本已变化，请重新解析并匹配': 'Text changed; parse and match again', '无法匹配润色稿，请重新尝试': 'Could not match the script; try again',
+    '匹配耗时较长，请缩小导入范围': 'Matching took too long; import a smaller range', '润色稿超过 20 MB': 'Script exceeds 20 MB',
+    '润色稿超过 30000 条字幕': 'Script exceeds 30,000 cues', '时间格式无效': 'Invalid time format',
+    '导出记录标记位置无效': 'Invalid export record marker position', '信息行后缺少轨道标签': 'Missing track label after a header',
+    '结束时间早于开始时间': 'End time precedes start time', '缺少轨道名称': 'Missing track name', '字幕序号无效': 'Invalid cue number',
+    '轨道标签不完整': 'Incomplete track label', '正文前缺少轨道标签': 'Missing track label before text',
+    '未找到字幕；请导入包含轨道标签的完整剧本': 'No cues found; import a complete script with track labels',
+    '润色稿导出记录无效': 'Invalid script export records', '润色稿导出记录超过容量限制': 'Script export records exceed the size limit',
+    '润色稿模块未加载': 'Script exchange module is unavailable', '请等待筛选完成后再导出': 'Wait for filtering to finish before exporting',
+    '请先处理无效或过期的草稿': 'Resolve invalid or stale drafts first', '正文含有整行剧本标记，无法导出可回导的润色稿': 'A text line is a script marker; a safely reimportable script cannot be exported',
+    '轨道名称重复，请先设置不同的轨道名称': 'Duplicate track names; give the tracks distinct names first',
+    '润色稿导出失败，请重新尝试': 'Script export failed; try again', '已切换工程，导出记录未写入当前工程': 'Project changed; the export record was not added to this project',
+    '润色稿已导出；导出记录随工程保存，请保存工程': 'Script exported. Save the project to retain its export record.',
+    '工程或草稿已变化，请重新核对导入预览': 'The project or drafts changed; review a new import preview',
+    '请先完成当前切分或拖动': 'Finish the current split or drag first', '导入目标无效、重复或已锁定': 'Invalid, duplicate or locked import targets',
     '左侧字幕': 'Left subtitles', '右侧字幕': 'Right subtitles', '全部字幕': 'All subtitles',
     '字幕样式与画面位置': 'Subtitle style and position',
     '项目设置 → 说话人：配置随工程保存。右键“标记字幕”或按 1–9 标记，0 清除；属性列表选择“说话人”可调整外观及动画，单条设置优先。播放器设置控制预览名称，导出名称独立选择，不改动正文或配音。': 'Project settings → Speakers: saved with the project. Use Mark subtitle or keys 1–9 to assign a speaker; 0 clears the mark. Choose Speaker in Properties to edit appearance and animation; cue overrides take priority. Preview and export names are controlled separately, without changing text or dubbing.',
@@ -129,7 +172,7 @@
     '编辑形式': 'Editing view', '整段 · 按轨道': 'Grouped · Track', '整段 · 按说话人': 'Grouped · Speaker',
     '整段（剧本）': 'Continuous · Script',
     '正文原样编辑，无需外层引号或转义。信息行只读，可与正文一并选中复制；隐藏信息不影响字幕。双击定位，Tab 切换正文。外部编辑后，全选并粘贴完整剧本，保留信息行及顺序。': 'Edit text directly without outer quotes or escaping. Read-only headers can be selected and copied with the text; hiding them does not change cues. Double-click to locate; Tab moves between cues. To paste external edits, select all and paste the complete script with its headers and order intact.',
-    '整段粘贴需要保留完整信息行及字幕顺序；请使用“复制完整剧本”，或只粘贴到一条正文内': 'Pasting a whole script requires complete headers and the original cue order. Use Copy complete script, or paste inside a single cue.',
+    '整段粘贴需要保留完整信息行及字幕顺序；外部润色请使用“导入润色稿”，或只粘贴到一条正文内': 'Pasting a whole script requires complete headers and the original cue order. Use Import polished script for external edits, or paste inside a single cue.',
     '信息行和字幕边界只读，可选中复制；请在正文内编辑': 'Headers and cue boundaries are read-only and can be copied. Edit inside the cue text.',
     '剧本信息显示': 'Script information visibility', '显示信息': 'Show information', '时间': 'Time', '复制当前显示': 'Copy visible script', '复制完整剧本': 'Copy complete script',
     '已复制完整剧本': 'Complete script copied', '已复制当前显示的剧本': 'Visible script copied', '复制失败，请选中文字后按 Ctrl+C': 'Copy failed. Select the text and press Ctrl+C.',
@@ -2976,6 +3019,12 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const scriptLine=/^第 (\d+) 行：(.+)$/.exec(text);
+    if(scriptLine)return `Line ${scriptLine[1]}: ${translateText(scriptLine[2],lang)}`;
+    const scriptSelected=/^已选 (\d+) 条正文$/.exec(text);
+    if(scriptSelected)return `${scriptSelected[1]} texts selected`;
+    const scriptImported=/^已导入 (\d+) 条草稿，请检查后应用编辑$/.exec(text);
+    if(scriptImported)return `Staged ${scriptImported[1]} drafts; review and apply edits`;
     const anchoredTime=/^(起\+|终−)([\d.]+ s)$/.exec(text);
     if(anchoredTime)return `${anchoredTime[1]==='起+'?'Start+':'End−'}${anchoredTime[2]}`;
     const motionValue=/^(淡入开始|淡入结束|淡出开始|淡出结束|滑入开始|滑入结束|滑出开始|滑出结束|开始|结束|距离|间隔|不透明|缩放|振幅|周期|强度|起点后|终点前) ((?:起\+|终−)?[-+\d.][\s\S]*)$/.exec(text);

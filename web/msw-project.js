@@ -31,6 +31,10 @@
       throw new Error('此工程的 MSW 扩展版本不受支持，请使用对应版本的编辑器打开');
     }
     if (!validId(value.project_id)) throw new Error('MSW 工程标识无效');
+    if ('script_exports' in value) {
+      if (!global.MSWScriptExchange) throw Error('润色稿模块未加载');
+      global.MSWScriptExchange.validateRecords(value.script_exports);
+    }
     if (value.source_audio_index !== undefined && (!Number.isInteger(value.source_audio_index)
       || value.source_audio_index < 0 || value.source_audio_index > 255)) throw new Error('源音轨序号无效');
     if (value.source_project_id != null && !validId(value.source_project_id)) throw new Error('MSW 来源工程标识无效');

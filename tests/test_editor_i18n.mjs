@@ -23,6 +23,10 @@ test('current dynamic UI translations preserve values and literal speaker names'
     ['字幕轨道 · 已选 2 条','Subtitle tracks · 2 selected'],
     ['时间','Time'],
     ['6 条字幕','6 cues'],
+    ['导入润色稿…','Import polished script…'],
+    ['已选 12 条正文','12 texts selected'],
+    ['第 8 行：缺少轨道名称','Line 8: Missing track name'],
+    ['已导入 12 条草稿，请检查后应用编辑','Staged 12 drafts; review and apply edits'],
     ['锁定 S2','Lock S2'],
   ]){
     assert.equal(translateText(source,'en'),expected);

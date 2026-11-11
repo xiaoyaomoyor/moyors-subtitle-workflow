@@ -51,6 +51,32 @@ def valid_removed_assets(value):
             and len(set(value)) == len(value))
 
 
+def valid_script_exports(records):
+    if not isinstance(records, list) or len(records) > 5:
+        return False
+    seen, size = set(), 0
+    integer = lambda value: type(value) is int and 0 <= value <= 9007199254740991
+    for record in records:
+        if (not isinstance(record, dict) or not valid_id(record.get('id')) or record['id'] in seen
+                or not integer(record.get('created_at')) or not isinstance(record.get('rows'), list)
+                or not 0 < len(record['rows']) <= 30000):
+            return False
+        seen.add(record['id'])
+        cues = set()
+        for row in record['rows']:
+            if (not isinstance(row, dict) or not valid_cue_id(row.get('id')) or row['id'] in cues
+                    or not valid_cue_id(row.get('trackId')) or not isinstance(row.get('trackName'), str)
+                    or not 0 < len(row['trackName']) <= 1000 or not integer(row.get('number')) or not row['number']
+                    or not integer(row.get('start')) or not integer(row.get('end')) or row['end'] < row['start']
+                    or not isinstance(row.get('text'), str) or len(row['text']) > 20 * 1024 * 1024):
+                return False
+            cues.add(row['id'])
+            size += sum(len(row[k]) for k in ('id', 'trackId', 'trackName', 'text'))
+            if size > 8 * 1024 * 1024:
+                return False
+    return True
+
+
 def validate_extension(value: object) -> list[tuple[str, str]]:
     if value is None:
         return []
@@ -70,6 +96,8 @@ def validate_extension(value: object) -> list[tuple[str, str]]:
         errors.append(("$.msw.applied_results", "must contain at most 10000 result IDs"))
     if "processing_results" in value and not valid_processing_results(value["processing_results"]):
         errors.append(("$.msw.processing_results", "invalid candidate revisions"))
+    if 'script_exports' in value and not valid_script_exports(value['script_exports']):
+        errors.append(('$.msw.script_exports', 'invalid or oversized script export records'))
     partial = value.get("translation_applications", {})
     stale = value.get("asr_stale_subtitles", {})
     if (not isinstance(stale, dict) or len(stale) > 1000 or any(

@@ -2080,6 +2080,7 @@ function applyHistoryRecord(record) {
   if (snapshot.subtitle_tracks) DATA.subtitle_tracks = structuredClone(snapshot.subtitle_tracks);
   fixedReset();
   const retainedAssets = DATA.msw?.assets;
+  const retainedScriptExports = DATA.msw?.script_exports;
   const retainedRemoved = DATA.msw?.removed_asset_ids || [];
   const retainedProjectId = DATA.msw?.project_id;
   const retainedSourceProjectId = DATA.msw?.source_project_id;
@@ -2090,6 +2091,8 @@ function applyHistoryRecord(record) {
   });
   // Generated media is an immutable library inventory; subtitle undo does not remove it.
   if (Array.isArray(retainedAssets)) window.MSWProject.ensure(DATA).assets = retainedAssets;
+  // External files may still refer to these records after a subtitle undo.
+  if (Array.isArray(retainedScriptExports)) window.MSWProject.ensure(DATA).script_exports = retainedScriptExports;
   const retainedExtension = window.MSWProject.ensure(DATA);
   retainedExtension.removed_asset_ids = retainedRemoved;
   const removedIds = new Set(retainedRemoved);

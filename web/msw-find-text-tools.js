@@ -40,7 +40,7 @@
     return entries;
   }
   const scriptFields=['time','speaker','track','language','number'];
-  const scriptError='整段粘贴需要保留完整信息行及字幕顺序；请使用“复制完整剧本”，或只粘贴到一条正文内';
+  const scriptError='整段粘贴需要保留完整信息行及字幕顺序；外部润色请使用“导入润色稿”，或只粘贴到一条正文内';
   const scriptProtected='信息行和字幕边界只读，可选中复制；请在正文内编辑';
   const scriptLabel=value=>String(value??'').replace(/[\r\n\[\]⟦⟧]/g,' ');
   // This is a projection of cue identities, not a syntax the user must maintain.

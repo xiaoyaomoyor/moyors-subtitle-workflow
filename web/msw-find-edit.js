@@ -238,6 +238,49 @@
     updatePlan();if(!composing)scheduleQuery({resetScroll:false});
   }
   function clearRows(){for(const node of canvas.children)node.scriptEditor?.destroy();canvas.replaceChildren();}
+  function exchangeSnapshot(){
+    readIndex();const invalid=new Set([...invalidGroups.values()].flatMap(g=>g.rows.map(r=>r.key)));
+    return {generation:mswProjectGeneration,projectId:DATA.msw?.project_id||'',name:FILENAME_BASE,rows:[...records.values()].map(row=>{
+      const draft=drafts.get(row.key);return {...row,...(draft?{draftText:draft.after,draftBefore:draft.before}:{}),blocked:invalid.has(row.key)||!!draft&&draft.before!==row.text};
+    })};
+  }
+  function exportRecords(){return MSWProject.clone(DATA.msw?.script_exports||[]);}
+  async function exportScript(){
+    if(!ready)throw Error('请等待筛选完成后再导出');
+    const snapshot=exchangeSnapshot(),live=new Map(snapshot.rows.map(r=>[r.key,r]));
+    const rows=result.rows.map(r=>live.get(r.key)).filter(Boolean);
+    if(!rows.length)throw Error('当前范围没有字幕');
+    if(rows.some(r=>r.blocked))throw Error('请先处理无效或过期的草稿');
+    const doc=MSWFindTextTools.scriptDocument(rows,inputText),parsed=MSWScriptExchange.parse(doc.text);
+    // The exported file must be unambiguous even if a cue contains a literal marker.
+    if(parsed.rows.length!==doc.ranges.length||parsed.rows.some((r,i)=>r.text!==doc.ranges[i].text))throw Error('正文含有整行剧本标记，无法导出可回导的润色稿');
+    const record={id:MSWProject.id('script'),created_at:Date.now(),rows:parsed.rows.map((r,i)=>{
+      const original=live.get(doc.ranges[i].key);return {id:original.id,trackId:original.trackId,trackName:r.trackName,number:r.number,start:r.start,end:r.end,text:r.text};
+    })};
+    const names=new Map();for(const row of record.rows){const name=MSWScriptExchange.canonical(row.trackName);if(names.has(name)&&names.get(name)!==row.trackId)throw Error('轨道名称重复，请先设置不同的轨道名称');names.set(name,row.trackId);}
+    MSWScriptExchange.validateRecords([record]);
+    const text=`[[MSW-SCRIPT v1 | ${record.id}]]\n${doc.text}`;
+    const download=await downloadFile(text,`${snapshot.name}_polish.txt`,'text/plain',{desc:t('外部润色稿'),types:{'text/plain':['.txt']}},{detailed:true});
+    if(download.status==='cancelled')return;
+    if(download.status==='failed')throw Error('润色稿导出失败，请重新尝试');
+    if(snapshot.generation!==mswProjectGeneration)throw Error('已切换工程，导出记录未写入当前工程');
+    const records=[record,...exportRecords()].slice(0,5);
+    while(records.length>1){try{MSWScriptExchange.validateRecords(records);break;}catch(_){records.pop();}}
+    MSWProject.ensure(DATA).script_exports=records;projectImportDirty=true;scheduleAutoSaveFlush();
+    scriptNotice('润色稿已导出；导出记录随工程保存，请保存工程');
+  }
+  function stageScriptImport(edits,snapshot){
+    const current=exchangeSnapshot();
+    if(JSON.stringify(current)!==JSON.stringify(snapshot))throw Error('工程或草稿已变化，请重新核对导入预览');
+    if(pendingLinkedSplit||waveformEditor?.drag)throw Error('请先完成当前切分或拖动');
+    const live=new Map(current.rows.map(r=>[r.key,r]));
+    if(!edits.length||new Set(edits.map(e=>e.key)).size!==edits.length||edits.some(e=>!live.has(e.key)||live.get(e.key).locked||live.get(e.key).blocked||typeof e.text!=='string'))throw Error('导入目标无效、重复或已锁定');
+    for(const edit of edits){const draft=draftFor(edit.key);draft.after=edit.text;if(draft.before===draft.after)drafts.delete(edit.key);excluded.delete(edit.key);}
+    selected=edits.map(e=>live.get(e.key).id);el('only-selected').checked=true;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;
+    el('query').value='';el('replace-enabled').checked=false;el('replacement').disabled=true;
+    for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;
+    el('group').value='script';clearRows();scheduleQuery();notice=`已导入 ${edits.length} 条草稿，请检查后应用编辑`;return edits.length;
+  }
   function updatePlan(){
     const opts=processOptions();
     changes=result.rows.filter(hit=>!excluded.has(hit.key)).map(hit=>{
@@ -387,5 +430,5 @@
     for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;
     if(floating.isOpen()){readIndex();scheduleQuery();}
   });
-  global.MSWFindEdit=Object.freeze({open,close:()=>floating.close(),changed,decorateBlock,keepVisible,capture,restore,hasDraft});
+  global.MSWFindEdit=Object.freeze({open,close:()=>floating.close(),changed,decorateBlock,keepVisible,capture,restore,hasDraft,exchangeSnapshot,stageScriptImport,exportRecords,exportScript});
 })(window);
