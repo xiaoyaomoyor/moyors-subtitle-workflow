@@ -39,46 +39,53 @@
     }
     return entries;
   }
-  const scriptError='请保留剧本信息行和正文外层引号；增删字幕请使用切分或合并';
-  // Escaping only structural characters preserves real line breaks, whitespace,
-  // empty cues and literal backslashes without ambiguous bilingual boundaries.
-  function quoteScript(value,secondary) {
-    const open=secondary?'"':'“',close=secondary?'"':'”';
-    return open+String(value).replace(/[\\“”"]/g,char=>char==='\\'||char===open||char===close?'\\'+char:char)+close;
+  const scriptFields=['time','speaker','track','language','number'];
+  const scriptError='整段粘贴需要保留完整信息行及字幕顺序；请使用“复制完整剧本”，或只粘贴到一条正文内';
+  const scriptProtected='信息行和字幕边界只读，可选中复制；请在正文内编辑';
+  const scriptLabel=value=>String(value??'').replace(/[\r\n\[\]⟦⟧]/g,' ');
+  // This is a projection of cue identities, not a syntax the user must maintain.
+  // Ranges distinguish literal body text from metadata even with all labels hidden.
+  function scriptDocument(rows,text=row=>row.text,fields={}) {
+    const visible=key=>fields[key]!==false,ranges=[];let value='';
+    for(const entry of scriptEntries(rows))for(let i=0;i<entry.rows.length;i++){
+      const row=entry.rows[i],from=value.length;
+      let prefix=ranges.length?'\n':'';
+      const heading=[visible('time')?`${formatTime(row.start)}~${formatTime(row.end)}`:'',visible('speaker')?scriptLabel(row.speakerName):''].filter(Boolean);
+      if(i===0&&heading.length)prefix+=`[[${heading.join(' | ')}]]\n`;
+      const label=[visible('track')?scriptLabel(row.trackName):'',visible('language')?scriptLabel(row.languageName||row.language):'',visible('number')?'#'+row.number:''].filter(Boolean);
+      if(label.length)prefix+=`⟦${label.join(' · ')}⟧\n`;
+      const body=String(text(row));value+=prefix+body;
+      ranges.push({key:row.key,from,start:from+prefix.length,end:value.length,prefix,text:body});
+    }
+    return {text:value,ranges};
   }
-  function packScript(rows,text=row=>row.text) {
-    return scriptEntries(rows).map(entry=>entry.header+'\n'+entry.rows.map((row,i)=>quoteScript(text(row),i===1)).join('\n')).join('\n');
+  function packScript(rows,text=row=>row.text,fields={}){return scriptDocument(rows,text,fields).text;}
+  function scriptRange(doc,start,end=start){return doc.ranges.find(r=>start>=r.start&&end<=r.end);}
+  function scriptEdit(doc,next,selection){
+    if(doc.text===next)return null;
+    let start=0,end=doc.text.length,nextEnd=next.length;
+    while(start<end&&start<nextEnd&&start<(selection?.[0]??Infinity)&&doc.text[start]===next[start])start++;
+    while(end>Math.max(start,selection?.[1]??0)&&nextEnd>start&&doc.text[end-1]===next[nextEnd-1]){end--;nextEnd--;}
+    const range=scriptRange(doc,start,end);if(!range)throw Error(scriptProtected);
+    return {key:range.key,text:range.text.slice(0,start-range.start)+next.slice(start,nextEnd)+range.text.slice(end-range.start)};
   }
-  function parseScript(rows,text) {
-    text=text.replace(/\r\n?/g,'\n');
-    const values=new Map(),ranges=[];let offset=0;
-    for(const entry of scriptEntries(rows)){
-      const headerStart=offset,prefix=entry.header+'\n';
-      if(!text.startsWith(prefix,offset))throw Error(scriptError);
-      offset+=prefix.length;
-      for(let i=0;i<entry.rows.length;i++){
-        const row=entry.rows[i],open=i===1?'"':'“',close=i===1?'"':'”',start=offset;
-        if(text[offset++]!==open)throw Error(scriptError);
-        let value='',closed=false;
-        while(offset<text.length){
-          const char=text[offset++];
-          if(char==='\\'){
-            const next=text[offset];
-            if(next==='\\'||next===open||next===close){value+=next;offset++;}
-            else value+=char;
-          }else if(char===close){closed=true;break;}else value+=char;
-        }
-        if(!closed)throw Error(scriptError);
-        values.set(row.key,value);ranges.push({key:row.key,start:i===0?headerStart:start,end:offset});
-        if(offset<text.length&&text[offset++]!=='\n')throw Error(scriptError);
-      }
+  // External round-trips require all identity labels. Reject ambiguous delimiters
+  // atomically; ordinary single-cue paste is always literal and needs no parser.
+  function unpackScript(rows,text) {
+    text=text.replace(/\r\n?/g,'\n');const doc=scriptDocument(rows),values=new Map();let offset=0;
+    for(let i=0;i<doc.ranges.length;i++){
+      const range=doc.ranges[i];if(!text.startsWith(range.prefix,offset))throw Error(scriptError);
+      const start=offset+range.prefix.length,next=doc.ranges[i+1];
+      const end=next?text.indexOf(next.prefix,start):text.length;
+      if(end<0||next&&text.indexOf(next.prefix,end+1)>=0)throw Error(scriptError);
+      const value=text.slice(start,end);
+      if(/^(?:\[\[.*\]\]|⟦.*⟧)$/m.test(value))throw Error(scriptError);
+      values.set(range.key,value);offset=end;
     }
     if(offset!==text.length)throw Error(scriptError);
-    return {values:rows.map(row=>values.get(row.key)),ranges};
+    return rows.map(row=>values.get(row.key));
   }
-  function unpackScript(rows,text){return parseScript(rows,text).values;}
-  function scriptKeyAt(rows,text,offset){return parseScript(rows,text).ranges.find(r=>r.start<=offset&&offset<=r.end)?.key;}
-  const api={pack,unpack,formatTime,scriptEntries,packScript,unpackScript,scriptKeyAt,scriptError};
+  const api={pack,unpack,formatTime,scriptEntries,scriptFields,scriptDocument,scriptRange,scriptEdit,packScript,unpackScript,scriptError,scriptProtected};
   global.MSWFindTextTools=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof window==='undefined'?globalThis:window);

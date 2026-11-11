@@ -91,6 +91,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "msw-audio-export.js",
                 "msw-subtitle-export.js",
                 "msw-find-text-tools.js",
+                "msw-find-script-editor.js",
                 "msw-find-edit.js",
                 "msw-animation-curves-ui.js",
                 "msw-subtitle-animation-ui.js",

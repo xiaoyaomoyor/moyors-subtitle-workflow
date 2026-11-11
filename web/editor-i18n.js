@@ -128,8 +128,11 @@
     '工程说话人已变化，请重新删除': 'Project speakers changed. Start the deletion again.', '请在新版字幕工程中删除说话人': 'Delete speakers in the current subtitle project format.',
     '编辑形式': 'Editing view', '整段 · 按轨道': 'Grouped · Track', '整段 · 按说话人': 'Grouped · Speaker',
     '整段（剧本）': 'Continuous · Script',
-    '按时间连续排列，绑定且时间、说话人相同的主副字幕同组，主在上、副在下。保留信息行和外层引号；正文可换行，同型引号前加反斜杠。双击正文或信息行定位。': 'Chronological script. Bound cues with matching times and speakers share a block: primary above secondary. Keep headers and outer quotes; line breaks are allowed. Escape matching quotes with a backslash. Double-click text or a header to locate a cue.',
-    '请保留剧本信息行和正文外层引号；增删字幕请使用切分或合并': 'Keep script headers and outer quotes. Use split or merge to add or remove cues.',
+    '正文原样编辑，无需外层引号或转义。信息行只读，可与正文一并选中复制；隐藏信息不影响字幕。双击定位，Tab 切换正文。外部编辑后，全选并粘贴完整剧本，保留信息行及顺序。': 'Edit text directly without outer quotes or escaping. Read-only headers can be selected and copied with the text; hiding them does not change cues. Double-click to locate; Tab moves between cues. To paste external edits, select all and paste the complete script with its headers and order intact.',
+    '整段粘贴需要保留完整信息行及字幕顺序；请使用“复制完整剧本”，或只粘贴到一条正文内': 'Pasting a whole script requires complete headers and the original cue order. Use Copy complete script, or paste inside a single cue.',
+    '信息行和字幕边界只读，可选中复制；请在正文内编辑': 'Headers and cue boundaries are read-only and can be copied. Edit inside the cue text.',
+    '剧本信息显示': 'Script information visibility', '显示信息': 'Show information', '时间': 'Time', '复制当前显示': 'Copy visible script', '复制完整剧本': 'Copy complete script',
+    '已复制完整剧本': 'Complete script copied', '已复制当前显示的剧本': 'Visible script copied', '复制失败，请选中文字后按 Ctrl+C': 'Copy failed. Select the text and press Ctrl+C.',
     '选中全部筛选': 'Select all results', '应用编辑': 'Apply edits', '放弃此条草稿': 'Discard this draft',
     '筛选字幕文字…': 'Filter subtitle text…', '替换为…（留空删除）': 'Replace with… (empty deletes)',
     '请保留字幕分隔行；增删字幕请使用切分或合并': 'Keep cue separators. Use split or merge to add or remove cues.',
@@ -3002,6 +3005,8 @@
     const unifiedDraft=/^(\d+) 条未应用$/.exec(text);
     if(unifiedDraft)return `${unifiedDraft[1]} unapplied`;
     const unifiedChanges=/^(\d+) 条字幕将更新$/.exec(text);
+    const cueCount=/^(\d+) 条字幕$/.exec(text);
+    if(cueCount)return `${cueCount[1]} cues`;
     if(unifiedChanges)return `${unifiedChanges[1]} cues will change`;
     const gapReference = /^参考轨道 · (.+)$/.exec(text);
     if (gapReference) return `Reference tracks · ${translateText(gapReference[1], lang)}`;

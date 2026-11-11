@@ -5,6 +5,8 @@
   const el=id=>document.getElementById('find-edit-'+id), panel=el('panel'), viewport=el('results'), canvas=el('rows');
   const tidy=id=>document.getElementById('find-tidy-'+id);
   const t=text=>global.MSWE_I18N?.translateText(text)||text;
+  const scriptFields={};
+  try{const saved=JSON.parse(localStorage.getItem('msw.find-script.info.v1')||'{}');for(const key of MSWFindTextTools.scriptFields)scriptFields[key]=saved[key]!==false;}catch(_){}
   let records=new Map(),references=new Map(),cuesById=new Map(),tracks=[],trackSignature='',speakerSignature='';
   let trackIds=new Set(),speakerIds=new Set(),selected=[],excluded=new Set(),drafts=new Map(),invalidGroups=new Map();
   let result={rows:[],count:0},matchMap=new Map(),units=[],changes=[],ready=false,activeKey=null,activeMatch=0;
@@ -16,6 +18,7 @@
     const flat = fixedTrackMode();
     tracks = flat ? DATA.subtitle_tracks.tracks : sources().map((s, i) => ({ id: s.track_id || 'main', name: `S${i + 1}`, enabled: true }));
     const trackMap = new Map(tracks.map((track, order) => [track.id, { ...track, order }]));
+    const languageNames=new Map(MSWSpeaker.languageOptions(DATA));
     const primaryTracks=new Set(tracks.map(track=>track.secondary_for).filter(Boolean));
     const owners = flat ? new Map(DATA.subtitle_tracks.assignments.map(a => [fixedTrackCore.key(a), a.subtitle_track_id])) : null;
     const partners=new Map();
@@ -29,7 +32,8 @@
       const track = trackMap.get(trackId); if (!track) return;
       const key = JSON.stringify([trackId, cue.id]);
       const speaker = MSWSpeaker.profile(DATA,cue,source.segments[cue.color_ref?.headIdx]);
-      const row = { speakerId:speaker?.id || '', speakerName:speaker ? MSWSpeaker.displayName(speaker) : t('未指定说话人'), key, id: cue.id, trackId, trackName: track.name, order: track.order, start: cue.start, end: cue.end,
+      const language=MSWSpeaker.language(track.language);
+      const row = { speakerId:speaker?.id || '', speakerName:speaker ? MSWSpeaker.displayName(speaker) : t('未指定说话人'), key, id: cue.id, trackId, trackName: track.name, language, languageName:language?t(languageNames.get(language)||language):'', order: track.order, start: cue.start, end: cue.end,
         partnerId:partners.get(cue.id)?.id,scriptSecondary:!!track.secondary_for||(!primaryTracks.has(trackId)&&!!partners.get(cue.id)?.secondary),
         text: String(cue.text || ''), locked: !!track.locked, disabled: track.enabled === false || !!cue.disabled };
       if (!groups.has(trackId)) groups.set(trackId, []);
@@ -221,11 +225,19 @@
     for(const unit of units)unit.draftKey=(group==='script'?'script:':'')+JSON.stringify(unit.rows.map(r=>r.key));
     rowHeight=group==='rows'?156:group==='script'?Math.max(300,viewport.clientHeight):300;canvas.style.height=`${units.length*rowHeight}px`;
     el('script-help').hidden=group!=='script';
+    el('script-options').hidden=group!=='script';
+    for(const id of ['script-copy','script-copy-full'])el(id).disabled=!rows.length;
     el('empty').hidden=!!rows.length;el('empty').textContent=t('当前范围没有字幕');
   }
   function draftFor(key){const row=records.get(key);let d=drafts.get(key);if(!d&&row){d={key,before:row.text,after:row.text,row:{...row}};drafts.set(key,d);}return d;}
   function inputText(row){return drafts.get(row.key)?.after??row.text;}
-  function unitText(unit){return el('group').value==='rows'?inputText(unit.rows[0]):invalidGroups.get(unit.draftKey)?.text??(el('group').value==='script'?MSWFindTextTools.packScript:MSWFindTextTools.pack)(unit.rows,inputText);}
+  function unitText(unit){return el('group').value==='rows'?inputText(unit.rows[0]):invalidGroups.get(unit.draftKey)?.text??MSWFindTextTools.pack(unit.rows,inputText);}
+  function scriptNotice(message){notice=message;el('message').textContent=t(message);}
+  function scriptChanged(edits,composing){
+    notice='';for(const {key,text} of edits){const d=draftFor(key);if(!d)continue;d.after=text;if(d.after===d.before)drafts.delete(key);}
+    updatePlan();if(!composing)scheduleQuery({resetScroll:false});
+  }
+  function clearRows(){for(const node of canvas.children)node.scriptEditor?.destroy();canvas.replaceChildren();}
   function updatePlan(){
     const opts=processOptions();
     changes=result.rows.filter(hit=>!excluded.has(hit.key)).map(hit=>{
@@ -259,7 +271,9 @@
         const state=document.createElement('span');state.className='find-result-status';
         const reset=document.createElement('button');reset.type='button';reset.className='find-reset';reset.dataset.reset=unit.id;reset.textContent='↶';reset.title=t('放弃此条草稿');
         header.append(check,button,state,reset);
-        const input=document.createElement('textarea');input.dataset.unit=unit.id;input.spellcheck=false;
+        let input;
+        if(script){node.scriptEditor=MSWFindScriptEditor.create({onChange:scriptChanged,onNotice:scriptNotice,onLocate:navigate});input=node.scriptEditor.element;}
+        else{input=document.createElement('textarea');input.dataset.unit=unit.id;input.spellcheck=false;}
         const preview=document.createElement('div');preview.className='find-result-after';preview.dataset.preview='';
         node.append(header,input,preview);canvas.append(node);
       }
@@ -268,7 +282,9 @@
       const selectedCount=unit.rows.filter(r=>!excluded.has(r.key)).length,check=node.querySelector('input');
       check.checked=selectedCount===unit.rows.length;check.indeterminate=selectedCount>0&&!check.checked;check.ariaLabel=t('选中')+' '+unit.title;
       node.querySelector('[data-locate]').textContent=unit.title+'  '+formatTime(unit.rows[0].start)+(unit.rows.length>1?' · '+t(`${unit.rows.length} 条字幕`):'');
-      const input=node.querySelector('textarea'),value=unitText(unit);if(input.value!==value&&document.activeElement!==input)input.value=value;
+      const input=node.querySelector('textarea');
+      if(script)node.scriptEditor.refresh(unit.rows,inputText,scriptFields,unit.rows.some(r=>r.locked||!records.has(r.key)));
+      else{const value=unitText(unit);if(input.value!==value&&document.activeElement!==input)input.value=value;}
       input.ariaLabel=unit.title;input.readOnly=unit.rows.some(r=>r.locked||!records.has(r.key));input.style.height=el('group').value==='rows'?'74px':script?`${rowHeight-78}px`:'214px';
       const dirty=unit.rows.some(r=>drafts.has(r.key)&&drafts.get(r.key).after!==drafts.get(r.key).before)||invalidGroups.has(unit.draftKey);
       node.querySelector('.find-result-status').textContent=t(unit.rows.some(r=>!records.has(r.key))?'来源已删除':input.readOnly?'已锁定':dirty?'未应用':unit.rows.every(r=>r.disabled)?'已禁用':'');node.querySelector('[data-reset]').hidden=!dirty;
@@ -276,7 +292,7 @@
       const preview=node.querySelector('[data-preview]');preview.textContent=modified.length?t('应用后：')+(unit.rows.length===1?changesByKey.get(unit.rows[0].key).after:t(modified.length+' 条字幕将更新')):'';
       preview.title=preview.textContent;
     }
-    for(const [id,node] of existing)if(!keep.has(id)&&!node.contains(document.activeElement))node.remove();
+    for(const [id,node] of existing)if(!keep.has(id)&&!node.contains(document.activeElement)){node.scriptEditor?.destroy();node.remove();}
   }
   function apply(){
     if(el('apply').disabled)return;
@@ -298,7 +314,26 @@
     if(id==='only-selected'&&el(id).checked)selected=batchSelectedIds();
     el('tracks').hidden=el('all-tracks').checked;el('speakers').hidden=el('all-speakers').checked;scheduleQuery();
   });
-  el('group').addEventListener('change',()=>{viewport.scrollTop=0;canvas.replaceChildren();buildUnits();updatePlan();renderRows();});
+  el('group').addEventListener('change',()=>{viewport.scrollTop=0;clearRows();buildUnits();updatePlan();renderRows();});
+  for(const key of MSWFindTextTools.scriptFields){
+    const check=el('script-'+key);check.checked=scriptFields[key]!==false;
+    check.addEventListener('change',()=>{scriptFields[key]=check.checked;try{localStorage.setItem('msw.find-script.info.v1',JSON.stringify(scriptFields));}catch(_){}renderRows();});
+  }
+  async function copyScript(full){
+    const editor=canvas.querySelector('[data-unit="script"]')?.scriptEditor;if(!editor)return;
+    const text=editor.copy(full);
+    try{
+      if(!navigator.clipboard?.writeText)throw Error('clipboard-unavailable');
+      await navigator.clipboard.writeText(text);
+    }catch(_){
+      const focused=document.activeElement,selection=[editor.input.selectionStart,editor.input.selectionEnd],temp=document.createElement('textarea');
+      temp.value=text;temp.style.cssText='position:fixed;left:-9999px;top:0';panel.append(temp);temp.select();
+      const copied=document.execCommand('copy');temp.remove();focused?.focus();editor.input.setSelectionRange(...selection);
+      if(!copied){scriptNotice('复制失败，请选中文字后按 Ctrl+C');return;}
+    }
+    scriptNotice(full?'已复制完整剧本':'已复制当前显示的剧本');
+  }
+  el('script-copy').addEventListener('click',()=>copyScript(false));el('script-copy-full').addEventListener('click',()=>copyScript(true));
   el('select-all').addEventListener('click',()=>{for(const hit of result.rows)excluded.delete(hit.key);updatePlan();renderRows();});
   el('replace-enabled').addEventListener('change',()=>{el('replacement').disabled=!el('replace-enabled').checked;notice='';scheduleQuery({resetScroll:false});});
   for(const id of ['query','replacement']){
@@ -318,15 +353,10 @@
   canvas.addEventListener('input',event=>{
     const input=event.target.closest('textarea');if(!input)return;const unit=units.find(u=>u.id===input.dataset.unit);if(!unit)return;
     notice='';
-    try{const values=el('group').value==='rows'?[input.value]:(el('group').value==='script'?MSWFindTextTools.unpackScript:MSWFindTextTools.unpack)(unit.rows,input.value);
+    try{const values=el('group').value==='rows'?[input.value]:MSWFindTextTools.unpack(unit.rows,input.value);
       unit.rows.forEach((row,i)=>{const d=draftFor(row.key);d.after=values[i];if(d.after===d.before)drafts.delete(row.key);});invalidGroups.delete(unit.draftKey);
     }catch(error){invalidGroups.set(unit.draftKey,{text:input.value,rows:unit.rows,group:el('group').value});notice=error.message;}
     updatePlan();if(!event.isComposing)scheduleQuery({resetScroll:false});
-  });
-  canvas.addEventListener('dblclick',event=>{
-    const input=event.target.closest('textarea');if(!input||el('group').value!=='script')return;
-    const unit=units.find(u=>u.id===input.dataset.unit);if(!unit)return;
-    try{const key=MSWFindTextTools.scriptKeyAt(unit.rows,input.value,input.selectionStart);if(key)navigate(key);}catch(_){/* Keep damaged drafts editable. */}
   });
   canvas.addEventListener('compositionend',()=>scheduleQuery({resetScroll:false}));
   el('drafts').addEventListener('click',()=>{
@@ -348,7 +378,9 @@
     }
   },true);
   window.addEventListener('msw:subtitles-changed',changed);
+  document.addEventListener('mawe:languagechange',changed);
   window.addEventListener('msw:project-changed',()=>{
+    clearRows();
     stopWorker();++queryVersion;clearTimeout(queryTimer);clearTimeout(syncTimer);records.clear();references.clear();plainEngine=core.createEngine();trackSignature=speakerSignature='';activeKey=null;
     selected=[];recoverDrafts=false;excluded.clear();drafts.clear();invalidGroups.clear();el('only-selected').checked=false;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;
     el('query').value=el('replacement').value='';el('replace-enabled').checked=false;el('replacement').disabled=true;el('group').value='rows';notice='';

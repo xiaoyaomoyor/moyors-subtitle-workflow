@@ -5,6 +5,10 @@ export const snap=page=>page.evaluate(()=>JSON.parse(buildJson()));
 export const inputs=page=>page.locator('#find-edit-rows textarea');
 export const apply=async page=>{await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();await expect(page.locator('#find-edit-message')).toContainText('已修改');};
 export const count=async(page,n)=>expect(page.locator('#find-edit-count')).toContainText(`${n} 条 ·`);
+export async function editScriptText(page,input,from,to){
+ await input.focus();await input.evaluate((node,from)=>{const start=node.value.indexOf(from);if(start<0)throw Error('Text not found');node.setSelectionRange(start,start+from.length);},from);
+ await page.keyboard.insertText(to);
+}
 export function setup(){
  let server,env;const errors=new WeakMap();
  test.beforeAll(async()=>{env={MAW_ENV_FILE:process.env.MAW_ENV_FILE,MSW_APP_DATA_ROOT:process.env.MSW_APP_DATA_ROOT};const dir=makeTempDir('find-unified');process.env.MAW_ENV_FILE=join(dir,'isolated.env');process.env.MSW_APP_DATA_ROOT=join(dir,'app-data');server=await startStaticServer(generateBlankEditor(join(dir,'editor.html')),await findFreePort());});

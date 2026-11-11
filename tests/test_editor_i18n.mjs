@@ -21,6 +21,8 @@ test('current dynamic UI translations preserve values and literal speaker names'
     ['向上 显示名称','向上 Show name'],
     ['全部说话人 着色模式','All speakers Color mode'],
     ['字幕轨道 · 已选 2 条','Subtitle tracks · 2 selected'],
+    ['时间','Time'],
+    ['6 条字幕','6 cues'],
     ['锁定 S2','Lock S2'],
   ]){
     assert.equal(translateText(source,'en'),expected);

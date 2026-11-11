@@ -2,6 +2,7 @@ import {test,expect} from '@playwright/test';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {disableOnboarding,findFreePort,generateWav,generateWaveformPayload,makeTempDir,startServer} from './helpers.mjs';
+import {editScriptText} from './find-unified-fixture.mjs';
 
 test('script edits persist through local server save and reload without changing bindings',async({page})=>{
  const dir=makeTempDir('find-script-save'),path=join(dir,'script.mosp'),media=join(dir,'speech.wav');
@@ -15,7 +16,7 @@ test('script edits persist through local server save and reload without changing
   await page.evaluate(()=>updateEditorSettings({autoSaveProject:false}));
   const before=await page.evaluate(()=>JSON.parse(buildJson()));
   await page.keyboard.press('Control+f');await expect(page.locator('#find-edit-count')).toContainText('2 条');await page.locator('#find-edit-group').selectOption('script');
-  const input=page.locator('#find-edit-rows textarea');await input.fill((await input.inputValue()).replace('译文','修改译文\n第二行').replace('Original','Revised original'));
+  const input=page.locator('#find-edit-rows textarea');await editScriptText(page,input,'译文','修改译文\n第二行');await editScriptText(page,input,'Original','Revised original');
   await expect(page.locator('#find-edit-apply')).toBeEnabled();await page.locator('#find-edit-apply').click();await expect(page.locator('#find-edit-message')).toContainText('已修改 2 条');
   const after=await page.evaluate(()=>JSON.parse(buildJson()));expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
   expect(after.subtitles.cues.map(c=>c.content.text).sort()).toEqual(['Revised original','修改译文\n第二行'].sort());
