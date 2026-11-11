@@ -4874,6 +4874,7 @@ function setTimelineTimebase(patch = {}) {
   projectImportDirty = true;
   refreshTimelineSettingsUi();
   renderAll({ waveform: 'full' });
+  nowEl.textContent = fmtPlayheadTime(window.MSWE?.resolve('audio-timeline')?.currentTimeMs() ?? player.currentTime * 1000);
   scheduleAutoSaveFlush();
 }
 
@@ -7953,6 +7954,11 @@ function fmtSrtTime(ms) {
   const s = Math.floor(ms / 1000); ms -= s * 1000;
   const pad = (n, w) => String(n).padStart(w, '0');
   return `${pad(h,2)}:${pad(m,2)}:${pad(s,2)},${pad(ms,3)}`;
+}
+
+function fmtPlayheadTime(ms) {
+  const value = Number.isFinite(Number(ms)) ? Number(ms) : 0;
+  return timelineIsFrameMode() ? fmtShort(value) : fmtSrtTime(value).replace(',', '.');
 }
 
 function escapeHtml(s) {
@@ -14940,7 +14946,7 @@ function updatePlaybackFrame() {
     player.currentTime = skippedGap.end / 1000;
     return;
   }
-  const nowLabel = fmtShort(tMs);
+  const nowLabel = fmtPlayheadTime(tMs);
   if (nowEl.textContent !== nowLabel) nowEl.textContent = nowLabel;
   const idx = findActive(tMs);
   updateCueListPlayback(tMs, true);
@@ -15574,7 +15580,7 @@ function update() {
     seekFromWaveform(skippedGap.end / 1000);
     return;
   }
-  nowEl.textContent = fmtShort(tMs);
+  nowEl.textContent = fmtPlayheadTime(tMs);
   const idx = findActive(tMs);
   updateCueListPlayback(tMs, true);
   refreshSubtitlePreview(tMs, idx);
@@ -22034,6 +22040,7 @@ function initWaveformEditor() {
   waveformEditor = window.AsrWaveform.create({
     getFixedTracksEnabled: fixedTrackMode,
     getFixedTrackName: (cue, role) => fixedTrack(cue, role)?.name,
+    getCueLabel: (cue, role) => productionFlatMode() ? fixedCueLabel(cue, role) : '',
     getFixedSubtitleLayout: fixedWaveLayout,
     getSubtitleGeometry: fixedWaveGeometry,
     renderFixedTrackHeads: fixedRenderHeads,
@@ -24324,7 +24331,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   refreshAudioPlayback: (timeMs) => {
     if (Number.isFinite(timeMs)) {
       const index = findActive(timeMs);
-      nowEl.textContent = fmtShort(timeMs); updateCueListPlayback(timeMs, true); refreshSubtitlePreview(timeMs, index);
+      nowEl.textContent = fmtPlayheadTime(timeMs); updateCueListPlayback(timeMs, true); refreshSubtitlePreview(timeMs, index);
     }
     waveformEditor?.updatePlayback();
     syncMediaControls();

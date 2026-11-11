@@ -6560,7 +6560,8 @@
       if (speaker) text = speaker.name + speaker.separator + text;
       if (this.settings.hoverDetails !== true) return text;
       const clock = this.cueTiming(), format = ms => clock.format(clock.fromMs(ms));
-      return `${text}\n#${index + 1} · ${format(segment.start)} ~ ${format(segment.end)} (${format(segment.end - segment.start)})`;
+      const label = this.options.getCueLabel?.(segment, role) || `#${index + 1}`;
+      return `${text}\n${label} · ${format(segment.start)} ~ ${format(segment.end)} (${format(segment.end - segment.start)})`;
     }
 
     cueTimingDuration() {
