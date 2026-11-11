@@ -1895,6 +1895,7 @@ function snapshotCurrentForKind(kind, label, sourceRecord = null) {
   if(kind==='subtitle-timing')return snapshotFixedTiming(sourceRecord,label);
   if(kind==='subtitle-appearance')return snapshotFixedAppearance(sourceRecord,label);
   if(kind==='cue-markers')return snapshotCueMarkers(sourceRecord.changes,label);
+  if(kind==='speaker-removal')return {...snapshotCueMarkers(sourceRecord.changes,label),kind,palette:structuredClone(DATA.preview.speaker_palette)};
   if (kind === 'project-style') return {kind,label,...window.MSWProjectStyle.capture(DATA)};
   if (kind === 'source-gain') return {kind, label, gainDb: window.MSWE.resolve('audio-timeline').sourceGainDb(), mediaKey: sourceGainMediaKey()};
   if (kind === 'asset-removal') return snapshotAssetRemoval(sourceRecord.assetId, label);
@@ -1985,6 +1986,12 @@ function restoreEditorSelection(snapshot, { render = true } = {}) {
   renderCurrentCuePanel();
 }
 function applyHistoryRecord(record) {
+  if(record.kind==='speaker-removal') {
+    const ids=new Set(layerCore.tracks(DATA).flatMap(t=>t.segments.map(c=>c.id)));
+    if(!MSWSpeaker.valid(record.palette)||record.changes.some(c=>!ids.has(c.id)))return false;
+    DATA.preview.speaker_palette=structuredClone(record.palette);
+    applyHistoryRecord({...record,kind:'cue-markers'});speakerPaletteChanged();return true;
+  }
   if(record.kind==='subtitle-edit')return fixedApplyEditHistory(record);
   if(record.kind==='subtitle-text')return window.MSWFindEdit.restore(record);
   if(record.kind==='subtitle-insertion')return productionApplyInsertion(record);
@@ -15767,6 +15774,48 @@ function speakerCueLanguage(cue,role='main',trackId=null) {
     role==='extension'?getExtensionTrack(trackId)?.language:DATA.language;
 }
 document.getElementById('speaker-name-language').onchange=event=>{speakerNameLanguage=event.target.value;syncSpeakerControls();};
+let speakerDrag=null,speakerRemoval=null;
+const speakerRowStatus=text=>{document.getElementById('speaker-row-status').textContent=window.MSWE_I18N?.translateText(text)||text;};
+function cancelSpeakerRemoval() {speakerRemoval=null;document.getElementById('speaker-row-remove').hidden=true;}
+function moveSpeakerRow(id,target) {
+  try {
+    const palette=MSWSpeaker.ensure(DATA);if(palette.rows.findIndex(r=>r.id===id)===target)return;
+    const next=MSWSpeaker.reorder(palette,id,target);
+    pushPreviewUndo('调整说话人顺序',snapshotPreviewState());DATA.preview.speaker_palette=next;
+    cancelSpeakerRemoval();speakerPaletteChanged();speakerRowStatus('已调整顺序；数字快捷键按新顺序对应。');
+    document.querySelector(`#speaker-palette-rows tr[data-speaker-id="${id}"] [data-speaker-action="drag"]`)?.focus();
+  }catch(error){speakerRowStatus(error.message);}
+}
+function requestSpeakerRemoval(id) {
+  cancelSpeakerRemoval();
+  try {
+    if(!productionFlatMode())throw Error('请在新版字幕工程中删除说话人');
+    commitProcessingEdits();if(!fixedAcceptEdit())return;
+    const project=MSWProductionProject.toProject(AsrEditorUtils.stripInlineCaches(DATA)),plan=MSWSpeaker.removalPlan(project,id);
+    if(plan.locked)throw Error('此说话人用于锁定轨道，请先解锁相关轨道');
+    speakerRemoval={id,generation:mswProjectGeneration,palette:JSON.stringify(project.preview.speaker_palette),ids:plan.ids};
+    const name=project.preview.speaker_palette.rows.find(r=>r.id===id).name;
+    document.getElementById('speaker-row-remove-name').textContent=name;
+    document.getElementById('speaker-row-remove-count').textContent=plan.ids.length;
+    document.getElementById('speaker-row-remove').hidden=false;speakerRowStatus('');
+    document.getElementById('speaker-row-remove-confirm').focus();
+  }catch(error){speakerRowStatus(error.message);}
+}
+document.getElementById('speaker-row-remove-cancel').onclick=cancelSpeakerRemoval;
+document.getElementById('speaker-row-remove-confirm').onclick=()=>{
+  const pending=speakerRemoval;if(!pending)return;
+  try {
+    if(pending.generation!==mswProjectGeneration)throw Error('工程说话人已变化，请重新删除');
+    if(pendingLinkedSplit||waveformEditor?.drag)throw Error('请先完成当前切分或拖动');
+    commitProcessingEdits();if(!fixedAcceptEdit())return;
+    const before=MSWProductionProject.toProject(AsrEditorUtils.stripInlineCaches(DATA)),plan=MSWSpeaker.removalPlan(before,pending.id);
+    if(plan.locked)throw Error('此说话人用于锁定轨道，请先解锁相关轨道');
+    if(pending.palette!==JSON.stringify(before.preview.speaker_palette)||JSON.stringify(pending.ids)!==JSON.stringify(plan.ids))throw Error('工程说话人已变化，请重新删除');
+    const next=structuredClone(before),ids=new Set(plan.ids);
+    for(const c of next.subtitles.cues)if(ids.has(c.id)){delete c.content.color;delete c.content.color_ref;}
+    if(commitCueMarkerProject(before,next,'删除说话人',plan.palette)){cancelSpeakerRemoval();speakerPaletteChanged();speakerRowStatus('已删除说话人，可撤销恢复。');}
+  }catch(error){cancelSpeakerRemoval();speakerRowStatus(error.message);}
+};
 function syncSpeakerControls() {
   if(speakerAutoFollowToggle)speakerAutoFollowToggle.checked=EDITOR_SETTINGS.speakerAutoFollow===true;
   const palette=window.MSWSpeaker.ensure(DATA),body=document.getElementById('speaker-palette-rows');
@@ -15779,6 +15828,19 @@ function syncSpeakerControls() {
   const create=(entry,index)=>{
     const tr=document.createElement('tr');tr.dataset.speakerId=entry?.id||'all';
     const number=document.createElement('th');number.scope='row';number.textContent=index;tr.append(number);
+    if(entry){
+      const grip=document.createElement('button');grip.type='button';grip.className='speaker-row-grip';grip.textContent='⠿';grip.draggable=true;grip.dataset.speakerAction='drag';
+      grip.title='拖动调整说话人顺序';grip.setAttribute('aria-label',entry.name+' 拖动排序');number.prepend(grip);
+      grip.ondragstart=event=>{event.stopPropagation();speakerDrag={id:entry.id,generation:mswProjectGeneration};event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',entry.id);};
+      grip.ondragend=()=>{speakerDrag=null;body.querySelectorAll('.speaker-drop-before,.speaker-drop-after').forEach(n=>n.classList.remove('speaker-drop-before','speaker-drop-after'));};
+      tr.ondragover=event=>{if(!speakerDrag||speakerDrag.generation!==mswProjectGeneration)return;event.preventDefault();event.dataTransfer.dropEffect='move';
+        body.querySelectorAll('.speaker-drop-before,.speaker-drop-after').forEach(n=>n.classList.remove('speaker-drop-before','speaker-drop-after'));
+        const rect=tr.getBoundingClientRect();tr.classList.add(event.clientY<rect.top+rect.height/2?'speaker-drop-before':'speaker-drop-after');};
+      tr.ondrop=event=>{if(!speakerDrag||speakerDrag.generation!==mswProjectGeneration)return;event.preventDefault();event.stopPropagation();
+        const {id}=speakerDrag,rect=tr.getBoundingClientRect(),from=palette.rows.findIndex(r=>r.id===id);
+        let target=index-1+(event.clientY>=rect.top+rect.height/2?1:0);if(from<target)target--;
+        speakerDrag=null;moveSpeakerRow(id,target);};
+    }
     for(const field of ['name','name_visibility','color','mode','separator']) {
       const td=document.createElement('td');let input;
       if(field==='name'&&!entry){td.textContent='全部说话人';tr.append(td);continue;}
@@ -15828,7 +15890,19 @@ function syncSpeakerControls() {
         action.onclick=()=>{if(generation===mswProjectGeneration&&window.MSWSubtitleStyle?.editSpeaker(entry.id)){setProjectSettingsPanelOpen(false);setEditorSettingsPanelOpen(false);}};
         const field=document.createElement('div');field.className='speaker-name-field';field.append(input,action);td.append(field);
       }
-    }body.append(tr);
+    }
+    const actions=document.createElement('td');actions.className='speaker-row-actions';
+    if(entry)for(const [action,label,icon,disabled,run] of [
+      ['up','上移说话人','↑',index===1,()=>moveSpeakerRow(entry.id,index-2)],
+      ['down','下移说话人','↓',index===palette.rows.length,()=>moveSpeakerRow(entry.id,index)],
+      ['delete','删除说话人','×',palette.rows.length===1,()=>requestSpeakerRemoval(entry.id)]
+    ]){
+      const button=document.createElement('button');button.type='button';button.className='msw-icon-button';button.dataset.speakerAction=action;
+      button.textContent=icon;button.disabled=disabled;button.title=action==='delete'&&disabled?'至少保留一位说话人':label;button.setAttribute('aria-label',entry.name+' '+label);
+      if(action==='delete')button.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/></svg>';
+      const generation=mswProjectGeneration;button.onclick=()=>{if(generation===mswProjectGeneration)run();};actions.append(button);
+    }
+    tr.append(actions);body.append(tr);
   };
   create(null,0);palette.rows.forEach((entry,i)=>create(entry,i+1));
   document.getElementById('speaker-palette-add').disabled=palette.rows.length>=1024;
@@ -15856,7 +15930,7 @@ function getSpeakerLabelSettings() { return speakerSettings(); }
 function setSpeakerLabelSettings(value) { setSubtitleAppearance({speaker_labels:value}); }
 function syncSpeakerLabelControls() { syncSpeakerControls(); }
 function speakerLabelExportOptions() {return speakerExportOptions();}
-window.addEventListener('msw:project-changed',()=>{rebuildEditorColorPalette();syncSpeakerControls();});
+window.addEventListener('msw:project-changed',()=>{speakerDrag=null;cancelSpeakerRemoval();speakerRowStatus('');rebuildEditorColorPalette();syncSpeakerControls();});
 
 // 合并导出池：主轨 + 叠加轨按 start 归并。叠加段的 color_ref 指向叠加轨
 // 自身数组，不能在合并后的大数组里按下标解析，因此同时返回归属集合，
@@ -19066,6 +19140,9 @@ function applyCanonicalProject(data, filename) {
   data.segments.forEach((segment) => DATA.segments.push(segment));
   DATA.multi_subtitle = MULTI_SUBTITLE_UTILS.normalizeMultiSubtitle(data.multi_subtitle, DATA.segments);
   DATA.overlay_track = MULTI_SUBTITLE_UTILS.normalizeOverlayTrack(data.overlay_track);
+  // The main array is reused; discard old interval indexes before settings or
+  // project-change listeners try to locate a cue in the newly loaded project.
+  layerInvalidate();
   window.MSWProject.ensure(DATA);
   window.dispatchEvent(new Event('msw:project-changed'));
   syncProjectTimebaseAndBindingOffsets(DATA, { preferFrames: DATA.timebase.unit === 'frames' });
@@ -20491,7 +20568,7 @@ function planNewCueSpeaker(cue,owner,rows) {
   }
   return null;
 }
-function commitCueMarkerProject(before,next,label) {
+function commitCueMarkerProject(before,next,label,palette=null) {
   const oldById=new Map(before.subtitles.cues.map(c=>[c.id,c.content]));
   const nextById=new Map(next.subtitles.cues.map(c=>[c.id,c.content]));
   const live=new Map();
@@ -20501,11 +20578,14 @@ function commitCueMarkerProject(before,next,label) {
     const old=oldById.get(id);
     if(JSON.stringify([old[field],old[field+'_ref']])!==JSON.stringify([content[field],content[field+'_ref']]))changes.push({id,content,field});
   }
-  if(!changes.length)return false;
+  if(!changes.length&&!palette)return false;
   // The canonical transaction has validated bindings and locks. Apply its
   // marker changes in place: no cue replacement, selection reset or list rebuild.
   if(!fixedAcceptEdit())return false;
-  editorHistory.push(snapshotCueMarkers(changes,label));
+  const record=snapshotCueMarkers(changes,label);
+  if(palette){record.kind='speaker-removal';record.palette=structuredClone(DATA.preview.speaker_palette);}
+  editorHistory.push(record);
+  if(palette)DATA.preview.speaker_palette=palette;
   const markers=DATA.subtitle_tracks.flat_context.markers;
   for(const {id,content,field} of changes) {
     const {c,rows,index}=live.get(id),ref=content[field+'_ref'];
@@ -20517,6 +20597,8 @@ function commitCueMarkerProject(before,next,label) {
       else {c[field]=structuredClone(nextById.get(ref.cue_id)[field]);(markers[id]||={})[field]={ref:structuredClone(ref),value:structuredClone(c[field])};}
     }
   }
+  // Discovering speakers before clearing marks would recreate the deleted row.
+  if(palette)rebuildEditorColorPalette();
   finishCueMarkerChange(changes);return true;
 }
 function assignLinkedSpeakerColor(indices, name, track = null, { independent = false } = {}) {

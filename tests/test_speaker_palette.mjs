@@ -10,6 +10,30 @@ const context={window:{},TextDecoder,TextEncoder,Uint8Array};
 for(const file of ['gap-remove-core.js','editor-utils.js'])vm.runInNewContext(fs.readFileSync(new URL('../web/'+file,import.meta.url),'utf8'),context);
 const utils=context.window.AsrEditorUtils;
 
+test('reordering preserves speaker identities, names and all appearance settings',()=>{
+ const palette={version:1,rows:Array.from({length:5},(_,i)=>speakers.row(i))};
+ palette.rows[4].names={en:'Blue'};palette.rows[4].scheme_ref={scheme_id:'cast',person_id:'person5'};
+ const before=structuredClone(palette),next=speakers.reorder(palette,'blue',1);
+ assert.deepEqual(next.rows.map(r=>r.id),['yellow','blue','green','red','purple']);
+ assert.deepEqual(next.rows[1],before.rows[4]);assert.deepEqual(palette,before);
+ assert.deepEqual(speakers.reorder(next,'blue',4),before);
+ for(const [id,to] of [['missing',0],['yellow',-1],['yellow',5],['yellow',1.5]])assert.throws(()=>speakers.reorder(palette,id,to));
+});
+
+test('speaker deletion finds explicit and cross-track followers including hidden/disabled and locked cues',()=>{
+ const project={preview:{speaker_palette:{version:1,rows:[speakers.row(0),speakers.row(1)]}},subtitles:{tracks:[{id:'a'},{id:'b',locked:true}],cues:[
+  {id:'head',track_id:'a',content:{color:{name:'yellow'},speaker:'raw-asr'}},
+  {id:'follow',track_id:'a',hidden:true,content:{color_ref:{cue_id:'head'}}},
+  {id:'cross',track_id:'b',content:{disabled:true,color_ref:{cue_id:'head',name:'yellow'}}},
+  {id:'other',track_id:'a',content:{color:{name:'green'},speaker:'yellow'}}
+ ]}};
+ const before=structuredClone(project),plan=speakers.removalPlan(project,'yellow');
+ assert.deepEqual(plan.ids,['head','follow','cross']);assert.equal(plan.locked,true);assert.deepEqual(plan.palette.rows,[speakers.row(1)]);assert.deepEqual(project,before);
+ project.subtitles.tracks[1].locked=false;assert.equal(speakers.removalPlan(project,'yellow').locked,false);
+ assert.throws(()=>speakers.removalPlan(project,'missing'));
+ project.preview.speaker_palette.rows.pop();assert.throws(()=>speakers.removalPlan(project,'yellow'),/至少保留/);
+});
+
 test('main and secondary speaker overrides retain legacy appearance and cue precedence independently',()=>{
   const row={...speakers.row(0),mode:'stroke',style:{fontSize:64},animation:{schema:motion.schema,effects:{fade:{...motion.defaults().effects.fade,enabled:true}}}};
   const base={fontSize:48,primaryColor:'#ffffff',outlineColor:'#000000'};

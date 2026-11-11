@@ -132,6 +132,24 @@
     const name=cue?.color?.name||head?.color?.name||cue?.color_ref?.name;
     return project.preview?.speaker_palette?.rows.find(r=>r.id===name)||null;
   }
+  function reorder(palette,id,target) {
+    if(!valid(palette))throw Error('说话人色系配置无效');
+    const from=palette.rows.findIndex(r=>r.id===id);
+    if(from<0||!Number.isInteger(target)||target<0||target>=palette.rows.length)throw Error('说话人位置无效');
+    const next=structuredClone(palette);next.rows.splice(target,0,next.rows.splice(from,1)[0]);return next;
+  }
+  // The canonical model uses cue IDs for both direct and cross-track followers.
+  // Never infer identity from table position, names or the ASR speaker field.
+  function removalPlan(project,id) {
+    const palette=project.preview?.speaker_palette;
+    if(!valid(palette)||!palette.rows.some(r=>r.id===id))throw Error('说话人已不存在');
+    if(palette.rows.length===1)throw Error('至少保留一位说话人');
+    const cues=project.subtitles.cues,byId=new Map(cues.map(c=>[c.id,c]));
+    const tracks=new Map(project.subtitles.tracks.map(t=>[t.id,t]));
+    const affected=cues.filter(({content:c})=>c.color?.name===id||c.color_ref?.name===id||byId.get(c.color_ref?.cue_id)?.content.color?.name===id);
+    return {palette:{...structuredClone(palette),rows:structuredClone(palette.rows.filter(r=>r.id!==id))},
+      ids:affected.map(c=>c.id),locked:affected.some(c=>tracks.get(c.track_id)?.locked)};
+  }
   function prefix(project,profile,locale='') {
     if(!profile)return '';
     const show=project.preview?.speaker_label_export??project.preview?.speaker_labels_visible;
@@ -150,7 +168,7 @@
     if(profile.animation)result.animation=motion().resolve(style.animation,profile.animation);
     return result;
   }
-  const api = { inherit,defaults,modes,languages,language,displayName,nameVisible,nameResolver,languageOptions,row,colorAt,valid,ensure,profile,prefix,appearance,roleSettings,forRole,editRole,hasAppearance,clearAppearance };
+  const api = { inherit,defaults,modes,languages,language,displayName,nameVisible,nameResolver,languageOptions,row,colorAt,valid,ensure,profile,reorder,removalPlan,prefix,appearance,roleSettings,forRole,editRole,hasAppearance,clearAppearance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   global.MSWSpeaker = api;
 })(typeof window !== 'undefined' ? window : globalThis);

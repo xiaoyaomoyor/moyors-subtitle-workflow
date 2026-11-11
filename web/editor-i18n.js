@@ -117,6 +117,15 @@
     '按文字模式查找，例如 foo|bar 匹配两者之一。替换可用 $1 引用括号中的内容；不熟悉时保持关闭。': 'Find by pattern: foo|bar matches either word. Use $1 in replacements for the first captured group. Leave off for ordinary text searches.',
     '勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。': 'Only checked results are applied. Keep cue separators in grouped text; body text can span multiple lines. Use split or merge to change cue structure. Click a cue number to locate it.',
     '全部轨道': 'All tracks', '全部说话人': 'All speakers', '未指定说话人': 'Unassigned speaker', '筛选结果': 'Filtered results',
+    '说话人表随当前工程保存。第 0 行批量设置；拖动左侧手柄或使用上移、下移排序，数字快捷键按新顺序对应。不着色仍保留字幕块标记。': 'The speaker table is saved with the project. Row 0 applies to all speakers. Drag a handle or use the arrows to reorder; number shortcuts follow the new order. No coloring still keeps cue markers.',
+    '拖动调整说话人顺序': 'Drag to reorder speakers', '拖动排序': 'Drag to reorder', '上移说话人': 'Move speaker up', '下移说话人': 'Move speaker down', '删除说话人': 'Delete speaker',
+    '删除说话人：': 'Delete speaker: ', '将清除以下数量字幕的说话人标记：': 'Number of cues whose speaker marks will be cleared: ',
+    '。字幕正文、时间和绑定保留，可撤销恢复。已保存的说话人方案不变。': '. Cue text, timing and bindings remain intact. You can undo this. Saved speaker schemes remain unchanged.',
+    '已调整顺序；数字快捷键按新顺序对应。': 'Order updated; number shortcuts now follow this order.',
+    '已删除说话人，可撤销恢复。': 'Speaker deleted. You can undo to restore.',
+    '此说话人用于锁定轨道，请先解锁相关轨道': 'This speaker is used on locked tracks. Unlock those tracks first.',
+    '至少保留一位说话人': 'Keep at least one speaker', '说话人位置无效': 'Invalid speaker position',
+    '工程说话人已变化，请重新删除': 'Project speakers changed. Start the deletion again.', '请在新版字幕工程中删除说话人': 'Delete speakers in the current subtitle project format.',
     '编辑形式': 'Editing view', '整段 · 按轨道': 'Grouped · Track', '整段 · 按说话人': 'Grouped · Speaker',
     '整段（剧本）': 'Continuous · Script',
     '按时间连续排列，绑定且时间、说话人相同的主副字幕同组，主在上、副在下。保留信息行和外层引号；正文可换行，同型引号前加反斜杠。双击正文或信息行定位。': 'Chronological script. Bound cues with matching times and speakers share a block: primary above secondary. Keep headers and outer quotes; line breaks are allowed. Escape matching quotes with a backslash. Double-click text or a header to locate a cue.',
@@ -2978,7 +2987,7 @@
     if(motionReset)return `Reset ${translateText(motionReset[1],lang)} defaults`;
     const motionRange=/^(淡入淡出|滑入滑出|闪烁|舒展|打字机|波动|原地震动)时间区间$/.exec(text);
     if(motionRange)return `${translateText(motionRange[1],lang)} interval`;
-    const speakerField=/^(.+) (名称|编辑说话人外观|显示名称|颜色|着色模式|分隔符)$/.exec(text);
+    const speakerField=/^(.+) (名称|编辑说话人外观|显示名称|颜色|着色模式|分隔符|拖动排序|上移说话人|下移说话人|删除说话人)$/.exec(text);
     if(speakerField)return `${speakerField[1]==='全部说话人'?'All speakers':speakerField[1]} ${translateText(speakerField[2],lang)}`;
     const trackAction=/^(展开|折叠|锁定|解锁) (S\d+(?:主|副)?)$/.exec(text);
     if(trackAction)return `${translateText(trackAction[1],lang)} ${translateText(trackAction[2],lang)}`;
