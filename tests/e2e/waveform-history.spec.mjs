@@ -6,6 +6,12 @@ import { DURATION_MS, addBwfTimeReference, disableOnboarding, clickMenubarItem, 
 let tempDir;
 let server;
 
+// Pointer time ratios use the drawable row width, excluding its border.
+const rowBox = locator => locator.evaluate(row => {
+  const rect = row.getBoundingClientRect();
+  return {x:rect.left+row.clientLeft,y:rect.top,width:row.clientWidth,height:rect.height};
+});
+
 async function videoPreview(page) {
   await page.waitForFunction(()=>player.readyState>=2&&player.videoWidth===640);
   await page.evaluate(()=>seekFromWaveform(1));
@@ -88,7 +94,7 @@ test('undoing a waveform-created subtitle keeps redo available', async ({ page }
   const row = page.locator('.waveform-row').filter({ has: page.locator('[data-idx="0"]') }).first();
   await expect(row).toBeVisible();
 
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   expect(box).not.toBeNull();
   await page.mouse.click(box.x + box.width * 0.9, box.y + 20, { button: 'right' });
   await page.locator('#ctxmenu .item', { hasText: '创建字幕' }).click();
@@ -108,7 +114,7 @@ test('legacy project: blank waveform context menu disables subtitle creation ove
   await page.evaluate(() => { DATA.schema = 'moy.asr.project.v1'; renderAll({waveform:'full'}); });
   const row = page.locator('.waveform-row').first();
   await expect(row).toBeVisible();
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   expect(box).not.toBeNull();
 
   await page.mouse.click(box.x + box.width * 0.4, box.y + 20, { button: 'right' });
@@ -141,7 +147,7 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
 
   const firstRow = page.locator('.waveform-row[data-row-index="0"]').first();
   await expect(firstRow).toBeVisible();
-  const firstBox = await firstRow.boundingBox();
+  const firstBox = await rowBox(firstRow);
   expect(firstBox).not.toBeNull();
   await page.mouse.click(firstBox.x + firstBox.width * 0.4, firstBox.y + 20, { button: 'right' });
   await expect(page.locator('#ctxmenu .item', { hasText: '添加空隙' })).toBeVisible();
@@ -153,7 +159,7 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
 
   await setGaps([], 'boundary_drag');
   const altRangeRow = page.locator('.waveform-row[data-row-index="0"]').first();
-  const altRangeBox = await altRangeRow.boundingBox();
+  const altRangeBox = await rowBox(altRangeRow);
   expect(altRangeBox).not.toBeNull();
   await page.keyboard.down('Alt');
   await page.mouse.move(altRangeBox.x + altRangeBox.width * 0.82, altRangeBox.y + 20);
@@ -172,7 +178,7 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
   await expect(page.locator('#gap-remove-middle')).toBeChecked();
   await toggleWaveSettings(page);
   const middleRow = page.locator('.waveform-row[data-row-index="0"]').first();
-  const middleBox = await middleRow.boundingBox();
+  const middleBox = await rowBox(middleRow);
   expect(middleBox).not.toBeNull();
   await page.mouse.move(middleBox.x + middleBox.width * 0.2, middleBox.y + 20);
   await page.mouse.down({ button: 'middle' });
@@ -183,7 +189,7 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
 
   await setGaps([], 'boundary_and_middle');
   const crossMiddleRow = page.locator('.waveform-row[data-row-index="0"]').first();
-  const crossMiddleBox = await crossMiddleRow.boundingBox();
+  const crossMiddleBox = await rowBox(crossMiddleRow);
   expect(crossMiddleBox).not.toBeNull();
   const crossMiddleY = crossMiddleBox.y + crossMiddleBox.height * 0.8;
   await page.mouse.move(crossMiddleBox.x + crossMiddleBox.width * 0.98, crossMiddleY);
@@ -210,7 +216,7 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
   await expect(boundaryHandle).toBeVisible();
   const handleBox = await boundaryHandle.boundingBox();
   const boundaryRow = page.locator('.waveform-row[data-row-index="1"]').first();
-  const boundaryRowBox = await boundaryRow.boundingBox();
+  const boundaryRowBox = await rowBox(boundaryRow);
   expect(handleBox).not.toBeNull();
   expect(boundaryRowBox).not.toBeNull();
   await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
@@ -245,7 +251,7 @@ test('gap context menu and modifier drags update the gap timeline', async ({ pag
   );
   const shorteningHandleBox = await shorteningHandle.boundingBox();
   const previousRow = page.locator('.waveform-row[data-row-index="0"]').first();
-  const previousRowBox = await previousRow.boundingBox();
+  const previousRowBox = await rowBox(previousRow);
   expect(shorteningHandleBox).not.toBeNull();
   expect(previousRowBox).not.toBeNull();
   await page.mouse.move(
@@ -417,7 +423,7 @@ test('legacy project: N creates a subtitle at the waveform pointer and focuses t
 
   const row = page.locator('.waveform-row').first();
   await expect(row).toBeVisible();
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   expect(box).not.toBeNull();
   const pointer = { x: box.x + box.width * 0.85, y: box.y + 20 };
   await page.mouse.move(pointer.x, pointer.y);
@@ -438,7 +444,7 @@ test('Ctrl+dragging blank waveform creates the dragged duration and focuses the 
   await page.goto(server.url);
   const row = page.locator('.waveform-row').first();
   await expect(row).toBeVisible();
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   expect(box).not.toBeNull();
   const startX = box.x + box.width * 0.84;
   const endX = box.x + box.width * 0.94;
@@ -481,7 +487,7 @@ test('Ctrl+dragging a too-short range shows a warning toast', async ({ page }) =
   await page.goto(server.url);
   const row = page.locator('.waveform-row').first();
   await expect(row).toBeVisible();
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   expect(box).not.toBeNull();
   const rowStart = Number(await row.getAttribute('data-start-ms'));
   const rowEnd = Number(await row.getAttribute('data-end-ms'));
@@ -532,7 +538,7 @@ test('legacy project: Ctrl+dragging from blank space stops at an existing cue bo
   await page.evaluate(() => { DATA.schema = 'moy.asr.project.v1'; renderAll({waveform:'full'}); });
   const row = page.locator('.waveform-row').first();
   await expect(row).toBeVisible();
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   expect(box).not.toBeNull();
   const anchorX = box.x + box.width * 0.9;
   const crossedX = box.x + box.width * 0.6;
@@ -561,7 +567,7 @@ test('waveform cue context split supports undo and redo', async ({ page }) => {
   const row = page.locator('.waveform-row').filter({ has: page.locator('[data-idx="0"]') }).first();
   await expect(row).toBeVisible();
 
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   expect(box).not.toBeNull();
   await page.mouse.click(box.x + box.width * 0.4, (await page.locator('.waveform-cue-block[data-idx="0"]').first().boundingBox()).y + 8, { button: 'right' });
   const splitItem = page.locator('#ctxmenu .item', { hasText: '按音频位置拆分' });
@@ -1092,7 +1098,7 @@ test('B splits at the pointer audio position while hovering the waveform', async
   await page.goto(server.url);
   await makeFirstCueWordSplittable(page);
   const row = page.locator('.waveform-row').first();
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   // 第一行覆盖 0–5s；40% 处约 2s，落在第一条字幕（0–8s）内部
   await page.mouse.move(box.x + box.width * 0.4, box.y + box.height / 2);
   await page.keyboard.press('b');
@@ -1339,7 +1345,7 @@ test('requires an explicit valid split time instead of forcing a short-side cut'
   });
 
   const row = page.locator('.waveform-row').first();
-  const box = await row.boundingBox();
+  const box = await rowBox(row);
   const rowStart = Number(await row.getAttribute('data-start-ms'));
   const rowEnd = Number(await row.getAttribute('data-end-ms'));
   if (!box || !Number.isFinite(rowStart) || !Number.isFinite(rowEnd)) {
