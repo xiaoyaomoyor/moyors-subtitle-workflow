@@ -1002,6 +1002,13 @@ class LauncherApi:
             status = managed_ocr_runtime_status(runtime_root)
         return status
 
+    def asr_presets(self, payload=None):
+        from maw.asr_presets import request
+        try:
+            return {'ok': True, **request(self.paths.env_path, payload)}
+        except (OSError, ValueError) as error:
+            return {'ok': False, 'message': str(error)}
+
     def get_config(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         config = effective_config(self.paths.env_path)
         visible_providers = tuple(item for item in PROVIDERS if not item.hidden)
@@ -4496,6 +4503,11 @@ def _transcribe_strip_tail_punct(env_path: Path) -> str:
 
 
 def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, validate_media: bool = True, validate_local: bool = True) -> TranscriptionRequest:
+    from maw.asr_presets import resolve_prompts
+    try:
+        payload = resolve_prompts(payload)
+    except ValueError as error:
+        raise PreflightError('asrPrompts', 'context_invalid', str(error)) from error
     media_text = str(payload.get("mediaPath") or "").strip()
     srt_text = str(payload.get("srtPath") or "").strip()
     media = Path(media_text).expanduser()
@@ -4533,6 +4545,8 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         openai_prompt = str(payload.get("openaiPrompt") or "").strip()
         openai_keywords = tuple(dict.fromkeys(word.strip() for word in str(payload.get("openaiKeywords") or "").splitlines() if word.strip()))
         openai_diarize = bool(payload.get("openaiDiarize")) or capabilities(custom_base_url, custom_model)['diarize']
+        if 'asrPrompts' in payload and (openai_diarize or not capabilities(custom_base_url, custom_model)['prompt']):
+            openai_prompt = ''
         try:
             openai_diarize = validate_options(custom_base_url, custom_model, openai_prompt, openai_keywords, openai_diarize)
         except ValueError as error:

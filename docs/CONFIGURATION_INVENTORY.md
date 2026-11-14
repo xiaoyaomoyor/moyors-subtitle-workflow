@@ -28,6 +28,7 @@
 | 工程内容 | 字幕轨道／对应关系、单条外观／动画／位置、空隙、贴片、工程工作区、媒体引用；`JSON_SCHEMA.md` | `.mosp` | 随工程，不进入用户配置 | 工程编辑／保存 |
 | 工程恢复与导航 | 恢复草稿、savedAt、临时平级轨道交接、工程选中项 | 工程恢复库、原项目专属浏览器键／sessionStorage | 否 | 当前工程 |
 | 项目目录与历史 | 最近／全部工程、固定／NEW、媒体索引 | `server-editor-settings.json` 的 recent_projects、launcher registry／recent／media index | 否（本机工作记录） | 即时 |
+| 识别预设与背景 | 命名参数、背景与服务专用覆盖；`maw/asr_presets.py` | 公共库 `asr`；旧独立提示词首次迁移并保留来源 | 是，排除服务／模型选择、凭据、账号资源与本机路径 | 明确加载参数／保存背景；提交时冻结 |
 | 当前任务 | 文件队列、轨道范围、识别／导出参数快照、任务进度／结果 | 工作数据库及任务对象；批处理草稿本地存储 | 否 | 启动任务时固定 |
 | 磁盘版本备份策略 | 开启、间隔、保留份数；`maw/msw/versions.py::DiskVersions.settings` 默认 true／300 秒／20 份 | 公共库 `defaults.recovery`；原环境字段仅首次迁移 | 是，独立分类 | 下一轮备份 |
 | 后处理自动流程 | 文稿／替换规则／OCR／LLM 步骤，含文件依赖；`maw/postprocess_pipeline.py::default_postprocess_plan/normalize_plan` | 公共库 `defaults.postprocess`；专用文件保留文件依赖与验证记录 | 是，排除文件／轨道引用 | 下一次预制；本轮保持专用读写 |

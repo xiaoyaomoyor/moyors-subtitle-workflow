@@ -15,6 +15,7 @@ CATEGORIES = {
     'interface': '界面与编辑操作', 'waveform': '波形与工作区', 'launcher': '启动器',
     'subtitlePresets': '字幕样式预设', 'preview': '预览偏好', 'assStyles': 'ASS 样式库',
     'speakerSchemes': '说话人方案',
+    'asr': '识别预设与背景',
     'processing': '翻译与文本处理', 'tts': '配音设置', 'recovery': '工程备份设置', 'onboarding': '首次使用提示',
 }
 # Keep their schema available to validate existing files and internal backups,
@@ -33,7 +34,7 @@ def paths(category):
         result += [['launcher', key] for key in sorted(ENV_KEYS)]
     if category == 'waveform':
         result += [['server', key] for key in sorted(SERVER_KEYS)]
-    if category in ('subtitlePresets', 'speakerSchemes', 'assStyles'):
+    if category in ('subtitlePresets', 'speakerSchemes', 'assStyles', 'asr'):
         result += [[category]]
     if category in ('processing', 'tts', 'recovery'):
         result += [['defaults', 'postprocess' if category == 'processing' else category]]
@@ -199,6 +200,9 @@ def prepare(before, raw, categories, policy):
                     new = dict(version=1, presets=merge_library(old.get('presets', []), new.get('presets', [])))
                 elif path == ['speakerSchemes'] and old is not MISSING:
                     new = dict(version=1, schemes=merge_library(old.get('schemes', []), new.get('schemes', [])))
+                elif path == ['asr'] and old is not MISSING:
+                    from maw.asr_presets import merge_library as merge_asr
+                    new = {**new, **old, 'presets': merge_asr(old.get('presets', []), new.get('presets', []))}
                 elif path == ['browser', 'moy.asr.editor.customThemes.v1'] and old is not MISSING:
                     new = merge_library(old, new)
                 else:

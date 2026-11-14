@@ -397,6 +397,9 @@ class ProcessingAPI:
             elif route == 'media-tools':
                 with self.lock:
                     result = self.media.tools_settings(payload if post else None)
+            elif route == 'asr-presets':
+                from maw.asr_presets import request as asr_presets_request
+                result = asr_presets_request(self.env_path, payload if post else None)
             elif route == 'asr-settings':
                 from maw.msw import asr_config
                 if post:

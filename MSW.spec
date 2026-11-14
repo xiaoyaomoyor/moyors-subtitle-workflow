@@ -81,6 +81,8 @@ datas = [
     (str(ROOT / "maw" / "config_defaults.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "config_transfer.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "config_transfer.py"), "ocr-runtime/maw"),
+    (str(ROOT / "maw" / "asr_presets.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "asr_presets.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "settings_fields.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "settings_fields.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "user_config.py"), "local-runtime/maw"),

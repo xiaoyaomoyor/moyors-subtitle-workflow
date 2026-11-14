@@ -75,6 +75,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "msw-media-analysis.js",
                 "msw-range-selection.js",
                 "msw-result-view.js",
+                "msw-asr-presets.js",
                 "msw-asr.js",
                 "msw-persistence.js",
                 "msw-processing.js",

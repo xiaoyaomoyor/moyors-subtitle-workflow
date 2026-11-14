@@ -393,7 +393,10 @@ test('call controls adapt to custom OpenAI models and Soniox context without exp
   await page.locator('#msw-asr-openaiModel').fill('compatible-model');
   await page.locator('#msw-asr-providerId').selectOption('soniox');await expect(page.locator('#msw-asr-openaiModel')).toBeHidden();
   await page.locator('#msw-asr-settings > details > summary').click();
-  await expect(page.locator('#msw-asr-sonioxContextText')).toBeVisible();await expect(page.locator('#msw-asr-qwenAudioContext')).toBeHidden();
+  await page.locator('#msw-asr-presets .asr-background > summary').click();
+  await expect(page.locator('#msw-asr-presets [data-role="background"]')).toBeVisible();
+  await expect(page.locator('#msw-asr-presets [data-role="limit"]')).toContainText('Soniox');
+  await expect(page.locator('#msw-asr-qwenAudioContext')).toBeHidden();
   await expect(page.locator('#msw-asr-panel input[type="password"]')).toHaveCount(0);
   await page.screenshot({path:join(root,'asr-soniox-call.png'),fullPage:true});
 });

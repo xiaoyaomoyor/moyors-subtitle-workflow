@@ -45,6 +45,13 @@ class FakeWindow:
 
 @final
 class GuiWebBridgeTests(unittest.TestCase):
+    def test_asr_presets_bridge_uses_shared_store_without_requiring_credentials(self):
+        from maw.asr_presets import request
+        created=self.api.asr_presets({'action':'save','name':'shared','description':'', 'options':{'gapSplit':'500'}})
+        self.assertTrue(created['ok'])
+        self.assertEqual(created['presets'],request(self.env_path)['presets'])
+        self.assertFalse(self.api.asr_presets({'action':'save','name':'invalid','options':{'apiKey':'private'}})['ok'])
+
     def test_deepseek_saved_models_and_custom_connections_override_new_default(self):
         for model in ('deepseek-v4-flash', 'deepseek-v4-pro', 'my-deepseek-model'):
             with self.subTest(model=model):

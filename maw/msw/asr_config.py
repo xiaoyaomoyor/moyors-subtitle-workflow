@@ -15,7 +15,7 @@ FIELDS = {'providerId', 'modelId', 'language', 'region', 'workspaceId', 'openaiM
           'device', 'localModelPath', 'fireredPunc', 'alignmentModel', 'alignmentModelPath',
           'maxLen', 'minLen', 'maxWords', 'minWords', 'gapSplit', 'speakerColors', 'qwenAudioContext',
           'qwenAudioHotwords', 'qwenAudioVocabularyId', 'qwenAudioHotwordWeight', 'qwenKeepDialect',
-          'openaiPrompt', 'openaiKeywords', 'openaiDiarize', 'sonioxContextGeneral', 'sonioxContextText', 'sonioxContextTerms', 'sonioxContextTranslationTerms', 'doubaoHotwords'}
+          'openaiPrompt', 'openaiKeywords', 'openaiDiarize', 'sonioxContextGeneral', 'sonioxContextText', 'sonioxContextTerms', 'sonioxContextTranslationTerms', 'doubaoHotwords', 'asrPrompts'}
 PROVIDERS_BY_ID = {provider.id: provider for provider in PROVIDERS
                    if (provider.kind == 'local' or provider.requires_api_key) and not provider.hidden}
 CONNECTION_FIELDS = {'region', 'workspaceId', 'openaiBaseUrl'}
@@ -45,6 +45,8 @@ def catalog(env_path):
                 'qwenKeepDialect': False}
     defaults.update(device='auto', localModelPath='', fireredPunc='none', alignmentModel='', alignmentModelPath='')
     defaults.update({k: v for k, v in options.items() if k in FIELDS - CONNECTION_FIELDS})
+    from maw.asr_presets import request as preset_catalog
+    defaults['asrPrompts'] = preset_catalog(env_path)['prompts']
     providers = []
     for provider in PROVIDERS_BY_ID.values():
         providers.append({'id': provider.id, 'label': provider.label, 'note': provider.note, 'kind': provider.kind,
@@ -92,7 +94,10 @@ def resolve_settings(env_path, raw, media_path=None, *, validate_runtime=True):
         raise ValueError('ASR 配置无效')
     options = {k: v for k, v in raw.items() if k in FIELDS}
     for key, value in options.items():
-        if key in {'speakerColors', 'openaiDiarize', 'qwenKeepDialect'}:
+        if key == 'asrPrompts':
+            from maw.asr_presets import validate_prompts
+            validate_prompts(value)
+        elif key in {'speakerColors', 'openaiDiarize', 'qwenKeepDialect'}:
             if type(value) is not bool:
                 raise ValueError('ASR 开关选项必须是布尔值')
         elif not isinstance(value, str) or len(value) > 12000 or '\0' in value:
@@ -117,6 +122,9 @@ def resolve_settings(env_path, raw, media_path=None, *, validate_runtime=True):
     merged = {**stored, **options, 'apiKey': key.strip(), 'mediaPath': str(request_path),
               'srtPath': str(request_path.with_suffix('.srt')), 'audioTrack': 0,
               'generateHtml': False, 'generateSpectral': False, 'debugRaw': False, 'qwenAudioHotwordsMode': 'text'}
+    if 'asrPrompts' not in raw:
+        # Existing clients still submit provider-specific context explicitly.
+        merged.pop('asrPrompts', None)
     if provider.id == 'openai':
         url = urlsplit(merged.get('openaiBaseUrl', ''))
         if url.scheme not in {'http', 'https'} or not url.hostname or url.username or url.password or url.query or url.fragment:

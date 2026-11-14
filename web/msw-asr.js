@@ -12,6 +12,16 @@
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
   let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,loading=null;
   let retrying = null, retrySource = null;
+  let presetUi=null;
+  presetUi=global.MSWAsrPresets.create({root:el('presets'),request:payload=>media.request('asr-presets',payload),
+    locked:()=>busy||Boolean(loading),confirm:async text=>global.confirm(text),
+    getOptions:()=>({...Object.fromEntries(fields.map(key=>[key,el(key).value])),speakerColors:el('speakerColors').checked,qwenKeepDialect:el('qwenKeepDialect').checked,openaiDiarize:el('openaiDiarize').checked}),
+    context:()=>{const p=providers.find(p=>p.id===el('providerId').value),m=p?.models.find(m=>m.id===el('modelId').value)||{};
+      return {id:p?.id,model:m,languages:(m.languages||[]).map(x=>x.id),multiLanguage:p?.multiLanguage,caps:openaiOptions(),diarize:el('openaiDiarize').checked};},
+    applyOptions:values=>{for(const [key,value] of Object.entries(values)){const node=el(key);if(node){if(node.type==='checkbox')node.checked=value;else node.value=value;}}updateScope();},
+    onPrompts:value=>{for(const [id,key] of Object.entries({qwen:'qwenAudioContext',openai:'openaiPrompt',soniox:'sonioxContextText'}))el(key).value=global.MSWAsrPresets.promptFor(value,id);}
+  });
+  for(const key of ['qwenAudioContext','openaiPrompt','sonioxContextText'])el(key).closest('label').classList.add('asr-prompt-legacy');
   const retries = new Map();
   function message(value) {el('message').textContent=t(value);}
   function options(node,values,selectedValue='') {
@@ -29,6 +39,7 @@
     const caps=openaiOptions(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&el('openaiDiarize').checked));
     return {...Object.fromEntries(fields.map(key=>[key,connectionFields.includes(key)?savedConnection[key]:el(key).value])),
       speakerColors:el('speakerColors').checked,openaiDiarize:diarize,apiKey:'',qwenKeepDialect:el('qwenKeepDialect').checked,
+      ...(presetUi.ready?{asrPrompts:presetUi.prompts}:{}),
       openaiPrompt:caps?.prompt&&!diarize?el('openaiPrompt').value:'',
       openaiKeywords:caps?.keywords&&!diarize?el('openaiKeywords').value:''};
   }
@@ -89,6 +100,7 @@
       for (const key of fields) if (!['providerId','modelId'].includes(key)&&config.options[key]!==undefined) el(key).value=config.options[key];
       el('qwenKeepDialect').checked=config.options.qwenKeepDialect===true;
       el('speakerColors').checked=config.options.speakerColors===true;selectModel();el('openaiDiarize').checked=config.options.openaiDiarize===true||el('modelId').value==='gpt-4o-transcribe-diarize';
+      await presetUi.load();
     })();
     try {await loading;} catch(error){message(error.message);} finally {loading=null;updateScope();}
   }
@@ -119,6 +131,7 @@
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
     el('save-environment').disabled=!available||busy||Boolean(loading);
     for (const input of document.querySelectorAll('#msw-asr-settings input,#msw-asr-settings select,#msw-asr-settings textarea,#msw-asr-environment-fields input,#msw-asr-environment-fields select')) input.disabled=busy||Boolean(loading);
+    presetUi?.refresh();
     return snapshot;
   }
   function targetTrack() {
@@ -254,7 +267,7 @@
   const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.querySelector('[data-menubar-item="media"] > button'),positionKey:'msw.asr.panel.position'});
   async function open(mode='whole') {
     host.commitEdits();el('mode').value=mode;floating.open();updateScope();
-    if (available) {if (!media.current) await media.refresh();if (!providers.length) await loadSettings();updateScope();schedule(0);}
+    if (available) {if (!media.current) await media.refresh();if (!providers.length) await loadSettings();else if(!loading)await presetUi.load();updateScope();schedule(0);}
   }
   el('open').addEventListener('click',()=>void open());el('close').addEventListener('click',()=>floating.close());
   el('unavailable').hidden=available;el('controls').hidden=!available;

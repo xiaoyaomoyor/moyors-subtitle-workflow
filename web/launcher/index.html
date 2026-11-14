@@ -33,6 +33,7 @@
   </style>
   <link rel="stylesheet" href="launcher.css">
   <link rel="stylesheet" href="../msw-config-manager.css">
+  <link rel="stylesheet" href="../msw-asr-presets.css">
 </head>
 <body>
   <div id="launcherToasts" class="launcher-toasts" aria-live="polite" aria-relevant="additions"></div>
@@ -196,6 +197,7 @@
         </section>
         <section id="recognitionCard" class="card module-card" data-module-card="asr" aria-labelledby="settingsTitle">
           <h2 id="settingsTitle" data-i18n="recognition">识别设置</h2>
+          <div id="launcherAsrPresets"></div>
           <div class="field">
             <label for="queueAsrPolicy" data-i18n="queue_asr_policy">已有字幕的处理</label>
             <select id="queueAsrPolicy"><option value="missing" data-i18n="queue_asr_missing">仅识别没有字幕的任务</option><option value="replace" data-i18n="queue_asr_replace">重新识别并写入新工程</option></select>
@@ -1410,6 +1412,7 @@
 
   <script src="../msw-config.js"></script>
   <script src="../msw-config-manager.js"></script>
+  <script src="../msw-asr-presets.js"></script>
   <script src="navigation.js"></script>
   <script src="launcher.js"></script>
   <script src="project-home.js"></script>

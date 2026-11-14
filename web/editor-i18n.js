@@ -1569,6 +1569,7 @@
     '整个源视频': 'Entire source media',
     '扩展到完整字幕边界': 'Expand to complete subtitle boundaries',
     'ASR 服务配置': 'ASR service settings',
+    '识别预设与背景': 'Recognition presets and background',
     '保存服务配置': 'Save service settings',
     '地域': 'Region',
     '留空自动识别': 'Leave blank to detect automatically',

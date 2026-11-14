@@ -133,9 +133,12 @@ def _safe_json(value, depth=0):
 
 
 def validate(sections):
-    if not isinstance(sections, dict) or set(sections) - {'browser', 'launcher', 'server', 'subtitlePresets', 'speakerSchemes', 'assStyles', 'defaults'}:
+    if not isinstance(sections, dict) or set(sections) - {'browser', 'launcher', 'server', 'subtitlePresets', 'speakerSchemes', 'assStyles', 'defaults', 'asr'}:
         raise ValueError('不支持的配置分类')
     _safe_json(sections)
+    if 'asr' in sections:
+        from maw.asr_presets import validate as validate_asr
+        validate_asr(sections['asr'])
     validate_fields(sections)
     if len(json.dumps(sections, ensure_ascii=False, allow_nan=False).encode()) > LIMIT:
         raise ValueError('配置超过 4 MB')
@@ -321,7 +324,8 @@ class UserConfig:
                         if isinstance(old, dict) and isinstance(new, dict):
                             return {**old, **{k: fill(old.get(k, MISSING), v) for k, v in new.items()}}
                         return old
-                    _put(after['sections'], path, fill(current, value))
+                    _put(after['sections'], path, (copy.deepcopy(value) if current is MISSING else current)
+                         if section == 'asr' else fill(current, value))
                     markers.add(marker)
             after['migrations'] = sorted(markers)
             if after != before:

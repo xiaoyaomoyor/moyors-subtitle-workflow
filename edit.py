@@ -243,7 +243,7 @@ def render_editor_page(**context: str) -> str:
         '__USER_CONFIG_BOOTSTRAP__': config_bootstrap.replace('<', '\\u003c'),
         '__USER_CONFIG_JS__': read_web_asset('msw-config.js'),
         "__EDITOR_BRAND_ICON__": brand_icon,
-        "__EDITOR_CSS__": read_web_asset("editor.css").rstrip() + "\n" + read_web_asset("msw-flat-editor.css").rstrip() + "\n" + read_web_asset('msw-config-manager.css'),
+        "__EDITOR_CSS__": read_web_asset("editor.css").rstrip() + "\n" + read_web_asset("msw-flat-editor.css").rstrip() + "\n" + read_web_asset('msw-config-manager.css') + "\n" + read_web_asset('msw-asr-presets.css'),
         "__WAVEFORM_CSS__": read_web_asset("waveform.css").rstrip(),
         "__EDITOR_SCRIPTS_JS__": build_editor_scripts(),
         "__PALETTE_JSON__": build_palette_json(),
