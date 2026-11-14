@@ -279,7 +279,7 @@ jobs:
         timeout-minutes: 30
         shell: pwsh
         run: |
-          npx playwright test tests/e2e/flat-processing.spec.mjs tests/e2e/flat-production-flow.spec.mjs tests/e2e/editor-processing-ab.spec.mjs tests/e2e/editor-processing-cd.spec.mjs tests/e2e/editor-processing-ef.spec.mjs tests/e2e/editor-tts-services.spec.mjs tests/e2e/editor-tts-cd.spec.mjs tests/e2e/editor-tts-cloud.spec.mjs tests/e2e/editor-tts-workspace.spec.mjs tests/e2e/launcher-home.spec.mjs tests/e2e/launcher-step-models.spec.mjs tests/e2e/launcher-asr-options.spec.mjs --project=chromium --max-failures=3 --output=test-results/upgrade
+          npx playwright test tests/e2e/flat-processing.spec.mjs tests/e2e/flat-production-flow.spec.mjs tests/e2e/editor-processing-ab.spec.mjs tests/e2e/editor-processing-cd.spec.mjs tests/e2e/editor-processing-ef.spec.mjs tests/e2e/editor-tts-services.spec.mjs tests/e2e/editor-tts-cd.spec.mjs tests/e2e/editor-tts-cloud.spec.mjs tests/e2e/editor-tts-workspace.spec.mjs tests/e2e/launcher-home.spec.mjs tests/e2e/launcher-step-models.spec.mjs tests/e2e/launcher-asr-options.spec.mjs tests/e2e/asr-presets.spec.mjs tests/e2e/editor-asr.spec.mjs tests/e2e/config-manager.spec.mjs tests/e2e/launcher-config-output.spec.mjs --project=chromium --max-failures=3 --output=test-results/upgrade
           exit $LASTEXITCODE
 
       - name: Check flat editing, properties and project persistence in Chromium
@@ -287,7 +287,7 @@ jobs:
         timeout-minutes: 45
         shell: pwsh
         run: |
-          npx playwright test tests/e2e/flat-production.spec.mjs tests/e2e/bound-move.spec.mjs tests/e2e/bound-paste.spec.mjs tests/e2e/edit-transactions.spec.mjs tests/e2e/incremental-ui.spec.mjs tests/e2e/save-background-efficiency.spec.mjs tests/e2e/settings-windows.spec.mjs tests/e2e/settings-actions.spec.mjs tests/e2e/settings-final.spec.mjs tests/e2e/speaker-follow.spec.mjs tests/e2e/subtitle-properties.spec.mjs tests/e2e/subtitle-animation.spec.mjs tests/e2e/project-subtitle-style.spec.mjs tests/e2e/fcp7-export.spec.mjs tests/e2e/find-edit-save.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/boundary-feedback.spec.mjs tests/e2e/hover-seek-preview.spec.mjs tests/e2e/upstream-models.spec.mjs tests/e2e/speaker-rows.spec.mjs tests/e2e/find-script.spec.mjs tests/e2e/script-exchange.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/editor
+          npx playwright test tests/e2e/flat-production.spec.mjs tests/e2e/bound-move.spec.mjs tests/e2e/bound-paste.spec.mjs tests/e2e/edit-transactions.spec.mjs tests/e2e/incremental-ui.spec.mjs tests/e2e/save-background-efficiency.spec.mjs tests/e2e/settings-windows.spec.mjs tests/e2e/settings-actions.spec.mjs tests/e2e/settings-final.spec.mjs tests/e2e/speaker-follow.spec.mjs tests/e2e/subtitle-properties.spec.mjs tests/e2e/subtitle-animation.spec.mjs tests/e2e/project-subtitle-style.spec.mjs tests/e2e/fcp7-export.spec.mjs tests/e2e/find-edit-save.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/boundary-feedback.spec.mjs tests/e2e/hover-seek-preview.spec.mjs tests/e2e/upstream-models.spec.mjs tests/e2e/speaker-rows.spec.mjs tests/e2e/find-script.spec.mjs tests/e2e/script-exchange.spec.mjs tests/e2e/find-script-save.spec.mjs tests/e2e/editor-time-range.spec.mjs tests/e2e/keyboard-timing.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/editor
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics

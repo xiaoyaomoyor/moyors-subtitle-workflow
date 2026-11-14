@@ -14,9 +14,9 @@ MSW (Moyor's Subtitle Workflow / 我的字幕流) is a local web workflow for AS
 
 [Project home](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [Documentation](docs/README.md) · [Optional environments](docs/ENVIRONMENT.md)
 
-Version 1.6.0 brings flat subtitle tracks, per-cue and speaker styles, ASS animations, reusable speaker profiles, unified text editing and separate editor/project settings. It also improves large-project editing and preview updates. See the [changelog](CHANGELOG.md#160---2026-11-09).
+Version 1.7.0 adds shared recognition presets and background prompts, video quality, encoding speed and audio bitrate controls, plus waveform coordinate and media-tool path fixes. MSW retains its multitrack editing, script workflow and 800ms default pause threshold. See the [changelog](CHANGELOG.md#170---2026-11-14).
 
-This branch corresponds to MSW **1.6.0** . Download the [stable release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.0). MSW is independently maintained; equal version numbers do not imply identical features or project formats.
+This branch is preparing MSW **1.7.0** . Published installers are listed on the [Releases page](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases). The build pipeline covers Windows x64 and macOS arm64 standard/lite packages, plus Linux x86_64 AppImage. MSW is independently maintained; equal version numbers do not imply identical features or project formats.
 
 ![MSWE with bilingual subtitles, voiceover clips and the asset library](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 

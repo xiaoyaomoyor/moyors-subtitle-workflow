@@ -12,11 +12,11 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
 
-本分支对应 **1.6.1** 正式版，下载请查看 [v1.6.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.1)。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
+本分支正在准备 **1.7.0**，正式安装包以 [Release 页面](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases)为准。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
 
-本次先提供 Windows 标准版、lite 版和 Linux AppImage；macOS 包因 GitHub 构建机器暂时不足，稍后补充。
+发行流程覆盖 Windows x64 标准／lite、macOS arm64 标准／lite 和 Linux x86_64 AppImage，共五种安装包。
 
-本版整合平级字幕轨道、属性与动画、说话人方案、查找并编辑和独立配置管理，并优化长工程响应。见 [本次更新](CHANGELOG.md#160---2026-11-09)。
+1.7.0 增加两端共享的识别预设与背景复用、视频编码质量／速度／音频码率设置，并修复波形坐标及媒体工具路径问题。保留 MSW 多轨、剧本编辑与 800ms 默认停顿切句。见 [本次更新](CHANGELOG.md#170---2026-11-14)。
 
 旧工程打开时在内存迁移，首次保存升级为 v4 并保留原文件备份；升级后的工程请使用新版编辑。移动项目时保留原媒体及音频素材。
 
