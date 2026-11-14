@@ -345,7 +345,7 @@ class VideoRenderTests(unittest.TestCase):
         self.assertEqual(command[command.index('-crf')+1],'23')
         self.assertEqual(command[command.index('-preset')+1],'fast')
         self.assertEqual(command[command.index('-b:a')+1],'128k')
-        self.assertEqual(result.subtitle_path,subtitle)
+        self.assertEqual(result.subtitle_path,subtitle.resolve())
         actual=probe_source(self.tools.ffprobe,result.media_path,self.cancel)
         self.assertEqual(actual['video']['codec'],'h264')
         self.assertAlmostEqual(actual['duration_ms'],4000,delta=100)
