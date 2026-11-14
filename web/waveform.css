@@ -578,6 +578,7 @@
   transform: translateX(-0.5px);
 }
 .waveform-pointer-line[hidden] { display: none; }
+.waveform-pointer-line.boundary-snapped { background: var(--accent); }
 .waveform-split-preview {
   position: absolute;
   z-index: 10;

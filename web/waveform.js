@@ -2036,6 +2036,7 @@
     }
 
     refreshPointerLine() {
+      if (this.isCueBoundaryDrag()) { this.refreshBoundaryDragPointerLine(); return; }
       if (!this.pointerLineEvent || !this.pointerLineRow || !this.pointerLineMarker) return;
       if (!this.pointerLineRow.isConnected) return;
       this.showPointerLine(this.pointerLineEvent, this.pointerLineRow, this.pointerLineMarker);
@@ -2043,6 +2044,7 @@
 
     showPointerLine(event, row, marker) {
       if (!row || !marker) return;
+      if (this.isCueBoundaryDrag()) return;
       // 正在拖动播放头时不再显示灰色指针线（红色播放头本身就是位置指示）。
       if (this.playheadDragActive) { this.hidePointerLine(marker); return; }
       const rect = row.getBoundingClientRect();
@@ -2061,11 +2063,58 @@
       if (marker) marker.hidden = true;
     }
 
+    isCueBoundaryDrag(drag = this.drag) {
+      return Boolean(drag && ['resize-left', 'resize-right', 'resize-boundary', 'resize-boundary-independent'].includes(drag.kind));
+    }
+
+    refreshBoundaryDragPointerLine() {
+      if (!this.isCueBoundaryDrag()) return;
+      const drag = this.drag;
+      const cues = this.options.getSegments(drag.track || 'main') || [];
+      const cue = drag.pointerCueId ? cues.find(cue => cue.id === drag.pointerCueId) : cues[drag.index];
+      this.content.querySelectorAll('.waveform-pointer-line').forEach(marker => {
+        marker.hidden = true; marker.classList.remove('boundary-snapped');
+      });
+      if (!cue) return;
+      const clock = resolveTiming(drag.timing || this.cueTiming());
+      const edge = drag.kind === 'resize-boundary-independent' ? drag.edge : drag.kind === 'resize-left' ? 'start' : 'end';
+      const timeMs = clock.toMs(edge === 'start' ? clock.getStart(cue) : clock.getEnd(cue));
+      // Read the effective cue edge after clamping, snapping and bound-cue sync.
+      // Keep MSW's existing cross-row pointer mapping entirely independent.
+      const contains = row => row?.isConnected && timeMs >= Number(row.dataset.startMs) && timeMs <= Number(row.dataset.endMs);
+      const preferred = drag.pointerRow || drag.row;
+      const row = contains(preferred) ? preferred : [...this.content.querySelectorAll('.waveform-row')].find(contains);
+      const marker = row?.querySelector('.waveform-pointer-line');
+      if (!marker) return;
+      marker.style.left = `${clamp((timeMs - Number(row.dataset.startMs)) / Math.max(1, Number(row.dataset.endMs) - Number(row.dataset.startMs)), 0, 1) * 100}%`;
+      marker.classList.add('boundary-snapped'); marker.hidden = false;
+    }
+
+    restorePointerLineAfterBoundaryDrag(drag, event = {}) {
+      if (!this.isCueBoundaryDrag(drag)) return;
+      this.content.querySelectorAll('.waveform-pointer-line').forEach(marker => {
+        marker.hidden = true; marker.classList.remove('boundary-snapped');
+      });
+      this.pointerLineEvent = this.pointerLineRow = this.pointerLineMarker = null;
+      const clientX = Number.isFinite(event.clientX) ? event.clientX : drag.currentClientX;
+      const clientY = Number.isFinite(event.clientY) ? event.clientY : drag.currentClientY;
+      const viewport = this.scroll.getBoundingClientRect();
+      if (clientX < viewport.left || clientX > viewport.right || clientY < viewport.top || clientY > viewport.bottom) return;
+      const row = [...this.content.querySelectorAll('.waveform-row')].find(row => {
+        const rect = row.getBoundingClientRect();
+        return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+      });
+      if (!row) return;
+      this.pointerLineEvent = {clientX, clientY}; this.pointerLineRow = row;
+      this.pointerLineMarker = row.querySelector('.waveform-pointer-line');
+      this.refreshPointerLine();
+    }
+
     // 暂停时指针在波形上移动即把画面预览到指针时间。与拖动播放头一样按
     // 最新事件合并到每帧最多一次；真正 seek 前重新检查开关与播放状态，
     // 避免调度之后状态已变化（开始播放、关闭开关、行被虚拟化重建）仍执行。
     scheduleHoverSeekPreview(event, row) {
-      if (this.playheadDragActive || this.options.getHoverSeekPreview?.() !== true) return;
+      if (this.drag || this.playheadDragActive || this.options.getHoverSeekPreview?.() !== true) return;
       this.hoverSeekPreviewLastEvent = event;
       this.hoverSeekPreviewRow = row;
       if (this.hoverSeekPreviewFrame) return;
@@ -2088,6 +2137,7 @@
       this.hoverSeekPreviewLastEvent = null;
       this.hoverSeekPreviewRow = null;
       if (!event || !row) return;
+      if (this.drag || this.playheadDragActive) return;
       if (this.options.getHoverSeekPreview?.() !== true) return;
       if (!this.player || !this.mediaAvailable) return;
       if (!this.player.paused) return;
@@ -4355,6 +4405,7 @@
       this.cueRefreshFrame = requestAnimationFrame(() => {
         this.cueRefreshFrame = 0;
         this.refreshCueBlocks();
+        this.refreshBoundaryDragPointerLine();
       });
     }
 
@@ -4829,6 +4880,7 @@
         this.scheduleHoverSeekPreview(event, row);
       });
       row.addEventListener('pointerleave', () => {
+        if (this.isCueBoundaryDrag()) { this.cancelHoverSeekPreview(); return; }
         if (!this.drag) this.clearCueEdgeHover();
         this.hidePointerLine(pointerLine);
         if (this.pointerLineMarker === pointerLine) {
@@ -6418,6 +6470,9 @@
         ),
         seekedOnPointerDown: false,
       };
+      this.drag.pointerCueId = this.options.getSegments(track)[this.drag.index]?.id;
+      this.cancelHoverSeekPreview();
+      this.refreshBoundaryDragPointerLine();
       event.currentTarget.classList.add('dragging');
       this.pane.classList.add('cue-drag-active');
       this.paintCueEdgeHover();
@@ -6539,6 +6594,9 @@
         changed: false,
         independent: true,
       };
+      this.drag.pointerCueId = segments[movedIndex]?.id;
+      this.cancelHoverSeekPreview();
+      this.refreshBoundaryDragPointerLine();
       event.currentTarget.classList.add('dragging');
       this.pane.classList.add('cue-drag-active');
       try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch (_) {}
@@ -6978,6 +7036,7 @@
       this.options.onCancelCueDrag?.(drag);
       this.refreshCueOverlay();
       this.refreshMediaReadout();
+      this.restorePointerLineAfterBoundaryDrag(drag);
       return true;
     }
 
@@ -7772,6 +7831,7 @@
       this.drag = null;
       this.clearCueDragDestination();
       this.clearCueEdgeHover();
+      this.restorePointerLineAfterBoundaryDrag(drag, event);
       if (event.type === 'pointercancel' || drag.destinationPreview?.blocked) {
         drag.cancelOriginals.forEach((original, idx) => {
           const segment = this.options.getSegments(drag.track || 'main')[idx];

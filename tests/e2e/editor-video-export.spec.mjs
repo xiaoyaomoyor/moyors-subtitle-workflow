@@ -36,6 +36,8 @@ test.afterEach(async () => {await server?.stop(); server = null;});
 async function open(page) {
   await clickMenubarItem(page, '文件', 'video-export-btn');
   await expect(page.locator('#video-export-panel')).toBeVisible();
+  // The first hardware encoder probe can outlive the default assertion timeout.
+  await expect(page.locator('#video-export-summary')).not.toHaveText(/正在读取导出信息|Loading export information/, {timeout: 30000});
 }
 async function finish(page) {
   const projectName = await page.evaluate(()=>PROJECT_NAME);

@@ -1639,7 +1639,7 @@
         perVideoSubfolder: saved.perVideoSubfolder,
         attachModelName: saved.attachModelName,
         notifyOnComplete: saved.notifyOnComplete === true,
-        appVersion: "1.6.0",
+        appVersion: "1.6.1",
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [
           { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com", model: "deepseek-flash", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: true },
@@ -2146,11 +2146,15 @@
   }
   function providerNoteText(providerItem) { return state.lang === "en" ? (PROVIDER_NOTES_EN[providerItem.id] || providerItem.note) : providerItem.note; }
   function modelNoteText(modelItem) {
-    const note = state.lang === "en" ? (MODEL_NOTES_EN[modelItem.id] || modelItem.note) : modelItem.note;
-    if (!modelItem.billing) return note;
+    return state.lang === "en" ? (MODEL_NOTES_EN[modelItem.id] || modelItem.note) : modelItem.note;
+  }
+  function renderModelInfo(modelItem = selectedModel()) {
+    $("modelNote").textContent = modelNoteText(modelItem);
+    const hint = $("modelBillingNote");
+    hint.hidden = !modelItem.billing;
+    if (!modelItem.billing) { hint.textContent = ""; return; }
     const price = modelItem.billing.prices?.[state.config.region || "beijing"];
-    const billing = price ? t("qwen_audio_billing").replace("{input}", price.input).replace("{output}", price.output) : t("qwen_audio_billing_unknown");
-    return `${note} · ${billing}`;
+    hint.textContent = price ? t("qwen_audio_billing").replace("{input}", price.input).replace("{output}", price.output) : t("qwen_audio_billing_unknown");
   }
   function llmProviderLabel(providerId) {
     const id = String(providerId || "").trim();
@@ -2572,7 +2576,7 @@
     if (el.multiple) Array.from(el.options).forEach((option) => { option.selected = selected.includes(option.value); });
     else el.value = selected[0] || "";
     $("providerNote").textContent = providerNoteText(current);
-    $("modelNote").textContent = modelNoteText(selectedModel());
+    renderModelInfo();
   }
   function setError(field, message) { const input = $(field); const hint = $(`${field}Error`); if (input) input.classList.toggle("invalid", Boolean(message)); if (hint) { renderMessage(hint, message); hint.classList.toggle("visible", Boolean(message)); } }
   function setOutputNotice(message) { const notice = $("srtPathNotice"); if (!notice) return; renderMessage(notice, message); notice.classList.toggle("hidden", !message); }
@@ -2697,7 +2701,7 @@
       item.hasApiKey = result.hasApiKey; item.maskedApiKey = result.maskedApiKey;
       if (payload.apiKey) item.apiKey = payload.apiKey;
       if (item.id === 'openai') state.config.openaiBaseUrl = payload.openaiBaseUrl || 'https://api.openai.com/v1';
-      if (item.id === 'qwen') { state.config.region = payload.region; state.config.workspaceId = payload.workspaceId; $('modelNote').textContent = modelNoteText(selectedModel()); }
+      if (item.id === 'qwen') { state.config.region = payload.region; state.config.workspaceId = payload.workspaceId; renderModelInfo(); }
       if ($('asrConnectionProvider').value === item.id) { $('apiKey').value = ''; renderKeyStatus(); $('asrConnectionStatus').textContent = t('saved'); }
     } finally { $('saveAsrConnection').disabled = false; }
   });
@@ -3014,7 +3018,7 @@
     return caps;
   }
   function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const openai = current.id === "openai"; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); const local = isLocalProvider(); $("modelField").classList.remove("hidden"); $("customAsrFields").classList.toggle("hidden", !openai); $("localRuntimePanel").classList.toggle("hidden", !local); $("localModelPanel").classList.toggle("hidden", !local); $("localRuntimeCheckField").classList.toggle("hidden", !local); $("localDeviceField").classList.toggle("hidden", !local); if (!$("asrConnectionProvider").options.length) renderAsrConnection(current.id); $("providerNote").textContent = providerNoteText(current); $("providerNote").classList.toggle("hidden", !current.note); applySelectedModel(persistReset); renderKeyStatus(); syncAdvancedParamsGroup(); if (local) { renderLocalRuntime(); void refreshLocalRuntime(); if (!state.initializing) void refreshLocalModels(); } }
-  function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); syncOpenAiFields(); syncLocalModelPath(model); $("modelNote").textContent = modelNoteText(model); applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncQwenAudioOptions(model); syncSonioxContextOptions(model); syncOpenaiCapabilities(true); $("doubaoOptions").classList.toggle("hidden", current.id !== "doubao"); renderLocalModelStatus(); if (!state.initializing) void syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
+  function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); syncOpenAiFields(); syncLocalModelPath(model); renderModelInfo(model); applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncQwenAudioOptions(model); syncSonioxContextOptions(model); syncOpenaiCapabilities(true); $("doubaoOptions").classList.toggle("hidden", current.id !== "doubao"); renderLocalModelStatus(); if (!state.initializing) void syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
   function applyProviderLanguages(current, model, persistReset = false) { const el = $("language"); $("languageGroup").classList.toggle("hidden", current.supportsLanguage === false); const previous = el.multiple ? Array.from(el.selectedOptions).map((o) => o.value) : (el.value ? [el.value] : []); const remembered = state.config.lastLanguage; const wanted = previous.length && persistReset ? previous : (remembered !== null && remembered !== undefined ? (remembered ? remembered.split(",") : []) : [state.config.language].filter(Boolean)); el.multiple = Boolean(current.multiLanguage); $("advancedOptionsGrid").classList.toggle("single-language", !current.multiLanguage); if (current.multiLanguage) el.size = 6; else el.removeAttribute("size"); const showRare = Boolean(state.config.showRareLangs); const commons = current.commonLanguages || []; const available = model.languages?.length ? model.languages : current.languages; const visible = !showRare && commons.length ? available.filter((item) => commons.includes(item.id)) : available; fillSelect("language", visible, ""); const codes = new Set(visible.map((item) => item.id)); const restored = wanted.filter((code) => code && codes.has(code)); if (current.multiLanguage) { Array.from(el.options).forEach((o) => { o.selected = restored.includes(o.value); }); } else { el.value = restored[0] || ""; } $("languageHint").classList.toggle("hidden", !current.multiLanguage); $("languageFilterHint").classList.toggle("hidden", showRare || commons.length === 0); $("languageReset").classList.toggle("hidden", !current.multiLanguage); }
   function languageValue() { const el = $("language"); if (el.multiple) return Array.from(el.selectedOptions).map((o) => o.value).filter(Boolean).join(","); return el.value; }
   function syncWorkspace() { $("workspaceField").classList.toggle("hidden", asrConnectionProvider().id !== "qwen"); }

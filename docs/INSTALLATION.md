@@ -1,14 +1,14 @@
 # 安装与升级
 
-从 [MSW v1.6.0 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.0) 下载对应系统的安装包。
+从 [MSW v1.6.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.6.1) 下载对应系统的安装包。
 
 | 文件 | 系统 | 内置 FFmpeg |
 | --- | --- | --- |
-| `MSW-Windows-x64-v1.6.0.zip` | Windows x64 | 是 |
-| `MSW-lite-Windows-x64-v1.6.0.zip` | Windows x64 | 否 |
-| `MSW-Linux-x86_64-v1.6.0.AppImage` | Linux x86_64 | 是 |
-
-macOS Apple Silicon 标准／lite 包稍后补充：GitHub 构建机器暂时不足，本轮先提供已经验证的 Windows 与 Linux 包。
+| `MSW-Windows-x64-v1.6.1.zip` | Windows x64 | 是 |
+| `MSW-lite-Windows-x64-v1.6.1.zip` | Windows x64 | 否 |
+| `MSW-macOS-arm64-v1.6.1.zip` | macOS Apple Silicon | 是 |
+| `MSW-lite-macOS-arm64-v1.6.1.zip` | macOS Apple Silicon | 否 |
+| `MSW-Linux-x86_64-v1.6.1.AppImage` | Linux x86_64 | 是 |
 
 GitHub 另提供 **Source code (zip)** 和 **Source code (tar.gz)**，包含标签对应的源码，不是可直接启动的应用包。macOS Intel、Windows ARM64、Linux ARM64 暂无本轮官方构建产物。
 
@@ -16,7 +16,7 @@ GitHub 另提供 **Source code (zip)** 和 **Source code (tar.gz)**，包含标�
 
 - Windows：完整解压 ZIP，进入目录运行 `MSW.exe`。不要从压缩软件中直接运行，也不要只复制 EXE；`_internal` 与旁边的资源目录必须保留。下载标记造成 DLL 加载失败时见[FAQ](FAQ.md)。
 - macOS：解压后打开 `MSW.app` 或 `MSW-lite.app`。当前流程进行 ad-hoc 签名，不包含 Apple 公证；只在确认下载来源后按系统提示允许打开，不建议关闭系统整体安全保护。
-- Linux：对下载的 AppImage 执行 `chmod +x MSW-Linux-x86_64-v1.6.0.AppImage`，再运行它。目标为 x86_64 图形桌面，构建基于 Ubuntu 22.04；若系统不支持 FUSE，可尝试 `./MSW-Linux-x86_64-v1.6.0.AppImage --appimage-extract-and-run`。
+- Linux：对下载的 AppImage 执行 `chmod +x MSW-Linux-x86_64-v1.6.1.AppImage`，再运行它。目标为 x86_64 图形桌面，构建基于 Ubuntu 22.04；若系统不支持 FUSE，可尝试 `./MSW-Linux-x86_64-v1.6.1.AppImage --appimage-extract-and-run`。
 
 标准版包含媒体处理用的 `ffmpeg` / `ffprobe`；lite 需要配置现有 FFmpeg。两者都不自带云端额度或 API Key，也不捆绑大型 ASR / TTS 模型。普通用户无需安装开发用的 Python、Node、Rust 或 npm。
 
@@ -31,7 +31,7 @@ GitHub 另提供 **Source code (zip)** 和 **Source code (tar.gz)**，包含标�
 3. 打开媒体或字幕，编辑、翻译、配音；生成音频进入素材库，可拖入波形显示器。
 4. 保存为 `.mosp` 工程，再按需导出字幕、音频、视频或剪辑工程。完整功能与依赖见[环境清单](ENVIRONMENT.md)。
 
-## 1.6.0 工程与配置
+## 1.6.x 工程与配置
 
 字幕使用 v4 平级轨道模型，兼容读取旧工程；首次保存升级时备份旧文件，升级后的工程需用新版继续编辑。波形缓存位于媒体的 `_msw` 目录，有效 `.quapeaks` 优先，缺失可重建。
 

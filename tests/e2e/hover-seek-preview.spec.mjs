@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test';
 import { join } from 'node:path';
 import { DURATION_MS, cleanupTempDir, disableOnboarding, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, toggleMediaSettings } from './helpers.mjs';
 
-const EDITOR_SETTINGS_KEY = 'moy.asr.editor.settings.v1';
 // 默认 secondsPerRow=10：第一行波形覆盖 0–10s，行内水平比例即时间比例。
 const FIRST_ROW_DURATION_SEC = 10;
 
@@ -11,6 +10,8 @@ let server;
 
 test.beforeAll(async () => {
   tempDir = makeTempDir('hover-seek-preview');
+  process.env.MAW_ENV_FILE = join(tempDir, 'isolated.env');
+  process.env.MSW_APP_DATA_ROOT = join(tempDir, 'app-data');
   const mediaPath = join(tempDir, 'synthetic.wav');
   const projectPath = join(tempDir, 'project.json');
   generateWav(mediaPath, DURATION_MS / 1000);
@@ -54,7 +55,7 @@ test('hover seek preview defaults off and hovering the waveform does not seek', 
   // Given: no persisted preference; the player 媒体设置 panel exposes the toggle unchecked.
   await openEditorWithMedia(page);
   await toggleMediaSettings(page);
-  const toggle = page.getByRole('checkbox', { name: '自动预览鼠标位置画面' });
+  const toggle = page.getByRole('checkbox', { name: '悬停预览画面' });
   await expect(toggle).toBeVisible();
   await expect(toggle).not.toBeChecked();
   await toggleMediaSettings(page);
@@ -73,11 +74,11 @@ test('hover seek preview defaults off and hovering the waveform does not seek', 
 });
 
 test('hover seek preview seeks paused media to the pointer time', async ({ page }) => {
-  // Given: the preference is enabled before the editor reads storage.
-  await page.addInitScript((settingsKey) => {
-    localStorage.setItem(settingsKey, JSON.stringify({ hoverSeekPreview: true }));
-  }, EDITOR_SETTINGS_KEY);
+  // Given: enable the preference through the current settings UI.
   await openEditorWithMedia(page);
+  await toggleMediaSettings(page);
+  await page.getByRole('checkbox', { name: '悬停预览画面' }).check();
+  await toggleMediaSettings(page);
 
   // When: the pointer moves to the middle of the first waveform row.
   const targetSec = await hoverFirstWaveformRow(page, 0.5);
@@ -92,10 +93,10 @@ test('hover seek preview seeks paused media to the pointer time', async ({ page 
 
 test('hover seek preview does not seek while media is playing', async ({ page }) => {
   // Given: the preference is enabled and playback is running.
-  await page.addInitScript((settingsKey) => {
-    localStorage.setItem(settingsKey, JSON.stringify({ hoverSeekPreview: true }));
-  }, EDITOR_SETTINGS_KEY);
   await openEditorWithMedia(page);
+  await toggleMediaSettings(page);
+  await page.getByRole('checkbox', { name: '悬停预览画面' }).check();
+  await toggleMediaSettings(page);
   await page.locator('#media-play-toggle').click();
   await page.waitForFunction(() => !document.getElementById('player').paused);
 

@@ -287,7 +287,7 @@ jobs:
         timeout-minutes: 45
         shell: pwsh
         run: |
-          npx playwright test tests/e2e/flat-production.spec.mjs tests/e2e/bound-move.spec.mjs tests/e2e/bound-paste.spec.mjs tests/e2e/edit-transactions.spec.mjs tests/e2e/incremental-ui.spec.mjs tests/e2e/save-background-efficiency.spec.mjs tests/e2e/settings-windows.spec.mjs tests/e2e/settings-actions.spec.mjs tests/e2e/settings-final.spec.mjs tests/e2e/speaker-follow.spec.mjs tests/e2e/subtitle-properties.spec.mjs tests/e2e/subtitle-animation.spec.mjs tests/e2e/project-subtitle-style.spec.mjs tests/e2e/fcp7-export.spec.mjs tests/e2e/find-edit-save.spec.mjs tests/e2e/waveform-history.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/editor
+          npx playwright test tests/e2e/flat-production.spec.mjs tests/e2e/bound-move.spec.mjs tests/e2e/bound-paste.spec.mjs tests/e2e/edit-transactions.spec.mjs tests/e2e/incremental-ui.spec.mjs tests/e2e/save-background-efficiency.spec.mjs tests/e2e/settings-windows.spec.mjs tests/e2e/settings-actions.spec.mjs tests/e2e/settings-final.spec.mjs tests/e2e/speaker-follow.spec.mjs tests/e2e/subtitle-properties.spec.mjs tests/e2e/subtitle-animation.spec.mjs tests/e2e/project-subtitle-style.spec.mjs tests/e2e/fcp7-export.spec.mjs tests/e2e/find-edit-save.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/boundary-feedback.spec.mjs tests/e2e/hover-seek-preview.spec.mjs tests/e2e/upstream-models.spec.mjs tests/e2e/speaker-rows.spec.mjs tests/e2e/find-script.spec.mjs tests/e2e/script-exchange.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/editor
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics
