@@ -3841,8 +3841,8 @@ test('serializes the shared plan as deterministic FCP 7 XML and mapped SRT', () 
   assert.equal((xml.match(/<clipitem\b/g) || []).length, 7);
   assert.equal((xml.match(/<generatoritem\b/g) || []).length, 0);
   assert.equal(xmlElements(xml, 'track').length, 3);
-  assert.ok(xml.includes('<duration>149</duration>'));
-  assert.ok(xml.includes('<in>47</in><out>120</out>'));
+  assert.ok(xml.includes('<duration>147</duration>'));
+  assert.ok(xml.includes('<in>47</in><out>119</out>'));
   assert.ok(xml.includes('file://localhost/C:/fixtures/%E6%B5%8B%E8%AF%95%20%26%20take.mp4'));
   assert.ok(xml.includes('file:///icons/%E6%B5%8B%E8%AF%95%20%26%20icon.png'));
   assert.deepEqual(parseSrt(srt).map(({ start, end }) => [start, end]), [
@@ -3852,6 +3852,86 @@ test('serializes the shared plan as deterministic FCP 7 XML and mapped SRT', () 
   ]);
   assert.equal(helpers.serializeFcp7Xml(plan, { nativeTextObjects: false }), xml);
   assert.equal(helpers.serializeMappedSrt(plan), srt);
+});
+
+test('FCP7 gap removal aligns media, bilingual cues and stickers without cumulative frame drift', () => {
+  for (const [fps, numerator, denominator] of [[30, 30, 1], ['30000/1001', 30000, 1001], [60, 60, 1]]) {
+    const project = {
+      media: { path: 'fixture.mp4', type: 'video', durationMs: 20000 },
+      gaps: [{ start: 1001, end: 1633, removed: true }, { start: 5007, end: 5999, removed: true }],
+      segments: [
+        { id: 'a', start: 500, end: 1000, text: 'first' },
+        { id: 'b', start: 1633, end: 2100, text: 'boundary' },
+        { id: 'c', start: 5999, end: 6500, text: 'second boundary', sticker: {
+          name: 'marker', rel: 'marker.png', start: 5999, end: 6500,
+        } },
+      ],
+      multi_subtitle: { enabled: true, tracks: [{ segments: [{ start: 5999, end: 6500, text: '译文' }] }] },
+      overlay_track: { enabled: true, segments: [{ start: 5999, end: 6500, text: '旁白' }] },
+    };
+    const snapshot = JSON.stringify(project);
+    const plan = helpers.buildProjectExportPlan(project, { fps });
+    const xml = helpers.serializeFcp7Xml(plan, { nativeTextObjects: true, subtitleTracks: 'all' });
+    const clips = new Map(xmlElements(xml, 'clipitem').map(clip => [
+      /id="([^"]+)"/.exec(clip)[1],
+      Object.fromEntries(['start', 'end', 'in', 'out', 'duration'].map(key =>
+        [key, Number(new RegExp(`<${key}>(\\d+)</${key}>`).exec(clip)[1])])),
+    ]));
+    const frame = ms => Math.floor(ms * numerator / (1000 * denominator));
+    const expected = [0, frame(1001), frame(4375), Math.ceil(18376 * numerator / (1000 * denominator))];
+    for (const kind of ['video', 'audio']) {
+      for (let i = 0; i < 3; i++) {
+        const clip = clips.get(`${kind}-clip-${i + 1}`);
+        assert.deepEqual([clip.start, clip.end], expected.slice(i, i + 2), `${fps}: ${kind} ${i}`);
+        assert.equal(clip.out - clip.in, clip.end - clip.start);
+        assert.equal(clip.duration, clip.end - clip.start);
+      }
+    }
+    assert.equal(clips.get('text-main-2').start, expected[1]);
+    for (const id of ['text-main-3', 'text-extension-1', 'text-overlay-1', 'sticker-clip-1']) {
+      assert.ok(clips.has(id), `${fps}: missing ${id}`);
+      assert.equal(clips.get(id).start, expected[2], `${fps}: ${id}`);
+    }
+    assert.equal(Number(/<sequence[^>]*><name>[^<]*<\/name><duration>(\d+)<\/duration>/.exec(xml)[1]), expected[3]);
+    assert.equal(JSON.stringify(project), snapshot);
+  }
+});
+
+test('FCP7 long gap-removed timelines do not accumulate rounding across hundreds of cuts', () => {
+  const gaps = Array.from({ length: 300 }, (_, i) => ({ start: i * 20013 + 1001, end: i * 20013 + 1633, removed: true }));
+  const durationMs = 7200001;
+  for (const fps of ['30000/1001', 30, 60]) {
+    const plan = helpers.buildProjectExportPlan({
+      media: { path: 'long.mp4', type: 'video', durationMs }, gaps, segments: [],
+    }, { fps });
+    const xml = helpers.serializeFcp7Xml(plan);
+    const clips = xmlElements(xml, 'clipitem').filter(clip => clip.startsWith('<clipitem id="video-clip-'));
+    const ends = clips.map(clip => Number(/<end>(\d+)<\/end>/.exec(clip)[1]));
+    assert.equal(clips.length, 301);
+    clips.forEach((clip, index) => assert.equal(Number(/<start>(\d+)<\/start>/.exec(clip)[1]), index ? ends[index - 1] : 0));
+    const rate = fps === '30000/1001' ? 30000 / 1001 : fps;
+    assert.equal(ends.at(-1), Math.ceil((durationMs - 300 * 632) * rate / 1000));
+  }
+});
+
+test('FCP7 skips subframe media intervals without overlapping clips or losing file definitions', () => {
+  for (const type of ['video', 'audio']) {
+    const plan = helpers.buildProjectExportPlan({
+      media: { path: 'short.mp4', type, durationMs: 1000 },
+      gaps: [{ start: 1, end: 100, removed: true }, { start: 101, end: 200, removed: true }], segments: [],
+    }, { fps: 30 });
+    const xml = helpers.serializeFcp7Xml(plan);
+    for (const track of xmlElements(xml, 'track')) {
+      const clips = xmlElements(track, 'clipitem');
+      assert.equal(clips.length, 1);
+      assert.match(clips[0], /<start>0<\/start><end>25<\/end>/);
+      assert.match(clips[0], /<file id="[^"]+"><name>/);
+      const sourceIn = Number(/<in>(\d+)<\/in>/.exec(clips[0])[1]);
+      const sourceOut = Number(/<out>(\d+)<\/out>/.exec(clips[0])[1]);
+      assert.equal(sourceOut - sourceIn, 25);
+      assert.ok(sourceOut <= 30, 'ceil of the output duration must not read past the source EOF');
+    }
+  }
 });
 
 test('resolves sticker media from sticker_root and emits one clip per subtitle occurrence', () => {

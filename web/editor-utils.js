@@ -5851,8 +5851,8 @@
     return `<filter>${effect}</filter>`;
   }
 
-  function fcpClipItem({ id, fileId, name, path, width, height, sourceStartMs, sourceEndMs, startMs, endMs, startFrame, endFrame, plan, mediaKind, track, link, defineFile = true, encodeDriveColon = false }) {
-    const source = fcpTimeRange(sourceStartMs, sourceEndMs, plan);
+  function fcpClipItem({ id, fileId, name, path, width, height, sourceStartMs, sourceEndMs, sourceStartFrame = null, startMs, endMs, startFrame, endFrame, plan, mediaKind, track, link, defineFile = true, encodeDriveColon = false }) {
+    const sourceRange = fcpTimeRange(sourceStartMs, sourceEndMs, plan);
     const timeline = fcpTimeRange(startMs, endMs, plan);
     const url = escapeExportXml(exportPathToFileUrl(path, { encodeDriveColon }));
     const isSticker = mediaKind === 'sticker';
@@ -5868,7 +5868,14 @@
       ? `<file id="${escapeExportXml(fileId)}"><name>${escapeExportXml(fileBasename(path))}</name><pathurl>${url}</pathurl><duration>${sourceDuration}</duration>${fcpRate(plan.frameProfile)}${isSticker ? `<timecode><rate>${fcpRate(plan.frameProfile).replace('<rate>', '').replace('</rate>', '')}</rate><string>00:00:00:00</string><frame>0</frame><displayformat>NDF</displayformat></timecode>` : ''}${fileMedia}</file>`
       : `<file id="${escapeExportXml(fileId)}"/>`;
     const frameStart = startFrame ?? timeline.start;
-    const frameEnd = Math.max(frameStart + 1, endFrame ?? frameStart + source.duration);
+    const frameEnd = Math.max(frameStart + 1, endFrame ?? frameStart + sourceRange.duration);
+    // 媒体片段按时间轴帧长确定源 out，保证 1:1 播放，不再两端独立取整。
+    // 尾段因总长 ceil 可能多占一帧，此时前移源 in，避免 out 超出源文件。
+    const sourceIn = sourceStartFrame == null ? null
+      : Math.min(sourceStartFrame, Math.max(0, sourceDuration - (frameEnd - frameStart)));
+    const source = sourceStartFrame != null
+      ? { start: sourceIn, end: sourceIn + frameEnd - frameStart }
+      : sourceRange;
     const stickerClipMetadata = isSticker
       ? `<enabled>TRUE</enabled><alphatype>${/\.(?:gif|png|webp)$/iu.test(path) ? 'straight' : 'none'}</alphatype><pixelaspectratio>square</pixelaspectratio><anamorphic>FALSE</anamorphic>`
       : '';
@@ -5896,30 +5903,30 @@
       ? exportPlan.media.height : 1080;
     const videoFormat = `<format><samplecharacteristics>${fcpRate(exportPlan.frameProfile)}<width>${sequenceWidth}</width><height>${sequenceHeight}</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance><colordepth>24</colordepth></samplecharacteristics></format>`;
     const audioFormat = '<format><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics></format>';
-    let cursor = 0;
-    const sourceTracks = [];
     const intervals = Array.isArray(exportPlan.keptIntervals) ? exportPlan.keptIntervals : [];
-    const boundaries = [0];
-    intervals.forEach((interval) => boundaries.push(boundaries[boundaries.length - 1]
-      + fcpTimeRange(interval.start, interval.end, exportPlan).duration));
+    // 先累计精确毫秒，再对每个输出边界取整；逐段取整帧长会随剪点数量累计误差。
+    const msBoundaries = [0];
+    intervals.forEach(interval => msBoundaries.push(msBoundaries.at(-1) + interval.end - interval.start));
+    const boundaries = msBoundaries.map((ms, index) => exportPlanFrame(exportPlan, ms,
+      index === msBoundaries.length - 1 ? 'ceil' : 'floor'));
     const duration = boundaries[boundaries.length - 1];
-    intervals.forEach((interval, index) => {
-      const range = fcpTimeRange(interval.start, interval.end, exportPlan);
-      const startMs = cursor * 1000 * exportPlan.frameProfile.denominator / exportPlan.frameProfile.numerator;
-      const endMs = (cursor + range.duration) * 1000 * exportPlan.frameProfile.denominator / exportPlan.frameProfile.numerator;
-      sourceTracks.push(fcpClipItem({
-        id: `video-clip-${index + 1}`, fileId: 'file-source-video-1', name: `${fileBasename(exportPlan.media.path)} [${index + 1}]`,
-        path: exportPlan.media.path, sourceStartMs: interval.start, sourceEndMs: interval.end,
-        startMs, endMs, startFrame: boundaries[index], endFrame: boundaries[index + 1], plan: exportPlan, mediaKind: mediaType, track: 'source', defineFile: index === 0,
-      }));
-      cursor += range.duration;
-    });
-    const audioTracks = hasVideo ? intervals.map((interval, index) => {
-      const range = fcpTimeRange(interval.start, interval.end, exportPlan);
-      const startMs = (intervals.slice(0, index).reduce((sum, prior) => sum + fcpTimeRange(prior.start, prior.end, exportPlan).duration, 0)) * 1000 * exportPlan.frameProfile.denominator / exportPlan.frameProfile.numerator;
-      const endMs = startMs + range.duration * 1000 * exportPlan.frameProfile.denominator / exportPlan.frameProfile.numerator;
-      return fcpClipItem({ id: `audio-clip-${index + 1}`, fileId: 'file-source-audio', name: `${fileBasename(exportPlan.media.path)} audio [${index + 1}]`, path: exportPlan.media.path, sourceStartMs: interval.start, sourceEndMs: interval.end, startMs, endMs, startFrame: boundaries[index], endFrame: boundaries[index + 1], plan: exportPlan, mediaKind: 'audio', track: 'source-audio', link: `video-clip-${index + 1}`, defineFile: index === 0 });
-    }) : [];
+    // 不足一帧且量化为空的片段不强行膨胀，防止与下一片段重叠。
+    const mediaIntervals = intervals.map((interval, index) => ({
+      sourceStartMs: interval.start, sourceEndMs: interval.end,
+      sourceStartFrame: exportPlanFrame(exportPlan, interval.start, 'floor'),
+      startMs: msBoundaries[index], endMs: msBoundaries[index + 1],
+      startFrame: boundaries[index], endFrame: boundaries[index + 1],
+    })).filter(interval => interval.endFrame > interval.startFrame);
+    const sourceTracks = mediaIntervals.map((interval, index) => fcpClipItem({
+      ...interval,
+      id: `video-clip-${index + 1}`, fileId: 'file-source-video-1', name: `${fileBasename(exportPlan.media.path)} [${index + 1}]`,
+      path: exportPlan.media.path, plan: exportPlan, mediaKind: mediaType, track: 'source', defineFile: index === 0,
+    }));
+    const audioTracks = hasVideo ? mediaIntervals.map((interval, index) => fcpClipItem({
+      ...interval,
+      id: `audio-clip-${index + 1}`, fileId: 'file-source-audio', name: `${fileBasename(exportPlan.media.path)} audio [${index + 1}]`,
+      path: exportPlan.media.path, plan: exportPlan, mediaKind: 'audio', track: 'source-audio', link: `video-clip-${index + 1}`, defineFile: index === 0,
+    })) : [];
     const videoTracks = hasVideo ? [`<track>${sourceTracks.join('')}</track>`] : [];
     const stickerFileIds = new Map();
     const buildStickerTracks = (list, trackPrefix, clipPrefix) => (Array.isArray(list) ? list : [])

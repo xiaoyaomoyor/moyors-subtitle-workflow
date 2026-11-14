@@ -265,11 +265,14 @@ def run_burn_subtitles(
     if request.project_style is not None and subtitle.suffix.lower() == '.srt':
         import tempfile
         from maw.postprocess_io import read_srt
-        from maw.msw.audio_render import probe_source
+        from maw.msw.audio_render import RenderCancelled, probe_source
         from maw.msw.subtitle_style import styled_ass
         if ffprobe_path is None:
             raise MediaToolError('使用字幕预设烧录 SRT 需要 FFprobe，请配置媒体工具')
-        video=probe_source(ffprobe_path,media,cancel_event or Event()).get('video')
+        try:
+            video=probe_source(ffprobe_path,media,cancel_event or Event()).get('video')
+        except RenderCancelled as error:
+            raise MediaToolCancelled("ffmpeg operation cancelled") from error
         if not video:
             raise MediaToolError('所选媒体没有可烧录的视频画面')
         project=read_srt(subtitle)
@@ -471,6 +474,8 @@ def _run_ffmpeg_process(
     on_process: Callable[[subprocess.Popen[str]], None] | None,
     on_progress: Callable[[Mapping[str, str]], None] | None,
 ) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise MediaToolCancelled("ffmpeg operation cancelled")
     try:
         process = subprocess.Popen(
             command,
@@ -485,10 +490,10 @@ def _run_ffmpeg_process(
         )
     except OSError as error:
         raise MediaToolError(f"ffmpeg could not start: {error}") from error
-    if on_process is not None:
-        on_process(process)
     progress: dict[str, str] = {}
     try:
+        if on_process is not None:
+            on_process(process)
         stdout = process.stdout
         while stdout is not None:
             if cancel_event is not None and cancel_event.is_set():
@@ -514,7 +519,16 @@ def _run_ffmpeg_process(
             terminate_process_tree(process)
         raise MediaToolError(f"ffmpeg failed: {error}") from error
     finally:
-        release_process_tree(process)
+        try:
+            # Registration/progress callbacks can fail too; never leave their
+            # child running after the caller has finished the media job.
+            if process.poll() is None:
+                terminate_process_tree(process)
+        finally:
+            for stream in (process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+            release_process_tree(process)
     if cancel_event is not None and cancel_event.is_set():
         raise MediaToolCancelled("ffmpeg operation cancelled")
     if returncode != 0:

@@ -1901,12 +1901,22 @@ class LauncherApi:
     def cancel_media_tool(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         with self._media_tool_lock:
             cancel_event = self.media_tool_cancel_event
-            process = self.media_tool_process
+            process = None
+            if cancel_event is not None and not cancel_event.is_set():
+                # Publish cancellation atomically with process registration. A late
+                # Popen callback must see the event even if no process exists yet.
+                cancel_event.set()
+                process = self.media_tool_process
         active = cancel_event is not None
-        if cancel_event is not None:
-            cancel_event.set()
-        if process is not None and process.poll() is None:
-            terminate_process_tree(process)
+        if process is not None:
+            # Interrupt blocked output reads without making the bridge wait for
+            # taskkill/process.wait. Capture this process, never a future job's.
+            threading.Thread(
+                target=self._terminate_media_tool_process,
+                args=(process,),
+                name="msw-media-tool-cancel",
+                daemon=True,
+            ).start()
         return {"ok": True, "cancelling": active}
 
     def _begin_media_tool(self) -> Event | None:
@@ -1919,9 +1929,25 @@ class LauncherApi:
             return cancel_event
 
     def _set_media_tool_process(self, process: subprocess.Popen[str]) -> None:
+        cancel_requested = False
         with self._media_tool_lock:
-            if self.media_tool_cancel_event is not None:
+            cancel_event = self.media_tool_cancel_event
+            if cancel_event is not None:
                 self.media_tool_process = process
+                cancel_requested = cancel_event.is_set()
+        if cancel_requested:
+            # This callback runs on the worker, including when cancellation won
+            # the race between Popen and registration.
+            self._terminate_media_tool_process(process)
+
+    @staticmethod
+    def _terminate_media_tool_process(process: subprocess.Popen[str]) -> None:
+        try:
+            if process.poll() is None:
+                terminate_process_tree(process)
+        except (OSError, subprocess.TimeoutExpired):
+            # The worker also observes the event and performs normal cleanup.
+            pass
 
     def _finish_media_tool(self, cancel_event: Event) -> None:
         with self._media_tool_lock:
