@@ -1377,6 +1377,8 @@
     "Shift+拖拽": "Shift+drag",
     "绑定 ·": "Bind ·",
     "qwen-audio-3.0-asr（热词 / 上下文）": "qwen-audio-3.0-asr (hotwords/context)",
+    "qwen-audio-3.1-asr（方言 / 热词 / 上下文）": "qwen-audio-3.1-asr (dialect/hotwords/context)",
+    "已锁定": "Locked",
     "fun-asr（支持说话人）": "fun-asr (speaker support)",
     "qwen3-asr（准确率更高）": "qwen3-asr (higher accuracy)",
     "自动识别": "Auto-detect",
