@@ -21,17 +21,50 @@ def cpu_threads():
     return max(1, min(8, (os.cpu_count() or 2) // 2))
 
 
-def encoder_args(encoder):
+def encoding_options(raw=None):
+    """Shared, bounded options for editor exports and manual Launcher burning."""
+    if raw is not None and not isinstance(raw, dict):
+        raise ValueError('视频编码选项无效')
+    raw = raw or {}
+    settings = {key: raw.get(key, default) for key, default in {
+        'video_encoding': 'auto', 'hardware_encoder': 'auto',
+        'video_quality': 18, 'video_preset': 'medium', 'audio_bitrate_kbps': 192,
+    }.items()}
+    if settings['video_encoding'] not in ('auto', 'h264', 'hardware') or settings['hardware_encoder'] not in ('auto', *HARDWARE):
+        raise ValueError('视频编码选项无效')
+    if type(settings['video_quality']) is not int or not 0 <= settings['video_quality'] <= 51:
+        raise ValueError('画面质量须为 0 至 51 的整数')
+    if settings['video_preset'] not in ('fast', 'medium', 'slow'):
+        raise ValueError('编码速度选项无效')
+    if type(settings['audio_bitrate_kbps']) is not int or not 64 <= settings['audio_bitrate_kbps'] <= 512:
+        raise ValueError('音频码率须为 64 至 512 的整数')
+    return settings
+
+
+def encoder_args(encoder, settings=None):
+    settings = encoding_options(settings)
+    q, speed = settings['video_quality'], settings['video_preset']
     quality = {
-        'libx264': ['-preset', 'medium', '-crf', '18', '-threads', str(cpu_threads())],
-        'h264_nvenc': ['-preset', 'p5', '-rc', 'vbr', '-cq', '19', '-b:v', '0'],
-        'h264_qsv': ['-preset', 'medium', '-global_quality', '19'],
-        'h264_amf': ['-quality', 'quality', '-rc', 'cqp', '-qp_i', '18', '-qp_p', '20'],
+        'libx264': ['-preset', speed, '-crf', str(q), '-threads', str(cpu_threads())],
+        'h264_nvenc': ['-preset', {'fast': 'p3', 'medium': 'p5', 'slow': 'p7'}[speed],
+                       '-rc', 'vbr', '-cq', str(min(51, q + 1)), '-b:v', '0'],
+        'h264_qsv': ['-preset', speed, '-global_quality', str(min(51, q + 1))],
+        # AMF has fewer speed levels; retain the existing default quality mode.
+        'h264_amf': ['-quality', 'speed' if speed == 'fast' else 'quality',
+                     '-rc', 'cqp', '-qp_i', str(q), '-qp_p', str(min(51, q + 2))],
     }
     if encoder not in quality:
         raise ValueError('未知的视频编码器')
     return ['-c:v', encoder, *quality[encoder], '-bf', '0', '-pix_fmt',
             'yuv420p' if encoder == 'libx264' else 'nv12']
+
+
+def can_fallback(settings, encoder):
+    return settings.get('video_encoding', 'auto') == 'auto' and encoder != 'libx264'
+
+
+def fallback_note(encoder):
+    return f'{LABELS[encoder]} 编码未完成，已改用软件编码（CPU）重新编码'
 
 
 def capabilities(ffmpeg, cancel=None):

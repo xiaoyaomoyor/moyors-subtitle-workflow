@@ -2502,6 +2502,12 @@ __WAVEFORM_CSS__
   </div>
   <div class="msw-processing-fields" id="video-export-hardware-field" hidden><label>硬件编码器<select id="video-export-hardware"></select></label></div>
   <p class="msw-processing-hint" id="video-export-encoder-status" role="status"></p>
+  <div class="msw-processing-fields">
+    <label data-option-help="数值越低，画质越高，文件通常越大。默认 18；不同编码器的画质不完全相同。">画面质量<input id="video-export-quality" type="number" min="0" max="51" step="1" value="18"></label>
+    <label data-option-help="较慢的编码通常提高压缩效率；实际速度和效果取决于编码器。">编码速度<select id="video-export-preset"><option value="fast">快速</option><option value="medium" selected>均衡</option><option value="slow">慢速</option></select></label>
+    <label>音频码率（kbps）<input id="video-export-bitrate" type="number" min="64" max="512" step="1" value="192"></label>
+  </div>
+  <p id="video-export-quality-help" class="msw-processing-hint">调整画面质量或编码速度会重新编码；仅调整音频码率时，兼容画面仍可直接复制。</p>
   <div class="msw-processing-fields" id="video-export-subtitle-fields">
     <label>烧录字幕<select id="video-export-burn-subtitles"><option value="none">不烧录</option><option value="main">主字幕</option><option value="secondary">副字幕</option><option value="both">主字幕 + 副字幕</option></select></label>
     <label id="video-export-style-choice" hidden>字幕样式<select id="video-export-style-source"><option value="project">跟随工程样式</option></select></label>

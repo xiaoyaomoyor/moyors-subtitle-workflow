@@ -140,6 +140,14 @@ class AudioExportApiTests(unittest.TestCase):
                 self.assertEqual(self.call('video-export-preview',body)[0],400)
         self.assertEqual(self.manager.list('p'),[])
 
+    def test_invalid_video_encoding_options_are_rejected_before_enqueue(self):
+        for change in [{'video_quality':52}, {'video_quality':True}, {'video_preset':'injected'}, {'audio_bitrate_kbps':0}]:
+            with self.subTest(change=change):
+                payload={**self.payload,'options':{**self.payload['options'],'format':'mp4',**change}}
+                status, _ = self.call('audio-exports', payload)
+                self.assertEqual(status,400)
+        self.assertEqual(self.manager.list('p'),[])
+
     def test_export_snapshot_is_immutable_and_idempotent(self):
         self.release.clear()
         job = self.submit()

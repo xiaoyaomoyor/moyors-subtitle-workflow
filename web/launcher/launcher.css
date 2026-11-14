@@ -3724,3 +3724,11 @@ select[multiple] option {
 .asr-service-grid #languageGroup { margin: 0; padding: 0; border: 0; }
 .asr-service-grid .language-layout { display: block; }
 .asr-service-grid .language-side:has(.hidden):not(:has(:not(.hidden))) { display: none; }
+/* Manual subtitle burning shares the editor's encoding controls. */
+.burn-encoding-options { margin-top:16px; border-top:1px solid var(--border); padding-top:12px; }
+.burn-encoding-options > summary { cursor:pointer; font-weight:600; }
+.burn-encoding-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 16px; margin-top:12px; }
+.burn-encoding-grid label { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.burn-encoding-grid :is(input,select) { width:100%; min-width:0; }
+.burn-encoding-options > .hint { margin-top:12px; }
+@media (max-width:560px) { .burn-encoding-grid { grid-template-columns:1fr; } }

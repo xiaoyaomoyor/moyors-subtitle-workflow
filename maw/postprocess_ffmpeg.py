@@ -8,7 +8,7 @@ import json
 import os
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from threading import Event
 from pathlib import Path
 from typing import Callable, Final, Mapping
@@ -70,6 +70,7 @@ class BurnSubtitleRequest:
     subtitle_path: Path
     srt_style: Mapping[str, object] | None = None
     project_style: Mapping[str, object] | None = None
+    encoding: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +78,8 @@ class BurnSubtitleResult:
     source_media_path: Path
     media_path: Path
     subtitle_path: Path
+    video_encoder: str = 'libx264'
+    encoding_note: str = ''
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,6 +263,10 @@ def run_burn_subtitles(
     on_progress: Callable[[Mapping[str, str]], None] | None = None,
 ) -> BurnSubtitleResult:
     """Render SRT/ASS subtitles into a new H.264 MP4."""
+    from maw.msw.audio_render import RenderCancelled
+    from maw.msw.video_encoders import can_fallback, choose_encoder, encoder_args, encoding_options, fallback_note
+    settings = encoding_options(request.encoding if request.encoding is not None else {'video_encoding': 'h264'})
+    cancel_event = cancel_event or Event()
     media = _validated_media_path(request.media_path, extensions=VIDEO_EXTENSIONS, label="video")
     subtitle = _validated_media_path(request.subtitle_path, extensions=SUBTITLE_EXTENSIONS, label="subtitle")
     if request.project_style is not None and subtitle.suffix.lower() == '.srt':
@@ -281,9 +288,13 @@ def run_burn_subtitles(
         with tempfile.TemporaryDirectory(prefix='msw-subtitle-') as directory:
             converted=Path(directory)/'subtitles.ass'
             converted.write_text(styled_ass(project,plan,'main',video),encoding='utf-8-sig',newline='\n')
-            rendered=run_burn_subtitles(BurnSubtitleRequest(media,converted),ffmpeg_path=ffmpeg_path,
+            rendered=run_burn_subtitles(BurnSubtitleRequest(media,converted,encoding=settings),ffmpeg_path=ffmpeg_path,
                 cancel_event=cancel_event,on_process=on_process,on_progress=on_progress)
-        return BurnSubtitleResult(source_media_path=media,media_path=rendered.media_path,subtitle_path=subtitle)
+        return replace(rendered, subtitle_path=subtitle)
+    try:
+        encoder, encoding_note = choose_encoder(settings, ffmpeg_path, cancel_event)
+    except RenderCancelled as error:
+        raise MediaToolCancelled('ffmpeg operation cancelled') from error
     output = _available_media_output(media, suffix="subtitled", extension=".mp4")
     temporary = output.with_name(f"{output.stem}.part{output.suffix}")
     command = [
@@ -305,35 +316,34 @@ def run_burn_subtitles(
         "0:a?",
         "-map_metadata",
         "0",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "medium",
-        "-crf",
-        "18",
-        "-pix_fmt",
-        "yuv420p",
+        *encoder_args(encoder, settings),
         "-c:a",
         "aac",
         "-b:a",
-        "192k",
+        f"{settings['audio_bitrate_kbps']}k",
         "-movflags",
         "+faststart",
         str(temporary),
     ]
     try:
-        _run_ffmpeg_process(
-            command,
-            cwd=subtitle.parent,
-            cancel_event=cancel_event,
-            on_process=on_process,
-            on_progress=on_progress,
-        )
+        def encode(command):
+            _run_ffmpeg_process(command, cwd=subtitle.parent, cancel_event=cancel_event,
+                                on_process=on_process, on_progress=on_progress)
+        try:
+            encode(command)
+        except MediaToolError as error:
+            if isinstance(error, MediaToolCancelled) or cancel_event.is_set() or not can_fallback(settings, encoder):
+                raise
+            encoding_note = fallback_note(encoder)
+            start, end = command.index('-c:v'), command.index('-c:a')
+            encoder = 'libx264'
+            encode(command[:start] + encoder_args(encoder, settings) + command[end:])
         _replace_media_output(temporary, output)
     except (MediaToolError, OSError):
         temporary.unlink(missing_ok=True)
         raise
-    return BurnSubtitleResult(source_media_path=media, media_path=output, subtitle_path=subtitle)
+    return BurnSubtitleResult(source_media_path=media, media_path=output, subtitle_path=subtitle,
+                              video_encoder=encoder, encoding_note=encoding_note)
 
 
 def run_extract_audio(

@@ -13,8 +13,13 @@ test.afterAll(async () => { await server?.stop(); await portable?.stop(); });
 test.beforeEach(async ({page}) => { await disableOnboarding(page); });
 const range = page => page.evaluate(() => MSWE.resolve('time-range').range);
 const selections = page => page.evaluate(() => MSWE.resolve('time-range').ranges);
+// A time ratio belongs to the drawable content box, excluding the row border.
+const rowBox = locator => locator.evaluate(row => {
+  const rect = row.getBoundingClientRect();
+  return {x:rect.left+row.clientLeft,y:rect.top,width:row.clientWidth,height:rect.height};
+});
 async function openPrecise(page) {
-  const [selected]=await selections(page),row=await page.locator('.waveform-row').first().boundingBox();
+  const [selected]=await selections(page),row=await rowBox(page.locator('.waveform-row').first());
   await page.mouse.click(row.x+row.width*(selected.start+selected.end)/20000,row.y+row.height*.3,{button:'right'});
   await page.locator('.msw-range-menu').getByRole('button',{name:'精确编辑时间选区',exact:true}).click();
 }
@@ -48,7 +53,7 @@ for (const mode of ['server','portable']) test(`${mode}: reverse drag selects so
   // Sample between tick lines: GPU antialiasing at exact second boundaries
   // can round difference compositing by a few RGB levels.
   const before = await pixel(page,.41), outside = await pixel(page,.81);
-  const row = await page.locator('.waveform-row').first().boundingBox();
+  const row = await rowBox(page.locator('.waveform-row').first());
   await drag(page,{x:row.x+row.width*.6,y:row.y+row.height*.3},{x:row.x+row.width*.2,y:row.y+row.height*.3});
   const result = await range(page); expect(result.start).toBeCloseTo(2000,-1); expect(result.end).toBeCloseTo(6000,-1);
   const selected = await pixel(page,.41);
@@ -60,8 +65,8 @@ for (const mode of ['server','portable']) test(`${mode}: reverse drag selects so
 
 test('cross-row selection keeps its gesture after modifier release and survives zoom and resize',async ({page})=>{
   await setup(page,server.url);
-  const first=await page.locator('.waveform-row[data-row-index="0"]').boundingBox();
-  const third=await page.locator('.waveform-row[data-row-index="2"]').boundingBox();
+  const first=await rowBox(page.locator('.waveform-row[data-row-index="0"]'));
+  const third=await rowBox(page.locator('.waveform-row[data-row-index="2"]'));
   await page.keyboard.down('Control'); await page.keyboard.down('Shift');
   await page.mouse.move(first.x+first.width*.6,first.y+first.height*.3); await page.mouse.down();
   const height=await page.evaluate(()=>waveformEditor.settings.rowHeight);
@@ -92,7 +97,7 @@ test('range drag over a subtitle does not move it; cancel restores the previous 
 
 test('autoscroll extends the range across virtualized rows without retaining stale DOM geometry',async ({page})=>{
   await setup(page,server.url,300000);
-  const first=await page.locator('.waveform-row').first().boundingBox(), scroll=await page.locator('#waveform-scroll').boundingBox();
+  const first=await rowBox(page.locator('.waveform-row').first()), scroll=await page.locator('#waveform-scroll').boundingBox();
   await page.keyboard.down('Control');await page.keyboard.down('Shift');
   await page.mouse.move(first.x+first.width*.3,first.y+first.height*.3);await page.mouse.down();
   await page.mouse.move(first.x+first.width*.5,scroll.y+scroll.height-2,{steps:10});
@@ -131,8 +136,8 @@ test('precise range dialog aligns times, validates input and applies with Enter 
 test('range boundaries resize across rows, reverse direction and preserve the opposite endpoint',async({page})=>{
   await setup(page,server.url);
   await page.evaluate(()=>{waveformEditor.setTool('range');MSWE.resolve('time-range').setRange({start:2000,end:8000});});
-  const first=await page.locator('.waveform-row[data-row-index="0"]').boundingBox();
-  const second=await page.locator('.waveform-row[data-row-index="1"]').boundingBox();
+  const first=await rowBox(page.locator('.waveform-row[data-row-index="0"]'));
+  const second=await rowBox(page.locator('.waveform-row[data-row-index="1"]'));
   const at=(row,fraction)=>({x:row.x+row.width*fraction,y:row.y+row.height*.4});
   await toolDrag(page,at(first,.8),at(second,.4));
   expect(await range(page)).toMatchObject({start:2000});expect((await range(page)).end).toBeCloseTo(14000,-1);
@@ -148,7 +153,7 @@ test('range boundary can extend past a row edge horizontally and cancel restores
   await setup(page,server.url);
   // Keep a visible margin beyond the row, as in a resized waveform module.
   await page.evaluate(()=>{waveformEditor.content.style.minWidth='0';waveformEditor.content.style.width='600px';waveformEditor.render();waveformEditor.setTool('range');MSWE.resolve('time-range').setRange({start:2000,end:9800});});
-  const row=await page.locator('.waveform-row[data-row-index="0"]').boundingBox();
+  const row=await rowBox(page.locator('.waveform-row[data-row-index="0"]'));
   await page.mouse.move(row.x+row.width*.98,row.y+row.height*.4);await page.mouse.down();
   await page.mouse.move(row.x+row.width+35,row.y+row.height*.4,{steps:6});
   expect((await range(page)).start).toBe(2000);expect((await range(page)).end).toBeGreaterThan(10000);
@@ -158,9 +163,9 @@ test('range boundary can extend past a row edge horizontally and cancel restores
 test('row-end selection handles remain visible with track heads and a partial final row',async({page})=>{
   await setup(page,server.url,25000);
   await page.evaluate(()=>{waveformEditor.setTool('range');MSWE.resolve('time-range').setRange({start:2000,end:10000});});
-  const first=await page.locator('.waveform-row[data-row-index="0"]').boundingBox();
-  const second=await page.locator('.waveform-row[data-row-index="1"]').boundingBox();
-  const last=await page.locator('.waveform-row[data-row-index="2"]').boundingBox();
+  const first=await rowBox(page.locator('.waveform-row[data-row-index="0"]'));
+  const second=await rowBox(page.locator('.waveform-row[data-row-index="1"]'));
+  const last=await rowBox(page.locator('.waveform-row[data-row-index="2"]'));
   const scroll=await page.locator('#waveform-scroll').boundingBox();
   expect(first.x+first.width).toBeLessThanOrEqual(scroll.x+scroll.width);
   expect(last.width/first.width).toBeCloseTo(.5,2);
@@ -171,7 +176,7 @@ test('row-end selection handles remain visible with track heads and a partial fi
 
 test('Cmd+Shift and pointer cancellation share the same range rules',async ({page})=>{
   await setup(page,server.url);
-  const row=await page.locator('.waveform-row').first().boundingBox();
+  const row=await rowBox(page.locator('.waveform-row').first());
   await drag(page,{x:row.x+row.width*.2,y:row.y+row.height*.2},{x:row.x+row.width*.7,y:row.y+row.height*.2},'Meta');
   const previous=await range(page);expect(previous.end).toBeCloseTo(7000,-1);
   await page.keyboard.down('Control');await page.keyboard.down('Shift');
@@ -184,7 +189,7 @@ test('Cmd+Shift and pointer cancellation share the same range rules',async ({pag
 test('single-row range selection pans at the edge and remains stable when real peaks arrive',async ({page})=>{
   await setup(page,server.url);
   await page.evaluate(()=>{waveformEditor.settings.mode='basic';waveformEditor.settings.visibleSeconds=10;waveformEditor.render();});
-  const row=await page.locator('.waveform-row').first().boundingBox();
+  const row=await rowBox(page.locator('.waveform-row').first());
   await page.keyboard.down('Control');await page.keyboard.down('Shift');
   await page.mouse.move(row.x+row.width*.3,row.y+row.height*.3);await page.mouse.down();
   await page.mouse.move(row.x+row.width-2,row.y+row.height*.3,{steps:8});
@@ -199,7 +204,7 @@ test('single-row range selection pans at the edge and remains stable when real p
 test('range tool adds and subtracts disjoint intervals, inverts only selected parts and precisely edits one part',async ({page})=>{
   await setup(page,server.url);
   await page.locator('[data-waveform-tool="range"]').click();
-  const row=await page.locator('.waveform-row').first().boundingBox();
+  const row=await rowBox(page.locator('.waveform-row').first());
   const point=t=>({x:row.x+row.width*t/10000,y:row.y+row.height*.3});
   const before=await pixel(page,.4);
   await toolDrag(page,point(1000),point(8000));
@@ -221,7 +226,7 @@ test('range tool resizes either boundary, restores all parts on cancel and leave
   await setup(page,server.url);
   await page.evaluate(()=>{DATA.segments.push({id:'cue',start:1000,end:2000,text:'Keep'});renderAll();MSWE.resolve('time-range').setRange([{start:1000,end:3000},{start:6000,end:8000}]);});
   await page.locator('[data-waveform-tool="range"]').click();
-  const row=await page.locator('.waveform-row').first().boundingBox();
+  const row=await rowBox(page.locator('.waveform-row').first());
   const point=t=>({x:row.x+row.width*t/10000,y:row.y+row.height*.3});
   await toolDrag(page,point(3000),point(4000));
   await toolDrag(page,point(6000),point(5000));
@@ -238,7 +243,7 @@ test('range tool resizes either boundary, restores all parts on cancel and leave
 test('blank waveform menu has five ordered actions and adds an editable interval without losing existing ranges',async({page})=>{
   await setup(page,server.url);
   await page.evaluate(()=>MSWE.resolve('time-range').setRange({start:1000,end:2000}));
-  const row=await page.locator('.waveform-row').first().boundingBox();
+  const row=await rowBox(page.locator('.waveform-row').first());
   await page.mouse.click(row.x+row.width*.4,row.y+row.height*.3,{button:'right'});
   const menu=page.locator('#ctxmenu');
   expect(await menu.locator(':scope > .item').evaluateAll(nodes=>nodes.map(n=>n.querySelector('span')?.textContent||n.textContent)))
@@ -257,7 +262,7 @@ test('blank waveform menu has five ordered actions and adds an editable interval
 test('range menu shares blank menu typography, has a red clear action and window icon',async({page})=>{
   await setup(page,server.url);
   await page.evaluate(()=>MSWE.resolve('time-range').setRange({start:1000,end:3000}));
-  const row=await page.locator('.waveform-row').first().boundingBox();
+  const row=await rowBox(page.locator('.waveform-row').first());
   await page.mouse.click(row.x+row.width*.6,row.y+row.height*.3,{button:'right'});
   const style=await page.locator('#ctxmenu .item').nth(1).evaluate(n=>({font:getComputedStyle(n).fontSize,color:getComputedStyle(n).color,padding:getComputedStyle(n).padding}));
   await page.mouse.click(row.x+row.width*.2,row.y+row.height*.3,{button:'right'});
@@ -275,7 +280,7 @@ for (const tool of ['select','razor','range']) test(`${tool}: context menu adds 
   await setup(page,server.url);
   await page.evaluate(()=>{waveformEditor.currentTimeMs=()=>6000;MSWE.resolve('time-range').setRange({start:1000,end:2000});});
   await page.locator(`[data-waveform-tool="${tool}"]`).click();
-  const row=await page.locator('.waveform-row').first().boundingBox();
+  const row=await rowBox(page.locator('.waveform-row').first());
   await page.mouse.click(row.x+row.width*.4,row.y+row.height*.3,{button:'right'});
   await expect(page.locator('#ctxmenu')).toBeVisible();
   if (tool==='select') {

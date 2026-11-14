@@ -59,6 +59,34 @@ async function expectDetail(page,card,text){
   await expect(page.locator('#msw-option-help')).toContainText(text);await page.keyboard.press('Escape');
 }
 
+test('encoding controls validate and freeze custom settings in a real video job',async({page},info)=>{
+  await open(page);
+  const options=page.locator('#video-export-encoding-options');
+  await expect(options).not.toHaveAttribute('open');await options.locator('summary').click();
+  await page.locator('#video-export-quality').fill('52');
+  await expect(page.locator('#video-export-start')).toBeDisabled();
+  await page.locator('#video-export-quality').fill('23');
+  await page.locator('#video-export-preset').selectOption('fast');
+  await page.locator('#video-export-bitrate').fill('128');
+  await expect(page.locator('#video-export-start')).toBeEnabled();
+  await page.screenshot({path:info.outputPath('encoding-editor.png')});
+  const submitted=page.waitForRequest(r=>r.method()==='POST'&&r.url().endsWith('/audio-exports'));
+  const completed=finish(page),body=(await submitted).postDataJSON();
+  expect(body.options).toMatchObject({video_encoding:'auto',video_quality:23,video_preset:'fast',audio_bitrate_kbps:128});
+  await page.locator('#video-export-quality').fill('18');
+  const {card}=await completed;
+  await expectDetail(page,card,'画面质量 23');await expectDetail(page,card,'音频码率 128 kbps');
+  await card.getByRole('button',{name:'导出详情',exact:true}).click();
+  await expect(page.locator('#msw-option-help')).not.toContainText('画面直接复制');
+});
+
+test('audio bitrate alone preserves automatic picture copy',async({page})=>{
+  await open(page);await page.locator('#video-export-encoding-options summary').click();
+  await page.locator('#video-export-bitrate').fill('96');
+  const {card}=await finish(page);
+  await expectDetail(page,card,'画面直接复制');await expectDetail(page,card,'音频码率 96 kbps');
+});
+
 test('playhead export freezes its source end at submission and rejects the zero position',async({page})=>{
   await open(page);await page.locator('#video-export-range').selectOption('playhead');
   await page.evaluate(()=>seekMediaTo(0));
@@ -363,6 +391,9 @@ test('all user presets are selectable and English export stays compact',async({p
   await expect(page.locator('#msw-option-help')).toContainText('Audio and video match');
   await expect(page.locator('#msw-option-help')).toContainText('Audio (black)');
   await page.keyboard.press('Escape');
+  await page.locator('#video-export-encoding-options summary').click();
+  await expect(page.locator('#video-export-encoding-options')).toContainText('Encoding speed');
+  await expect(page.locator('#video-export-encoding-options')).not.toContainText(/[\u4e00-\u9fff]/);
   await page.setViewportSize({width:360,height:700});
   expect(await page.locator('#video-export-panel').evaluate(p=>p.scrollWidth<=p.clientWidth)).toBe(true);
   await page.locator('#video-export-panel').screenshot({path:info.outputPath('video-export-english.png')});

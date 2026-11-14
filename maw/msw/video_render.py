@@ -11,7 +11,7 @@ from maw.msw.audio_render import check_cancel, command_prefix, fingerprint, prob
 from maw.msw.subtitle_export import burning_cues, slice_burning_cues
 from maw.postprocess_ffmpeg import build_subtitle_filter
 from maw.msw.subtitle_style import styled_ass
-from maw.msw.video_encoders import LABELS, choose_encoder, cpu_threads, encoder_args
+from maw.msw.video_encoders import LABELS, can_fallback, choose_encoder, cpu_threads, encoder_args, encoding_options, fallback_note
 
 # A continuous interval needs only one encoder invocation. Streaming keeps memory
 # bounded without restarting libass/the codec every 30 seconds.
@@ -87,6 +87,7 @@ def prepare(project, settings, info):
 
 def can_copy(plan, video, settings):
     return (settings.get('burn_subtitles', 'none') == 'none'
+            and settings.get('video_quality', 18) == 18 and settings.get('video_preset', 'medium') == 'medium'
             and settings["video_encoding"] == "auto" and video["codec"] == "h264"
             and video["pixel_format"] == "yuv420p" and len(plan["intervals"]) == 1
             and plan["source_start_ms"] == 0
@@ -155,7 +156,7 @@ def encode_picture(plan, root, tools, cancel, progress, source, video, rate, cap
                     filters += ',' + build_subtitle_filter(subtitle)
                 encode_frames(command_prefix(tools.ffmpeg) + ["-protocol_whitelist", "file,pipe", "-ss", f"{seek:.9f}",
                     "-threads", str(cpu_threads()), "-i", str(source), "-map", f"0:{video['index']}", "-an", "-sn", "-dn",
-                    "-vf", filters, "-frames:v", str(frames), *encoder_args(encoder), "-video_track_timescale", str(rate.numerator), str(piece)], cancel,
+                    "-vf", filters, "-frames:v", str(frames), *encoder_args(encoder, settings), "-video_track_timescale", str(rate.numerator), str(piece)], cancel,
                     cwd=root, frames=frames, on_frame=lambda frame: progress('video', .55 + .37 * (completed + frame) / total_frames))
                 # Very short MP4 segments may report a rounded duration.
                 # Explicit frame-derived lengths avoid concat DTS drift;
@@ -172,6 +173,7 @@ def encode_picture(plan, root, tools, cancel, progress, source, video, rate, cap
 
 
 def render_video(plan, output, tools, cancel, progress, resolve_asset, *, source, source_channels, info, settings, project=None, on_encoding=None):
+    settings = {**settings, **encoding_options(settings)}
     output = Path(output)
     stamp = fingerprint(source)
     video = info["video"]
@@ -200,11 +202,11 @@ def render_video(plan, output, tools, cancel, progress, resolve_asset, *, source
                 picture = encode_picture(plan, root, tools, cancel, progress, source, video, rate, captions, project, settings, encoder, duration)
             except ValueError as error:
                 check_cancel(cancel)
-                if settings.get('video_encoding') != 'auto' or encoder == 'libx264':
+                if not can_fallback(settings, encoder):
                     raise
                 # Restart the video stage uniformly; never concatenate different
                 # codec configurations after a driver fails midway through a job.
-                encoding_note = f'{LABELS[encoder]} 编码未完成，已改用软件编码（CPU）重新编码'
+                encoding_note = fallback_note(encoder)
                 encoder = 'libx264'
                 if on_encoding:
                     on_encoding(encoder, encoding_note)
@@ -216,7 +218,7 @@ def render_video(plan, output, tools, cancel, progress, resolve_asset, *, source
         target = root / "result.mp4"
         run(command_prefix(tools.ffmpeg) + ["-protocol_whitelist", "file,pipe", "-i", str(picture), "-i", str(audio),
             "-map", f"0:{video['index']}" if copied else "0:v:0", "-map", "1:a:0", "-c:v", "copy",
-            "-c:a", "aac", "-b:a", "192k", "-t", f"{duration:.9f}", "-map_metadata", "-1",
+            "-c:a", "aac", "-b:a", f"{settings['audio_bitrate_kbps']}k", "-t", f"{duration:.9f}", "-map_metadata", "-1",
             "-movflags", "+faststart", str(target)], cancel)
         actual = probe_source(tools.ffprobe, target, cancel)
         tolerance = max(80, math.ceil(1000 / float(rate)) + 25)
@@ -229,6 +231,8 @@ def render_video(plan, output, tools, cancel, progress, resolve_asset, *, source
         check_cancel(cancel)
         result.update(byte_size=target.stat().st_size, video_encoding="copy" if copied else "h264",
                       video_encoder=encoder, encoder_label="画面直接复制" if copied else LABELS[encoder],
-                      encoding_note=encoding_note, video_frame_rate=str(rate), format="mp4", burn_subtitles=settings.get('burn_subtitles', 'none'))
+                      encoding_note=encoding_note, video_frame_rate=str(rate), format="mp4", burn_subtitles=settings.get('burn_subtitles', 'none'),
+                      video_quality=None if copied else settings['video_quality'],
+                      video_preset=None if copied else settings['video_preset'], audio_bitrate_kbps=settings['audio_bitrate_kbps'])
         os.replace(target, output)
         return result

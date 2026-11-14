@@ -20,6 +20,21 @@ test.beforeEach(async({page})=>{
   await page.evaluate(()=>{updateEditorSettings({autoSaveProject:false,hoverSeekPreview:true,waveformClickBehavior:'select-only'});player.pause();});
 });
 const frames=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+for(const mode of ['basic','multi'])test(`waveform content geometry aligns canvas pointers and split feedback in ${mode} mode`,async({page})=>{
+  await page.evaluate(mode=>waveformEditor.setMode(mode),mode);await frames(page);
+  const results=await page.evaluate(()=>[...document.querySelectorAll('.waveform-row')].filter(row=>row.clientWidth>0).map(row=>{
+    const rect=row.getBoundingClientRect(),start=Number(row.dataset.startMs),end=Number(row.dataset.endMs);
+    const geometry=waveformEditor.captureRowGeometry(row);
+    const points=[0,.17,.83,1].map(r=>({x:rect.left+row.clientLeft+row.clientWidth*r,time:start+(end-start)*r}));
+    return {canvasError:Math.abs(row.querySelector('canvas').getBoundingClientRect().width-row.clientWidth),
+      errors:points.flatMap(p=>[
+        Math.abs(waveformEditor.timeFromPointer({clientX:p.x},row)-p.time),
+        Math.abs(waveformEditor.timeFromPointer({clientX:p.x},row,geometry)-p.time)]),
+      reverseError:Math.abs(waveformEditor.getSplitPointAtTime(points[2].time).clientX-points[2].x)};
+  }));
+  expect(results.length).toBeGreaterThan(0);
+  for(const result of results){expect(result.canvasError).toBeLessThan(1);expect(Math.max(...result.errors)).toBeLessThan(.001);expect(result.reverseError).toBeLessThan(.01);}
+});
 async function pressEdge(page,side='left'){
   const cue=page.locator('.waveform-cue-block[data-idx="0"]').first(),box=await cue.boundingBox();
   await page.mouse.move(side==='left'?box.x+1:box.x+box.width-1,box.y+box.height/2);

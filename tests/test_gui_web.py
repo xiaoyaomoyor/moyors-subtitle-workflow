@@ -1516,12 +1516,16 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         with mock.patch("maw.gui_web._postprocess_ffmpeg_tools", return_value=FfmpegTools(ffmpeg=ffmpeg, ffprobe=None)):
             with mock.patch("maw.gui_web.process_burn_subtitles") as burn:
-                burn.return_value = SimpleNamespace(source_media_path=media.resolve(), subtitle_path=subtitle.resolve(), media_path=output.resolve())
-                result = self.api.run_burn_subtitles({"mediaPath": str(media), "subtitlePath": str(subtitle)})
+                burn.return_value = SimpleNamespace(source_media_path=media.resolve(), subtitle_path=subtitle.resolve(), media_path=output.resolve(),
+                                                    video_encoder='libx264', encoding_note='')
+                encoding = {'video_encoding': 'h264', 'video_quality': 23, 'video_preset': 'fast', 'audio_bitrate_kbps': 128}
+                result = self.api.run_burn_subtitles({"mediaPath": str(media), "subtitlePath": str(subtitle), 'encoding': encoding})
 
         self.assertTrue(result["ok"])
         self.assertEqual(burn.call_args.kwargs["ffmpeg_path"], ffmpeg)
         self.assertIsInstance(burn.call_args.kwargs["cancel_event"], threading.Event)
+        self.assertEqual(burn.call_args.args[0].encoding, encoding)
+        self.assertEqual(result['videoEncoder'], 'libx264')
         self.assertEqual(result["mediaPath"], str(output.resolve()))
 
     def test_probe_audio_tracks_bridge_returns_normalized_track_payload(self) -> None:
@@ -2514,7 +2518,7 @@ class GuiWebBridgeTests(unittest.TestCase):
         def which(name: str, *, path: str | None = None) -> str:
             return str(ffmpeg if name == "ffmpeg" else ffprobe)
 
-        with mock.patch("maw.gui_web._ffmpeg_search_path", return_value=str(ffmpeg.parent)), mock.patch("maw.ffmpeg.shutil.which", side_effect=which):
+        with mock.patch("maw.gui_web.MACOS_FFMPEG_CANDIDATE_DIRECTORIES", ()), mock.patch("maw.ffmpeg.shutil.which", side_effect=which):
             result = self.api.check_ffmpeg()
 
         self.assertTrue(result["found"])
@@ -2548,7 +2552,7 @@ class GuiWebBridgeTests(unittest.TestCase):
             return str(ffmpeg_dir / ("ffmpeg.exe" if name == "ffmpeg" else "ffprobe.exe"))
 
         with mock.patch.object(sys, "platform", "darwin"):
-            with mock.patch("maw.gui_workflow.MACOS_FFMPEG_CANDIDATE_DIRECTORIES", (str(ffmpeg_dir),)):
+            with mock.patch("maw.gui_web.MACOS_FFMPEG_CANDIDATE_DIRECTORIES", (str(ffmpeg_dir),)):
                 with mock.patch("maw.ffmpeg.shutil.which", side_effect=which):
                     result = self.api.check_ffmpeg()
 

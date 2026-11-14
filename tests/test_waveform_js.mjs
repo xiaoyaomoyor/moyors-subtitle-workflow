@@ -28,6 +28,26 @@ vm.runInNewContext('globalThis.newArrayBuffer = (size) => new ArrayBuffer(size);
 const helpers = context.window.AsrWaveform.testing;
 const builtinWorkspaces = context.window.AsrWaveform.builtinWorkspaces;
 
+test('waveform content coordinates roundtrip and retain cached geometry across row replacement',()=>{
+  for(const border of [0,1,3])for(const duration of [10000,60000]) {
+    let rect={left:100,width:1000+2*border,top:10,height:60};
+    const row={clientLeft:border,clientWidth:1000,dataset:{startMs:'1000',endMs:String(1000+duration)},
+      getBoundingClientRect:()=>rect,querySelectorAll:()=>[]};
+    const host={...helpers,content:{querySelectorAll:()=>[row]}};
+    const geometry=host.captureRowGeometry(row);
+    for(const fraction of [0,.25,.5,1]) {
+      const expected=1000+duration*fraction,point=host.getSplitPointAtTime(expected);
+      assert.equal(point.clientX,100+border+1000*fraction);
+      assert.equal(host.timeFromPointer(point,row),expected);
+      assert.equal(host.timeFromPointer(point,row,geometry),expected);
+    }
+    assert.equal(host.timeFromPointerUnbounded({clientX:100+border-100},row),1000-duration/10);
+    assert.equal(host.timeFromPointerUnbounded({clientX:100+border+1100},row),1000+duration*1.1);
+    rect={left:0,width:0,top:0,height:0};row.dataset.startMs='99999';
+    assert.equal(host.timeFromPointer({clientX:600+border},row,geometry),1000+duration/2);
+  }
+});
+
 test('layer resize stops at the minimum duration without moving the opposite edge', () => {
   for (const frames of [false, true]) {
     const timing = helpers.resolveTiming(frames ? {

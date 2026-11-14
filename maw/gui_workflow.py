@@ -790,7 +790,16 @@ def _prepend_ffmpeg_path(env: dict[str, str], configured_path: str) -> bool:
     if not directory.exists():
         return False
     old_path = env.get("PATH", "")
-    env["PATH"] = str(directory) if not old_path else str(directory) + os.pathsep + old_path
+    entries = old_path.split(os.pathsep) if old_path else []
+    directory_text = str(directory)
+    identity = os.path.normcase(os.path.normpath(directory_text))
+    remaining = [entry for entry in entries if os.path.normcase(os.path.normpath(entry)) != identity]
+    updated = os.pathsep.join([directory_text, *remaining])
+    if updated == old_path:
+        return False
+    # Both tools may resolve to the same folder. Move it once, preserving all
+    # other PATH entries and their order (case-insensitive on Windows).
+    env["PATH"] = updated
     return True
 
 

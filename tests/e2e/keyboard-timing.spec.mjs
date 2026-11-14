@@ -79,8 +79,9 @@ async function moveWaveformPointerToTime(page, blockLocator, timeMs) {
   expect(rowBox).not.toBeNull();
   expect(rowEnd).toBeGreaterThan(rowStart);
   const ratio = (timeMs - rowStart) / (rowEnd - rowStart);
+  const content = await row.evaluate(element => ({left:element.clientLeft,width:element.clientWidth}));
   await page.mouse.move(
-    rowBox.x + rowBox.width * Math.max(0, Math.min(1, ratio)),
+    rowBox.x + content.left + content.width * Math.max(0, Math.min(1, ratio)),
     blockBox.y + blockBox.height / 2,
   );
 }

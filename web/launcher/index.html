@@ -815,6 +815,16 @@
                 <p id="toolboxBurnSubtitlePathError" class="field-error"></p>
                 <label id="toolboxBurnPresetField">字幕样式<select id="toolboxBurnPreset"><option value="default">默认白字</option></select></label><p class="hint">SRT 使用共享字幕预设，可在编辑器的媒体播放器设置中管理。ASS／SSA 保留文件内样式。</p>
               </div>
+              <details class="burn-encoding-options" id="toolboxBurnEncodingOptions">
+                <summary data-i18n="burn_encoding_options">编码参数</summary>
+                <div class="burn-encoding-grid">
+                  <label><span data-i18n="burn_encoding_mode">画面编码</span><select id="toolboxBurnEncoding"><option value="auto" data-i18n="burn_encoding_auto">自动（推荐）</option><option value="h264" data-i18n="burn_encoding_cpu">软件编码（CPU）</option><option value="hardware" data-i18n="burn_encoding_hardware">硬件编码</option></select></label>
+                  <label><span data-i18n="burn_encoding_quality">画面质量</span><input id="toolboxBurnQuality" type="number" min="0" max="51" step="1" value="18"></label>
+                  <label><span data-i18n="burn_encoding_speed">编码速度</span><select id="toolboxBurnSpeed"><option value="fast" data-i18n="burn_encoding_fast">快速</option><option value="medium" selected data-i18n="burn_encoding_medium">均衡</option><option value="slow" data-i18n="burn_encoding_slow">慢速</option></select></label>
+                  <label><span data-i18n="burn_encoding_bitrate">音频码率（kbps）</span><input id="toolboxBurnBitrate" type="number" min="64" max="512" step="1" value="192"></label>
+                </div>
+                <p class="hint" data-i18n="burn_encoding_hint">质量数值越低，画质越高，文件通常越大。自动模式优先使用可用硬件，失败时改用 CPU；指定硬件时失败会提示原因。</p>
+              </details>
             </section>
 
             <section id="toolboxFfconcatPanel" class="card tool-page-panel hidden" data-tools-panel="ffconcat" role="tabpanel" aria-labelledby="toolsRailFfconcat">

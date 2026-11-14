@@ -91,6 +91,11 @@
         settings.video_tail = el('audio-export-tail').value;
         settings.video_encoding = el('audio-export-encoding').value;
         settings.hardware_encoder = el('audio-export-hardware').value || 'auto';
+        settings.video_quality = numeric('audio-export-quality');
+        settings.video_preset = el('audio-export-preset').value;
+        settings.audio_bitrate_kbps = numeric('audio-export-bitrate');
+        if(!Number.isInteger(settings.video_quality)||settings.video_quality<0||settings.video_quality>51)throw Error('画面质量须为 0 至 51 的整数');
+        if(!Number.isInteger(settings.audio_bitrate_kbps)||settings.audio_bitrate_kbps<64||settings.audio_bitrate_kbps>512)throw Error('音频码率须为 64 至 512 的整数');
         settings.burn_subtitles = el('audio-export-burn-subtitles').value;
         settings.subtitle_scope = subtitleTracks===null?'all':'selected';
         return core.videoOptions(host.audioExportPreview(), settings, context);
@@ -165,6 +170,7 @@
         if (!context) throw Error('正在读取导出信息…');
         if(video&&context?.video&&context.video_alignment_version!==2)throw Error('视频对齐功能已更新，请重启本机编辑器服务并刷新页面');
         if(video&&context?.video&&context.video_encoding_version!==1)throw Error('视频编码功能已更新，请重启本机编辑器服务并刷新页面');
+        if(video&&context?.video&&context.video_encoding_options_version!==1)throw Error('视频编码功能已更新，请重启本机编辑器服务并刷新页面');
         if(video&&context&&el('audio-export-encoding').value==='hardware'&&!context.video_encoders?.some(e=>e.available))throw Error('没有可用硬件编码器，请选择自动或软件编码（CPU）');
         const o = selectedOptions(), plan = core.compile(host.audioExportPreview(), o);
         if ((mix || video) && !sourceAvailable()) throw Error('原媒体尚未由本机服务接管，请保存并在本机服务中重新打开工程');
@@ -245,6 +251,8 @@
       const captions=burn==='none'?t('不烧录字幕'):burn?`${t('烧录字幕')}（${scope}）`:t('烧录设置未记录');
       const monitor=t(({none:'不同步',source:'原声',voice:'配音',both:'原声+配音'})[o.monitor?.mode||'none']);
       const status=[t(job.mode==='mix'?'原声+配音':'仅配音'),encoding,captions,`${t('同步试听')}（${monitor}）`];
+      if(o.video_quality!==undefined&&encoder!=='copy'&&r.video_encoding!=='copy')status.push(`${t('画面质量')} ${o.video_quality}`,t(({fast:'快速',medium:'均衡',slow:'慢速'})[o.video_preset]||'未记录'));
+      if(o.audio_bitrate_kbps!==undefined)status.push(`${t('音频码率')} ${o.audio_bitrate_kbps} kbps`);
       if(job.encoding_note||r.encoding_note)status.push(t(job.encoding_note||r.encoding_note));
       if(r.clipped)status.push(t('声音超限，建议开启峰值保护'));
       else if(r.attenuation_db<-.001)status.push(`${t('峰值保护衰减')} ${(-r.attenuation_db).toFixed(2)} dB`);
@@ -492,8 +500,9 @@
       const heading=document.createElement(folded?'summary':'span');heading.className='settings-panel-title';heading.textContent=name;node.append(heading);return node;
     };
     const grid=(section,fields)=>{const row=document.createElement('div');row.className='media-settings-grid';for(const key of fields){const label=get(key).closest('label');label.classList.remove('msw-processing-field');label.classList.add('media-settings-field');row.append(label);}section.append(row);};
-    const common=section('导出设置','general'),subtitles=section('字幕','subtitles'),advanced=section('音频与其他选项','advanced',true);
-    body.prepend(common,subtitles,advanced);
+    const common=section('导出设置','general'),encoding=section('编码参数','encoding-options',true),subtitles=section('字幕','subtitles'),advanced=section('音频与其他选项','advanced',true);
+    body.prepend(common,encoding,subtitles,advanced);
+    grid(encoding,['quality','preset','bitrate']);encoding.append(get('quality-help'));
     grid(common,['mode','range']);common.append(get('custom'));grid(common,['tail','encoding']);
     common.append(get('hardware-field'),get('encoder-status'),get('remove-gaps').closest('label'));
     subtitles.append(get('subtitle-fields'),get('track-scope'),get('speaker-wrap'));

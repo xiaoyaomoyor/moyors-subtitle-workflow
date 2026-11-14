@@ -28,7 +28,7 @@ from maw.app_paths import default_emoji_font_path
 from maw.qwen_audio import qwen_audio_billing_info
 from maw.env_config import aliased_values, alias_keys
 from maw.ass_styles import find_ass_style, load_ass_style_library
-from maw.ffmpeg import FfmpegTools, media_duration_seconds, resolve_ffmpeg_tools
+from maw.ffmpeg import MACOS_FFMPEG_CANDIDATE_DIRECTORIES, FfmpegTools, ffmpeg_search_path, media_duration_seconds, resolve_ffmpeg_tools
 from maw.openai_asr_capabilities import model_for_endpoint, capabilities, validate_options
 from maw.gui_config import (
     DEFAULT_ENV_PATH,
@@ -53,7 +53,7 @@ from maw.gui_config import (
     save_env,
 )
 from maw.gui_platform import apply_dark_title_bar, apply_theme_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
-from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, _ffmpeg_search_path, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
+from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
 from maw.launcher_queue import inspect_input, prepare_queue, run_queue, run_task
 from maw.notify import send_system_notification
@@ -1833,6 +1833,7 @@ class LauncherApi:
                     subtitle_path=Path(str(payload.get("subtitlePath") or "")),
                     srt_style=srt_style,
                     project_style=preset,
+                    encoding=payload.get('encoding'),
                 ),
                 ffmpeg_path=tools.ffmpeg,
                 ffprobe_path=tools.ffprobe,
@@ -1852,6 +1853,8 @@ class LauncherApi:
             "subtitlePath": str(result.subtitle_path),
             "mediaPath": str(result.media_path),
             "srtStyleName": str((preset or srt_style or {}).get("name") or "文件内样式"),
+            "videoEncoder": result.video_encoder,
+            "encodingNote": result.encoding_note,
         }
 
     def get_ass_style_library(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
@@ -5321,7 +5324,8 @@ def _postprocess_ffmpeg_tools(env_path: Path) -> FfmpegTools:
     return resolve_ffmpeg_tools(
         configured_path=configured or None,
         platform=sys.platform,
-        search_path=_ffmpeg_search_path() or "",
+        macos_directories=MACOS_FFMPEG_CANDIDATE_DIRECTORIES,
+        search_path=ffmpeg_search_path(platform=sys.platform, macos_directories=MACOS_FFMPEG_CANDIDATE_DIRECTORIES) or "",
     )
 
 
@@ -5357,7 +5361,8 @@ def _check_ffmpeg(env_path: Path, override: str = "") -> dict[str, object]:
     tools = resolve_ffmpeg_tools(
         configured_path=configured_value or None,
         platform=sys.platform,
-        search_path=_ffmpeg_search_path() or "",
+        macos_directories=MACOS_FFMPEG_CANDIDATE_DIRECTORIES,
+        search_path=ffmpeg_search_path(platform=sys.platform, macos_directories=MACOS_FFMPEG_CANDIDATE_DIRECTORIES) or "",
         strict_config=bool(override.strip()),
     )
     ffmpeg_path = str(tools.ffmpeg) if tools.ffmpeg is not None else ""

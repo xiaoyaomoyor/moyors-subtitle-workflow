@@ -2047,7 +2047,7 @@
       if (this.isCueBoundaryDrag()) return;
       // 正在拖动播放头时不再显示灰色指针线（红色播放头本身就是位置指示）。
       if (this.playheadDragActive) { this.hidePointerLine(marker); return; }
-      const rect = row.getBoundingClientRect();
+      const rect = this.captureRowGeometry(row);
       const rawLeft = clamp(event.clientX - rect.left, 0, rect.width);
       const startMs = Number(row.dataset.startMs);
       const endMs = Number(row.dataset.endMs);
@@ -4328,9 +4328,9 @@
         timeAt: (x, y) => {
           const row = document.elementFromPoint(x, y)?.closest('.waveform-row');
           if (!row || !this.pane.contains(row)) return null;
-          const rect = row.getBoundingClientRect(), start = Number(row.dataset.startMs), end = Number(row.dataset.endMs);
-          return { time: start + clamp((x - rect.left) / Math.max(1, rect.width), 0, 1) * (end - start),
-            msPerPixel: (end - start) / Math.max(1, rect.width) };
+          const geometry = this.captureRowGeometry(row);
+          return { time: this.timeFromPointer({clientX:x}, row, geometry),
+            msPerPixel: (geometry.endMs - geometry.startMs) / geometry.width };
         },
         snap: (time) => snapPointerTimeToTimingGrid(time, this.options.getCueTiming?.(), this.options.getSnapToFrame?.()),
         dual: () => this.options.multiSubtitleVisible?.() === true,
@@ -5454,7 +5454,7 @@
       const rowMs = this.settings.secondsPerRow * 1000;
       const anchor = this.renderedRows[0];
       if (!anchor) return 0;
-      const rowRect = anchor.getBoundingClientRect();
+      const rowRect = this.captureRowGeometry(anchor);
       const fullWidth = rowRect.width * rowMs / Math.max(1, Number(anchor.dataset.endMs) - Number(anchor.dataset.startMs));
       const index = clamp(Math.floor((clientY - rect.top) / (this.effectiveRowHeight + ROW_GAP)),
         0, Math.max(0, Math.ceil(this.durationMs / rowMs) - 1));
@@ -5495,7 +5495,7 @@
       let height = Number(row._waveformCanvasHeight);
       if (measure || !Number.isFinite(width) || !Number.isFinite(height)) {
         const rect = row.getBoundingClientRect();
-        width = Math.max(1, Math.round(rect.width));
+        width = Math.max(1, row.clientWidth);
         height = Math.max(1, Math.round(rect.height));
       }
       if (width <= 0 || height <= 0) return;
@@ -5795,9 +5795,10 @@
 
     captureRowGeometry(row) {
       const rect = row.getBoundingClientRect();
+      // Canvas, cue overlays and pointer coordinates share the area inside borders.
       return {
-        left: rect.left,
-        width: Math.max(1, rect.width),
+        left: rect.left + row.clientLeft,
+        width: Math.max(1, row.clientWidth),
         startMs: Number(row.dataset.startMs),
         endMs: Number(row.dataset.endMs),
       };
@@ -5939,7 +5940,7 @@
     }
 
     timeFromPointer(event, row, geometry = null) {
-      const rect = geometry || row.getBoundingClientRect();
+      const rect = geometry || this.captureRowGeometry(row);
       const ratio = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
       const startMs = geometry?.startMs ?? Number(row.dataset.startMs);
       const endMs = geometry?.endMs ?? Number(row.dataset.endMs);
@@ -5949,7 +5950,7 @@
     // 边界/整体 Gap 拖动需要允许指针越过当前行的左右边缘；否则多行模式
     // 会把时间永远钳在本行，无法从一行延伸到前后行。
     timeFromPointerUnbounded(event, row, geometry = null) {
-      const rect = geometry || row.getBoundingClientRect();
+      const rect = geometry || this.captureRowGeometry(row);
       const ratio = (event.clientX - rect.left) / Math.max(1, rect.width);
       const startMs = geometry?.startMs ?? Number(row.dataset.startMs);
       const endMs = geometry?.endMs ?? Number(row.dataset.endMs);
@@ -6083,7 +6084,7 @@
       });
       const blockRect = block?.getBoundingClientRect?.();
       return {
-        clientX: rowRect.left + rowRect.width * ratio,
+        clientX: rowRect.left + row.clientLeft + row.clientWidth * ratio,
         clientY: blockRect ? blockRect.top + blockRect.height / 2 : rowRect.top + rowRect.height / 2,
       };
     }
@@ -6389,9 +6390,7 @@
       // 虚拟行重建。先保存按下瞬间的几何数据，避免 pointerup 使用已脱离
       // DOM 的旧行并把比例钳到该行末尾（也就是下一行开头）。
       const geometry = this.captureRowGeometry(row);
-      const beginRect = row.getBoundingClientRect();
-      const msPerPixel = beginRect.width > 0
-        ? (Number(row.dataset.endMs) - Number(row.dataset.startMs)) / beginRect.width : 0;
+      const msPerPixel = (geometry.endMs - geometry.startMs) / geometry.width;
       const shiftOverlayMove = false; // Legacy automatic overlay conversion is disabled.
       const selected = this.options.getSelection(track);
       if (!shiftClick) {
@@ -8034,6 +8033,10 @@
     builtinWorkspaceIds: BUILTIN_WORKSPACE_IDS,
     builtinWorkspaces: BUILTIN_WORKSPACES,
     testing: {
+      captureRowGeometry: WaveformEditor.prototype.captureRowGeometry,
+      timeFromPointer: WaveformEditor.prototype.timeFromPointer,
+      timeFromPointerUnbounded: WaveformEditor.prototype.timeFromPointerUnbounded,
+      getSplitPointAtTime: WaveformEditor.prototype.getSplitPointAtTime,
       colorForSegment,
       decodePayload,
       decodeReapeaksFile,

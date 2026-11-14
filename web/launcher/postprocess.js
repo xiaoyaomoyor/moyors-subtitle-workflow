@@ -695,13 +695,13 @@
 
   function setBusy(nextBusy, statusKey = "toolbox_running") {
     busy = nextBusy;
+    for(const input of $('toolboxBurnEncodingOptions').querySelectorAll('input,select'))input.disabled=busy;
     // 进度条与结果一样双目标：抽屉（后处理）与实用工具页（文件工具）各自可见。
     [$("toolsPageProgress"), $("progress")].forEach((bar) => bar?.classList.toggle("hidden", !busy));
     ["saveLlmSettings", "testLlmConnection", "getLlmModels", "toolboxUtilityMediaPath", "pickToolboxUtilityMedia", "toolboxBurnSubtitlePath", "pickToolboxBurnSubtitle", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "pickToolboxAlignmentProject", "toolboxAlignmentScriptPath", "pickToolboxAlignmentScript", "toolboxAlignmentGapMinimum", "toolboxAlignmentGapThreshold", "toolboxAlignmentGapLeadIn", "toolboxAlignmentGapLeadOut", "llmProvider", "llmApiKey", "llmBaseUrl", "llmModel", "llmModelChoicesToggle", "llmReasoningMode", "llmCustomDisplayName", "ocrModel", "openOcrSettings", "ocrVideoPath", "pickOcrVideo", "ocrRegionMode", "ocrRegionX1", "ocrRegionY1", "ocrRegionX2", "ocrRegionY2", "ocrThreshold", "ocrReport", "postprocessConversion"].forEach((id) => {
       $(id).disabled = busy;
     });
     renderOcrModel();
-    applyBatchModeLocks();
     renderAlignmentAction();
     renderMediaToolAction();
     if (busy) setModelChoicesOpen(false);
@@ -1389,17 +1389,27 @@
     }
     setFieldError("toolboxUtilityMediaPath", "");
     setFieldError("toolboxBurnSubtitlePath", "");
+    for(const id of ['toolboxBurnQuality','toolboxBurnBitrate']) {
+      if(!$(id).value.trim()||!$(id).checkValidity()) {
+        $('toolboxBurnEncodingOptions').open=true;$(id).focus();
+        setResult(t('burn_encoding_invalid'),'error');return;
+      }
+    }
+    const encoding={video_encoding:$('toolboxBurnEncoding').value,video_quality:Number($('toolboxBurnQuality').value),
+      video_preset:$('toolboxBurnSpeed').value,audio_bitrate_kbps:Number($('toolboxBurnBitrate').value)};
     mediaToolRunning = true;
     mediaToolCancelling = false;
     setBusy(true, "toolbox_status_burning");
     try {
-      const result = await bridge("run_burn_subtitles", { mediaPath, subtitlePath, stylePresetId: $('toolboxBurnPreset').value });
+      const result = await bridge("run_burn_subtitles", { mediaPath, subtitlePath, stylePresetId: $('toolboxBurnPreset').value, encoding });
       if (result.ok) {
         utilityMediaManual = true;
         $("toolboxUtilityMediaPath").value = result.mediaPath;
         syncPaths();
         void refreshAudioTracks();
-        setResult(`${t("toolbox_burn_done")}\n${result.mediaPath}`, "success");
+        const encoder=result.videoEncoder==='libx264'?t('burn_encoding_cpu'):result.videoEncoder;
+        const note=result.encodingNote?t(result.encodingNote.startsWith('未检测到可用硬件编码器')?'burn_encoding_unavailable':'burn_encoding_fallback'):'';
+        setResult([t("toolbox_burn_done"),encoder,note,result.mediaPath].filter(Boolean).join('\n'), "success");
       } else {
         const message = mediaToolErrorMessage(result);
         if (result.field) setFieldError(result.field, message);

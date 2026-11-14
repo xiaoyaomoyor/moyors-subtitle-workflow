@@ -3,6 +3,14 @@
 
   const STRINGS = {
     zh: {
+      burn_encoding_options: "编码参数", burn_encoding_mode: "画面编码", burn_encoding_auto: "自动（推荐）",
+      burn_encoding_cpu: "软件编码（CPU）", burn_encoding_hardware: "硬件编码", burn_encoding_quality: "画面质量",
+      burn_encoding_speed: "编码速度", burn_encoding_fast: "快速", burn_encoding_medium: "均衡", burn_encoding_slow: "慢速",
+      burn_encoding_bitrate: "音频码率（kbps）",
+      burn_encoding_hint: "质量数值越低，画质越高，文件通常越大。自动模式优先使用可用硬件，失败时改用 CPU；指定硬件时失败会提示原因。",
+      burn_encoding_invalid: "请填写有效的编码参数：画面质量 0–51，音频码率 64–512kbps，均为整数。",
+      burn_encoding_fallback: "硬件编码未完成，已改用 CPU 完成压制。",
+      burn_encoding_unavailable: "未检测到可用硬件编码器，已使用 CPU 完成压制。",
       settings_notifications: "完成通知", notify_on_complete: "任务完成或失败时发送系统通知",
       notify_on_complete_hint: "默认关闭；批处理仅在整个队列结束时提醒，取消不提醒。",
       notify_complete: "任务已完成", notify_failed: "任务处理失败", notify_batch: "批量队列已结束，请查看处理结果。",
@@ -326,6 +334,14 @@
       speaker_colors_title: "转写时按说话人自动着色（生成后仍可在编辑器修改）"
     },
     en: {
+      burn_encoding_options: "Encoding settings", burn_encoding_mode: "Video encoding", burn_encoding_auto: "Automatic (recommended)",
+      burn_encoding_cpu: "Software encoding (CPU)", burn_encoding_hardware: "Hardware encoding", burn_encoding_quality: "Video quality",
+      burn_encoding_speed: "Encoding speed", burn_encoding_fast: "Fast", burn_encoding_medium: "Balanced", burn_encoding_slow: "Slow",
+      burn_encoding_bitrate: "Audio bitrate (kbps)",
+      burn_encoding_hint: "Lower quality values generally produce higher quality and larger files. Automatic prefers usable hardware and retries with CPU on failure; explicit hardware mode reports failures.",
+      burn_encoding_invalid: "Enter whole numbers: video quality 0–51 and audio bitrate 64–512 kbps.",
+      burn_encoding_fallback: "Hardware encoding failed; the video was completed using CPU encoding.",
+      burn_encoding_unavailable: "No usable hardware encoder was detected; the video was encoded using CPU.",
       settings_notifications: "Completion notifications", notify_on_complete: "Notify when a task completes or fails",
       notify_on_complete_hint: "Off by default. Batches notify once when the queue finishes. Cancelled tasks do not notify.",
       notify_complete: "Task complete", notify_failed: "Task failed", notify_batch: "The batch queue has finished. Check the results.",

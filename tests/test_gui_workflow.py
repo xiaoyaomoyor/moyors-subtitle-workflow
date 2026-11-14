@@ -26,6 +26,7 @@ from maw.gui_workflow import (  # noqa: E402
     raw_response_path,
     unique_output_path,
     _child_environment,
+    _prepend_ffmpeg_path,
     _decode_process_output,
     render_editor_html,
     run_transcription,
@@ -660,15 +661,34 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertEqual(env["PATH"].split(os.pathsep)[0], str(ffmpeg_dir))
 
     def test_child_environment_appends_macos_candidate_directories(self) -> None:
-        with mock.patch.object(sys, "platform", "darwin"):
-                with mock.patch("maw.gui_workflow.MACOS_FFMPEG_CANDIDATE_DIRECTORIES", ("/opt/homebrew/bin", "/usr/local/bin")):
-                    with mock.patch("maw.gui_workflow.load_env", return_value={}):
-                        env = _child_environment({"PATH": "/usr/bin"}, "", "")
+        candidates = (str(self.root / 'homebrew' / 'bin'), str(self.root / 'local' / 'bin'))
+        with mock.patch.object(sys, "platform", "darwin"), \
+                mock.patch("maw.gui_workflow.MACOS_FFMPEG_CANDIDATE_DIRECTORIES", candidates), \
+                mock.patch("maw.ffmpeg.shutil.which", return_value=None), \
+                mock.patch("maw.gui_workflow.load_env", return_value={}):
+            env = _child_environment({"PATH": "/usr/bin"}, "", "")
 
         self.assertEqual(
             env["PATH"].split(os.pathsep),
-            ["/usr/bin", "/opt/homebrew/bin", "/usr/local/bin"],
+            ["/usr/bin", *candidates],
         )
+
+    def test_child_environment_moves_selected_tools_to_front_once(self) -> None:
+        folder = self.root / 'ffmpeg' / 'bin'
+        folder.mkdir(parents=True)
+        for name in ('ffmpeg', 'ffprobe'):
+            (folder / (name + ('.exe' if os.name == 'nt' else ''))).write_bytes(b'fixture')
+        other = str(self.root / 'other')
+        inherited = os.pathsep.join([other, str(folder), str(folder) + os.sep])
+        with mock.patch('maw.gui_workflow.load_env', return_value={}), \
+                mock.patch('maw.gui_workflow.MACOS_FFMPEG_CANDIDATE_DIRECTORIES', ()):
+            env = _child_environment({'PATH':inherited,'FFMPEG_PATH':str(folder)}, '', '')
+        self.assertEqual(env['PATH'].split(os.pathsep), [str(folder), other])
+        self.assertFalse(_prepend_ffmpeg_path(env, str(folder)))
+        if os.name == 'nt':
+            env['PATH'] = os.pathsep.join([other, str(folder).upper(), str(folder)])
+            self.assertTrue(_prepend_ffmpeg_path(env, str(folder)))
+            self.assertEqual(env['PATH'].split(os.pathsep), [str(folder), other])
 
     def test_run_transcription_reports_child_pid_after_popen(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path)

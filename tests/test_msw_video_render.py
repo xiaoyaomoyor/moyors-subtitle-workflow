@@ -124,7 +124,7 @@ class VideoRenderTests(unittest.TestCase):
         # Restarting at the trim or encoding chunk would reveal zero/one M.
         with patch('maw.msw.video_render.CHUNK_SECONDS', .5):
             _, _, output = self.export(mode='voice', start_ms=1500, end_ms=3500,
-                                       burn_subtitles='main', video_encoding='cpu')
+                                       burn_subtitles='main', video_encoding='h264')
         counts = []
         for seconds in (.25, 1.25):
             with tempfile.TemporaryFile() as data:
@@ -285,7 +285,7 @@ class VideoRenderTests(unittest.TestCase):
         def compile_ass(*args,**kwargs):
             value=styled_ass(*args,**kwargs);documents.append(value);return value
         with patch('maw.msw.video_render.styled_ass',side_effect=compile_ass):
-            result,plan,output=self.export(remove_gaps=True,burn_subtitles='main',video_encoding='cpu')
+            result,plan,output=self.export(remove_gaps=True,burn_subtitles='main',video_encoding='h264')
         self.assertEqual(plan['sample_count'],144000)
         self.assertTrue(output.is_file())
         self.assertTrue(any('ANNOTATION' in doc and 'DIALOGUE' in doc and r'\pos(' in doc for doc in documents))
@@ -316,14 +316,39 @@ class VideoRenderTests(unittest.TestCase):
 
         with patch('maw.msw.video_render.choose_encoder', return_value=('h264_nvenc','')), \
              patch('maw.msw.video_render.encode_picture', side_effect=encode):
-            result, _, _ = self.export(start_ms=500)
+            result, _, _ = self.export(start_ms=500, video_quality=23, video_preset='fast', audio_bitrate_kbps=128)
             self.assertEqual(encoders, ['h264_nvenc','libx264'])
             self.assertEqual(result['video_encoder'], 'libx264')
             self.assertIn('已改用', result['encoding_note'])
+            self.assertEqual((result['video_quality'], result['video_preset'], result['audio_bitrate_kbps']), (23, 'fast', 128))
             encoders.clear()
             with self.assertRaisesRegex(ValueError, 'Hardware session lost'):
                 self.export(video_encoding='hardware', start_ms=500)
             self.assertEqual(encoders, ['h264_nvenc'])
+
+    def test_manual_burning_keeps_advanced_options_through_shared_srt_style(self):
+        from maw.postprocess_ffmpeg import BurnSubtitleRequest, run_burn_subtitles
+        from maw.project_subtitle_style import builtin_presets
+        subtitle=self.root/'caption.srt'
+        subtitle.write_text('1\n00:00:00,000 --> 00:00:01,000\n字幕\n',encoding='utf-8')
+        settings=dict(video_encoding='h264',video_quality=23,video_preset='fast',audio_bitrate_kbps=128)
+        from maw import postprocess_ffmpeg
+        commands=[]
+        original=postprocess_ffmpeg._run_ffmpeg_process
+        def encode(command,**kwargs):
+            commands.append(command)
+            return original(command,**kwargs)
+        with patch.object(postprocess_ffmpeg,'_run_ffmpeg_process',side_effect=encode):
+            result=run_burn_subtitles(BurnSubtitleRequest(self.source,subtitle,project_style=builtin_presets()[0],encoding=settings),
+                                     ffmpeg_path=self.tools.ffmpeg,ffprobe_path=self.tools.ffprobe)
+        command=commands[-1]
+        self.assertEqual(command[command.index('-crf')+1],'23')
+        self.assertEqual(command[command.index('-preset')+1],'fast')
+        self.assertEqual(command[command.index('-b:a')+1],'128k')
+        self.assertEqual(result.subtitle_path,subtitle)
+        actual=probe_source(self.tools.ffprobe,result.media_path,self.cancel)
+        self.assertEqual(actual['video']['codec'],'h264')
+        self.assertAlmostEqual(actual['duration_ms'],4000,delta=100)
 
     def test_real_available_hardware_encodes_subtitles(self):
         from maw.msw.video_encoders import capabilities

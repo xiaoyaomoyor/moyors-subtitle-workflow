@@ -43,16 +43,53 @@ test('tools page configures and runs file tools inline with a single-select rail
   await expect(page.locator('#toolboxWaveformPanel')).toHaveCount(0);
 });
 
+test('manual burning validates shared encoding settings and shows CPU fallback',async({page},info)=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await openLauncher(page);
+  await page.evaluate(()=>{
+    window.burnCalls=[];
+    MSWLauncher.bridgeOverride=async(method,payload,next)=>{
+      if(method==='run_burn_subtitles'){
+        window.burnCalls.push(payload);
+        return {ok:true,mediaPath:payload.mediaPath,videoEncoder:'libx264',encodingNote:window.burnNote||'CPU fallback'};
+      }
+      return next(method,payload);
+    };
+    MSWNavigation.show('tools');
+  });
+  await page.locator('[data-tools-select="burnSubtitle"]').click();
+  await page.locator('#toolboxUtilityMediaPath').fill('C:\\fixture\\clip.mp4');
+  await page.locator('#toolboxBurnSubtitlePath').fill('C:\\fixture\\clip.srt');
+  await page.locator('#toolboxBurnEncodingOptions summary').click();
+  await page.locator('#toolboxBurnQuality').fill('52');await page.locator('#runBurnSubtitle').click();
+  expect(await page.evaluate(()=>burnCalls.length)).toBe(0);
+  await page.locator('#toolboxBurnQuality').fill('23');await page.locator('#toolboxBurnSpeed').selectOption('fast');
+  await page.locator('#toolboxBurnBitrate').fill('128');await page.locator('#runBurnSubtitle').click();
+  await expect.poll(()=>page.evaluate(()=>burnCalls.length)).toBe(1);
+  expect(await page.evaluate(()=>burnCalls[0].encoding)).toEqual({video_encoding:'auto',video_quality:23,video_preset:'fast',audio_bitrate_kbps:128});
+  await expect(page.locator('#toolsPageResult')).toContainText('CPU');
+  await page.screenshot({path:info.outputPath('encoding-launcher-zh.png')});
+  await setLauncherLanguage(page,'en');
+  await expect(page.locator('#toolboxBurnEncodingOptions')).toContainText('Encoding speed');
+  await expect(page.locator('#toolboxBurnEncodingOptions')).not.toContainText(/[\u4e00-\u9fff]/);
+  await page.evaluate(()=>window.burnNote='未检测到可用硬件编码器，使用软件编码（CPU）');
+  await page.locator('#runBurnSubtitle').click();
+  await expect(page.locator('#toolsPageResult')).toContainText('No usable hardware encoder was detected');
+  await expect(page.locator('#toolsPageResult')).not.toContainText('failed');
+  await page.screenshot({path:info.outputPath('encoding-launcher-en.png')});
+  expect(errors).toEqual([]);
+});
+
 test('settings page uses a right-side single-select group rail with deep links and memory', async ({ page }) => {
   await openLauncher(page);
   await page.evaluate(() => { localStorage.removeItem('MSW_SETTINGS_TAB_V1'); });
   await page.evaluate(() => window.MSWNavigation.show('settings'));
 
-  // S2/反馈2：设置改为右侧单选分组（外观与语言/文件与输出/服务与连接/处理默认值/运行环境/缓存与诊断）。
+  // Include the shared configuration manager alongside the existing groups.
   const tabs = page.locator('#settingsRail [data-settings-tab]');
-  await expect(tabs).toHaveCount(6);
+  await expect(tabs).toHaveCount(7);
   const ids = await tabs.evaluateAll((nodes) => nodes.map((node) => node.dataset.settingsTab));
-  expect(ids).toEqual(['appearance', 'files', 'connection', 'processing', 'runtime', 'cache']);
+  expect(ids).toEqual(['appearance', 'files', 'configuration', 'connection', 'processing', 'runtime', 'cache']);
   await expect(page.locator('#settingsAppearancePanel')).toBeVisible();
 
   // 深链：LLM 配置锚点进入「服务与连接」分组。

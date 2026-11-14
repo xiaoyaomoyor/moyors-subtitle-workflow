@@ -22,7 +22,7 @@ from maw.msw.audio_plan import VERSION, compile_plan, options
 from maw.msw.audio_render import RenderCancelled, check_cancel, fingerprint, probe_source, render
 from maw.msw.project_codec import valid_id
 from maw.msw.video_render import prepare as prepare_video, render_video
-from maw.msw.video_encoders import HARDWARE, LABELS, capabilities
+from maw.msw.video_encoders import HARDWARE, LABELS, capabilities, encoding_options
 from maw.msw.video_progress import EncodingEstimate
 from maw.msw.timeline_export import editable_plan, render_bundle
 from maw.msw.render_project import normalize as normalize_project
@@ -125,7 +125,7 @@ class AudioExports:
         return dict(available=bool(tools.ffmpeg and tools.ffprobe), plan_schema=VERSION, source_available=bool(source and Path(source).is_file()),
                     media_reference=project.get("media"), audio_index=selected,
                     video=info.get("video"), duration_ms=info.get("duration_ms"), video_alignment_version=2,
-                    video_encoding_version=1,
+                    video_encoding_version=1, video_encoding_options_version=1,
                     video_encoders=capabilities(tools.ffmpeg) if video and tools.ffmpeg and info.get('video') else [],
                     audio_tracks=info.get("audio_tracks", (project.get("media_metadata") or {}).get("audio_tracks", [])))
 
@@ -234,6 +234,8 @@ class AudioExports:
         settings.setdefault("hardware_encoder", "auto")
         settings.setdefault("collect_media", True)
         settings.setdefault('burn_subtitles', 'none')
+        if settings['format'] == 'mp4':
+            settings.update(encoding_options(settings))
         if (settings["format"] not in {"wav", "mp4", "otioz"} or settings["video_tail"] not in {"ask", "truncate", "freeze", "black"}
                 or settings["video_encoding"] not in {"auto", "h264", "hardware"}
                 or settings['hardware_encoder'] not in {'auto', *HARDWARE} or type(settings["collect_media"]) is not bool):

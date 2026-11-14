@@ -17,6 +17,13 @@ test.beforeEach(async ({ page }) => {
   // and canonical save/reload are covered by gap-reference-tracks.spec.mjs.
   await page.goto(server.url + '?subtitle-layers=0&subtitle-tracks=0');
   await expect(page.locator('.waveform-row').first()).toBeVisible();
+  await expect(page.locator('#editor-loading')).not.toBeVisible();
+  // Server preferences survive browser contexts; establish this case's UI state.
+  await page.evaluate(()=>{
+    MSWE_I18N.applyLanguage('zh');updateEditorSettings({autoSaveProject:false});
+    // Opening the panel restores these values from the shared server store.
+    setGapRemoveAdvancedOpen(false);setGapRemoveDisableOpen(false);
+  });
 });
 const open = page => clickMenubarItem(page, '媒体', 'gap-remove-manage');
 const shape = page => page.evaluate(() => getGapRemoveGaps().map(({start, end, removed}) => ({start, end, removed})));
@@ -83,11 +90,14 @@ test('summary and subtitle filtering use the same dubbing-protected ranges as pl
     renderAll({waveform:'full'});
   });
   await open(page); await page.locator('#gap-remove-disable-toggle').click();
+  await expect(page.locator('#gap-remove-disable-body')).toBeVisible();
   expect(await page.evaluate(() => gapRemoveStats())).toEqual({count:1,total:2000,protectedMs:1000});
   await expect(page.locator('#gap-remove-list')).toHaveText('已标记 1 段 · 实际可缩短 2 s');
   await expect(page.locator('#gap-remove-protection')).toBeVisible();
   await page.locator('#gap-remove-protection .msw-help-button').click();
   await expect(page.locator('#msw-option-help')).toContainText('配音保护'); await page.keyboard.press('Escape');
+  await expect(page.locator('#gap-remove-panel')).toBeVisible();
+  await expect(page.locator('#gap-remove-disable-body')).toBeVisible();
   expect(await page.evaluate(() => getRemovedGapRanges())).toEqual([{start:1000,end:2000},{start:3000,end:4000}]);
   expect(await page.evaluate(() => window.MSWE.resolve('processing-host').audioPlaybackSkip(2200))).toBeNull();
   await expect(page.locator('.waveform-gap-block').first()).toHaveAttribute('title', /配音保护：保留 1.000 秒/);
