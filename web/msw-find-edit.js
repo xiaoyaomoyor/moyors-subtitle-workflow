@@ -220,11 +220,10 @@
   function buildUnits(){
     const rows=result.rows.map(hit=>records.get(hit.key)||drafts.get(hit.key)?.row||[...invalidGroups.values()].flatMap(g=>g.rows).find(r=>r.key===hit.key)).filter(Boolean),group=el('group').value;
     if(group==='rows')units=rows.map(row=>({id:row.key,title:`${row.trackName}_${row.number}`,rows:[row]}));
-    else if(group==='script')units=rows.length?[{id:'script',title:t('整段（剧本）'),rows}]:[];
+    else if(group==='script')units=rows.length?[{id:'script',title:t('剧本'),rows}]:[];
     else {const groups=new Map();for(const row of rows){const key=group==='track'?row.trackId:row.speakerId;if(!groups.has(key))groups.set(key,{id:group+':'+key,title:group==='track'?row.trackName:row.speakerName,rows:[]});groups.get(key).rows.push(row);}units=[...groups.values()];}
     for(const unit of units)unit.draftKey=(group==='script'?'script:':'')+JSON.stringify(unit.rows.map(r=>r.key));
     rowHeight=group==='rows'?156:group==='script'?Math.max(300,viewport.clientHeight):300;canvas.style.height=`${units.length*rowHeight}px`;
-    el('script-help').hidden=group!=='script';
     el('script-options').hidden=group!=='script';
     for(const id of ['script-copy','script-copy-full'])el(id).disabled=!rows.length;
     el('empty').hidden=!!rows.length;el('empty').textContent=t('当前范围没有字幕');
@@ -267,7 +266,7 @@
     const records=[record,...exportRecords()].slice(0,5);
     while(records.length>1){try{MSWScriptExchange.validateRecords(records);break;}catch(_){records.pop();}}
     MSWProject.ensure(DATA).script_exports=records;projectImportDirty=true;scheduleAutoSaveFlush();
-    scriptNotice('润色稿已导出；导出记录随工程保存，请保存工程');
+    scriptNotice('剧本已导出；导出记录随工程保存，请保存工程');
   }
   function stageScriptImport(edits,snapshot){
     const current=exchangeSnapshot();

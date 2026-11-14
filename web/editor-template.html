@@ -2648,12 +2648,11 @@ __WAVEFORM_CSS__
       <div id="find-edit-speakers" class="find-checks" hidden aria-label="筛选说话人"></div>
     </details>
     <details class="find-section find-results-section" id="find-edit-result-section" open><summary>筛选结果 <span id="find-edit-count" role="status"></span></summary>
-      <div class="find-results-toolbar"><label>编辑形式<select id="find-edit-group"><option value="rows">逐条编辑</option><option value="track">整段 · 按轨道</option><option value="speaker">整段 · 按说话人</option><option value="script">整段（剧本）</option></select></label><span data-option-help="勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。"></span><button id="find-edit-drafts" type="button" hidden></button></div>
+      <div class="find-results-toolbar"><label>编辑形式<select id="find-edit-group"><option value="rows">逐条编辑</option><option value="track">轨道</option><option value="speaker">说话人</option><option value="script">剧本</option></select></label><span data-option-help="勾选的结果才会应用。整段编辑保留字幕分隔行，正文可换行；增删字幕请使用切分或合并。点击序号定位到波形。"></span><button id="find-edit-drafts" type="button" hidden></button></div>
       <div id="find-edit-script-options" hidden>
         <div class="find-checks" role="group" aria-label="剧本信息显示"><span>显示信息</span><label class="media-preview-toggle"><input id="find-edit-script-time" type="checkbox" checked>时间</label><label class="media-preview-toggle"><input id="find-edit-script-speaker" type="checkbox" checked>说话人</label><label class="media-preview-toggle"><input id="find-edit-script-track" type="checkbox" checked>轨道</label><label class="media-preview-toggle"><input id="find-edit-script-language" type="checkbox" checked>语言</label><label class="media-preview-toggle"><input id="find-edit-script-number" type="checkbox" checked>序号</label></div>
-        <div class="find-script-copy"><button id="find-edit-script-copy" type="button">复制当前显示</button><button id="find-edit-script-copy-full" type="button">复制完整剧本</button><button id="script-exchange-export" type="button" title="导出当前筛选范围和手工草稿；完整信息不受显示勾选影响">导出润色稿</button><button id="script-exchange-open" type="button">导入润色稿…</button></div>
+        <div class="find-script-copy"><button id="find-edit-script-copy" type="button">复制当前显示</button><button id="find-edit-script-copy-full" type="button">复制完整剧本</button><button id="script-exchange-export" type="button" title="导出当前筛选范围和手工草稿；完整信息不受显示勾选影响">导出剧本</button><button id="script-exchange-open" type="button">导入润色稿…</button></div>
       </div>
-      <p id="find-edit-script-help" hidden>正文原样编辑，无需外层引号或转义。信息行只读，可与正文一并选中复制；隐藏信息不影响字幕。双击定位，Tab 切换正文。外部润色请使用“导出润色稿”和“导入润色稿”，核对差异后写入草稿。</p>
       <div id="find-edit-results" tabindex="0" aria-label="筛选结果" aria-busy="false"><p id="find-edit-empty">当前范围没有字幕</p><div id="find-edit-rows" data-i18n-skip></div></div>
     </details>
     <details class="find-section" id="find-edit-operations" open><summary>操作</summary>
@@ -2675,21 +2674,30 @@ __WAVEFORM_CSS__
   <section class="modal script-exchange-dialog">
     <header class="script-exchange-heading"><h3 id="script-exchange-title">导入外部润色稿</h3><button id="script-exchange-close" type="button" class="settings-modal-close" aria-label="关闭">×</button></header>
     <div class="script-exchange-content">
-      <details id="script-exchange-source" open><summary>选择 TXT 或粘贴全文</summary><label class="script-exchange-file">TXT 文件<input id="script-exchange-file" type="file" accept=".txt,text/plain"></label><textarea id="script-exchange-text" rows="5" aria-label="外部润色稿" placeholder="在这里粘贴包含时间和轨道标签的润色稿…" spellcheck="false"></textarea><button id="script-exchange-analyze" type="button">解析并匹配</button></details>
-      <label class="script-exchange-record">对应导出记录<select id="script-exchange-record" data-i18n-skip></select></label>
-      <p class="script-exchange-hint">导出记录随工程保存，最多保留最近 5 次；较旧文件仍可使用兼容匹配。</p>
+      <details id="script-exchange-source" class="script-exchange-section" open>
+        <summary><span>导入内容</span><span id="script-exchange-source-name" class="script-exchange-summary-note" data-i18n-skip></span></summary>
+        <div class="script-exchange-file"><button id="script-exchange-pick-file" type="button">选择 TXT 文件</button><span class="script-exchange-hint">或在下方粘贴剧本全文</span><input id="script-exchange-file" type="file" accept=".txt,text/plain" aria-label="TXT 文件" hidden></div>
+        <textarea id="script-exchange-text" rows="8" aria-label="外部润色稿" placeholder="在这里粘贴包含时间和轨道标签的润色稿…" spellcheck="false"></textarea>
+        <div class="script-exchange-source-actions"><span class="script-exchange-hint">保留时间和轨道标签，以便准确对应字幕。</span><button id="script-exchange-analyze" class="primary" type="button">解析并匹配</button></div>
+      </details>
+      <details id="script-exchange-settings" class="script-exchange-section">
+        <summary><span>匹配设置</span><span id="script-exchange-mapping-status" class="script-exchange-summary-note" data-i18n-skip></span></summary>
+        <label class="script-exchange-record">对应导出记录<select id="script-exchange-record" data-i18n-skip></select></label>
+        <p class="script-exchange-hint">导出记录随工程保存，最多保留最近 5 次；较旧文件仍可使用兼容匹配。</p>
+        <div id="script-exchange-map-section" hidden><h4>轨道对应</h4><div id="script-exchange-mapping" data-i18n-skip></div></div>
+      </details>
       <p id="script-exchange-baseline" class="script-exchange-hint"></p>
-      <p class="script-exchange-hint">匹配当前工程全部轨道，仅回填勾选的正文。缺少的条目不会删除，多出的条目不会新建；时间、说话人、绑定和样式保持不变。</p>
       <p id="script-exchange-message" role="status"></p>
       <div id="script-exchange-preview" hidden>
-        <details class="script-exchange-map" open><summary>轨道对应</summary><div id="script-exchange-mapping" data-i18n-skip></div></details>
+        <h4 id="script-exchange-review-title" tabindex="-1">核对正文</h4>
         <div id="script-exchange-counts" role="status" data-i18n-skip></div>
         <div class="script-exchange-toolbar"><label>显示<select id="script-exchange-filter"><option value="changes">变化与待处理</option><option value="all">全部条目</option><option value="update">可更新</option><option value="review">需要确认</option><option value="missing">未找到</option><option value="conflict">正文冲突</option><option value="locked">已锁定</option></select></label><button id="script-exchange-select" type="button">选中可更新</button><button id="script-exchange-deselect" type="button">取消勾选</button><button id="script-exchange-refresh" type="button">重新匹配</button></div>
         <div id="script-exchange-rows" data-i18n-skip></div>
+        <p id="script-exchange-empty" hidden data-i18n-skip></p>
         <nav class="script-exchange-pages" aria-label="导入预览分页"><button id="script-exchange-prev" type="button">上一页</button><span id="script-exchange-page" data-i18n-skip></span><button id="script-exchange-next" type="button">下一页</button></nav>
       </div>
     </div>
-    <footer class="script-exchange-footer"><span id="script-exchange-selected" data-i18n-skip></span><button id="script-exchange-cancel" type="button">取消</button><button id="script-exchange-stage" class="primary" type="button" disabled>写入草稿</button></footer>
+    <footer class="script-exchange-footer"><div class="script-exchange-footer-info"><span id="script-exchange-selected" data-i18n-skip></span><span class="script-exchange-hint">仅导入正文，应用编辑后生效。</span></div><button id="script-exchange-cancel" type="button">取消</button><button id="script-exchange-stage" class="primary" type="button" disabled>写入草稿</button></footer>
   </section>
 </div>
 

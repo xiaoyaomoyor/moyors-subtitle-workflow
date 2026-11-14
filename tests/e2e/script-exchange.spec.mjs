@@ -13,6 +13,8 @@ test('TXT import tolerates display metadata and numbering changes, stages only t
  const before=await snap(page),history=await page.evaluate(()=>editorHistory.undoLength()),text=await full(page);
  await load(page,text.replace('  Alpha Bravo  ','Revised "English"').replace(' 中文 0','润色“中文”\n第二行').replaceAll('SP3','改名').replace('S1主 · #1','S1主 · English · #99'),true);
  await expect(page.locator('#script-exchange-counts')).toContainText('可更新 2');await expect(page.locator('#script-exchange-counts')).toContainText('未变化 4');
+ await expect(page.locator('#script-exchange-source')).not.toHaveAttribute('open');await expect(page.locator('#script-exchange-settings')).not.toHaveAttribute('open');
+ await expect(page.locator('.script-exchange-target-options').first()).not.toHaveAttribute('open');
  await page.locator('#script-exchange-modal .modal').screenshot({path:info.outputPath('script-import.png')});
  await page.locator('#script-exchange-stage').click();await expect(page.locator('#script-exchange-modal')).not.toHaveClass(/show/);
  expect((await snap(page)).subtitles).toEqual(before.subtitles);expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history);
@@ -55,7 +57,7 @@ test('ambiguous timing needs a manual target and narrow preview stays usable',as
 async function exported(page){
  await page.evaluate(()=>{window.showSaveFilePicker=undefined;});
  const downloading=page.waitForEvent('download');await page.locator('#script-exchange-export').click();const download=await downloading;
- await expect(page.locator('#find-edit-message')).toContainText('润色稿已导出');return readFileSync(await download.path(),'utf8');
+ await expect(page.locator('#find-edit-message')).toContainText('剧本已导出');return readFileSync(await download.path(),'utf8');
 }
 
 test('export records survive changed times and names, reveal three-way conflicts and preserve newer local text',async({page},info)=>{
@@ -80,6 +82,7 @@ test('missing record uses explicit compatibility notice; markerless file can use
  await load(page,text.replace(id,'script-missing').replace(' 中文 0','External'));
  await expect(page.locator('#script-exchange-baseline')).toContainText('工程中没有对应记录');await page.locator('#script-exchange-cancel').click();
  await load(page,text.slice(text.indexOf('\n')+1).replace(' 中文 0','External'));
+ await page.locator('#script-exchange-settings > summary').click();
  await page.locator('#script-exchange-record').selectOption(id);await expect(page.locator('#script-exchange-baseline')).toContainText('已使用工程中的导出记录');
 });
 
@@ -118,4 +121,27 @@ test('large clipboard paste stays literal and can be parsed without native inser
  await page.locator('#script-exchange-open').click();await page.locator('#script-exchange-text').focus();await page.keyboard.press('Control+v');
  await expect(page.locator('#script-exchange-text')).toHaveValue(text);await page.locator('#script-exchange-analyze').click();
  await expect(page.locator('#script-exchange-counts')).toContainText('可更新 1');await expect(page.locator('#script-exchange-rows pre').last()).toContainText('Literal "quotes" \\ path');
+});
+
+test('compact import supports file selection, empty results, source correction and keyboard return in light theme',async({page},info)=>{
+ const text=await full(page);await page.evaluate(()=>document.documentElement.dataset.theme='light');
+ await page.locator('#script-exchange-open').click();await expect(page.locator('#script-exchange-analyze')).toBeDisabled();
+ await expect(page.locator('#script-exchange-pick-file')).toBeFocused();
+ await page.locator('#script-exchange-modal .modal').screenshot({path:info.outputPath('script-import-source-light.png')});
+ const choosing=page.waitForEvent('filechooser');await page.locator('#script-exchange-pick-file').click();
+ await (await choosing).setFiles({name:'reviewed.txt',mimeType:'text/plain',buffer:Buffer.from(text)});
+ await expect(page.locator('#script-exchange-empty')).toBeVisible();await expect(page.locator('#script-exchange-stage')).toBeDisabled();
+ await expect(page.locator('#script-exchange-source-name')).toHaveText('reviewed.txt');await expect(page.locator('#script-exchange-review-title')).toBeFocused();
+ await page.locator('#script-exchange-filter').selectOption('all');await expect(page.locator('.script-exchange-row')).toHaveCount(6);
+ await page.locator('#script-exchange-source > summary').click();await page.locator('#script-exchange-text').fill('invalid');
+ await expect(page.locator('#script-exchange-preview')).toBeHidden();await page.locator('#script-exchange-analyze').click();
+ await expect(page.locator('#script-exchange-message')).toHaveClass('is-error');await expect(page.locator('#script-exchange-source')).toHaveAttribute('open');
+ await page.locator('#script-exchange-text').fill(text.replace(' 中文 0','Corrected text'));await page.locator('#script-exchange-analyze').click();
+ await expect(page.locator('#script-exchange-stage')).toBeEnabled();await page.locator('#script-exchange-filter').selectOption('changes');
+ await expect(page.locator('.script-exchange-row')).toHaveCount(1);await page.locator('.script-exchange-target-options > summary').click();
+ await expect(page.locator('.script-exchange-target select')).toBeVisible();
+ await page.locator('#script-exchange-modal .modal').screenshot({path:info.outputPath('script-import-review-light.png')});
+ await page.locator('#script-exchange-stage').focus();await page.keyboard.press('Tab');await expect(page.locator('#script-exchange-close')).toBeFocused();
+ await page.keyboard.press('Shift+Tab');await expect(page.locator('#script-exchange-stage')).toBeFocused();
+ await page.keyboard.press('Escape');await expect(page.locator('#script-exchange-modal')).not.toHaveClass(/show/);await expect(page.locator('#script-exchange-open')).toBeFocused();
 });
