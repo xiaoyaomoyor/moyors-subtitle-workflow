@@ -9,6 +9,12 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '保留方言表达': 'Preserve dialect expressions',
+    '未勾选时转为普通话文本': 'Transcribe as Mandarin text when disabled',
+    '参考价：输入 ¥{input} / 输出 ¥{output}，每百万 Token；以实际账单为准': 'Reference: input ¥{input} / output ¥{output} per million tokens; actual billing may vary',
+    '按 Token 计费；当前地域参考价未知': 'Token billing; reference price unknown for this region',
+    '输入 {input} / 输出 {output} tokens': 'Input {input} / output {output} tokens',
+    '参考费用': 'Estimated cost', '费用未知': 'Cost unknown', '用量未知': 'Usage unknown',
     '导入润色稿…': 'Import polished script…', '导出剧本': 'Export script', '导入外部润色稿': 'Import polished script',
     '导入内容': 'Import content', '选择 TXT 文件': 'Choose TXT file', '或在下方粘贴剧本全文': 'or paste the full script below',
     '保留时间和轨道标签，以便准确对应字幕。': 'Keep time and track labels so cues can be matched accurately.',

@@ -180,6 +180,22 @@ CLI 的 `--with-waveform` 会生成独立 `.quapeaks` 波形缓存，缺少原�
 
 ## 用 Qwen-Audio 3.0 ASR 转写（热词与上下文）
 
+### 可选 Qwen-Audio 3.1
+
+启动器、编辑器内 ASR 和 CLI 均支持 `qwen-audio-3.1-asr-flash-filetrans`；默认仍为 3.0，已有模型选择保持不变。3.1 可使用热词、上下文、预建词表与说话人分离。“保留方言表达”默认关闭，关闭时转为普通话文本；开启时保留方言表达。两个界面分别保存此识别偏好，切换到其他模型不会传递该参数。
+
+```powershell
+uv run python maw_gui.py -i "example.mp4" --model qwen-audio-3.1-asr-flash-filetrans --keep-dialect
+```
+
+直接调用 `generate_subtitle_qwen_api.py` 时也可传入同名参数。`--keep-dialect` 只能用于 Qwen-Audio 3.1；其他模型或服务会在任务开始前报错。启用文件名模型标记时，3.1 使用独立版本标记，避免与 3.0 混淆。
+
+3.1 按输入、输出 Token 计费，不按音频秒数估算。界面显示所选地域的参考价；任务完成后，启动器日志和编辑器识别结果显示服务实际返回的用量与参考费用。缺失或无效的计数显示未知，不视作零费用。北京参考价为输入 ¥0.8、输出 ¥2.7／百万 Token；新加坡为 ¥1.094、¥3.427／百万 Token（2026-11-14 核对，不含促销，以实际账单为准）。见[官方模型说明](https://help.aliyun.com/en/model-studio/qwen-audio-3-1-asr-flash-filetrans)及[文件转写接口](https://help.aliyun.com/en/model-studio/qwen-audio-asr-filetrans-http-api)。
+
+DeepSeek 内置默认为 `deepseek-flash`。已保存的旧名称（包括 `deepseek-v4-flash`）、自定义服务地址和推理设置不会被重写；需要采用新名称时，可在服务配置中自行切换。
+
+### 3.0 与通用增强配置
+
 Launcher 和 CLI 默认都使用 `qwen-audio-3.0-asr-flash-filetrans`；需要切换其他模型时再显式指定：
 
 ```powershell

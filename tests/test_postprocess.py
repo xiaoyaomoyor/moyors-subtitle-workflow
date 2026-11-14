@@ -899,6 +899,14 @@ class PostprocessTests(unittest.TestCase):
             _reasoning_parameters(LlmSettings("deepseek", "key", "https://example.com", "deepseek-v4-flash", "high")),
             {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
         )
+        self.assertEqual(
+            _reasoning_parameters(LlmSettings("deepseek", "key", "https://api.deepseek.com", "deepseek-flash", "high")),
+            {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
+        )
+        self.assertEqual(
+            _reasoning_parameters(LlmSettings("deepseek", "key", "https://api.deepseek.com", "deepseek-flash", "off")),
+            {"thinking": {"type": "disabled"}},
+        )
         self.assertEqual(_reasoning_parameters(LlmSettings("custom", "key", "https://example.com", "local", "off")), {})
         self.assertEqual(_reasoning_parameters(LlmSettings("custom", "key", "https://example.com", "local", "auto")), {})
         with self.assertRaises(ValueError):

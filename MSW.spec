@@ -50,6 +50,7 @@ if sys.platform == "linux":
 datas = [
     (str(ROOT / "maw" / "cache_management.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "cache_management.py"), "ocr-runtime/maw"),
+    (str(ROOT / "maw" / "qwen_audio.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "config_defaults_schema.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "launcher_outputs.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "ocr_runtime.py"), "local-runtime/maw"),

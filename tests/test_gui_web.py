@@ -45,6 +45,32 @@ class FakeWindow:
 
 @final
 class GuiWebBridgeTests(unittest.TestCase):
+    def test_deepseek_saved_models_and_custom_connections_override_new_default(self):
+        for model in ('deepseek-v4-flash', 'deepseek-v4-pro', 'my-deepseek-model'):
+            with self.subTest(model=model):
+                original = (f'MAW_POSTPROCESS_DEEPSEEK_MODEL={model}\n'
+                            'MAW_POSTPROCESS_DEEPSEEK_BASE_URL=https://relay.example/v1\n'
+                            'MAW_POSTPROCESS_DEEPSEEK_REASONING_MODE=high\n')
+                self.env_path.write_text(original, encoding='utf-8')
+                result = self.api.get_postprocess_settings({'providerId': 'deepseek'})
+                self.assertEqual(result['model'], model)
+                self.assertEqual(result['baseUrl'], 'https://relay.example/v1')
+                self.assertEqual(result['reasoningMode'], 'high')
+                self.assertEqual(self.env_path.read_text(encoding='utf-8'), original)
+
+    def test_qwen_dialect_preference_survives_reopening_without_changing_credentials(self):
+        from maw.gui_config import effective_config
+        original = 'DASHSCOPE_API_KEY=synthetic-keep\nDASHSCOPE_REGION=beijing\n'
+        self.env_path.write_text(original, encoding='utf-8')
+        self.assertFalse(effective_config(self.env_path).qwen_keep_dialect)
+        self.assertTrue(self.api.save_prefs({'qwenKeepDialect': True})['ok'])
+        self.assertTrue(effective_config(self.env_path).qwen_keep_dialect)
+        self.assertEqual(self.env_path.read_text(encoding='utf-8'), original)
+        self.assertFalse(self.api.save_prefs({'qwenKeepDialect': 'false'})['ok'])
+        self.assertTrue(effective_config(self.env_path).qwen_keep_dialect)
+        self.assertTrue(self.api.save_prefs({'qwenKeepDialect': False})['ok'])
+        self.assertFalse(effective_config(self.env_path).qwen_keep_dialect)
+
     def test_asr_connection_save_preserves_key_and_task_defaults(self):
         from maw.gui_config import load_env
         self.env_path.write_text("DASHSCOPE_API_KEY=test-old\nDASHSCOPE_DEFAULT_LANGUAGE=en\nMAW_GUI_LAST_MODEL=qwen-audio-3.0-asr\n", encoding="utf-8")
@@ -153,14 +179,16 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(len(config["providers"][0]["commonLanguages"]), 10)
         self.assertEqual(len(config["providers"][1]["commonLanguages"]), 8)
         self.assertEqual(config["models"][0]["id"], "qwen-audio-3.0-asr-flash-filetrans")
-        self.assertEqual(config["models"][1]["id"], "fun-asr")
-        self.assertEqual(config["models"][2]["id"], "qwen3-asr-flash-filetrans")
+        self.assertEqual(config["models"][1]["id"], "qwen-audio-3.1-asr-flash-filetrans")
+        self.assertTrue(config["models"][1]["supportsKeepDialect"])
+        self.assertEqual(config["models"][2]["id"], "fun-asr")
+        self.assertEqual(config["models"][3]["id"], "qwen3-asr-flash-filetrans")
         self.assertTrue(config["models"][0]["supportsSpeaker"])
         self.assertTrue(config["models"][0]["supportsContext"])
         self.assertTrue(config["models"][0]["supportsHotwords"])
         self.assertTrue(config["models"][0]["supportsVocabulary"])
         self.assertEqual(config["models"][0]["languages"][0]["id"], "")
-        self.assertFalse(config["models"][2]["supportsSpeaker"])
+        self.assertFalse(config["models"][3]["supportsSpeaker"])
         self.assertEqual(config["languages"][0]["id"], "")
 
     def test_remove_registry_project_also_leaves_recent_view(self) -> None:
@@ -652,7 +680,7 @@ class GuiWebBridgeTests(unittest.TestCase):
             self.fail("postprocessProviders must be a list")
         providers = {provider["id"]: provider for provider in raw_providers if isinstance(provider, dict)}
 
-        self.assertEqual(providers["deepseek"]["model"], "deepseek-v4-flash")
+        self.assertEqual(providers["deepseek"]["model"], "deepseek-flash")
         self.assertEqual(providers["zhipu"]["label"], "智谱 GLM")
         self.assertEqual(providers["zhipu"]["baseUrl"], "https://open.bigmodel.cn/api/coding/paas/v4")
         self.assertEqual(providers["zhipu"]["model"], "glm-5.2")

@@ -249,4 +249,4 @@ class AsrService:
             return {'segments': candidates, 'source': snapshot['source'], 'range': span,
                     'extraction_start_ms': span['start'], 'extracted_duration_ms': actual_ms,
                     'language': project.get('language', ''), 'model': settings.model,
-                    'warnings': warnings}
+                    'warnings': warnings, **({'billing': result.billing} if getattr(result, 'billing', None) is not None else {})}

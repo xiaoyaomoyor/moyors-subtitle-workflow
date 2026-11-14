@@ -290,6 +290,13 @@
                 </div>
                 <div id="qwenAudioOptions" class="adv-group qwen-audio-options hidden">
                   <h3 data-i18n="qwen_audio_options_title">Qwen 上下文与热词</h3>
+                  <div id="qwenAudioKeepDialectField" class="field hidden">
+                    <label class="check-field" for="qwenAudioKeepDialect">
+                      <input id="qwenAudioKeepDialect" type="checkbox">
+                      <span data-i18n="qwen_audio_keep_dialect">保留方言表达</span>
+                    </label>
+                    <p class="hint" data-i18n="qwen_audio_keep_dialect_hint">勾选后保留方言表达；未勾选时转为普通话文本。</p>
+                  </div>
                   <div id="qwenAudioContextField" class="field">
                     <label for="qwenAudioContext" data-i18n="qwen_audio_context">附加上下文（Prompt）</label>
                     <textarea id="qwenAudioContext" rows="3" autocomplete="off" data-i18n-placeholder="qwen_audio_context_placeholder"></textarea>

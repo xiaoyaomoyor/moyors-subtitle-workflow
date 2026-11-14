@@ -148,7 +148,7 @@ class AsrTests(unittest.TestCase):
             'segments':[{'start':10,'end':200,'text':'hello',
             'items':[{'start':10,'end':100,'text':'he'},{'start':100,'end':200,'text':'llo'}]}]}),encoding='utf-8')
         request.srt_path.write_bytes(b'')
-        return SimpleNamespace(json_path=output)
+        return SimpleNamespace(json_path=output, billing=getattr(self, 'billing', None))
 
     def test_conflicting_source_track_blocks_asr_before_any_transcription(self):
         self.media.records[self.record['id']]['track_conflict'] = True
@@ -191,6 +191,20 @@ class AsrTests(unittest.TestCase):
         raw=' '.join(row[0] for row in manager.db.execute('SELECT payload FROM jobs'))
         self.assertNotIn('synthetic-asr-key',raw)
         self.assertEqual(result['recipe']['qwen_audio_context'],'Names')
+
+    def test_qwen31_usage_survives_job_storage(self):
+        from maw.qwen_audio import QWEN_AUDIO_31_MODEL_ID, qwen_audio_31_usage
+        if not self.tools.complete:
+            self.skipTest('FFmpeg required')
+        self.billing = qwen_audio_31_usage({'input_tokens': 1000, 'output_tokens': 20}, 'beijing')
+        snapshot, _ = self.service.prepare(self.payload())
+        manager = self.manager()
+        settings = self.settings(modelId=QWEN_AUDIO_31_MODEL_ID, qwenKeepDialect=True)
+        result = self.wait(manager, manager.submit({**self.payload(), 'snapshot': snapshot}, settings))
+        self.assertEqual(result['status'], 'succeeded', result)
+        self.assertEqual(result['result']['billing'], self.billing)
+        self.assertTrue(result['recipe']['qwen_keep_dialect'])
+        self.assertEqual(result['result']['segments'][0]['start'], 1010)
 
     def test_clip_asr_extracts_samples_and_maps_to_timeline_without_source_media(self):
         if not self.tools.complete: self.skipTest('FFmpeg required')

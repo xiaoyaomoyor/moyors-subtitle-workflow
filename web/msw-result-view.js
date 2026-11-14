@@ -4,6 +4,13 @@
   const model=global.MSWResults, t=s => global.MSWE_I18N?.translateText?.(s)||s;
   const node=(tag,cls,text) => {const n=document.createElement(tag);if(cls)n.className=cls;if(text)n.textContent=t(text);return n;};
   const labels={queued:'等待处理',running:'正在处理',cancel_requested:'正在取消',succeeded:'处理完成',failed:'处理失败',cancelled:'已取消',interrupted:'服务中断'};
+  function billingText(billing) {
+    if (!billing) return '';
+    const count=value=>Number.isSafeInteger(value)&&value>=0?String(value):t('用量未知');
+    const tokens=t('输入 {input} / 输出 {output} tokens').replace('{input}',count(billing.input_tokens)).replace('{output}',count(billing.output_tokens));
+    const cost=billing.currency==='CNY'&&Number.isFinite(billing.estimated_cost)?`${t('参考费用')} ¥${billing.estimated_cost.toFixed(6)}`:t('费用未知');
+    return ` · ${tokens} · ${cost}`;
+  }
   function create({host,kind,container,footer,count,onApply,onStore,onCancel,onRetry,onMessage}) {
     const cards=new Map();let selected=null,current=[],rawJobs=[],restored=null;
     const prefix=kind==='asr'?'识别':'翻译',id=kind==='asr'?'msw-asr':'translation';
@@ -98,7 +105,7 @@
         card.members=members;card.raw=jobs.filter(j=>model.key(j)===key);
         const batch=model.record(host.data.msw,members[0]);card.title.textContent=t(prefix+'批次')+String(batch.number).padStart(2,'0');
         card.radio.disabled=!members.some(j=>j.result&&model.rows(j).length);
-        card.status.textContent=members.map(j=>`${t(labels[j.status]||j.status)}${j.error?' · '+j.error:''}${j.result&&!model.rows(j).length?' · '+t('没有识别到语音；保留现有字幕'):''}${['queued','running','cancel_requested'].includes(j.status)&&j.progress?.message?' · '+t(j.progress.message):''}${j.result?.warnings?.length?' · '+j.result.warnings.join('；'):''}`).join(' / ');
+        card.status.textContent=members.map(j=>`${t(labels[j.status]||j.status)}${j.error?' · '+j.error:''}${j.result&&!model.rows(j).length?' · '+t('没有识别到语音；保留现有字幕'):''}${['queued','running','cancel_requested'].includes(j.status)&&j.progress?.message?' · '+t(j.progress.message):''}${j.result?.warnings?.length?' · '+j.result.warnings.join('；'):''}${kind==='asr'?billingText(j.result?.billing):''}`).join(' / ');
         // Replace only task controls if status actually changed.
         const statusKey=members.map(j=>[j.id,j.status,j.retry_active]).join('|');
         if(card.statusKey!==statusKey) {

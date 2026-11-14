@@ -2324,7 +2324,9 @@ __WAVEFORM_CSS__
           <label>语言 <input id="msw-asr-language" list="msw-asr-languages" placeholder="留空自动识别"></label><datalist id="msw-asr-languages"></datalist>
           <label data-asr-openai>自定义模型 <input id="msw-asr-openaiModel" spellcheck="false"></label>
           <label data-asr-speaker><input id="msw-asr-speakerColors" type="checkbox">区分说话人</label>
+          <label data-asr-dialect hidden title="未勾选时转为普通话文本"><input id="msw-asr-qwenKeepDialect" type="checkbox">保留方言表达</label>
         </div>
+        <p id="msw-asr-billing" class="msw-processing-hint" hidden></p>
         <div data-asr-local hidden>
           <p id="msw-asr-local-status" class="msw-processing-hint"></p>
           <p class="msw-processing-hint">本地识别不需要 API Key。仅在点击下方按钮后下载安装，可能需要数 GB 空间；FireRed 的 ct-punc 单独按需下载。</p>

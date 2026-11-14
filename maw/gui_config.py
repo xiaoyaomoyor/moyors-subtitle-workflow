@@ -11,6 +11,7 @@ from typing import Final
 
 from maw.app_paths import SOURCE_ROOT, default_env_path
 from maw.env_config import alias_keys, aliased_values, read_env
+from maw.qwen_audio import QWEN_AUDIO_31_MODEL_ID
 
 
 ROOT: Final = SOURCE_ROOT
@@ -23,7 +24,7 @@ QWEN3_ASR_MODEL_ID: Final = "qwen3-asr-flash-filetrans"
 OPENAI_ASR_MODEL_ID: Final = "custom-asr"
 OPENAI_ASR_DEFAULT_BASE_URL: Final = "https://api.openai.com/v1"
 OPENAI_ASR_DEFAULT_MODEL: Final = "whisper-1"
-# qwen-audio-3.0 是最新发布的模型，作为各入口默认；旧 qwen3-asr 置底保留（后续可能移除）。
+# 3.0 继续作为各入口默认；3.1 按 Token 计费，由用户主动选择。
 DEFAULT_MODEL_ID: Final = QWEN_AUDIO_MODEL_ID
 
 # Must match the launcher's module registry; preferences contain only switches.
@@ -85,6 +86,7 @@ class ModelConfig:
     supports_context: bool = False
     supports_hotwords: bool = False
     supports_vocabulary: bool = False
+    supports_keep_dialect: bool = False
     # 模型是否原生返回可用于字幕编辑的字词级时间码；为 False 时，
     # Launcher 可在本地模型设置中提供额外的对齐模型。
     supports_word_timestamps: bool = False
@@ -150,6 +152,7 @@ class EffectiveConfig:
     notify_on_complete: bool = False
     prefab_modules: dict[str, bool] | None = None
     asr_segmentation: dict[str, str] | None = None
+    qwen_keep_dialect: bool = False
 
 
 REGIONS: Final[tuple[tuple[str, str], ...]] = (
@@ -379,6 +382,18 @@ QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
         supports_context=True,
         supports_hotwords=True,
         supports_vocabulary=True,
+        languages=FUNASR_LANGUAGES,
+    ),
+    ModelConfig(
+        id=QWEN_AUDIO_31_MODEL_ID,
+        label="qwen-audio-3.1-asr（方言 / 热词 / 上下文）",
+        env_key="DASHSCOPE_API_KEY",
+        note="支持保留方言、热词、上下文与说话人分离；按 Token 计费",
+        supports_speaker=True,
+        supports_context=True,
+        supports_hotwords=True,
+        supports_vocabulary=True,
+        supports_keep_dialect=True,
         languages=FUNASR_LANGUAGES,
     ),
     ModelConfig(
@@ -776,6 +791,7 @@ def effective_config(path: Path | None = None, environ: Mapping[str, str] | None
         notify_on_complete=_env_bool(pick("MAW_GUI_NOTIFY_ON_COMPLETE"), default=False),
         prefab_modules=_prefab_modules_from_json(pick("MAW_GUI_PREFAB_MODULES")),
         asr_segmentation=_asr_segmentation_from_json(pick("MAW_GUI_ASR_SEGMENTATION")),
+        qwen_keep_dialect=pick("MAW_GUI_QWEN_KEEP_DIALECT").lower() == "true",
     )
 
 

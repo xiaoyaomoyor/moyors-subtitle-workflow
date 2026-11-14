@@ -7,13 +7,14 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from maw.openai_asr_capabilities import capabilities
+from maw.qwen_audio import qwen_audio_billing_info
 from maw.env_config import aliased_values
 from maw.gui_config import PROVIDERS, DEFAULT_MODEL_ID, OPENAI_ASR_DEFAULT_BASE_URL, api_key_for_provider, load_env, save_env, provider_models, effective_config
 
 FIELDS = {'providerId', 'modelId', 'language', 'region', 'workspaceId', 'openaiModel', 'openaiBaseUrl',
           'device', 'localModelPath', 'fireredPunc', 'alignmentModel', 'alignmentModelPath',
           'maxLen', 'minLen', 'maxWords', 'minWords', 'gapSplit', 'speakerColors', 'qwenAudioContext',
-          'qwenAudioHotwords', 'qwenAudioVocabularyId', 'qwenAudioHotwordWeight',
+          'qwenAudioHotwords', 'qwenAudioVocabularyId', 'qwenAudioHotwordWeight', 'qwenKeepDialect',
           'openaiPrompt', 'openaiKeywords', 'openaiDiarize', 'sonioxContextGeneral', 'sonioxContextText', 'sonioxContextTerms', 'sonioxContextTranslationTerms', 'doubaoHotwords'}
 PROVIDERS_BY_ID = {provider.id: provider for provider in PROVIDERS
                    if (provider.kind == 'local' or provider.requires_api_key) and not provider.hidden}
@@ -40,7 +41,8 @@ def catalog(env_path):
                 'openaiModel': stored.get('MAW_OPENAI_ASR_MODEL', 'whisper-1'),
                 'openaiBaseUrl': stored.get('MAW_OPENAI_ASR_BASE_URL', OPENAI_ASR_DEFAULT_BASE_URL),
                 'qwenAudioVocabularyId': stored.get('DASHSCOPE_QWEN_AUDIO_VOCABULARY_ID', ''),
-                'qwenAudioHotwordWeight': stored.get('DASHSCOPE_QWEN_AUDIO_HOTWORD_WEIGHT', '5')}
+                'qwenAudioHotwordWeight': stored.get('DASHSCOPE_QWEN_AUDIO_HOTWORD_WEIGHT', '5'),
+                'qwenKeepDialect': False}
     defaults.update(device='auto', localModelPath='', fireredPunc='none', alignmentModel='', alignmentModelPath='')
     defaults.update({k: v for k, v in options.items() if k in FIELDS - CONNECTION_FIELDS})
     providers = []
@@ -51,6 +53,8 @@ def catalog(env_path):
             'models': [{'id': model.id, 'label': model.label, 'supportsContext': model.supports_context,
                         'supportsHotwords': model.supports_hotwords, 'supportsVocabulary': model.supports_vocabulary,
                         'supportsSpeaker': model.supports_speaker, 'note': model.note,
+                        'supportsKeepDialect': model.supports_keep_dialect,
+                        'billing': qwen_audio_billing_info(model.id),
                         'openaiCapabilities': {family: capabilities(url, model.id) for family, url in
                             (('openai', 'https://api.openai.com'), ('openrouter', 'https://openrouter.ai'), ('compatible', 'https://example.test'))},
                         'languages': [{'id': k, 'label': v} for k, v in (model.languages or provider.languages)]}
@@ -88,9 +92,9 @@ def resolve_settings(env_path, raw, media_path=None, *, validate_runtime=True):
         raise ValueError('ASR 配置无效')
     options = {k: v for k, v in raw.items() if k in FIELDS}
     for key, value in options.items():
-        if key in {'speakerColors', 'openaiDiarize'}:
+        if key in {'speakerColors', 'openaiDiarize', 'qwenKeepDialect'}:
             if type(value) is not bool:
-                raise ValueError('说话人选项必须是布尔值')
+                raise ValueError('ASR 开关选项必须是布尔值')
         elif not isinstance(value, str) or len(value) > 12000 or '\0' in value:
             raise ValueError('ASR 配置文本无效或过长')
     provider = PROVIDERS_BY_ID.get(options.get('providerId', 'qwen'))
@@ -139,7 +143,7 @@ def resolve_settings(env_path, raw, media_path=None, *, validate_runtime=True):
     request = replace(request, environment_overrides=overrides)
     recipe = {key: getattr(request, key) for key in ('provider', 'model', 'language', 'region', 'workspace_id',
               'max_len', 'min_len', 'max_words', 'min_words', 'gap_split', 'strip_tail_punct', 'extra_strong_punct', 'speaker_colors',
-              'qwen_audio_context', 'qwen_audio_hotwords', 'qwen_audio_vocabulary_id', 'qwen_audio_hotword_weight',
+              'qwen_audio_context', 'qwen_audio_hotwords', 'qwen_audio_vocabulary_id', 'qwen_audio_hotword_weight', 'qwen_keep_dialect',
               'soniox_context', 'doubao_hotwords', 'openai_prompt', 'openai_keywords', 'openai_diarize', 'base_url')}
     recipe['environment'] = {key: value for key, value in overrides.items() if key != 'FFMPEG_PATH'}
     recipe.update({key: getattr(request, key) for key in ('engine', 'device', 'model_path', 'model_cache_root',

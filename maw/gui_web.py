@@ -25,6 +25,7 @@ from threading import Event, Lock
 from typing import BinaryIO, Final, final
 
 from maw.app_paths import default_emoji_font_path
+from maw.qwen_audio import qwen_audio_billing_info
 from maw.env_config import aliased_values, alias_keys
 from maw.ass_styles import find_ass_style, load_ass_style_library
 from maw.ffmpeg import FfmpegTools, media_duration_seconds, resolve_ffmpeg_tools
@@ -1094,6 +1095,7 @@ class LauncherApi:
             "perVideoSubfolder": config.per_video_subfolder,
             "attachModelName": config.attach_model_name,
             "notifyOnComplete": config.notify_on_complete,
+            "qwenKeepDialect": config.qwen_keep_dialect,
             "lastModel": config.last_model,
             "lastLanguage": config.last_language,
             "theme": config.theme,
@@ -1233,6 +1235,10 @@ class LauncherApi:
 
     def save_prefs(self, payload: Mapping[str, object]) -> dict[str, object]:
         updates: dict[str, str] = {}
+        if "qwenKeepDialect" in payload:
+            if type(payload["qwenKeepDialect"]) is not bool:
+                return _error_result("qwenKeepDialect", "config_save_failed", "Invalid dialect option")
+            updates["MAW_GUI_QWEN_KEEP_DIALECT"] = "true" if payload["qwenKeepDialect"] else "false"
         if "asrSegmentation" in payload:
             try:
                 segmentation = normalize_asr_segmentation(payload["asrSegmentation"])
@@ -4739,6 +4745,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
             if isinstance(step, Mapping) and step.get("id") == "match"
             for symbol in step.get("extraSplitPunctuation", []) if isinstance(symbol, str)),
         qwen_audio_context=qwen_audio_context,
+        qwen_keep_dialect=model.supports_keep_dialect and payload.get("qwenKeepDialect") is True,
         qwen_audio_hotwords=qwen_audio_hotwords,
         qwen_audio_hotwords_file=qwen_audio_hotwords_file,
         qwen_audio_vocabulary_id=(
@@ -5437,6 +5444,8 @@ def _model_payload(
         "supportsContext": model.supports_context,
         "supportsHotwords": model.supports_hotwords,
         "supportsVocabulary": model.supports_vocabulary,
+        "supportsKeepDialect": model.supports_keep_dialect,
+        "billing": qwen_audio_billing_info(model.id),
         "supportsWordTimestamps": model.supports_word_timestamps,
         "deviceSupport": model.device_support,
         "resourceLevel": model.resource_level,

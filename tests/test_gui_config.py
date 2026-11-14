@@ -238,7 +238,7 @@ class GuiConfigTests(unittest.TestCase):
 
     def test_model_registry_resolves_env_key_and_shape(self) -> None:
         """Given the v1 registry, When inspected, Then model metadata is complete."""
-        self.assertEqual(len(gui_config.MODELS), 3)
+        self.assertEqual(len(gui_config.MODELS), 4)
         model = gui_config.MODELS[0]
 
         self.assertEqual(model.id, "qwen-audio-3.0-asr-flash-filetrans")
@@ -251,13 +251,13 @@ class GuiConfigTests(unittest.TestCase):
         self.assertEqual(model.label, "qwen-audio-3.0-asr（热词 / 上下文）")
         self.assertIn("热词", model.note)
         self.assertIn(("yue", "粤语 / Cantonese"), model.languages)
-        funasr = gui_config.MODELS[1]
+        funasr = gui_config.MODELS[2]
         self.assertEqual(funasr.id, "fun-asr")
         self.assertEqual(funasr.env_key, "DASHSCOPE_API_KEY")
         self.assertTrue(funasr.supports_speaker)
         self.assertIn(("zh", "中文 / Chinese"), funasr.languages)
         self.assertEqual(len(funasr.languages), 32)
-        qwen3 = gui_config.MODELS[2]
+        qwen3 = gui_config.MODELS[3]
         self.assertEqual(qwen3.id, "qwen3-asr-flash-filetrans")
         self.assertEqual(qwen3.env_key, "DASHSCOPE_API_KEY")
         self.assertFalse(qwen3.supports_speaker)
@@ -278,12 +278,14 @@ class GuiConfigTests(unittest.TestCase):
         self.assertTrue(provider.supports_speaker)
         self.assertEqual([model.id for model in provider.models], [
             "qwen-audio-3.0-asr-flash-filetrans",
+            "qwen-audio-3.1-asr-flash-filetrans",
             "fun-asr",
             "qwen3-asr-flash-filetrans",
         ])
         self.assertTrue(provider.models[0].supports_speaker)
         self.assertTrue(provider.models[1].supports_speaker)
-        self.assertFalse(provider.models[2].supports_speaker)
+        self.assertTrue(provider.models[2].supports_speaker)
+        self.assertFalse(provider.models[3].supports_speaker)
 
     def test_provider_registry_contains_soniox_with_speaker_support(self) -> None:
         """Given the provider registry, When inspected, Then Soniox is registered with speaker support and no regions."""

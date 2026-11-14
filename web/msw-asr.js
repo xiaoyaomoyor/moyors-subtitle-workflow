@@ -28,7 +28,7 @@
   function providerInput() {
     const caps=openaiOptions(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&el('openaiDiarize').checked));
     return {...Object.fromEntries(fields.map(key=>[key,connectionFields.includes(key)?savedConnection[key]:el(key).value])),
-      speakerColors:el('speakerColors').checked,openaiDiarize:diarize,apiKey:'',
+      speakerColors:el('speakerColors').checked,openaiDiarize:diarize,apiKey:'',qwenKeepDialect:el('qwenKeepDialect').checked,
       openaiPrompt:caps?.prompt&&!diarize?el('openaiPrompt').value:'',
       openaiKeywords:caps?.keywords&&!diarize?el('openaiKeywords').value:''};
   }
@@ -70,8 +70,11 @@
     el('local-status').textContent=model.localStatus?.detail||'';
     options(el('languages'),model.languages);
     el('openaiModel').closest('label').hidden=provider.id!=='openai'||model.id!=='custom-asr';
-    for (const [kind,key] of [['context','supportsContext'],['hotwords','supportsHotwords'],['vocabulary','supportsVocabulary'],['speaker','supportsSpeaker']])
+    for (const [kind,key] of [['context','supportsContext'],['hotwords','supportsHotwords'],['vocabulary','supportsVocabulary'],['speaker','supportsSpeaker'],['dialect','supportsKeepDialect']])
       settingsRoot.querySelectorAll(`[data-asr-${kind}]`).forEach(node=>node.hidden=!model[key]||(['context','hotwords'].includes(kind)&&provider.id!=='qwen'));
+    const price=model.billing?.prices?.[savedConnection.region];
+    el('billing').hidden=!model.billing;
+    el('billing').textContent=price?t('参考价：输入 ¥{input} / 输出 ¥{output}，每百万 Token；以实际账单为准').replace('{input}',price.input).replace('{output}',price.output):t('按 Token 计费；当前地域参考价未知');
     el('openaiDiarize').checked=provider.id==='openai'&&model.id==='gpt-4o-transcribe-diarize';
     if(el('openaiDiarize').checked){el('openaiPrompt').value='';el('openaiKeywords').value='';}
     updateScope();
@@ -84,6 +87,7 @@
       options(el('environment-provider'),providers,config.options.providerId);selectEnvironment();
       options(el('providerId'),providers,config.options.providerId);selectProvider(config.options.modelId);
       for (const key of fields) if (!['providerId','modelId'].includes(key)&&config.options[key]!==undefined) el(key).value=config.options[key];
+      el('qwenKeepDialect').checked=config.options.qwenKeepDialect===true;
       el('speakerColors').checked=config.options.speakerColors===true;selectModel();el('openaiDiarize').checked=config.options.openaiDiarize===true||el('modelId').value==='gpt-4o-transcribe-diarize';
     })();
     try {await loading;} catch(error){message(error.message);} finally {loading=null;updateScope();}

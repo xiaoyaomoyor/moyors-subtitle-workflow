@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 from maw.console import configure_utf8_stdio
 from maw.gui_config import DEFAULT_MODEL_ID
+from maw.qwen_audio import QWEN_AUDIO_31_MODEL_ID
 from maw.gui_platform import asset_path
 from maw.gui_workflow import (
     _child_environment,
@@ -133,6 +134,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument("--hotword-weight", help="Qwen 即时热词权重（1-5 或 50）")
     parser.add_argument("--context", help="Qwen-Audio context，最多 400 字符")
     parser.add_argument("--context-file", help="从 UTF-8 文件读取 Qwen-Audio context")
+    parser.add_argument("--keep-dialect", action="store_true", help="保留方言表达（仅 Qwen-Audio 3.1）")
     parser.add_argument(
         "--soniox-context-json",
         help="Soniox context JSON（general/text/terms/translation_terms，约 10000 字符以内）",
@@ -216,6 +218,8 @@ def _run_transcription(parser: argparse.ArgumentParser, args: argparse.Namespace
         parser.error("--prompt/--keyword/--diarize 仅适用于 OpenAI 兼容接口")
     if args.base_url and args.provider != "openai":
         parser.error("--base-url 仅适用于 --provider openai")
+    if args.keep_dialect and (args.provider != "qwen" or args.model != QWEN_AUDIO_31_MODEL_ID):
+        parser.error("--keep-dialect 仅适用于 --provider qwen --model qwen-audio-3.1-asr-flash-filetrans")
     if args.provider == "openai" and (
         any(
             value is not None
@@ -379,6 +383,8 @@ def _generator_args(args: argparse.Namespace, input_path: Path, srt_path: Path) 
         result.append("--speaker")
     if args.speaker_colors:
         result.append("--speaker-colors")
+    if args.keep_dialect:
+        result.append("--keep-dialect")
     if args.with_waveform:
         result.append("--with-waveform")
     if args.with_spectral:
@@ -442,6 +448,7 @@ def _run_server(parser: argparse.ArgumentParser, args: argparse.Namespace) -> in
             args.gap_split is not None,
             args.speaker,
             args.speaker_colors,
+            args.keep_dialect,
             args.length_limit,
             args.json_output,
             args.with_waveform,
@@ -539,6 +546,7 @@ def _run_stop_server(parser: argparse.ArgumentParser, args: argparse.Namespace) 
             args.gap_split is not None,
             args.speaker,
             args.speaker_colors,
+            args.keep_dialect,
             args.length_limit,
             args.json_output,
             args.with_waveform,

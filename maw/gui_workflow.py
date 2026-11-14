@@ -22,7 +22,8 @@ from maw.gui_config import QWEN_AUDIO_MODEL_ID, DEFAULT_MODEL_ID, DEFAULT_ENV_PA
 from maw.gui_platform import asset_path, popen_process_tree, process_group_kwargs, release_process_tree, terminate_process_tree
 from maw.media import read_bwf_time_reference
 from maw.output_naming import debug_artifact_path, maw_root
-from maw.qwen_audio import split_qwen_audio_hotwords
+from maw.qwen_audio import (split_qwen_audio_hotwords, QWEN_AUDIO_31_MODEL_ID, QWEN_AUDIO_MODEL_IDS,
+                           QWEN_USAGE_PREFIX, qwen_audio_31_usage, parse_qwen_audio_usage_line)
 from maw.local_runtime import default_runtime_root, model_cache_environment
 from maw.local_debug import local_debug_manifest_path
 from maw.runtimes import LOCAL
@@ -53,6 +54,7 @@ class TranscriptionRequest:
     qwen_audio_hotwords_file: str = ""
     qwen_audio_vocabulary_id: str = ""
     qwen_audio_hotword_weight: str = ""
+    qwen_keep_dialect: bool = False
     soniox_context: dict[str, object] | None = None
     doubao_hotwords: tuple[str, ...] = ()
     openai_prompt: str = ""
@@ -94,6 +96,7 @@ class TranscriptionResult:
     json_path: Path
     html_path: Path | None
     raw_path: Path | None = None
+    billing: dict | None = None
 
 
 ProgressCallback = Callable[[str], None]
@@ -238,6 +241,8 @@ def _srt_model_tag(provider: str, model: str) -> str:
         return ".fun-asr"
     if provider == "qwen" and model == QWEN_AUDIO_MODEL_ID:
         return ".qwen-audio"
+    if provider == "qwen" and model == QWEN_AUDIO_31_MODEL_ID:
+        return ".qwen-audio-3.1"
     if provider == "local":
         local_model = model.casefold()
         if "sensevoice" in local_model:
@@ -401,7 +406,7 @@ def build_transcribe_command(
         _append_option(command, "--region", request.region)
         if request.speaker_colors and (
             request.model.startswith("fun-asr")
-            or request.model == QWEN_AUDIO_MODEL_ID
+            or request.model in QWEN_AUDIO_MODEL_IDS
         ):
             command.append("--speaker-colors")
         _append_option(command, "--language", request.language)
@@ -415,7 +420,9 @@ def build_transcribe_command(
     _append_option(command, "--gap-split", request.gap_split)
     # 始终显式下发（含空串）：空串表示共享保留符号配置要求完全不剥尾。
     command.extend(["--strip-tail-punct", request.strip_tail_punct])
-    if request.provider == "qwen" and request.model == QWEN_AUDIO_MODEL_ID:
+    if request.provider == "qwen" and request.model in QWEN_AUDIO_MODEL_IDS:
+        if request.model == QWEN_AUDIO_31_MODEL_ID and request.qwen_keep_dialect:
+            command.append("--keep-dialect")
         _append_option(command, "--vocabulary-id", request.qwen_audio_vocabulary_id)
         _append_option(command, "--hotword-weight", request.qwen_audio_hotword_weight)
         _append_option(command, "--context", request.qwen_audio_context)
@@ -519,8 +526,13 @@ def run_transcription(
     if on_process_start is not None:
         on_process_start(process.pid)
     collected: list[str] = []
+    billing = qwen_audio_31_usage(None, request.region) if request.provider == "qwen" and request.model == QWEN_AUDIO_31_MODEL_ID else None
 
     def forward(line: str) -> None:
+        nonlocal billing
+        if billing is not None and line.startswith(QWEN_USAGE_PREFIX):
+            billing = parse_qwen_audio_usage_line(line, request.region) or billing
+            return
         collected.append(line[-16000:])
         if len(collected) > 200:
             del collected[:-200]
@@ -565,6 +577,7 @@ def run_transcription(
         json_path=paths.json,
         html_path=html_path,
         raw_path=raw_path,
+        billing=billing,
     )
     if request.alignment_model and request.engine == 'moss':
         result = align_transcription_result(request, result, cancel_event=cancel_event, on_event=on_event, environment=env)

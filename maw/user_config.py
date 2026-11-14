@@ -59,8 +59,8 @@ REGISTRY['moy.asr.ass.styles.v1']['path'] = ['assStyles']
 ENV_KEYS = frozenset('''MAW_GUI_LANG MAW_GUI_SHOW_RARE_LANGS MAW_GUI_OUTPUT_SUBFOLDER
     MAW_GUI_PER_VIDEO_SUBFOLDER MAW_GUI_ATTACH_MODEL_NAME MAW_GUI_LAST_MODEL MAW_GUI_LAST_LANGUAGE
     MAW_GUI_ZOOM_PERCENT MAW_GUI_THEME MAW_GUI_NOTIFY_ON_COMPLETE MAW_GUI_PREFAB_MODULES
-    MAW_GUI_ASR_SEGMENTATION'''.split())
-for key in ('MAW_GUI_LAST_MODEL', 'MAW_GUI_LAST_LANGUAGE', 'MAW_GUI_ZOOM_PERCENT', 'MAW_GUI_THEME'):
+    MAW_GUI_ASR_SEGMENTATION MAW_GUI_QWEN_KEEP_DIALECT'''.split())
+for key in ('MAW_GUI_LAST_MODEL', 'MAW_GUI_LAST_LANGUAGE', 'MAW_GUI_ZOOM_PERCENT', 'MAW_GUI_THEME', 'MAW_GUI_QWEN_KEEP_DIALECT'):
     REGISTRY[key] = dict(category='launcher', encoding='text', exportable=True,
                          path=['launcher', key], apply='next-open')
 # The module-choice cache has a different shape and is migrated by LauncherApi.
