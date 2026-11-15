@@ -290,8 +290,16 @@ jobs:
           npx playwright test tests/e2e/flat-production.spec.mjs tests/e2e/bound-move.spec.mjs tests/e2e/bound-paste.spec.mjs tests/e2e/edit-transactions.spec.mjs tests/e2e/incremental-ui.spec.mjs tests/e2e/save-background-efficiency.spec.mjs tests/e2e/settings-windows.spec.mjs tests/e2e/settings-actions.spec.mjs tests/e2e/settings-final.spec.mjs tests/e2e/speaker-follow.spec.mjs tests/e2e/subtitle-properties.spec.mjs tests/e2e/subtitle-animation.spec.mjs tests/e2e/project-subtitle-style.spec.mjs tests/e2e/fcp7-export.spec.mjs tests/e2e/find-edit-save.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/boundary-feedback.spec.mjs tests/e2e/hover-seek-preview.spec.mjs tests/e2e/upstream-models.spec.mjs tests/e2e/speaker-rows.spec.mjs tests/e2e/find-script.spec.mjs tests/e2e/script-exchange.spec.mjs tests/e2e/find-script-save.spec.mjs tests/e2e/editor-time-range.spec.mjs tests/e2e/keyboard-timing.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/editor
           exit $LASTEXITCODE
 
+      - name: Check selected upstream improvements in Chromium
+        id: selected-upstream-browser
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          npx playwright test tests/e2e/editor-text-reliability.spec.mjs tests/e2e/local-model-settings.spec.mjs tests/e2e/subtitle-glyphs.spec.mjs tests/e2e/ass-opacity.spec.mjs --project=chromium --max-failures=3 --output=test-results/selected-upstream
+          exit $LASTEXITCODE
+
       - name: Keep failed browser diagnostics
-        if: ${{ failure() && (steps.editor-browser.outcome == 'failure' || steps.upgrade-browser.outcome == 'failure' || steps.export-browser.outcome == 'failure') }}
+        if: ${{ failure() && (steps.editor-browser.outcome == 'failure' || steps.upgrade-browser.outcome == 'failure' || steps.export-browser.outcome == 'failure' || steps.selected-upstream-browser.outcome == 'failure') }}
         uses: actions/upload-artifact@v6
         with:
           name: editor-test-diagnostics-${{ github.run_attempt }}
@@ -313,7 +321,7 @@ jobs:
           $env:PYTHONPATH = 'tests'
           $env:MSW_TEST_FFMPEG = Join-Path $PWD 'dist/MSW/ffmpeg/bin'
           $env:PATH = $env:MSW_TEST_FFMPEG + ';' + $env:PATH
-          uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment
+          uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment tests.test_subtitle_glyphs tests.test_ass_opacity
           exit $LASTEXITCODE
 
       - name: Upload build artifacts
@@ -546,7 +554,7 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           PATH="$PWD/dist/MSW.app/Contents/MacOS/ffmpeg/bin:$PATH" PYTHONPATH=tests MSW_TEST_FFMPEG="$PWD/dist/MSW.app/Contents/MacOS/ffmpeg/bin" \
-            uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment
+            uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment tests.test_subtitle_glyphs tests.test_ass_opacity
 
       - name: Create release archives
         if: matrix.platform == 'macos'
@@ -688,7 +696,7 @@ jobs:
             cd "$GITHUB_WORKSPACE"
             env -u LD_LIBRARY_PATH PATH="$GITHUB_WORKSPACE/build-appimage/$BIN:$PATH" PYTHONPATH=tests \
               MSW_TEST_FFMPEG="$GITHUB_WORKSPACE/build-appimage/$BIN" \
-              uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment
+              uv run --frozen python -m unittest tests.test_msw_audio_render tests.test_msw_video_render tests.test_msw_timeline_export tests.test_launcher_r6_real tests.test_launcher_cd tests.test_timestamp_alignment tests.test_subtitle_glyphs tests.test_ass_opacity
           )
           rm -r squashfs-root
 

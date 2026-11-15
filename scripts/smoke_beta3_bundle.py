@@ -123,12 +123,26 @@ with tempfile.TemporaryDirectory(prefix="msw-direct-frozen-") as directory:
         library = requests.get(origin + '/api/ass-styles', headers=headers, timeout=10)
         library.raise_for_status()
         assert library.json()['schema'] == 'moy.asr.ass_styles.v1'
+        assert all(s['outlineOpacity'] == 100 and s['shadowOpacity'] == 100
+                   for s in library.json()['styles'])
+        preview = api('subtitle-preview', {
+            'project': {'segments': [{'id': 'opacity', 'start': 0, 'end': 1000, 'text': 'Smoke'}],
+                        'preview': {'project_style': {'schema': 'msw.subtitle-style.v1',
+                                    'main': {'outlineOpacity': 50, 'shadowOpacity': 0, 'shadow': 10},
+                                    'secondary': {}}}},
+            'video': {'width': 640, 'height': 360},
+        })
+        assert '&H80000000,&HFF000000' in preview['ass']
         resources = (exe.parent.parent / 'Resources'
                      if exe.parent.name == 'MacOS' else exe.parent / '_internal')
         for name in ('compare.html', 'timestamp-compare.html'):
             assert (resources / 'tools' / name).is_file()
+        for runtime, names in (('local-runtime', ('energy_valley.py', 'hub_download.py', 'local_model_preferences.py')),
+                               ('ocr-runtime', ('energy_valley.py', 'local_model_preferences.py'))):
+            for name in names:
+                assert (resources / runtime / 'maw' / name).is_file(), (runtime, name)
         print(
-            "Frozen direct editor, imports and ASR catalog passed; media tools ready:",
+            "Frozen direct editor, imports, ASR catalog and ASS opacity passed; media tools ready:",
             caps["mediaToolsReady"],
         )
         if len(sys.argv) < 3 or sys.argv[2] != "--standard":
