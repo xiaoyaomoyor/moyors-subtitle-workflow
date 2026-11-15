@@ -1,6 +1,6 @@
 # 安装与升级
 
-从 [MSW Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) 下载已正式发布的安装包。本分支正在准备 1.7.0，以下为候选包命名；正式附件以 Release 页面为准。
+从 [MSW v1.7.0 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0) 下载正式安装包，按系统选择下列版本。
 
 | 文件 | 系统 | 内置 FFmpeg |
 | --- | --- | --- |
