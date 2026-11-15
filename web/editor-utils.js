@@ -4240,6 +4240,8 @@
     secondaryColor: '#ffffff',
     outlineColor: '#000000',
     backColor: '#000000',
+    outlineOpacity: 100,
+    shadowOpacity: 100,
     bold: false,
     italic: false,
     underline: false,
@@ -4360,6 +4362,8 @@
       secondaryColor: normalizeAssLibraryColor(source.secondaryColor, fallback.secondaryColor || '#ffffff'),
       outlineColor: normalizeAssLibraryColor(source.outlineColor, fallback.outlineColor || '#000000'),
       backColor: normalizeAssLibraryColor(source.backColor, fallback.backColor || '#000000'),
+      outlineOpacity: normalizeAssLibraryNumber(source.outlineOpacity ?? fallback.outlineOpacity ?? 100, fallback.outlineOpacity ?? 100, 0, 100, false),
+      shadowOpacity: normalizeAssLibraryNumber(source.shadowOpacity ?? fallback.shadowOpacity ?? 100, fallback.shadowOpacity ?? 100, 0, 100, false),
       bold: normalizeAssLibraryBoolean(source.bold, Boolean(fallback.bold)),
       italic: normalizeAssLibraryBoolean(source.italic, Boolean(fallback.italic)),
       underline: normalizeAssLibraryBoolean(source.underline, Boolean(fallback.underline)),
@@ -4547,8 +4551,8 @@
       fontSizeOverride || normalized.fontSize,
       assColorFromHex(normalized.primaryColor),
       assColorFromHex(normalized.secondaryColor),
-      assColorFromHex(normalized.outlineColor),
-      assColorFromHex(normalized.backColor),
+      assColorFromHex(normalized.outlineColor, '#000000', normalized.outlineOpacity),
+      assColorFromHex(normalized.backColor, '#000000', normalized.shadowOpacity),
       boolValue('bold'),
       boolValue('italic'),
       boolValue('underline'),
@@ -4569,7 +4573,22 @@
     return `Style: ${values.join(',')}`;
   }
 
-  function assAnimationOverrideTags(profile, { includeMove = true } = {}) {
+  function assOpacityTransform(tags, style = {}) {
+    return tags.replace(/\\(alpha|3a|4a)&H([0-9a-fA-F]{1,2})&/g, (match, component, value) => {
+      if (component === 'alpha' && ['outlineOpacity','shadowOpacity'].every(k=>(style[k] ?? 100) === 100)) return match;
+      const hex = parseInt(value,16).toString(16).padStart(2,'0').toUpperCase();
+      let result = component === 'alpha' ? `\\1a&H${hex}&\\2a&H${hex}&` : '';
+      for (const [channel, field] of [['3a','outlineOpacity'],['4a','shadowOpacity']]) {
+        if (component !== 'alpha' && component !== channel) continue;
+        const opacity = normalizeAssLibraryNumber(style[field] ?? 100, 100, 0, 100, false);
+        if (opacity === 100) result += component === channel ? match : `\\${channel}&H${hex}&`;
+        else result += `\\${channel}&H${Math.round(255-(255-parseInt(value,16))*opacity/100).toString(16).padStart(2,'0').toUpperCase()}&`;
+      }
+      return result;
+    });
+  }
+
+  function assAnimationOverrideTags(profile, { includeMove = true, style = {} } = {}) {
     const animations = normalizeAssAnimations(profile?.animations);
     const tags = [];
     // libass/playback behaviour is undefined when both fade forms are present.
@@ -4589,7 +4608,7 @@
     }
     if (animations.t.enabled && animations.t.tags) {
       const { startMs, endMs, accel, tags: transformTags } = animations.t;
-      tags.push(`\\t(${startMs},${endMs},${accel},${transformTags})`);
+      tags.push(`\\t(${startMs},${endMs},${accel},${assOpacityTransform(transformTags, style)})`);
     }
     return tags.join('');
   }
@@ -4752,13 +4771,14 @@
     return family.replace(/[\r\n,]/g, ' ').replace(/\s+/g, ' ').trim() || ASS_DEFAULT_FONT_FAMILY;
   }
 
-  function assColorFromHex(value, fallback = ASS_DEFAULT_COLOR) {
+  function assColorFromHex(value, fallback = ASS_DEFAULT_COLOR, opacity = 100) {
     const raw = String(value ?? '').trim();
     const fallbackColor = String(fallback ?? ASS_DEFAULT_COLOR).trim();
     const hex = /^#[0-9a-f]{6}$/i.test(raw) ? raw
       : (/^#[0-9a-f]{6}$/i.test(fallbackColor) ? fallbackColor : ASS_DEFAULT_COLOR);
     // ASS stores colours as &HAABBGGRR; AA=00 is fully opaque.
-    return `&H00${hex.slice(5, 7)}${hex.slice(3, 5)}${hex.slice(1, 3)}`.toUpperCase();
+    const alpha = Math.round((1 - normalizeAssLibraryNumber(opacity ?? 100, 100, 0, 100, false) / 100) * 255).toString(16).padStart(2, '0');
+    return `&H${alpha}${hex.slice(5, 7)}${hex.slice(3, 5)}${hex.slice(1, 3)}`.toUpperCase();
   }
 
   function assOverrideColorFromHex(value, fallback = ASS_DEFAULT_COLOR) {
@@ -5023,7 +5043,7 @@
       const layerOffset=(options.layerMargins?.main?.[segment.id]??baseStyle.marginV)-baseStyle.marginV;
       const eventProfile=options.layerMargins && profile?.animations?.move?.enabled
         ? {...profile,animations:{...profile.animations,move:{...profile.animations.move,y1:profile.animations.move.y1-layerOffset,y2:profile.animations.move.y2-layerOffset}}} : profile;
-      let animationTags = assMode ? assAnimationOverrideTags(eventProfile) : '';
+      let animationTags = assMode ? assAnimationOverrideTags(eventProfile, { style: styleForEvent }) : '';
       if(options.layerMargins && !(profile?.animations?.move?.enabled) && baseStyle.alignment>=4 && baseStyle.alignment<=6) {
         const x=baseStyle.alignment%3===1?baseStyle.marginL:baseStyle.alignment%3===2?resolution.width/2:resolution.width-baseStyle.marginR;
         animationTags+=`\\pos(${x},${resolution.height/2-layerOffset})`;
@@ -5052,7 +5072,7 @@
       ? normalizeAssFontSize(extensionStyle.fontSize * resolution.height / ASS_REFERENCE_PLAY_RES_Y)
       : 0;
     const extensionAnimationTags = assMode && extensionStyle
-      ? assAnimationOverrideTags(profile, { includeMove: false }) : '';
+      ? assAnimationOverrideTags(profile, { includeMove: false, style: extensionStyle }) : '';
     if (extensionStyle) {
       extensionSource.forEach((segment) => {
         if (!segment || segment.disabled === true) return;
@@ -5091,7 +5111,7 @@
     const overlaySource = Array.isArray(options.overlaySegments) ? options.overlaySegments : [];
     const hasOverlayCues = overlaySource.some((segment) => segment && segment.disabled !== true);
     const overlayAnimationTags = assMode
-      ? assAnimationOverrideTags(profile, { includeMove: false }) : '';
+      ? assAnimationOverrideTags(profile, { includeMove: false, style: baseStyle }) : '';
     const overlayMarginV = assMode
       ? (extensionStyle && hasExtensionCues
         ? Math.max(0, Number(extensionStyle.marginV) || 0) + Math.round(1.2 * extensionScaledFontSize)

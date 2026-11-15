@@ -1256,11 +1256,12 @@ def split_coarse_segments(
     max_words: int = WESTERN_MAX_WORDS,
     min_words: int = WESTERN_MIN_WORDS,
     split_mode: str | None = None,
+    interpolated_boundary_indices: set[int] | None = None,
 ) -> list[dict]:
     """逐段调用 split_coarse_segment（见其 docstring）。"""
     result: list[dict] = []
     for segment in segments:
-        result.extend(split_coarse_segment(
+        pieces = split_coarse_segment(
             segment,
             max_len=max_len,
             min_len=min_len,
@@ -1268,7 +1269,10 @@ def split_coarse_segments(
             max_words=max_words,
             min_words=min_words,
             split_mode=split_mode,
-        ))
+        )
+        if interpolated_boundary_indices is not None and not segment.get('items'):
+            interpolated_boundary_indices.update(range(len(result) + 1, len(result) + len(pieces)))
+        result.extend(pieces)
     return result
 
 
@@ -1936,6 +1940,7 @@ def build_segments_from_api_sentences(
     max_words: int = WESTERN_MAX_WORDS,
     min_words: int = WESTERN_MIN_WORDS,
     split_mode: str | None = None,
+    interpolated_boundary_indices: set[int] | None = None,
 ) -> list[dict]:
     """优先保留云端句子边界，只在单句内部进行必要的切分。
 
@@ -2016,7 +2021,7 @@ def build_segments_from_api_sentences(
                 segment["speaker"] = str(sentence_speaker)
             # 无词级时间码的句子不再整句落盘：保留句边界，
             # 超长时按标点/最大字数做兜底二次拆分。
-            segments.extend(split_coarse_segment(
+            pieces = split_coarse_segment(
                 segment,
                 max_len=max_len,
                 min_len=min_len,
@@ -2024,7 +2029,10 @@ def build_segments_from_api_sentences(
                 max_words=max_words,
                 min_words=min_words,
                 split_mode=split_mode,
-            ))
+            )
+            if interpolated_boundary_indices is not None:
+                interpolated_boundary_indices.update(range(len(segments) + 1, len(segments) + len(pieces)))
+            segments.extend(pieces)
             continue
 
         sentence_segments: list[dict] = []
@@ -2540,6 +2548,7 @@ def main():
             print("--- end debug ---\n")
 
         items = result["items"]
+        interpolated_boundary_indices: set[int] = set()
         api_sentences = result.get("sentences") if uses_file_urls(args.model) else None
         if api_sentences:
             print("[解析] 正在按云端句子边界整理字幕...")
@@ -2552,6 +2561,7 @@ def main():
                 max_words=args.max_words,
                 min_words=args.min_words,
                 split_mode=split_mode,
+                interpolated_boundary_indices=interpolated_boundary_indices,
             )
             print(f"[解析] 字幕整理完成：{len(segments)} 条（保留云端句子边界）。")
         elif result.get("timestamp_granularity") == "segment" and result.get("segments"):
@@ -2568,6 +2578,7 @@ def main():
                 max_words=args.max_words,
                 min_words=args.min_words,
                 split_mode=split_mode,
+                interpolated_boundary_indices=interpolated_boundary_indices,
             )
             print(f"[解析] 字幕整理完成：{len(segments)} 条（保留云端句子边界）。")
         elif not items:
@@ -2586,6 +2597,11 @@ def main():
             )
             print(f"[解析] 字幕整理完成：{len(segments)} 条。")
 
+        # Refine before blank/punctuation filtering can change cue indices.
+        from maw.energy_valley import snap_cue_boundaries
+        snapped = snap_cue_boundaries(segments, audio_path, boundary_indices=interpolated_boundary_indices)
+        if snapped:
+            print(f"[输出] 已将 {snapped} 个插值切点调整到附近低能量处")
         original_segment_count = len(segments)
         segments = [segment for segment in segments if str(segment.get("text") or "").strip()]
         removed_blank_count = original_segment_count - len(segments)

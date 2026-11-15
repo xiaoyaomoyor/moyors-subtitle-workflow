@@ -5,6 +5,7 @@ from maw.msw import subtitle_background as background, subtitle_gradient as grad
 from maw.font_scripts import SCRIPT_FONTS
 
 NUMBERS = dict(fontSize=(1, 512), outline=(0, 100), shadow=(0, 100), spacing=(-100, 100),
+               outlineOpacity=(0, 100), shadowOpacity=(0, 100),
                angle=(-360, 360), scaleX=(0, 1000), scaleY=(0, 1000), charsPerLine=(1, 200))
 BOOLEANS = ('bold', 'italic', 'underline', 'strikeOut')
 COLORS = ('primaryColor', 'outlineColor', 'backColor')

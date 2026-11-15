@@ -346,11 +346,21 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
         return f'{v:.4f}'.rstrip('0').rstrip('.') or '0'
     def alpha(v):
         return f'{math.floor(clamp(1-v)*255+.5):02X}'
+    def opacity_tags(opacity):
+        # Global alpha replaces the style's component alphas in ASS. Restore
+        # their proportions at both ends of each animation fragment.
+        if drawing is not None or all(style.get(k, 100) == 100 for k in ('outlineOpacity', 'shadowOpacity')):
+            return rf'\alpha&H{alpha(opacity)}&'
+        # Do not combine global alpha and component alpha inside one transform:
+        # libass interpolates them sequentially, making hidden shadows visible.
+        return (rf'\1a&H{alpha(opacity)}&\2a&H{alpha(opacity)}&'
+                rf'\3a&H{alpha(opacity*style.get("outlineOpacity", 100)/100)}&'
+                rf'\4a&H{alpha(opacity*style.get("shadowOpacity", 100)/100)}&')
     def props(state):
         opacity = state['opacity']*(background.normalize(style)['backgroundOpacity']/100 if drawing is not None else 1)
         return (rf'\fscx{number((100 if drawing is not None else style["scaleX"])*state["scale"]/100)}'
                 rf'\fscy{number((100 if drawing is not None else style["scaleY"])*state["scale"]/100)}'
-                rf'\frz{number(style["angle"]+state["rotation"])}\alpha&H{alpha(opacity)}&')
+                rf'\frz{number(style["angle"]+state["rotation"])}'+opacity_tags(opacity))
     def color_tag(color):
         return r'{\c&H'+color[5:7]+color[3:5]+color[1:3]+'&}'
     for a, b in zip(cuts, cuts[1:]):
@@ -384,7 +394,7 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
             # except one grapheme. No guessed advances or lost spaces/kerning.
             # Alpha overrides must cancel the event's fade on the hidden text.
             invisible = r'{\alpha&HFF&\t(0,'+number(span)+r',1,\alpha&HFF&)}'
-            visible = r'{\alpha&H'+alpha(left['opacity'])+r'&\t(0,'+number(span)+r',1,\alpha&H'+alpha(right['opacity'])+'&)}'
+            visible = '{'+opacity_tags(left['opacity'])+r'\t(0,'+number(span)+',1,'+opacity_tags(right['opacity'])+')}'
             tokens, targets, seen, phase, prefix_count = [], [], 0, 0, 0
             current_color = speaker_color if speaker_prefix and speaker_color else style['primaryColor']
             for j, unit in enumerate(units):

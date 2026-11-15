@@ -128,7 +128,7 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
     Never read the live user library from a rendering worker: editing shared
     styles during a queued job must not change its output.
     """
-    from maw.ass_styles import normalize_ass_style_library, find_ass_profile, find_ass_style, ass_style_line
+    from maw.ass_styles import normalize_ass_style_library, find_ass_profile, find_ass_style, ass_style_line, ass_opacity_transform
     from maw.speaker import COLOR_PALETTE
 
     preview = project.get('preview') or {}
@@ -184,7 +184,7 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
                           ('move', ('x1', 'y1', 'x2', 'y2', 't1', 't2')), ('t', ('startMs', 'endMs', 'accel', 'tags'))]:
             animation = animations[tag]
             if animation['enabled'] and not (tag == 'move' and name != 'main'):
-                tags.append('\\' + tag + '(' + ','.join(str(animation[k]) for k in keys) + ')')
+                tags.append('\\' + tag + '(' + ','.join(ass_opacity_transform(animation[k], styles[name]) if k=='tags' else str(animation[k]) for k in keys) + ')')
         prefix = '{' + ''.join(tags) + '}' if tags else ''
         for cue in groups[index][1]:
             if not cue['text'].strip(): continue

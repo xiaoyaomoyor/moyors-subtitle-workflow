@@ -2254,6 +2254,7 @@
     '阴影/背景': 'Shadow / background', '加粗': 'Bold', '斜体': 'Italic', '删除线': 'Strikeout', '高级排版': 'Advanced typography',
     '横向缩放': 'Horizontal scale', '纵向缩放': 'Vertical scale', '旋转': 'Rotation', '描边宽度': 'Outline width',
     '阴影距离': 'Shadow distance', '边框样式': 'Border style', '不透明底框': 'Opaque box', '左下': 'Bottom left', '中下': 'Bottom center',
+    '描边不透明度 %': 'Outline opacity %', '阴影不透明度 %': 'Shadow opacity %',
     '右下': 'Bottom right', '左中': 'Middle left', '中中': 'Middle center', '右中': 'Middle right', '左上': 'Top left',
     '中上': 'Top center', '右上': 'Top right', '左边距': 'Left margin', '右边距': 'Right margin', '垂直边距': 'Vertical margin',
     'ASS 预览': 'ASS preview', 'Aa 字幕预览 / 字幕样例': 'Aa subtitle preview / sample', 'ASS 输出方案': 'ASS export profile',

@@ -50,6 +50,8 @@
   const fontScripts=global.AsrEditorUtils.ASS_FONT_SCRIPTS;
   const basic=[...fontScripts.map(([,key])=>[key,'字体','text']),['fontSize','字号','number',1,512],['wrapMode','换行方式','select',[['auto','自动'],['characters','按字数']]],['charsPerLine','每行字数','number',1,200],['primaryColor','文字颜色','color'],['outlineColor','描边颜色','color'],['outline','描边宽度','number',0,100],['alignment','位置','select',[[7,'左上'],[8,'顶部居中'],[9,'右上'],[4,'左中'],[5,'居中'],[6,'右中'],[1,'左下'],[2,'底部居中'],[3,'右下']]]];
   const advanced=[['bold','粗体','checkbox'],['italic','斜体','checkbox'],['underline','下划线','checkbox'],['strikeOut','删除线','checkbox'],['borderStyle','边框样式','select',[[1,'描边'],[3,'背景框']]],['backColor','阴影／背景颜色','color'],['shadow','阴影距离','number',0,100],['spacing','字距','number',-100,100],['marginL','左边距','number',0,9999],['marginR','右边距','number',0,9999],['marginV','垂直边距','number',0,9999],['angle','旋转角度','number',-360,360],['scaleX','横向缩放 %','number',0,1000],['scaleY','纵向缩放 %','number',0,1000]];
+  basic.splice(basic.findIndex(r=>r[0]==='outline')+1,0,['outlineOpacity','描边不透明度 %','number',0,100,0.1]);
+  advanced.splice(advanced.findIndex(r=>r[0]==='shadow')+1,0,['shadowOpacity','阴影不透明度 %','number',0,100,0.1]);
   function fields(rows,target,animation=false) {
     for(const [key,caption,type,min,max,step] of rows) {
       const label=document.createElement('label');label.className='msw-style-field';

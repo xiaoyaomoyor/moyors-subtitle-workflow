@@ -17,6 +17,7 @@ v4 单条外观使用可选 `subtitles.cues[*].content.subtitle_style` 部分对
 - `primaryColor`、`outlineColor`、`backColor`：`#RRGGBB`；显式文字／描边颜色优先于字幕颜色标记的映射。
 - `bold`、`italic`、`underline`、`strikeOut`：布尔值；`borderStyle`：1 或 3。
 - `outline`、`shadow`：0–100；`spacing`：−100–100；`angle`：−360–360；`scaleX`、`scaleY`：0–1000，均为有限数字。
+- `outlineOpacity`、`shadowOpacity`：0–100 的有限数字（可含小数），分别控制描边和阴影不透明度，0 为全透明、100 为不透明；未设置时继承上层，最终默认 100，保持旧样式外观。字段也用于工程 `main` / `secondary`、轨道快照、说话人外观和用户预设。ASS 分别编码为 `OutlineColour` / `BackColour` 的 alpha；动画不透明度与其相乘，文字波动和打字机遮罩也保持各分量。`borderStyle:3` 的 ASS 底框使用描边不透明度；独立文字背景仍使用 `backgroundOpacity`，不受这两个字段影响。标准预览、ASS 导出及视频烧录使用同一编译结果。
 - `wrapMode`：`auto` / `characters`；`charsPerLine`：1–200 的整数。
 - `textAlign`：`left` / `center` / `right`。多行文字在原字幕框内对齐，不改变 `subtitle_position`；未设置时沿用轨道锚点的水平对齐。工程样式、轨道快照、说话人外观和预设也可保存该字段，预览、ASS 和烧录使用相同规则。
 - `backgroundShape`：`none` / `rect` / `rounded`，缺省 `none`；`backgroundColor`：`#RRGGBB`，缺省黑色；`backgroundOpacity`：0–100 的有限数值，缺省 75。
@@ -616,7 +617,7 @@ ASS 导出、播放器工程预览和视频烧录默认读取这个快照，不�
 | `items` | `array<object>` | 推荐填 | 字级时间戳数组。用于「双击拆分时按字分配时间」。可填 `[]`，此时拆分会按字符比例估算时间点 |
 | `disabled` | `bool` | 否 | 禁用该字幕；预览、隐藏禁用项和默认导出会跳过它 |
 | `speaker` | `string` | 否 | 说话人标签（非空字符串）。保存供应商返回的 opaque ID（如 Soniox 的 `"1"`/`"2"`），不转换为整数或姓名。仅当该段所有带语音 items 都是同一 speaker 时才写入；缺少该字段的旧工程继续有效 |
-| `timing_precision` | `string` | 否 | Qwen 仅有句级真实锚点而需要细分时写 `interpolated`，表示按真实句范围估算的子句；这些子句不含伪造的词级 `items`。无真实时间锚点的纯文本不能生成字幕 |
+| `timing_precision` | `string` | 否 | 本地／云端引擎仅有句级真实锚点而需要细分时写 `interpolated`，表示按真实句范围估算的子句；新内部切点可在 ±400ms 内按局部低能量微调，仍不等于可靠词级时间码，不写伪造的 `items` 或吸附资格索引。无真实时间锚点的纯文本不能生成字幕 |
 | `sticker` | `object\|null` | 否 | 表情包 head 信息。见第四节 |
 | `sticker_ref` | `object\|null` | 否 | 引用上方 head 的表情包（跨多句用） |
 | `color` | `object\|null` | 否 | 颜色标记 head。见第四节 |

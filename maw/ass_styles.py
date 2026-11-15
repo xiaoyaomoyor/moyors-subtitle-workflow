@@ -129,6 +129,8 @@ def _style_defaults(style_id: str, name: str) -> dict[str, object]:
         "secondaryColor": "#ffffff",
         "outlineColor": "#000000",
         "backColor": "#000000",
+        "outlineOpacity": 100,
+        "shadowOpacity": 100,
         "bold": False,
         "italic": False,
         "underline": False,
@@ -238,6 +240,8 @@ def _normalize_style(raw: object, fallback: Mapping[str, object], *, style_id: s
         "secondaryColor": _color(source.get("secondaryColor"), str(fallback.get("secondaryColor") or "#ffffff")),
         "outlineColor": _color(source.get("outlineColor"), str(fallback.get("outlineColor") or "#000000")),
         "backColor": _color(source.get("backColor"), str(fallback.get("backColor") or "#000000")),
+        "outlineOpacity": _number(source.get("outlineOpacity"), fallback.get("outlineOpacity", 100), 0, 100, integer=False),
+        "shadowOpacity": _number(source.get("shadowOpacity"), fallback.get("shadowOpacity", 100), 0, 100, integer=False),
         "bold": _bool(source.get("bold"), bool(fallback.get("bold", False))),
         "italic": _bool(source.get("italic"), bool(fallback.get("italic", False))),
         "underline": _bool(source.get("underline"), bool(fallback.get("underline", False))),
@@ -491,11 +495,33 @@ def find_ass_profile(library: Mapping[str, object], profile_id: object) -> dict[
     return _copy(DEFAULT_ASS_PROFILE)
 
 
-def ass_color(value: object, fallback: str = "#ffffff") -> str:
+def ass_color(value: object, fallback: str = "#ffffff", *, opacity: float = 100) -> str:
     """Convert a CSS hex colour into ASS's ``&HAABBGGRR`` notation."""
 
     color = _color(value, fallback)
-    return f"&H00{color[5:7]}{color[3:5]}{color[1:3]}".upper()
+    alpha = math.floor((1 - _number(opacity, 100, 0, 100, integer=False) / 100) * 255 + .5)
+    return f"&H{alpha:02X}{color[5:7]}{color[3:5]}{color[1:3]}".upper()
+
+
+def ass_opacity_transform(tags: str, style: Mapping[str, object]) -> str:
+    """Compose legacy alpha targets with the style's independent opacities."""
+    def replace(match):
+        component, value = match.groups()
+        alpha = int(value, 16)
+        if component == 'alpha' and all(style.get(k, 100) == 100 for k in ('outlineOpacity', 'shadowOpacity')):
+            return match[0]
+        result = rf'\1a&H{alpha:02X}&\2a&H{alpha:02X}&' if component == 'alpha' else ''
+        for channel, field in (('3a', 'outlineOpacity'), ('4a', 'shadowOpacity')):
+            if component not in ('alpha', channel):
+                continue
+            opacity = _number(style.get(field), 100, 0, 100, integer=False)
+            if opacity == 100:
+                result += match[0] if component == channel else rf'\{channel}&H{alpha:02X}&'
+            else:
+                adjusted = math.floor(255 - (255-alpha)*opacity/100 + .5)
+                result += rf'\{channel}&H{adjusted:02X}&'
+        return result
+    return re.sub(r'\\(alpha|3a|4a)&H([0-9a-fA-F]{1,2})&', replace, tags)
 
 
 def ass_style_line(style: Mapping[str, object], *, name: str = "Default") -> str:
@@ -510,8 +536,8 @@ def ass_style_line(style: Mapping[str, object], *, name: str = "Default") -> str
         normalized["fontSize"],
         ass_color(normalized["primaryColor"]),
         ass_color(normalized["secondaryColor"]),
-        ass_color(normalized["outlineColor"]),
-        ass_color(normalized["backColor"]),
+        ass_color(normalized["outlineColor"], opacity=normalized["outlineOpacity"]),
+        ass_color(normalized["backColor"], opacity=normalized["shadowOpacity"]),
         bool_value("bold"),
         bool_value("italic"),
         bool_value("underline"),
@@ -541,8 +567,8 @@ def ass_style_force_style(style: Mapping[str, object]) -> str:
         ("FontSize", normalized["fontSize"]),
         ("PrimaryColour", ass_color(normalized["primaryColor"])),
         ("SecondaryColour", ass_color(normalized["secondaryColor"])),
-        ("OutlineColour", ass_color(normalized["outlineColor"])),
-        ("BackColour", ass_color(normalized["backColor"])),
+        ("OutlineColour", ass_color(normalized["outlineColor"], opacity=normalized["outlineOpacity"])),
+        ("BackColour", ass_color(normalized["backColor"], opacity=normalized["shadowOpacity"])),
         ("Bold", -1 if normalized["bold"] else 0),
         ("Italic", -1 if normalized["italic"] else 0),
         ("Underline", -1 if normalized["underline"] else 0),

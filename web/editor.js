@@ -3147,12 +3147,12 @@ function syncAssStyleForm(style) {
     assStylePreviewSample.style.fontStyle = preview.italic ? 'italic' : 'normal';
     assStylePreviewSample.style.textDecorationLine = [preview.underline ? 'underline' : '', preview.strikeOut ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
     assStylePreviewSample.style.color = preview.primaryColor;
-    assStylePreviewSample.style.webkitTextStroke = preview.outline > 0 ? `${Math.min(8, preview.outline)}px ${preview.outlineColor}` : '';
+    assStylePreviewSample.style.webkitTextStroke = preview.outline > 0 ? `${Math.min(8, preview.outline)}px ${assComponentColor(preview, 'outlineColor', 'outlineOpacity')}` : '';
     assStylePreviewSample.style.paintOrder = preview.outline > 0 ? 'stroke fill' : '';
-    assStylePreviewSample.style.filter = preview.shadow > 0 ? `drop-shadow(${preview.shadow}px ${preview.shadow}px 0 ${preview.backColor})` : '';
+    assStylePreviewSample.style.filter = preview.shadow > 0 ? `drop-shadow(${preview.shadow}px ${preview.shadow}px 0 ${assComponentColor(preview, 'backColor', 'shadowOpacity')})` : '';
     assStylePreviewSample.style.letterSpacing = `${preview.spacing}px`;
     assStylePreviewSample.style.transform = `scale(${Number(preview.scaleX) / 100 || 1}, ${Number(preview.scaleY) / 100 || 1}) rotate(${Number(preview.angle) || 0}deg)`;
-    assStylePreviewSample.style.background = Number(preview.borderStyle) === 3 ? preview.backColor : 'transparent';
+    assStylePreviewSample.style.background = Number(preview.borderStyle) === 3 ? assComponentColor(preview, 'outlineColor', 'outlineOpacity') : 'transparent';
   }
   updateAssStylePreviewModeHints();
 }
@@ -15025,6 +15025,11 @@ function assPreviewFontSize(style, metrics) {
     * metrics.stageHeight / ASS_PREVIEW_REFERENCE_HEIGHT;
 }
 
+function assComponentColor(style, color, opacity) {
+  const amount = style[opacity] ?? 100;
+  return amount === 100 ? style[color] : hexAlpha(style[color], Math.max(0, Math.min(100, amount)) / 100);
+}
+
 function applyAssPreviewElement(element, style, animationState, metrics, alignment, margins, anchorTranslate = '') {
   if (!element) return;
   const scaleX = metrics.scaleX;
@@ -15065,17 +15070,17 @@ function applyAssPreviewElement(element, style, animationState, metrics, alignme
   element.style.textDecorationColor = style.primaryColor;
   element.style.textUnderlineOffset = style.underline ? '0.16em' : '';
   element.style.color = style.primaryColor;
-  element.style.webkitTextStroke = outline > 0 ? `${outline}px ${style.outlineColor}` : '';
+  element.style.webkitTextStroke = outline > 0 ? `${outline}px ${assComponentColor(style, 'outlineColor', 'outlineOpacity')}` : '';
   element.style.paintOrder = outline > 0 ? 'stroke fill' : '';
   element.style.filter = !borderBox && shadow > 0
-    ? `drop-shadow(${shadow}px ${shadow}px 0 ${style.backColor})` : '';
+    ? `drop-shadow(${shadow}px ${shadow}px 0 ${assComponentColor(style, 'backColor', 'shadowOpacity')})` : '';
   element.style.letterSpacing = `${spacing}px`;
   element.style.lineHeight = 'normal';
   element.style.maxWidth = `calc(100% - ${Math.max(0, margins.left + margins.right)}px)`;
   element.style.padding = borderBox
     ? `${Math.max(1, 4 * scaleY)}px ${Math.max(1, 8 * scaleX)}px`
     : `${Math.max(1, scaleY)}px ${Math.max(1, 2 * scaleX)}px`;
-  element.style.backgroundColor = borderBox ? style.backColor : 'transparent';
+  element.style.backgroundColor = borderBox ? assComponentColor(style, 'outlineColor', 'outlineOpacity') : 'transparent';
   element.style.borderRadius = '0';
   element.style.opacity = String(opacity);
   element.style.transformOrigin = `${alignment.x * 100}% ${alignment.y * 100}%`;
@@ -15096,10 +15101,10 @@ function applyAssPreviewSpeakerLabel(element, style, metrics) {
   element.style.textDecorationLine = [style.underline ? 'underline' : '', style.strikeOut ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
   element.style.textDecorationColor = style.primaryColor;
   element.style.textUnderlineOffset = style.underline ? '0.16em' : '';
-  element.style.webkitTextStroke = outline > 0 ? `${outline}px ${style.outlineColor}` : '';
+  element.style.webkitTextStroke = outline > 0 ? `${outline}px ${assComponentColor(style, 'outlineColor', 'outlineOpacity')}` : '';
   element.style.paintOrder = outline > 0 ? 'stroke fill' : '';
   element.style.filter = shadow > 0
-    ? `drop-shadow(${shadow}px ${shadow}px 0 ${style.backColor})` : '';
+    ? `drop-shadow(${shadow}px ${shadow}px 0 ${assComponentColor(style, 'backColor', 'shadowOpacity')})` : '';
   element.style.letterSpacing = `${spacing}px`;
   element.style.lineHeight = 'normal';
 }
@@ -15286,7 +15291,7 @@ function applyAssSubtitlePreview({ tMs, segment, extension, overlay, overlaySegm
       : animatedMainStyle.primaryColor;
     overlayMainSpeakerLabelEl.style.color = labelColor;
     overlayMainSpeakerLabelEl.style.webkitTextStroke = animatedMainStyle.outline > 0
-      ? `${animatedMainStyle.outline * metrics.scaleY}px ${animatedMainStyle.outlineColor}` : '';
+      ? `${animatedMainStyle.outline * metrics.scaleY}px ${assComponentColor(animatedMainStyle, 'outlineColor', 'outlineOpacity')}` : '';
     overlayMainSpeakerLabelEl.style.paintOrder = animatedMainStyle.outline > 0 ? 'stroke fill' : '';
     overlayMainSpeakerLabelEl.style.textDecorationColor = labelColor;
   } else {

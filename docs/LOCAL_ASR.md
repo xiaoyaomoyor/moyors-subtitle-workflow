@@ -152,7 +152,7 @@ uv run python generate_subtitle_local.py "D:\Videos\example.mp4" `
 
 Launcher 与 CLI 的 `--max-len`（字符型每条最大字符数，默认 18）、`--min-len`（字符型短句合并阈值，默认 5）、`--max-words`（单词型每条最大单词数，默认 13）、`--min-words`（单词型短句合并阈值，默认 3）和 `--gap-split`（停顿切句毫秒，默认 800）会传给转写器。已知语言时由统一的 `split_mode` 选择字符型或单词型规则；没有语言元数据时，MSW 优先看文字脚本，能确认 CJK 就用字符型，无法确认的拉丁文本默认用单词型，但不会把它冒充成英语。
 
-MOSS 模型输出契约只有"段级"一对 start/end 时间戳（`[start][Sxx]文本[end]`），没有字词级时序。因此 MOSS 不再把整段伪造成字符/单词 `items`，也不对它做基于字数的硬切；每个模型段原样成为一条字幕。需要更细的时间码时，仍需后续接入 Qwen3-ForcedAligner 做强制对齐（尚未实现）。
+MOSS 模型输出契约只有“段级”一对 start/end 时间戳（`[start][Sxx]文本[end]`），没有字词级时序。MOSS 与其他仅有句级时间码的引擎沿用 MSW 的长句拆分：按标点／单词边界和字数限制生成插值切点，不把它们伪造成字符／单词 `items`。本次新增切点可吸附到附近低能量处（最多 ±400ms），保留模型原始句界和间隙；可靠词级时间码不参与。仅在可读取本地音频且存在明显低谷时调整，否则维持原插值。PCM16 WAV 不需要额外依赖，其他音频可使用运行环境已有的 soundfile。这个微调不等于强制对齐；MOSS 接入 Qwen3-ForcedAligner 仍尚未实现。
 
 本地生成的 `.mosp` 会在顶层写入 `language`、`language_source`、`split_mode` 和 `timestamp_granularity`。例如 MOSS 英文输出若模型没有返回语言信息，可能是 `language: ""`、`language_source: "unknown"`、`split_mode: "word"`、`timestamp_granularity: "segment"`；这表示“按单词理解文本，但没有单词时间码”，不是识别成了英语。
 

@@ -2203,8 +2203,11 @@ def build_local_segments(
     max_words: int = DEFAULT_MAX_WORDS,
     min_words: int = DEFAULT_MIN_WORDS,
     strip_tail_punct: str = _LOCAL_TAIL_PUNCT,
+    audio_path: Path | str | None = None,
+    on_event: ProgressCallback | None = None,
 ) -> list[dict[str, Any]]:
     """Turn adapter output into MSW's integer-millisecond subtitle segments."""
+    interpolated_boundary_indices: set[int] = set()
     if transcription.segments:
         segments: list[dict[str, Any]] = []
         if transcription.timestamp_granularity == "segment":
@@ -2223,6 +2226,7 @@ def build_local_segments(
                     max_words=max_words,
                     min_words=min_words,
                     split_mode=transcription.split_mode or None,
+                    interpolated_boundary_indices=interpolated_boundary_indices,
                 )
             )
         else:
@@ -2252,6 +2256,12 @@ def build_local_segments(
         segments = [{"start": 0, "end": max(duration_ms, 1), "text": transcription.text, "items": []}]
     else:
         return []
+    # Consume eligibility before stripping punctuation/repairing ranges, which
+    # can remove or merge cues. Never expose these transient indices in a project.
+    from maw.energy_valley import snap_cue_boundaries
+    snapped = snap_cue_boundaries(segments, audio_path, boundary_indices=interpolated_boundary_indices)
+    if snapped and on_event:
+        on_event(f"[输出] 已将 {snapped} 个插值切点调整到附近低能量处")
     _strip_trailing_punct(
         segments,
         "" if transcription.preserve_punctuation else strip_tail_punct,

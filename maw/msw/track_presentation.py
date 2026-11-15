@@ -289,7 +289,7 @@ def layout(project, width=1920):
 
 def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, frame_at=None, entries=None):
     from maw.msw import subtitle_gradient as gradient
-    from maw.ass_styles import ass_style_line
+    from maw.ass_styles import ass_style_line, ass_opacity_transform
     from maw.msw.subtitle_style import ass_time, ass_text
     from maw.speaker import COLOR_PALETTE
     width=max(1,round(1080*video['width']/max(1,video['height'])))
@@ -345,7 +345,8 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
         else:base+=rf'\pos({text_x:.4f},{text_y:.4f})'
         for tag,keys in [('fad',('inMs','outMs')),('fade',('alpha1','alpha2','alpha3','t1','t2','t3','t4')),('t',('startMs','endMs','accel','tags'))]:
             a=animations[tag]
-            if a['enabled']:base+='\\'+tag+'('+','.join(str(a[k]) for k in keys)+')'
+            if a['enabled']:
+                base+='\\'+tag+'('+','.join(ass_opacity_transform(a[k], r['style']) if k=='tags' else str(a[k]) for k in keys)+')'
         text=styled_text(r['size']['text'], r['style'])
         color = r['speaker']['color'] if r.get('speaker') else palette.get(r['color'].get('name'))
         cue_mode = (r.get('speaker') or {}).get('mode', 'none') if 'speaker' in r else mode

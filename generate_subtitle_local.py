@@ -318,6 +318,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 max_words=args.max_words,
                 min_words=args.min_words,
                 strip_tail_punct=args.strip_tail_punct,
+                audio_path=audio_path,
+                on_event=print,
             )
             if args.speaker_colors:
                 from maw.speaker import apply_speaker_colors
