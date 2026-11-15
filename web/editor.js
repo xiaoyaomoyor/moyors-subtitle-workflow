@@ -2600,6 +2600,7 @@ let currentCuePanelKind = 'main';
 let currentCuePanelTrackId = null;
 let cuePanelUndoPushed = false;
 let cuePanelUndoRecord = null;
+let cuePanelUndoCheckpoint = null;
 let cuePanelTextEditSnapshot = null;
 // Focus alone (including automatic focus after creation) is not a text edit.
 // Keep native undo/redo ownership after any input, even if native undo has
@@ -2611,6 +2612,7 @@ let editorSettingsPanelFrame = 0;
 function resetCuePanelEditState() {
   cuePanelUndoPushed = false;
   cuePanelUndoRecord = null;
+  cuePanelUndoCheckpoint = null;
   cuePanelTextEditSnapshot = null;
 }
 
@@ -7093,6 +7095,7 @@ function setCurrentCuePanelOverlayIndex(index) {
 function ensureCuePanelUndo(label = null) {
   if (!cuePanelUndoPushed) {
     const target = getCurrentCuePanelTarget();
+    cuePanelUndoCheckpoint = editorHistory.checkpoint();
     cuePanelUndoRecord = pushUndo(
       label || (target?.kind === 'extension' ? '编辑副字幕' : '编辑当前字幕'),
     );
@@ -7350,14 +7353,10 @@ function restoreCuePanelTextEditSnapshot() {
 
 function discardPendingCuePanelUndo() {
   const record = cuePanelUndoRecord;
-  if (cuePanelUndoPushed && record && editorHistory.peekUndo() === record) {
-    editorHistory.popUndo({
-      kind: 'segments',
-      label: record.label,
-      segs: snapshotSegments(),
-    });
-    // 这条记录本来就清空了 redo；popUndo 临时生成的镜像也不能留下。
-    editorHistory.clearRedo();
+  if (cuePanelUndoPushed && record && cuePanelUndoCheckpoint && editorHistory.peekUndo() === record) {
+    // Cancelling is not a new edit. Restore redo and any oldest undo entry
+    // evicted at the history limit, but never roll back a later operation.
+    editorHistory.restoreCheckpoint(cuePanelUndoCheckpoint);
     updateUndoRedoButtons();
   }
   resetCuePanelEditState();
@@ -8473,6 +8472,20 @@ document.getElementById('search-clear')?.addEventListener('click', () => {
 let editingState = null;
 let extensionEditingState = null;
 
+function deferInlineCaretPlacement(textEl, applyCaret) {
+  const root = textEl.ownerDocument;
+  const events = ['beforeinput', 'keydown', 'pointerdown', 'compositionstart'];
+  let untouched = true;
+  const cancel = () => { untouched = false; };
+  // Observe new input before editor shortcuts can stop propagation. The
+  // correction only repairs native double-click selection, not later actions.
+  events.forEach(type => root.addEventListener(type, cancel, { once: true, capture: true }));
+  setTimeout(() => {
+    events.forEach(type => root.removeEventListener(type, cancel, true));
+    if (untouched && textEl.isConnected && root.activeElement === textEl) applyCaret();
+  }, 0);
+}
+
 function startExtensionEdit(
   el,
   index,
@@ -8494,15 +8507,16 @@ function startExtensionEdit(
   if (typeof clickX === 'number' && typeof clickY === 'number') {
     caretCharOffset = caretCharFromPoint(textEl, clickX, clickY);
   }
-  extensionEditingState = {
+  const session = {
     el, index, trackId: track.id, textEl, original: segment.text || '', caretCharOffset,
   };
+  extensionEditingState = session;
   el.classList.add('editing');
   textEl.setAttribute('contenteditable', 'plaintext-only');
   textEl.innerText = segment.text || '';
   textEl.focus();
   const applyCaret = () => {
-    if (!extensionEditingState || extensionEditingState.el !== el) return;
+    if (extensionEditingState !== session) return;
     const selection = window.getSelection();
     selection.removeAllRanges();
     if (caretCharOffset !== null && textEl.firstChild) {
@@ -8519,7 +8533,7 @@ function startExtensionEdit(
     selection.addRange(range);
   };
   applyCaret();
-  if (deferCaret) setTimeout(applyCaret, 0);
+  if (deferCaret) deferInlineCaretPlacement(textEl, applyCaret);
 }
 
 function syncCuePanelAfterInlineEdit(kind, index, trackId = null) {
@@ -8649,13 +8663,14 @@ function startEdit(el, idx, clickX, clickY, { deferCaret = false } = {}) {
   if (typeof clickX === 'number' && typeof clickY === 'number') {
     caretCharOffset = caretCharFromPoint(textEl, clickX, clickY);
   }
-  editingState = { el, idx, textEl, original: seg.text };
+  const session = { el, idx, textEl, original: seg.text };
+  editingState = session;
   el.classList.add('editing');
   textEl.setAttribute('contenteditable', 'plaintext-only');
   textEl.innerText = seg.text;
   textEl.focus();
   const applyCaret = () => {
-    if (!editingState || editingState.el !== el) return;
+    if (editingState !== session) return;
     const sel = window.getSelection();
     sel.removeAllRanges();
     if (caretCharOffset !== null && textEl.firstChild) {
@@ -8676,7 +8691,7 @@ function startEdit(el, idx, clickX, clickY, { deferCaret = false } = {}) {
   // 先同步放置一次光标，让编辑状态立即可见；双击原生选词可能在事件返回后
   // 覆盖它，再用下一轮事件循环恢复到鼠标位置。
   applyCaret();
-  if (deferCaret) setTimeout(applyCaret, 0);
+  if (deferCaret) deferInlineCaretPlacement(textEl, applyCaret);
 }
 
 function setEditingCaretOffset(offset) {
