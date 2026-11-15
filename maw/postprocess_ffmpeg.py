@@ -8,6 +8,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass, replace
 from threading import Event
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import Callable, Final, Mapping
 
 from maw.gui_platform import creationflags, release_process_tree, startupinfo, terminate_process_tree
 from maw.output_naming import media_suffix
+from maw.subtitle_glyphs import SubtitleGlyphMissingError, missing_glyph_message
 
 
 ALLOWED_DIRECTIVES: Final = frozenset({"ffconcat", "file", "inpoint", "outpoint", "duration"})
@@ -50,6 +52,10 @@ class MediaToolError(RuntimeError):
 
 class MediaToolCancelled(MediaToolError):
     """The user stopped an active FFmpeg operation."""
+
+
+class SubtitleFontGlyphMissingError(MediaToolError, SubtitleGlyphMissingError):
+    """All subtitle font fallbacks failed; do not retry a different encoder."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,7 +309,7 @@ def run_burn_subtitles(
         "-nostdin",
         "-hide_banner",
         "-loglevel",
-        "error",
+        "warning",
         "-progress",
         "pipe:1",
         "-i",
@@ -328,11 +334,11 @@ def run_burn_subtitles(
     try:
         def encode(command):
             _run_ffmpeg_process(command, cwd=subtitle.parent, cancel_event=cancel_event,
-                                on_process=on_process, on_progress=on_progress)
+                                on_process=on_process, on_progress=on_progress, check_ass_glyphs=True)
         try:
             encode(command)
         except MediaToolError as error:
-            if isinstance(error, MediaToolCancelled) or cancel_event.is_set() or not can_fallback(settings, encoder):
+            if isinstance(error, (MediaToolCancelled, SubtitleFontGlyphMissingError)) or cancel_event.is_set() or not can_fallback(settings, encoder):
                 raise
             encoding_note = fallback_note(encoder)
             start, end = command.index('-c:v'), command.index('-c:a')
@@ -483,67 +489,76 @@ def _run_ffmpeg_process(
     cancel_event: Event | None,
     on_process: Callable[[subprocess.Popen[str]], None] | None,
     on_progress: Callable[[Mapping[str, str]], None] | None,
+    check_ass_glyphs: bool = False,
 ) -> None:
-    if cancel_event is not None and cancel_event.is_set():
-        raise MediaToolCancelled("ffmpeg operation cancelled")
-    try:
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=str(cwd),
-            startupinfo=startupinfo(),
-            creationflags=creationflags(),
-        )
-    except OSError as error:
-        raise MediaToolError(f"ffmpeg could not start: {error}") from error
-    progress: dict[str, str] = {}
-    try:
-        if on_process is not None:
-            on_process(process)
-        stdout = process.stdout
-        while stdout is not None:
-            if cancel_event is not None and cancel_event.is_set():
-                terminate_process_tree(process)
-                raise MediaToolCancelled("ffmpeg operation cancelled")
-            line = stdout.readline()
-            if line:
-                key, separator, value = line.rstrip("\r\n").partition("=")
-                if separator:
-                    progress[key] = value
-                    if key == "progress" and on_progress is not None:
-                        on_progress(dict(progress))
-                        progress.clear()
-                continue
-            if process.poll() is not None:
-                break
-        stderr = process.stderr.read() if process.stderr is not None else ""
-        returncode = process.wait()
-    except MediaToolCancelled:
-        raise
-    except OSError as error:
-        if process.poll() is None:
-            terminate_process_tree(process)
-        raise MediaToolError(f"ffmpeg failed: {error}") from error
-    finally:
+    # A file avoids stderr pipe deadlock with repeated libass warnings.
+    with tempfile.TemporaryFile() as errors:
+        if cancel_event is not None and cancel_event.is_set():
+            raise MediaToolCancelled("ffmpeg operation cancelled")
         try:
-            # Registration/progress callbacks can fail too; never leave their
-            # child running after the caller has finished the media job.
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=errors,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=str(cwd),
+                startupinfo=startupinfo(),
+                creationflags=creationflags(),
+            )
+        except OSError as error:
+            raise MediaToolError(f"ffmpeg could not start: {error}") from error
+        progress: dict[str, str] = {}
+        try:
+            if on_process is not None:
+                on_process(process)
+            stdout = process.stdout
+            while stdout is not None:
+                if cancel_event is not None and cancel_event.is_set():
+                    terminate_process_tree(process)
+                    raise MediaToolCancelled("ffmpeg operation cancelled")
+                line = stdout.readline()
+                if line:
+                    key, separator, value = line.rstrip("\r\n").partition("=")
+                    if separator:
+                        progress[key] = value
+                        if key == "progress" and on_progress is not None:
+                            on_progress(dict(progress))
+                            progress.clear()
+                    continue
+                if process.poll() is not None:
+                    break
+            returncode = process.wait()
+        except MediaToolCancelled:
+            raise
+        except OSError as error:
             if process.poll() is None:
                 terminate_process_tree(process)
+            raise MediaToolError(f"ffmpeg failed: {error}") from error
         finally:
-            for stream in (process.stdout, process.stderr):
-                if stream is not None:
-                    stream.close()
-            release_process_tree(process)
-    if cancel_event is not None and cancel_event.is_set():
-        raise MediaToolCancelled("ffmpeg operation cancelled")
-    if returncode != 0:
-        detail = (stderr or "ffmpeg operation failed").strip()
-        raise MediaToolError(detail[-4000:])
+            try:
+                # Registration/progress callbacks can fail too; never leave their
+                # child running after the caller has finished the media job.
+                if process.poll() is None:
+                    terminate_process_tree(process)
+            finally:
+                for stream in (process.stdout, process.stderr):
+                    if stream is not None:
+                        stream.close()
+                release_process_tree(process)
+        if cancel_event is not None and cancel_event.is_set():
+            raise MediaToolCancelled("ffmpeg operation cancelled")
+        errors.seek(0)
+        if check_ass_glyphs:
+            message = missing_glyph_message(errors)
+            if message:
+                raise SubtitleFontGlyphMissingError(message)
+        if returncode != 0:
+            errors.seek(0, os.SEEK_END)
+            errors.seek(max(0, errors.tell() - 16000))
+            detail = errors.read().decode('utf-8', errors='replace').strip()
+            raise MediaToolError((detail or 'ffmpeg operation failed')[-4000:])
 
 
 def _replace_media_output(temporary: Path, output: Path) -> None:

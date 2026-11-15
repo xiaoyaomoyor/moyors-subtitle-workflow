@@ -18,6 +18,7 @@ import wave
 
 from maw.gui_platform import popen_process_tree, process_group_kwargs, release_process_tree, terminate_process_tree
 from maw.msw.audio_plan import round_sample
+from maw.subtitle_glyphs import SubtitleGlyphMissingError, missing_glyph_message
 
 CHUNK_SECONDS = 30
 BATCH_INPUTS = 16
@@ -34,7 +35,7 @@ def check_cancel(cancel):
         raise RenderCancelled()
 
 
-def run(command, cancel, *, timeout=3600, stdout=None, cwd=None, failure_message=None, on_tick=None):
+def run(command, cancel, *, timeout=3600, stdout=None, cwd=None, failure_message=None, on_tick=None, check_ass_glyphs=False):
     """Poll the child even if it produces no stdout; never pipe unbounded logs."""
     check_cancel(cancel)
     with tempfile.TemporaryFile() as errors:
@@ -56,6 +57,11 @@ def run(command, cancel, *, timeout=3600, stdout=None, cwd=None, failure_message
             check_cancel(cancel)
             if on_tick:
                 on_tick()
+            if check_ass_glyphs:
+                errors.seek(0)
+                message = missing_glyph_message(errors)
+                if message:
+                    raise SubtitleGlyphMissingError(message)
             if process.returncode:
                 # FFmpeg diagnostics can contain filenames/URLs, so keep the
                 # user-facing error actionable without echoing arbitrary logs.

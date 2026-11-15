@@ -20,6 +20,38 @@ var init_fonts = __esm({
   }
 });
 
+// web/subtitle-glyph-diagnostics.mjs
+var SubtitleGlyphDiagnostics = class {
+  entries = /* @__PURE__ */ new Map();
+  more = false;
+  reset() {
+    this.entries.clear();
+    this.more = false;
+  }
+  record(log) {
+    const match = String(log).slice(0, 8192).match(/fontselect:\s*failed to find any fallback(?: with glyph 0x([0-9a-f]{1,8}))?\s+for font:\s*\(([^\r\n]{0,512}?),\s*\d+,\s*\d+\)/i);
+    if (!match) return;
+    const family = match[2].replace(/\p{C}/gu, "").trim().slice(0, 100) || "\u5F53\u524D\u5B57\u4F53";
+    const code = match[1] ? parseInt(match[1], 16) : 0;
+    const key = JSON.stringify([family, code]);
+    if (this.entries.has(key)) return;
+    if (this.entries.size >= 8) {
+      this.more = true;
+      return;
+    }
+    let glyph = "";
+    if (code) {
+      const char = code <= 1114111 ? String.fromCodePoint(code) : "";
+      if (char && !/[\p{C}\s]/u.test(char)) glyph = `\u300C${char}\u300D`;
+      glyph += ` U+${code.toString(16).toUpperCase().padStart(4, "0")}`;
+    }
+    this.entries.set(key, `\u5B57\u4F53\u300C${family}\u300D${glyph}`);
+  }
+  summary() {
+    return this.entries.size ? "\u5B57\u5E55\u5B57\u4F53\u56DE\u9000\u540E\u4ECD\u7F3A\u5B57\uFF1A" + [...this.entries.values()].join("\uFF1B") + (this.more ? "\uFF1B\u53E6\u6709\u5176\u4ED6\u7F3A\u5B57" : "") + "\u3002\u8BF7\u5B89\u88C5\u5305\u542B\u8FD9\u4E9B\u5B57\u7B26\u7684\u5B57\u4F53\u6216\u8C03\u6574\u5B57\u5E55\u5B57\u4F53\u540E\u91CD\u8BD5\u3002" : "";
+  }
+};
+
 // node_modules/abslink/src/types.js
 var WireValueType = {
   RAW: "RAW",
@@ -3487,6 +3519,10 @@ var ASSRenderer = class {
   _malloc;
   _gpurender;
   debug = false;
+  _missingGlyphs = new SubtitleGlyphDiagnostics();
+  getMissingGlyphs() {
+    return this._missingGlyphs.summary();
+  }
   constructor(...args) {
     return this[constructor](...args).catch(console.error);
   }
@@ -3565,10 +3601,12 @@ var ASSRenderer = class {
     this._wasm.disableStyleOverride();
   }
   setTrack(content) {
+    this._missingGlyphs.reset();
     this._wasm.createTrackMem(content);
     this._subtitleColorSpace = LIBASS_YCBCR_MAP[this._wasm.trackColorSpace];
   }
   freeTrack() {
+    this._missingGlyphs.reset();
     this._wasm.removeTrack();
   }
   async setTrackByUrl(url) {
@@ -3585,6 +3623,7 @@ var ASSRenderer = class {
     this._wasm.setDefaultFont(this._defaultFont);
   }
   async _log(log) {
+    this._missingGlyphs.record(log);
     console.debug(log);
     const match = log.match(/JASSUB: fontselect:[^(]+: \(([^,]+), (\d{1,4}), \d+\)/);
     if (match && !await this._findAvailableFont(match[1].trim().toLowerCase(), WEIGHT_MAP2[Math.ceil(parseInt(match[2]) / 100) - 1])) {
@@ -3662,6 +3701,7 @@ var ASSRenderer = class {
   }
   _fontId = 0;
   _allocFonts(uint8s) {
+    this._missingGlyphs.reset();
     for (const uint8 of uint8s) {
       const ptr = this._malloc(uint8.byteLength);
       self.HEAPU8RAW.set(uint8, ptr);

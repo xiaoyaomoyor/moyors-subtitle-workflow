@@ -104,6 +104,31 @@ class VideoRenderTests(unittest.TestCase):
                 return data.read()
         self.assertEqual(packets(self.source), packets(output))
 
+    def test_missing_glyph_in_real_burn_preserves_existing_output_and_does_not_retry(self):
+        from maw.subtitle_glyphs import SubtitleGlyphMissingError
+        from maw.msw.video_render import encode_picture
+        from maw.postprocess_ffmpeg import BurnSubtitleRequest, SubtitleFontGlyphMissingError, run_burn_subtitles
+
+        self.project['segments'] = [dict(id='missing', start=0, end=1000, text='Missing \U0010fffd')]
+        target = self.root / 'result.mp4'; target.write_bytes(b'previous result')
+        # Use real libass/software encoding, but make a CPU retry eligible to
+        # prove the font error never reaches the generic driver fallback path.
+        with patch('maw.msw.video_render.encode_picture', wraps=encode_picture) as encode, \
+                patch('maw.msw.video_render.can_fallback', return_value=True), \
+                patch('maw.msw.video_render.choose_encoder', return_value=('libx264', '')):
+            with self.assertRaisesRegex(SubtitleGlyphMissingError, 'U\\+10FFFD'):
+                self.export(video_encoding='h264', burn_subtitles='main')
+            self.assertEqual(encode.call_count, 1)
+        self.assertEqual(target.read_bytes(), b'previous result')
+        self.assertEqual(list(self.root.glob('render-*')), [])
+
+        subtitle = self.root / 'missing.srt'
+        subtitle.write_text('1\n00:00:00,000 --> 00:00:01,000\nMissing \U0010fffd\n', encoding='utf-8')
+        before = set(self.root.iterdir())
+        with self.assertRaisesRegex(SubtitleFontGlyphMissingError, 'U\\+10FFFD'):
+            run_burn_subtitles(BurnSubtitleRequest(self.source, subtitle), ffmpeg_path=self.tools.ffmpeg)
+        self.assertEqual(set(self.root.iterdir()), before)
+
     def test_flat_cue_animation_survives_audio_mix_trim_and_encoding_chunks(self):
         from maw.msw.flat_subtitles import migrate_project
         from maw.msw.subtitle_animation import normalize, SCHEMA, DEFINITIONS

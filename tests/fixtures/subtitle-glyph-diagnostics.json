@@ -1,0 +1,10 @@
+[
+  {"log":"Glyph 0x4E2D not found, selecting one more font for (Arial, 400, 0)","parts":[]},
+  {"log":"fontselect: Using default font family: (Missing, 400, 0) -> Arial, 0","parts":[]},
+  {"log":"fontselect: (Arial, 400, 0) -> font.ttf, 0, Arial","parts":[]},
+  {"log":"[Parsed_ass_0] fontselect: failed to find any fallback with glyph 0x4E2D for font: (Arial, 400, 0)","parts":["字体「Arial」","「中」 U+4E2D"]},
+  {"log":"JASSUB: fontselect: failed to find any fallback with glyph 0x20000 for font: (Example, Family, 700, 100)","parts":["字体「Example, Family」","「𠀀」 U+20000"]},
+  {"log":"fontselect: failed to find any fallback with glyph 0x10FFFD for font: (Arial, 400, 0)","parts":["U+10FFFD"]},
+  {"log":"fontselect: failed to find any fallback for font: (Missing, 400, 0)","parts":["字体「Missing」"]},
+  {"log":"fontselect: failed to find any fallback with glyph 0x0 for font: (Missing, 400, 0)","parts":["字体「Missing」"]}
+]

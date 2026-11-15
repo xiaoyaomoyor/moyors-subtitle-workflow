@@ -10,6 +10,7 @@ from maw.msw.audio_plan import compile_plan, round_sample, options
 from maw.msw.audio_render import check_cancel, command_prefix, fingerprint, probe_source, render, run
 from maw.msw.subtitle_export import burning_cues, slice_burning_cues
 from maw.postprocess_ffmpeg import build_subtitle_filter
+from maw.subtitle_glyphs import SubtitleGlyphMissingError
 from maw.msw.subtitle_style import styled_ass
 from maw.msw.video_encoders import LABELS, can_fallback, choose_encoder, cpu_threads, encoder_args, encoding_options, fallback_note
 
@@ -94,7 +95,7 @@ def can_copy(plan, video, settings):
             and abs(plan["source_end_ms"] - video["duration_ms"]) <= 1)
 
 
-def encode_frames(command, cancel, *, cwd, frames, on_frame):
+def encode_frames(command, cancel, *, cwd, frames, on_frame, check_ass_glyphs=False):
     """Read FFmpeg progress without a blocking pipe or sharing its file cursor."""
     path = cwd / 'encoding-progress.txt'
     with path.open('wb') as output, path.open('rb') as updates:
@@ -116,8 +117,11 @@ def encode_frames(command, cancel, *, cwd, frames, on_frame):
                         last = frame
                         on_frame(frame)
 
+        if check_ass_glyphs:
+            command = list(command)
+            command[command.index('-loglevel') + 1] = 'warning'
         run(command[:1] + ['-progress', 'pipe:1', '-stats_period', '0.5', '-nostats'] + command[1:],
-            cancel, stdout=output, on_tick=tick, cwd=cwd, timeout=12*3600,
+            cancel, stdout=output, on_tick=tick, cwd=cwd, timeout=12*3600, check_ass_glyphs=check_ass_glyphs,
             failure_message='视频编码或字幕烧录失败，请检查编码器、系统字体、FFmpeg 的 libass 支持及磁盘空间')
 
 
@@ -157,7 +161,8 @@ def encode_picture(plan, root, tools, cancel, progress, source, video, rate, cap
                 encode_frames(command_prefix(tools.ffmpeg) + ["-protocol_whitelist", "file,pipe", "-ss", f"{seek:.9f}",
                     "-threads", str(cpu_threads()), "-i", str(source), "-map", f"0:{video['index']}", "-an", "-sn", "-dn",
                     "-vf", filters, "-frames:v", str(frames), *encoder_args(encoder, settings), "-video_track_timescale", str(rate.numerator), str(piece)], cancel,
-                    cwd=root, frames=frames, on_frame=lambda frame: progress('video', .55 + .37 * (completed + frame) / total_frames))
+                    cwd=root, frames=frames, check_ass_glyphs=bool(local_captions),
+                    on_frame=lambda frame: progress('video', .55 + .37 * (completed + frame) / total_frames))
                 # Very short MP4 segments may report a rounded duration.
                 # Explicit frame-derived lengths avoid concat DTS drift;
                 # no B-frame reordering across independently encoded cuts.
@@ -202,7 +207,7 @@ def render_video(plan, output, tools, cancel, progress, resolve_asset, *, source
                 picture = encode_picture(plan, root, tools, cancel, progress, source, video, rate, captions, project, settings, encoder, duration)
             except ValueError as error:
                 check_cancel(cancel)
-                if not can_fallback(settings, encoder):
+                if isinstance(error, SubtitleGlyphMissingError) or not can_fallback(settings, encoder):
                     raise
                 # Restart the video stage uniformly; never concatenate different
                 # codec configurations after a driver fails midway through a job.

@@ -5098,6 +5098,7 @@
 }
 #style-migration-dismiss { flex-shrink:0; padding:2px 8px; font-size:12px; }
 .msw-style-render-status { position:absolute; left:8px; top:8px; z-index:8; max-width:calc(100% - 16px); padding:3px 7px; border-radius:5px; background:#0009; color:white; font-size:11px; pointer-events:none; }
+.msw-style-render-status.has-missing-glyphs { color:#ffe0a3; background:#392b16ed; border:1px solid #c18c43; max-height:3.8em; overflow:hidden; pointer-events:auto; cursor:help; }
 .player-stage[data-subtitle-renderer=libass] #overlay,
 .player-stage[data-subtitle-renderer=libass] #msw-layer-preview { visibility:hidden !important; }
 /* Keep video below the offscreen subtitle canvas and the player controls. */

@@ -597,7 +597,9 @@ Tomamos anime y lo cruzamos con grandes ideas filosóficas para entender mejor l
 
 安装 FFmpeg 后关闭并重开 PowerShell，再运行 `ffmpeg -version`。不要只把 `ffmpeg.exe` 放在仓库里；更稳妥的是把其 `bin` 目录加入系统 PATH。
 
-macOS 从 Finder 启动 `.app` 时不一定会继承终端里的 PATH。Launcher 会额外尝试 Apple Silicon Homebrew 的 `/opt/homebrew/bin` 和 Intel Homebrew 的 `/usr/local/bin`；如果仍提示缺少 FFmpeg，可把对应目录填入「配置」中的 FFmpeg 路径，并确认其中同时存在 `ffmpeg` 和 `ffprobe`。macOS GUI 会优先读取应用程序同目录的 `.env`，不存在时使用 `~/Library/Application Support/MSW/.env`，不写入只读或被 App Translocation 隔离的 `.app` 包。
+macOS 从 Finder 启动 `.app` 时不一定会继承终端里的 PATH。MSW 会额外尝试 Apple Silicon Homebrew 的 `/opt/homebrew/opt/ffmpeg-full/bin` 和 Intel Homebrew 的 `/usr/local/opt/ffmpeg-full/bin`，再查找 `/opt/homebrew/bin` 与 `/usr/local/bin`。显式 FFmpeg 配置和随包工具仍优先；`ffmpeg`、`ffprobe` 分别查找，完整版目录不完整时继续补齐。完整包路径适用于 Homebrew 的 [ffmpeg-full](https://formulae.brew.sh/formula/ffmpeg-full)，MSW 不自动安装工具。如果仍提示缺少 FFmpeg，可把安装目录填入「配置」中的 FFmpeg 路径，并确认其中同时存在 `ffmpeg` 和 `ffprobe`。macOS GUI 会优先读取应用程序同目录的 `.env`，不存在时使用 `~/Library/Application Support/MSW/.env`，不写入只读或被 App Translocation 隔离的 `.app` 包。
+
+字幕字体正常回退时仍可预览和烧录；只有 libass 尝试回退后依然无法显示字符，才提示“字幕字体回退后仍缺字”，并列出字体、字符和 `U+` 码点。播放器提示位于画面左上角，悬停可查看完整说明；预览只检查已经渲染的字幕，修改正文或字体后重新检查。编辑器视频导出和启动器烧录会检查实际烧录范围，遇到缺字时停止发布成品，保留已有文件，也不会因此改用 CPU 重试。请安装包含对应字符的字体，或在工程、轨道、说话人及单条字幕的样式中调整相应字体后重试。安装新字体后可重启 MSW，使系统字体列表刷新。
 
 ### 提示未配置 API Key
 

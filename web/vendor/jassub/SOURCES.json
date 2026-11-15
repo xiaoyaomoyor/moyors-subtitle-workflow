@@ -28,11 +28,12 @@
   },
   "files": {
     "jassub.js": "3ad55f047b3b19f3d5bf64e5f3c170ae683b5225df2add5746cc0931e4409782",
-    "worker.js": "0db78b9a297aaca1c79648fd97adfd1c8e9e00314148abb7533a4c744f929ee6",
+    "worker.js": "bb10535a7195ab46912aee383b8d0874ca0c13dde77decb3b6ea91615f0bd61d",
     "libass.wasm": "2bc9d58995e6b17ab7d2f167efe6fe555670c034ba79b9351b54aad9a31a70f5"
   },
   "build": "npm ci --ignore-scripts; node scripts/build_subtitle_renderer.mjs",
   "upstreamSource": "https://github.com/ThaUnknown/jassub",
   "wasmSourceReference": "b78bc67194d4b63fab8bf82db54be8cec31fa207",
+  "modifications": "MSW worker extension: bounded final missing-glyph diagnostics, reset on track/font changes. Source: web/subtitle-glyph-diagnostics.mjs; applied by scripts/build_subtitle_renderer.mjs.",
   "note": "WASM is the unmodified binary from the pinned npm package. Source reference records upstream source inspected at integration; npm does not publish gitHead."
 }

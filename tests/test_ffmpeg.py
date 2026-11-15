@@ -139,6 +139,38 @@ class FfmpegResolverTests(unittest.TestCase):
         self.assertEqual(result.ffmpeg, bundled["ffmpeg"].resolve())
         self.assertEqual(result.ffprobe, bundled["ffprobe"].resolve())
 
+    def test_macos_full_homebrew_paths_precede_generic_candidates(self) -> None:
+        paths = ffmpeg_module.MACOS_FFMPEG_CANDIDATE_DIRECTORIES
+        self.assertEqual(paths[:2], ('/opt/homebrew/opt/ffmpeg-full/bin', '/usr/local/opt/ffmpeg-full/bin'))
+        self.assertLess(paths.index('/usr/local/opt/ffmpeg-full/bin'), paths.index('/usr/local/bin'))
+        # Use independent directories to simulate a Finder launch without PATH.
+        full = self._write_tools(self.root/'full', 'ffmpeg')
+        generic = self._write_tools(self.root/'generic', 'ffmpeg', 'ffprobe')
+        candidates = (self.root/'full', self.root/'generic')
+        result = resolve_ffmpeg_tools(environment={'PATH':''}, platform='darwin', include_bundled=False, macos_directories=candidates)
+        self.assertEqual(result.ffmpeg, full['ffmpeg'].resolve())
+        self.assertEqual(result.ffprobe, generic['ffprobe'].resolve())
+        self.assertEqual(resolve_ffmpeg_tools(environment={'PATH':''}, platform='darwin', include_bundled=False,
+            macos_directories=(self.root/'absent', self.root/'generic')).ffmpeg, generic['ffmpeg'].resolve())
+
+    def test_macos_candidates_preserve_configuration_bundle_and_platform_boundaries(self) -> None:
+        full = self._write_tools(self.root/'full', 'ffmpeg', 'ffprobe')
+        bundled = self._write_tools(self.root/'bundle', 'ffmpeg', 'ffprobe')
+        configured = self._write_tools(self.root/'configured', 'ffmpeg', 'ffprobe')
+        kwargs = dict(platform='darwin', bundled_directories=(self.root/'bundle',), macos_directories=(self.root/'full',))
+        self.assertEqual(resolve_ffmpeg_tools(environment={'PATH':''}, **kwargs).ffmpeg, bundled['ffmpeg'].resolve())
+        self.assertEqual(resolve_ffmpeg_tools(environment={'PATH':'','FFMPEG_PATH':str(self.root/'configured')}, **kwargs).ffmpeg, configured['ffmpeg'].resolve())
+        self.assertEqual(resolve_ffmpeg_tools(configured_path=self.root/'configured', environment={'PATH':'','FFMPEG_PATH':str(self.root/'full')}, **kwargs).ffmpeg, configured['ffmpeg'].resolve())
+        self.assertFalse(resolve_ffmpeg_tools(configured_path=self.root/'absent', environment={'PATH':''}, strict_config=True, **kwargs).complete)
+        for platform in ('win32', 'linux'):
+            self.assertFalse(resolve_ffmpeg_tools(environment={'PATH':''}, platform=platform,
+                include_bundled=False, macos_directories=(self.root/'full',)).complete)
+            self.assertEqual(ffmpeg_search_path('/usr/bin', platform=platform), '/usr/bin')
+        expanded = ffmpeg_search_path('/usr/bin', platform='darwin')
+        entries = expanded.split(os.pathsep)
+        self.assertEqual(entries.count('/opt/homebrew/opt/ffmpeg-full/bin'), 1)
+        self.assertEqual(ffmpeg_search_path(expanded, platform='darwin'), expanded)
+
     def test_strict_configuration_does_not_fall_back_to_path(self) -> None:
         from_path = self._write_tools(self.root / "path", "ffmpeg", "ffprobe")
         missing = self.root / "missing"

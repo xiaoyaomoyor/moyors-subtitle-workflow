@@ -21,6 +21,10 @@ from typing import Final
 
 FFMPEG_PATH_ENV: Final = "FFMPEG_PATH"
 MACOS_FFMPEG_CANDIDATE_DIRECTORIES: Final[tuple[str, ...]] = (
+    # ffmpeg-full is keg-only; prefer its libass-enabled binaries when both
+    # editions exist. Explicit configuration and bundled tools still win.
+    "/opt/homebrew/opt/ffmpeg-full/bin",
+    "/usr/local/opt/ffmpeg-full/bin",
     "/opt/homebrew/bin",
     "/usr/local/bin",
 )

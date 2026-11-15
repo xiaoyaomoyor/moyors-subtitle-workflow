@@ -51,17 +51,37 @@
   const fontBytes=new Map();
   const fontManifests=new Map();let loadedFontIds=new Set();
   const badge=document.createElement('span');badge.id='subtitle-render-status';badge.className='msw-style-render-status';badge.setAttribute('role','status');
+  const badgeHelp='播放器与烧录使用同一份字幕布局及 libass 渲染。播放控制条避让仅临时调整预览位置。';
+  let fontStatus='',glyphPoll=null,glyphChecksReady=false;
+  async function refreshGlyphStatus(){
+    const active=renderer,revision=previewRevision,ticket=serial;
+    if(!active?.renderer||!glyphChecksReady||pending||glyphPoll||stage.dataset.subtitleRenderer!=='libass')return;
+    const poll={};glyphPoll=poll;
+    try {
+      const message=await active.renderer.getMissingGlyphs();
+      if(active!==renderer||revision!==previewRevision||ticket!==serial||pending||!glyphChecksReady)return;
+      badge.classList.toggle('has-missing-glyphs',!!message);
+      const text=message||fontStatus;
+      const title=message?message+'\n'+fontStatus+'\n预览仅检查已渲染的字幕；视频导出会检查全部烧录内容。':badgeHelp;
+      // Do not repeatedly announce unchanged status to assistive technology.
+      if(badge.textContent!==text)badge.textContent=text;
+      if(badge.title!==title)badge.title=title;
+    } catch(error){
+      if(active===renderer&&revision===previewRevision)trace('glyph-check-error',{reason:error.message});
+    } finally {if(glyphPoll===poll)glyphPoll=null;}
+  }
   const stage=document.querySelector('.player-stage');stage.append(badge);
   new ResizeObserver(()=>trace('viewport',{box:[Math.round(stage.clientWidth),Math.round(stage.clientHeight)],
     frame:renderer?[renderer._videoWidth,renderer._videoHeight]:null})).observe(stage);
   function syncBadge(){badge.hidden=host.subtitlePreviewTarget()==='none';}
   syncBadge();
-  function fallback(text) {if(stage.dataset.subtitleRenderer!=='approximate')trace('fallback',{reason:text});stage.dataset.subtitleRenderer='approximate';badge.textContent=host.flat?text.replace(/近似预览/g,'字幕预览不可用'):text;}
+  function fallback(text) {if(stage.dataset.subtitleRenderer!=='approximate')trace('fallback',{reason:text});stage.dataset.subtitleRenderer='approximate';badge.classList.remove('has-missing-glyphs');badge.title='';badge.textContent=host.flat?text.replace(/近似预览/g,'字幕预览不可用'):text;}
   // A previous video's offscreen canvas must leave the DOM synchronously. Worker
   // cleanup can take longer, especially when the project changes during startup.
   function disposeRenderer() {
     clearPreviewDocument();
     const previous=renderer;renderer=null;
+    glyphPoll=null;fontStatus='';glyphChecksReady=false;badge.classList.remove('has-missing-glyphs');
     video?.removeEventListener('seeked',repaintAfterEvent);video?.removeEventListener('pause',repaintAfterEvent);
     video=null;source='';loadedFontIds.clear();
     stage.querySelectorAll('.JASSUB').forEach(canvas=>canvas.remove());
@@ -186,6 +206,7 @@
     }
     catch(error){
       trace('snapshot-error',{reason:error.message});
+      glyphChecksReady=false;
       if(renderer)badge.textContent=preview.label+' · 更新失败：'+error.message;
       else fallback(preview.label+' · 字幕预览不可用：'+error.message);
       return;
@@ -195,7 +216,7 @@
     // by every poll while the media and subtitle settings remain unchanged.
     if(key===signatureKey)return;
     key=signatureKey;
-    pending=true;const ticket=++serial,generation=host.generation,target=host.player,targetSource=mediaSource(host.player);
+    pending=true;glyphChecksReady=false;const ticket=++serial,generation=host.generation,target=host.player,targetSource=mediaSource(host.player);
     const current=()=>ticket===serial&&generation===host.generation&&target===host.player&&targetSource===mediaSource(target);
     const unchanged=()=>{
       const next=styles.currentPreview(),nextStamp=inputStamp(next);
@@ -262,14 +283,15 @@
       global.MSWPreviewControls?.refresh();
       if(payload.geometry)global.fixedReceiveGeometry?.(payload.geometry);
       const unavailable=loaded.manifest.unavailable||[];
-      badge.textContent=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'')+
+      fontStatus=preview.label+(loaded.manifest.missing.length?' · 缺少字体：'+loaded.manifest.missing.join('、')+'（已回退）':'')+
         (unavailable.length?' · 字体未完整加载：'+unavailable.map(f=>`${f.family}（${f.reason}）`).join('、'):'');
-      badge.title='播放器与烧录使用同一份字幕布局及 libass 渲染。播放控制条避让仅临时调整预览位置。';
+      badge.textContent=fontStatus;badge.title=badgeHelp;badge.classList.remove('has-missing-glyphs');
+      glyphChecksReady=true;
     } catch(error) {if(current()){
       if(renderer&&!swapping){trace('update-error',{reason:error.message});badge.textContent=preview.label+' · 更新失败：'+error.message;}
       else {fallback(preview.label+' · 近似预览：'+error.message);modulePromise=null;disposeRenderer();host.refreshStylePreview();}
     }}
-    finally {pending=false;if(again){again=false;schedule();}}
+    finally {pending=false;if(again){again=false;schedule();}else void refreshGlyphStatus();}
   }
   function invalidate(){
     syncBadge();
@@ -288,7 +310,7 @@
   for(const id of ['overlay-toggle','extension-overlay-toggle'])document.getElementById(id)?.addEventListener('change',invalidate);
   // Poll only revision/settings on the main editor. Compatibility hosts without
   // revisions still compare contents; ordinary idle playback never copies cues.
-  setInterval(()=>{if(!document.hidden)void update();},750);
+  setInterval(()=>{if(!document.hidden){void update();void refreshGlyphStatus();}},750);
   global.MSWSubtitleRenderer={invalidate,repaint,applyPreviewOffsets,applyPositionOffsets,get diagnostics(){return structuredClone(diagnostics);},get geometry(){return previewGeometry;},get revision(){return previewRevision;},get renderer(){return renderer;},get pending(){return pending||again||timer!==undefined||queuedWrites>0;},get status(){return stage.dataset.subtitleRenderer;}};
   invalidate();
   }

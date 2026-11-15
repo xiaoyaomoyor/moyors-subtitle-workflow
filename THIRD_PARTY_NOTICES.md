@@ -42,6 +42,9 @@ Package versions, archive URLs and shipped file SHA-256 values are recorded in
 `web/vendor/jassub/SOURCES.json`. Dependency notices and the upstream WASM
 license collection are in `web/vendor/jassub/licenses/`. Rebuild with
 `npm ci --ignore-scripts` and `node scripts/build_subtitle_renderer.mjs`.
+MSW adds a bounded missing-glyph diagnostic collector to the worker, reset on
+track/font changes. This extension is reproducibly applied by the build script
+from `web/subtitle-glyph-diagnostics.mjs`; the WASM binary remains unmodified.
 JASSUB's wrapper is MIT; its compiled libraries retain their own licenses,
 including LGPL-2.1-or-later for FriBidi. See the upstream build and source at
 https://github.com/ThaUnknown/jassub and the recorded source reference.

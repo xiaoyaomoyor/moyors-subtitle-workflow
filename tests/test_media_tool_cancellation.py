@@ -167,20 +167,29 @@ class MediaToolCancellationTests(unittest.TestCase):
                 process.wait(timeout=5)
             worker.join(5)
 
-    def test_failed_registration_cleans_up_its_child_and_pipes(self):
-        processes = []
+    def test_failed_registration_cleans_up_its_child_and_streams(self):
+        processes, stderr_files = [], []
+        original_temporary_file = tempfile.TemporaryFile
+
+        def capture_stderr(*args, **kwargs):
+            stream = original_temporary_file(*args, **kwargs)
+            stderr_files.append(stream)
+            return stream
 
         def fail_registration(process):
             processes.append(process)
             raise ValueError('registration failed')
 
         try:
-            with self.assertRaisesRegex(ValueError, 'registration failed'):
+            with mock.patch('maw.postprocess_ffmpeg.tempfile.TemporaryFile', side_effect=capture_stderr), \
+                    self.assertRaisesRegex(ValueError, 'registration failed'):
                 _run_ffmpeg_process([sys.executable, '-c', 'import time; time.sleep(20)'],
                     cwd=Path.cwd(), cancel_event=None, on_process=fail_registration, on_progress=None)
             self.assertIsNotNone(processes[0].poll())
             self.assertTrue(processes[0].stdout.closed)
-            self.assertTrue(processes[0].stderr.closed)
+            self.assertIsNone(processes[0].stderr)  # stderr now streams into a file, not a blocking pipe.
+            self.assertEqual(len(stderr_files), 1)
+            self.assertTrue(stderr_files[0].closed)
         finally:
             for process in processes:
                 if process.poll() is None:
