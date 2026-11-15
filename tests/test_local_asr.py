@@ -450,6 +450,11 @@ class LocalSegmentationTuningTests(unittest.TestCase):
 
 
 class LocalAsrFlowTests(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch('maw.local_asr.resolve_model_source', side_effect=lambda value, **kwargs: value)
+        self.resolve_source = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_extract_audio_passes_duration_limit_to_ffmpeg(self) -> None:
         with mock.patch("generate_subtitle_qwen_api.subprocess.run") as run:
             extract_audio("clip.mp4", "clip.wav", duration_limit=2.0, ffmpeg_path="ffmpeg")
@@ -865,7 +870,8 @@ class LocalAsrFlowTests(unittest.TestCase):
                         "HF_HUB_CACHE": str(hub_cache),
                     }):
                         create_local_engine("whisper")._load()
-                        self.assertEqual(model_refs, [WHISPER_DEFAULT_MODEL])
+                        self.assertEqual(model_refs, ["Systran/faster-whisper-large-v3"])
+                        self.resolve_source.assert_called_with("Systran/faster-whisper-large-v3", emit=None)
                         self.assertEqual(captured.get("download_root"), str(hub_cache))
 
                     # 只注入裸根时按约定派生 hub 子目录。
@@ -1123,10 +1129,9 @@ class LocalAsrFlowTests(unittest.TestCase):
             with mock.patch("maw.local_asr.resolve_device", return_value="cpu"):
                 engine._load()
 
-        model_loader = attention.call_args.kwargs["model_loader"]
-        model_loader("model-path")
-        self.assertEqual(auto_model.from_pretrained.call_args.kwargs["revision"], MOSS_DEFAULT_REVISION)
-        self.assertEqual(auto_processor.from_pretrained.call_args.kwargs["revision"], MOSS_DEFAULT_REVISION)
+        self.resolve_source.assert_called_with(MOSS_DEFAULT_MODEL, emit=None, revision=MOSS_DEFAULT_REVISION)
+        self.assertEqual(attention.call_args.args, (MOSS_DEFAULT_MODEL,))
+        self.assertNotIn('revision', auto_processor.from_pretrained.call_args.kwargs)
 
     def test_moss_transcript_is_normalized_to_speaker_segments(self) -> None:
         class FakeModel:
@@ -1336,17 +1341,20 @@ class LocalAsrFlowTests(unittest.TestCase):
         with mock.patch.dict("sys.modules", {"torch": FakeTorch()}):
             self.assertEqual(resolve_device("auto"), "cuda")
 
-    def test_resolve_device_auto_uses_mps_only_when_enabled(self) -> None:
+    def test_resolve_device_mps_requires_explicit_selection(self) -> None:
         fake_torch = SimpleNamespace(
             cuda=SimpleNamespace(is_available=lambda: False),
             backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: True)),
         )
 
         with mock.patch.dict("sys.modules", {"torch": fake_torch}):
-            self.assertEqual(resolve_device("auto", allow_mps=True), "mps")
+            self.assertEqual(resolve_device("auto", allow_mps=True), "cpu")
+            self.assertEqual(resolve_device("mps", allow_mps=True), "mps")
+            with self.assertRaises(ValueError):
+                resolve_device("mps")
             self.assertEqual(resolve_device("auto"), "cpu")
 
-    def test_qwen_auto_load_uses_mps_float16_for_model_and_aligner(self) -> None:
+    def test_qwen_explicit_mps_uses_float16_for_model_and_aligner(self) -> None:
         calls: list[dict[str, object]] = []
 
         class FakeModel:
@@ -1369,7 +1377,7 @@ class LocalAsrFlowTests(unittest.TestCase):
             mock.patch.dict(os.environ, {}, clear=True),
             mock.patch.dict("sys.modules", {"torch": fake_torch, "qwen_asr": fake_qwen}),
         ):
-            QwenAsrEngine(model="test-model", device="auto", forced_aligner="test-aligner")._load()
+            QwenAsrEngine(model="test-model", device="mps", forced_aligner="test-aligner")._load()
             self.assertEqual(os.environ["PYTORCH_ENABLE_MPS_FALLBACK"], "1")
 
         self.assertEqual(calls[0]["device_map"], "mps")
@@ -1379,7 +1387,27 @@ class LocalAsrFlowTests(unittest.TestCase):
             "device_map": "mps",
         })
 
-    def test_qwen_auto_load_falls_back_to_cpu_when_mps_load_fails(self) -> None:
+    def test_explicit_mps_unavailable_is_reported_and_other_engines_reject_it(self):
+        with mock.patch.dict('sys.modules', {'torch': SimpleNamespace()}):
+            with self.assertRaisesRegex(ValueError, 'MPS'):
+                resolve_device('mps', allow_mps=True)
+        for engine in ('funasr', 'moss', 'whisper', 'firered'):
+            with self.subTest(engine=engine), self.assertRaisesRegex(ValueError, 'MPS'):
+                create_local_engine(engine, device='mps')
+
+    def test_qwen_loader_uses_resolved_directories_for_both_models(self):
+        runtime = mock.Mock()
+        paths = iter(['C:/Models/Qwen', 'C:/Models/Aligner'])
+        self.resolve_source.side_effect = lambda *args, **kwargs: next(paths)
+        with mock.patch.dict('sys.modules', {
+            'torch': SimpleNamespace(float16='float16', float32='float32'),
+            'qwen_asr': SimpleNamespace(Qwen3ASRModel=runtime),
+        }):
+            QwenAsrEngine(device='cpu', forced_aligner=QWEN_DEFAULT_FORCED_ALIGNER)._load()
+        self.assertEqual(runtime.from_pretrained.call_args.args, ('C:/Models/Qwen',))
+        self.assertEqual(runtime.from_pretrained.call_args.kwargs['forced_aligner'], 'C:/Models/Aligner')
+
+    def test_qwen_auto_uses_cpu_even_when_mps_is_available(self) -> None:
         calls: list[str] = []
         events: list[str] = []
 
@@ -1404,8 +1432,8 @@ class LocalAsrFlowTests(unittest.TestCase):
         with mock.patch.dict("sys.modules", {"torch": fake_torch, "qwen_asr": fake_qwen}):
             QwenAsrEngine(model="test-model", device="auto")._load(events.append)
 
-        self.assertEqual(calls, ["mps", "cpu"])
-        self.assertTrue(any("回退 CPU" in event for event in events))
+        self.assertEqual(calls, ["cpu"])
+        self.assertFalse(any("MPS" in event for event in events))
 
     def test_default_output_uses_engine_tag(self) -> None:
         path = default_output_path(Path("D:/media/sample.mp4"), "funasr")

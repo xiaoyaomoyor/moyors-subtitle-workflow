@@ -12,7 +12,7 @@
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
   let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,loading=null;
   let retrying = null, retrySource = null;
-  let presetUi=null;
+  let presetUi=null, localModelPaths={}, localModelId=null;
   presetUi=global.MSWAsrPresets.create({root:el('presets'),request:payload=>media.request('asr-presets',payload),
     locked:()=>busy||Boolean(loading),confirm:async text=>global.confirm(text),
     getOptions:()=>({...Object.fromEntries(fields.map(key=>[key,el(key).value])),speakerColors:el('speakerColors').checked,qwenKeepDialect:el('qwenKeepDialect').checked,openaiDiarize:el('openaiDiarize').checked}),
@@ -77,6 +77,12 @@
   function selectModel() {
     const provider=providers.find(item=>item.id===el('providerId').value),model=provider?.models.find(item=>item.id===el('modelId').value);
     if (!model) return;
+    if (localModelId && localModelId !== model.id) localModelPaths[localModelId]=el('localModelPath').value.trim();
+    if (localModelId !== model.id) el('localModelPath').value=localModelPaths[model.id]||'';
+    localModelId=provider.kind==='local'?model.id:null;
+    const devices=model.devices||['auto','cpu','cuda'];
+    for(const option of el('device').options)option.hidden=option.disabled=!devices.includes(option.value);
+    if(!devices.includes(el('device').value))el('device').value='auto';
     settingsRoot.querySelectorAll('[data-asr-firered]').forEach(node=>node.hidden=model.engine!=='firered');
     el('local-status').textContent=model.localStatus?.detail||'';
     options(el('languages'),model.languages);
@@ -94,6 +100,7 @@
     if (loading) return loading;
     loading=(async()=>{
       const config=await media.request('asr-settings');providers=config.providers;
+      localModelPaths={...(config.localModelPaths||{})};localModelId=null;
       savedConnection=Object.fromEntries(connectionFields.map(key=>[key,config.options[key]||'']));
       options(el('environment-provider'),providers,config.options.providerId);selectEnvironment();
       options(el('providerId'),providers,config.options.providerId);selectProvider(config.options.modelId);
@@ -313,7 +320,9 @@
   el('save-settings').addEventListener('click',async()=>{
     if (busy||!available) return;
     busy=true;updateScope();
-    try {await media.request('asr-settings',{section:'call',provider:providerInput()});message('识别设置已保存');}
+    try {const config=await media.request('asr-settings',{section:'call',provider:providerInput()});
+      providers=config.providers;localModelPaths={...localModelPaths,...config.localModelPaths};
+      el('local-status').textContent=providers.find(p=>p.id===el('providerId').value)?.models.find(m=>m.id===el('modelId').value)?.localStatus?.detail||'';message('识别设置已保存');}
     catch(error){message(error.message);}finally{busy=false;updateScope();}
   });
   el('save-environment').addEventListener('click',async()=>{

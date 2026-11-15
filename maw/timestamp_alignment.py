@@ -160,6 +160,8 @@ class QwenForcedAlignerBackend:
         kwargs = {"dtype": dtype, "device_map": device_map}
         with _model_cache_environment(self.model_cache_root):
             try:
+                from maw.hub_download import resolve_model_source
+                model = resolve_model_source(str(model))
                 self._runtime = Qwen3ForcedAligner.from_pretrained(str(model), **kwargs)
             except (OSError, RuntimeError, TypeError, ValueError) as error:
                 raise TimestampAlignmentError(f"Qwen Forced Aligner 加载失败：{error}") from error

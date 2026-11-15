@@ -19,7 +19,7 @@ from typing import Final
 from maw.local_runtime import LocalRuntimeStatus, _from_runtime_status
 from maw.runtimes import MOSS
 from maw.runtimes.base import RuntimeEvent
-from maw.runtimes.moss_spec import MOSS_PYTHON_VERSION, MOSS_RUNTIME_VERSION
+from maw.runtimes.moss_spec import MOSS_PYTHON_VERSION, MOSS_RUNTIME_VERSION, MOSS_SPEC
 
 MOSS_RUNTIME_ROOT_NAME: Final = "local-runtime-moss"
 # 兼容导出的依赖常量：实际安装依赖的唯一真源是仓库根
@@ -29,6 +29,7 @@ MOSS_REQUIREMENTS: Final[tuple[str, ...]] = (
     "av>=14.0",
     "librosa>=0.11.0",
     "numba>=0.61.0",
+    "modelscope>=1.39.0",
     "packaging>=24.0",
     "safetensors>=0.6.2",
     "soundfile>=0.12",
@@ -36,11 +37,8 @@ MOSS_REQUIREMENTS: Final[tuple[str, ...]] = (
     "transformers>=5.6.0,<6.0.0",
     "moss-transcribe-diarize @ https://github.com/OpenMOSS/MOSS-Transcribe-Diarize/archive/e607537b1b870475e7898969d40b864de8b691b6.zip",
 )
-MOSS_PACKAGE_DIRS: Final[tuple[str, ...]] = ("moss_transcribe_diarize", "transformers", "torch", "torchaudio")
-MOSS_VERIFY_IMPORT: Final = (
-    "from moss_transcribe_diarize import parse_transcript; "
-    "import transformers, torch, torchaudio; print('MAW_LOCAL_RUNTIME_READY')"
-)
+MOSS_PACKAGE_DIRS: Final[tuple[str, ...]] = MOSS_SPEC.package_dirs
+MOSS_VERIFY_IMPORT: Final = MOSS_SPEC.verify_command
 
 
 def default_runtime_root() -> Path:

@@ -65,6 +65,7 @@ local = [
     "faster-whisper>=1.2,<2",
     "funasr>=1.3.29",
     "hf-xet>=1.5",
+    "modelscope>=1.39.0",
     "qwen-asr>=0.0.6",
     # Python binding and native libraries must be installed as a matching pair.
     # Declaring core also invalidates cached runtime lists that omitted it.

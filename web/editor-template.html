@@ -2317,7 +2317,7 @@ __WAVEFORM_CSS__
           <label id="msw-asr-target-track-field" hidden><span>目标字幕轨道</span><select id="msw-asr-target-track" aria-label="目标字幕轨道"></select></label>
           <label>服务 <select id="msw-asr-providerId"></select></label>
           <label>模型 <select id="msw-asr-modelId"></select></label>
-          <label data-asr-local hidden>计算设备<select id="msw-asr-device"><option value="auto">自动</option><option value="cpu">CPU</option><option value="cuda">CUDA</option></select></label>
+          <label data-asr-local hidden>计算设备<select id="msw-asr-device"><option value="auto">自动</option><option value="cpu">CPU</option><option value="cuda">CUDA</option><option value="mps" hidden disabled>MPS（实验性）</option></select></label>
           <label data-asr-local hidden>本地模型目录（可选）<input id="msw-asr-localModelPath" spellcheck="false"></label>
           <label data-asr-firered hidden>FireRed 标点<select id="msw-asr-fireredPunc"><option value="none">不使用</option><option value="ct-punc">ct-punc（需下载）</option></select></label>
           <label data-asr-local hidden>识别后补齐字词时间码<select id="msw-asr-alignmentModel"><option value="">不额外对齐</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option><option value="firered-asr2-ctc">FireRed CPU</option></select></label>

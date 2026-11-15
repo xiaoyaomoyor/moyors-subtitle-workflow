@@ -981,6 +981,7 @@
     '默认关闭，保留原工程的导出和烧录样式。开启后使用当前样式库方案；导出开始时固定样式快照。': 'Off by default to preserve existing export styles. Enable to use the current library profile; styles are frozen when export starts.',
     'SRT 烧录': 'SRT burning',
     '计算设备': 'Compute device',
+    'MPS（实验性）': 'MPS (experimental)',
     '不使用': 'None',
     '本工程使用 ASS 样式库导出和烧录': 'Use the ASS library for this project’s exports and burning',
     '编辑 ASS 样式库': 'Edit ASS style library',

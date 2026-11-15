@@ -339,31 +339,14 @@ def _download_qwen(
 ) -> None:
     if cancel_event.is_set():
         raise RuntimeError("对齐模型准备已取消。")
-    try:
-        from huggingface_hub import snapshot_download  # type: ignore[import-not-found]
-    except ImportError as error:
-        raise RuntimeError("缺少 huggingface_hub；请先安装本地模型支持。") from error
-    cache_env = model_cache_environment(model_cache_root)
-    hub_cache = Path(cache_env["HF_HUB_CACHE"])
-    hub_cache.mkdir(parents=True, exist_ok=True)
-    emit(f"[aligner] 正在复用 Hugging Face 缓存下载 {model_ref}……")
-    kwargs: dict[str, object] = {
-        "repo_id": model_ref,
-        "cache_dir": str(hub_cache),
-    }
-    try:
-        path = snapshot_download(**kwargs)
-    except TypeError:
-        # Older huggingface_hub versions accepted resume_download; newer ones
-        # removed it. Keeping no version-specific keyword works for both.
-        kwargs["resume_download"] = True
-        path = snapshot_download(**kwargs)
-    if cancel_event.is_set():
-        raise RuntimeError("对齐模型准备已取消。")
+    from maw.hub_download import prepare_hub_snapshot
+    snapshot = prepare_hub_snapshot(model_ref, model_cache_root=model_cache_root,
+                                    emit=emit, cancel_event=cancel_event)
+    path = snapshot.path
     if on_progress is not None:
         file_count, total_size = _cache_snapshot([Path(path)])
         on_progress({
-            "message": f"[aligner] Hugging Face 缓存已写入 {file_count} 个文件 / {_format_bytes(total_size)}。",
+            "message": f"[aligner] {snapshot.source} 缓存已写入 {file_count} 个文件 / {_format_bytes(total_size)}。",
             "fileCount": file_count,
             "currentBytes": total_size,
             "percent": 100,
@@ -464,20 +447,9 @@ def _find_firered_extracted_root(root: Path) -> Path | None:
 
 
 def _find_qwen_model(model_ref: str, model_cache_root: str | Path | None) -> Path | None:
-    if "/" not in model_ref:
-        return None
-    owner, name = model_ref.split("/", 1)
-    repo_name = f"models--{owner}--{name}"
-    for cache_root in _huggingface_cache_roots(model_cache_root):
-        repo = cache_root / repo_name
-        snapshots = repo / "snapshots"
-        if snapshots.is_dir():
-            candidates = [path for path in snapshots.iterdir() if path.is_dir() and _model_files_present(alignment_model_by_id(QWEN_FORCED_ALIGNER_MODEL_ID), path)]
-            if candidates:
-                return max(candidates, key=lambda path: path.stat().st_mtime).resolve(strict=False)
-        if _model_files_present(alignment_model_by_id(QWEN_FORCED_ALIGNER_MODEL_ID), repo):
-            return repo.resolve(strict=False)
-    return None
+    from maw.hub_download import find_hub_snapshot
+    found = find_hub_snapshot(model_ref, model_cache_root)
+    return found.path if found else None
 
 
 def _huggingface_cache_roots(model_cache_root: str | Path | None) -> list[Path]:
@@ -500,13 +472,8 @@ def _model_files_present(model: AlignmentModelConfig, path: Path) -> bool:
         return False
     if model.engine == "firered":
         return all((path / name).is_file() and (path / name).stat().st_size > 0 for name in (FIRERED_ASR2_CTC_MODEL_FILE, FIRERED_ASR2_CTC_TOKENS_FILE))
-    try:
-        return any(
-            child.is_file() and child.stat().st_size > 0 and child.suffix.casefold() in {".safetensors", ".bin", ".pt", ".pth"}
-            for child in path.rglob("*")
-        ) and any((path / name).is_file() for name in ("config.json", "preprocessor_config.json", "tokenizer_config.json"))
-    except OSError:
-        return False
+    from maw.hub_download import snapshot_is_complete
+    return snapshot_is_complete(path)
 
 
 def _missing_runtime_packages(packages: Iterable[str]) -> tuple[str, ...]:

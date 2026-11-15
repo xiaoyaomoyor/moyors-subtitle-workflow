@@ -44,6 +44,7 @@ from maw.gui_config import (
     api_key_for_provider,
     effective_config,
     load_env,
+    local_device_choices,
     masked_secret,
     model_by_label,
     normalize_asr_segmentation,
@@ -1010,6 +1011,7 @@ class LauncherApi:
             return {'ok': False, 'message': str(error)}
 
     def get_config(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        from maw.local_model_preferences import load_model_paths
         config = effective_config(self.paths.env_path)
         visible_providers = tuple(item for item in PROVIDERS if not item.hidden)
         default_provider = visible_providers[0] if visible_providers else PROVIDERS[0]
@@ -1072,6 +1074,7 @@ class LauncherApi:
                 "note": model.note,
                 "estimatedSize": model.estimated_size,
                 "deviceSupport": model.device_support,
+                "devices": local_device_choices(model.engine),
                 "resourceLevel": model.resource_level,
                 "supportsWordTimestamps": model.supports_word_timestamps,
                 "languages": list(model.languages),
@@ -1107,6 +1110,7 @@ class LauncherApi:
             "lastLanguage": config.last_language,
             "theme": config.theme,
             "localRuntime": local_runtime,
+            "localModelPaths": load_model_paths(self.paths.env_path),
             "ocrRuntime": ocr_runtime,
             "ocrModels": ocr_models,
             "ocrModelId": OCR_MODEL_ID,
@@ -1241,6 +1245,12 @@ class LauncherApi:
         return {"ok": True, "providerId": provider.id, "hasApiKey": bool(saved_key), "maskedApiKey": masked_secret(saved_key)}
 
     def save_prefs(self, payload: Mapping[str, object]) -> dict[str, object]:
+        if "localModelPaths" in payload:
+            from maw.local_model_preferences import save_model_paths
+            try:
+                save_model_paths(self.paths.env_path, payload["localModelPaths"])
+            except (OSError, ValueError) as error:
+                return _error_result("localModelPath", "config_save_failed", str(error))
         updates: dict[str, str] = {}
         if "qwenKeepDialect" in payload:
             if type(payload["qwenKeepDialect"]) is not bool:
@@ -3433,7 +3443,9 @@ class LauncherApi:
         provider = provider_by_id("local")
         model_cache_root = effective_config(self.paths.env_path).model_cache_root
         selected_id = str((payload or {}).get("modelId") or "")
-        selected_path = str((payload or {}).get("modelPath") or "").strip()
+        from maw.local_model_preferences import load_model_paths
+        remembered = load_model_paths(self.paths.env_path)
+        selected_path = str((payload or {}).get("modelPath", remembered.get(selected_id, "")) or "").strip()
         visible_models = tuple(item for item in provider.models if not item.hidden)
         selected_model = next((item for item in visible_models if item.id == selected_id), visible_models[0])
         runtime_by_engine: dict[str, LocalRuntimeStatus] = {}
@@ -3446,7 +3458,7 @@ class LauncherApi:
             "models": [
                 _model_payload(
                     model,
-                    model_path=selected_path if model.id == selected_id else "",
+                    model_path=selected_path if model.id == selected_id else remembered.get(model.id, ""),
                     model_cache_root=model_cache_root,
                     runtime_status=runtime_by_engine[model.engine],
                 )
@@ -4607,6 +4619,8 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         )
     local_model_path = str(payload.get("localModelPath") or "").strip()
     device = str(payload.get("device") or "auto").strip().lower()
+    if provider.kind == "local" and device not in local_device_choices(model.engine):
+        raise PreflightError("device", "local_model_path_invalid", "该模型或系统不支持所选设备；MPS 仅供 macOS 上的 Qwen 使用。")
     model_cache_root = ""
     firered_punc = "ct-punc"
     if provider.kind == "local" and model.engine == "firered":
@@ -4645,8 +4659,6 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
                     "FireRedASR2 的 FunASR ct-punc 尚未准备，请选择“不使用”或先下载 ct-punc。",
                 )
         runtime_python = local_status.runtime_python
-        if device not in {"auto", "cpu", "cuda"}:
-            raise PreflightError("device", "local_model_path_invalid", "设备必须是 auto、cpu 或 cuda。")
     alignment_model = ""
     alignment_model_path = str(payload.get("alignmentModelPath") or "").strip()
     if provider.kind == "local":
@@ -5467,6 +5479,7 @@ def _model_payload(
         "billing": qwen_audio_billing_info(model.id),
         "supportsWordTimestamps": model.supports_word_timestamps,
         "deviceSupport": model.device_support,
+        "devices": local_device_choices(model.engine),
         "resourceLevel": model.resource_level,
         "estimatedSize": model.estimated_size,
         "kind": model.kind,

@@ -83,6 +83,7 @@ class LocalModelDiscoveryTests(unittest.TestCase):
             aligner = cache / "models--Qwen--Qwen3-ForcedAligner-0.6B" / "snapshots" / "align"
             main.mkdir(parents=True)
             (main / "model.safetensors").write_bytes(b"weights")
+            (main / "config.json").write_text("{}", encoding="utf-8")
 
             with mock.patch.dict(os.environ, {"HF_HUB_CACHE": str(cache)}):
                 with mock.patch("maw.local_models._huggingface_cache_roots", return_value=[cache]):
@@ -90,6 +91,7 @@ class LocalModelDiscoveryTests(unittest.TestCase):
                         partial = inspect_local_model(model)
                         aligner.mkdir(parents=True)
                         (aligner / "model.safetensors").write_bytes(b"weights")
+                        (aligner / "config.json").write_text("{}", encoding="utf-8")
                         installed = inspect_local_model(model)
 
         self.assertEqual(partial.status, "partial")
@@ -108,6 +110,7 @@ class LocalModelDiscoveryTests(unittest.TestCase):
                     with mock.patch("maw.local_models.importlib.util.find_spec", return_value=mock.Mock()):
                         missing = inspect_local_model(model)
                         (main / "model.bin").write_bytes(b"weights")
+                        (main / "config.json").write_text("{}", encoding="utf-8")
                         installed = inspect_local_model(model)
 
         self.assertEqual(missing.status, "missing")
@@ -121,6 +124,7 @@ class LocalModelDiscoveryTests(unittest.TestCase):
             main = cache / "models--Systran--faster-whisper-large-v3" / "snapshots" / "main"
             main.mkdir(parents=True)
             (main / "model.bin").write_bytes(b"weights")
+            (main / "config.json").write_text("{}", encoding="utf-8")
             (main / "config.json").write_bytes(b"{}")
 
             with mock.patch("maw.local_models.importlib.util.find_spec", return_value=mock.Mock()):
@@ -143,6 +147,7 @@ class LocalModelDiscoveryTests(unittest.TestCase):
             with mock.patch("maw.local_models.importlib.util.find_spec", return_value=mock.Mock()):
                 missing = inspect_local_model(model, model_cache_root=managed_root)
                 (main / "model.bin").write_bytes(b"weights")
+                (main / "config.json").write_text("{}", encoding="utf-8")
                 installed = inspect_local_model(model, model_cache_root=managed_root)
 
         self.assertEqual(missing.status, "missing")

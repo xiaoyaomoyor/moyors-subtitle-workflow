@@ -44,7 +44,7 @@ class AppPathsTests(unittest.TestCase):
 
     def test_source_env_stays_at_repository_root(self) -> None:
         with mock.patch.object(app_paths.sys, "frozen", False, create=True), mock.patch.dict(
-            os.environ, {"MAW_ENV_FILE": ""}, clear=False
+            os.environ, {"MAW_ENV_FILE": "", "MSW_ENV_FILE": ""}, clear=False
         ):
             self.assertEqual(app_paths.default_env_path(), app_paths.SOURCE_ROOT / ".env")
 

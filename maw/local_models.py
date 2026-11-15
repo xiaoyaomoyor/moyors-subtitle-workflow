@@ -34,6 +34,7 @@ from maw.local_runtime import (
     resolve_model_cache_root,
 )
 from maw.punctuation import CT_PUNC_MODEL_REF
+from maw.hub_download import MIRROR_REVISIONS, find_hub_snapshot, modelscope_repo_id, snapshot_is_complete
 
 
 LocalModelEvent = Callable[[str], None]
@@ -175,6 +176,8 @@ def inspect_local_model(
                     runtime_python,
                 )
             valid = True
+        elif model.engine in {"qwen-asr", "qwen", "qwen3-asr", "moss", "whisper"}:
+            valid = snapshot_is_complete(explicit)
         else:
             valid = _model_directory_has_file(explicit, require_weight=True)
         if not valid:
@@ -595,6 +598,10 @@ def _model_watch_paths(
     if model.engine in {"qwen-asr", "qwen", "qwen3-asr", "moss", "whisper"}:
         for ref in (model.model_ref, *model.required_model_refs):
             paths.extend(_huggingface_repo_paths(ref, model_cache_root))
+            mirror = modelscope_repo_id(ref)
+            if mirror:
+                for root in _modelscope_cache_roots(model_cache_root):
+                    paths.extend(_modelscope_repo_candidates(root, mirror.split("/")))
     elif model.engine in {"funasr", "fun-asr"}:
         for ref in (model.model_ref, *model.cache_refs):
             parts = [part for part in ref.split("/") if part]
@@ -764,12 +771,12 @@ def _find_model_paths(
             missing.append("FunASR ct-punc（自动标点）")
         return (ctc_path or punc_path, missing)
     if model.engine in {"qwen-asr", "qwen", "qwen3-asr", "moss", "whisper"}:
-        main = _find_huggingface_model(model.model_ref, model_cache_root)
+        main = _find_hub_model(model.model_ref, model_cache_root)
         if main is None:
             return None
         missing = [
             ref for ref in model.required_model_refs
-            if _find_huggingface_model(ref, model_cache_root) is None
+            if _find_hub_model(ref, model_cache_root) is None
         ]
         return main, missing
     if model.engine in {"funasr", "fun-asr"}:
@@ -785,24 +792,10 @@ def _find_ct_punc_model(model_cache_root: str | Path | None) -> Path | None:
     return _find_modelscope_model(CT_PUNC_MODEL_REF, model_cache_root)
 
 
-def _find_huggingface_model(
-    model_ref: str,
-    model_cache_root: str | Path | None = None,
-) -> Path | None:
-    if not model_ref or "/" not in model_ref:
-        return None
-    for repo in _huggingface_repo_paths(model_ref, model_cache_root):
-        snapshot_root = repo / "snapshots"
-        candidates = (
-            [path for path in snapshot_root.iterdir() if path.is_dir() and _model_directory_has_file(path, require_weight=True)]
-            if snapshot_root.is_dir()
-            else []
-        )
-        if candidates:
-            return max(candidates, key=lambda path: path.stat().st_mtime)
-        if repo.is_dir() and _model_directory_has_file(repo, require_weight=True):
-            return repo
-    return None
+def _find_hub_model(model_ref: str, model_cache_root=None) -> Path | None:
+    revision = next((revision for repo, revision in MIRROR_REVISIONS if repo == model_ref), "")
+    found = find_hub_snapshot(model_ref, model_cache_root, revision=revision)
+    return found.path if found else None
 
 
 def _huggingface_repo_paths(

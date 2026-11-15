@@ -9,7 +9,8 @@ from urllib.parse import urlsplit
 from maw.openai_asr_capabilities import capabilities
 from maw.qwen_audio import qwen_audio_billing_info
 from maw.env_config import aliased_values
-from maw.gui_config import PROVIDERS, DEFAULT_MODEL_ID, OPENAI_ASR_DEFAULT_BASE_URL, api_key_for_provider, load_env, save_env, provider_models, effective_config
+from maw.local_model_preferences import load_model_paths, save_model_paths
+from maw.gui_config import PROVIDERS, DEFAULT_MODEL_ID, OPENAI_ASR_DEFAULT_BASE_URL, api_key_for_provider, load_env, save_env, provider_models, effective_config, local_device_choices
 
 FIELDS = {'providerId', 'modelId', 'language', 'region', 'workspaceId', 'openaiModel', 'openaiBaseUrl',
           'device', 'localModelPath', 'fireredPunc', 'alignmentModel', 'alignmentModelPath',
@@ -25,7 +26,7 @@ def values(env_path):
     return {**load_env(env_path), **aliased_values(os.environ)}
 
 
-def catalog(env_path):
+def catalog(env_path, *, inspect_models=True):
     stored = values(env_path)
     try:
         options = json.loads(stored.get('MSW_EDITOR_ASR_OPTIONS', '{}'))
@@ -45,6 +46,8 @@ def catalog(env_path):
                 'qwenKeepDialect': False}
     defaults.update(device='auto', localModelPath='', fireredPunc='none', alignmentModel='', alignmentModelPath='')
     defaults.update({k: v for k, v in options.items() if k in FIELDS - CONNECTION_FIELDS})
+    model_paths = load_model_paths(env_path, stored=stored)
+    defaults['localModelPath'] = model_paths.get(defaults.get('modelId'), '')
     from maw.asr_presets import request as preset_catalog
     defaults['asrPrompts'] = preset_catalog(env_path)['prompts']
     providers = []
@@ -67,10 +70,12 @@ def catalog(env_path):
             root = effective_config(env_path).model_cache_root
             for model in providers[-1]['models']:
                 config = next(item for item in provider.models if item.id == model['id'])
-                path = defaults.get('localModelPath', '') if defaults.get('modelId') == model['id'] else ''
-                model['localStatus'] = local_model_payload(config, path, model_cache_root=root)
+                path = model_paths.get(model['id'], '')
+                if inspect_models:
+                    model['localStatus'] = local_model_payload(config, path, model_cache_root=root)
                 model['engine'] = config.engine
-    return {'providers': providers, 'options': defaults}
+                model['devices'] = local_device_choices(config.engine)
+    return {'providers': providers, 'options': defaults, 'localModelPaths': model_paths}
 
 
 @dataclass(frozen=True)
@@ -114,7 +119,9 @@ def resolve_settings(env_path, raw, media_path=None, *, validate_runtime=True):
         raise ValueError('请填写 ASR API Key，或使用启动器已保存的同一服务配置')
     if not provider.requires_api_key:
         key = ''
-    stored = catalog(env_path)['options']
+    configuration = catalog(env_path, inspect_models=False)
+    stored = configuration['options']
+    stored['localModelPath'] = configuration['localModelPaths'].get(model_id, '')
     # Configuration-only validation never probes media or writes output. The
     # placeholder satisfies the request shape; actual jobs always supply their
     # registered source and use the default media preflight.
@@ -174,6 +181,8 @@ def save_settings(env_path, raw, media_path=None, *, section=None):
     options = {key: value for key, value in raw.items() if key in FIELDS}
     if provider.kind == 'local':
         if section != 'environment':
+            if 'localModelPath' in options:
+                save_model_paths(env_path, {options.get('modelId', provider.models[0].id): options['localModelPath']})
             save_env(env_path, {'MSW_EDITOR_ASR_OPTIONS': json.dumps(options, ensure_ascii=False),
                                'MAW_GUI_LAST_MODEL': options.get('modelId', provider.models[0].id)})
         return catalog(env_path)

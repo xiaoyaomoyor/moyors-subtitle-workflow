@@ -14,7 +14,7 @@ from __future__ import annotations
 from maw.runtimes.base import RuntimeCancelled, RuntimeSpec
 from maw.runtimes.local_spec import LocalRuntimeError
 
-MOSS_RUNTIME_VERSION = "1"
+MOSS_RUNTIME_VERSION = "2"
 MOSS_PYTHON_VERSION = "3.11"
 PYTORCH_INDEX = "https://download.pytorch.org/whl/cu130"
 
@@ -33,7 +33,7 @@ class MossRuntimeCancelled(MossRuntimeError, RuntimeCancelled):
 
 _VERIFY_COMMAND = (
     "from moss_transcribe_diarize import parse_transcript; "
-    "import transformers, torch, torchaudio; print('MAW_LOCAL_RUNTIME_READY')"
+    "import transformers, torch, torchaudio, modelscope; print('MAW_LOCAL_RUNTIME_READY')"
 )
 
 MOSS_SPEC = RuntimeSpec(
@@ -49,7 +49,7 @@ MOSS_SPEC = RuntimeSpec(
     requirements_in="moss-requirements.in",
     requirements_in_args=("--extra-index-url", PYTORCH_INDEX),
     verify_command=_VERIFY_COMMAND,
-    package_dirs=("moss_transcribe_diarize", "transformers", "torch", "torchaudio"),
+    package_dirs=("moss_transcribe_diarize", "transformers", "torch", "torchaudio", "modelscope"),
     worker_module="maw.local_runtime_worker",
     message_prefix="MOSS 运行环境",
     feature_label="MOSS 模型",

@@ -22,7 +22,7 @@ FireRedASR2-CTC 使用 sherpa-onnx CPU 推理；ct-punc 为可选组件，关闭
 
 MOSS Transcribe-Diarize 0.9B 是 Apache-2.0 许可的端到端转写与说话人分离模型。官方在 AISHELL-4、Alimeeting、Podcast 和 Movies 多说话人基准上报告了较低的 CER / cpCER，适合会议、访谈、播客和多人视频；说话人标签是当前音频内的相对编号（如 `S01`），不是跨文件的真实身份。
 
-MSW 通过独立的 MOSS 运行环境加载它：MOSS 需要 Transformers 5.x，而 QwenASR 运行环境固定使用 Transformers 4.x，因此两者不能安装在同一个环境中。Launcher 选择 MOSS 后，安装按钮会使用 Python 3.12 创建 `local-runtime-moss`，模型缓存仍使用统一的 Hugging Face 缓存目录。MOSS 需要 `trust_remote_code` 加载上游模型代码；MSW 对默认模型固定了 Hugging Face 模型仓库提交 `e8681d68...`，对 GitHub 推理包固定了提交 `e607537b...`。首次使用前仍请确认你信任 OpenMOSS 的模型仓库。使用 `--model` 指定其他模型时，MSW 不会替它推断或套用 revision；这类自定义模型会按其自身的远程代码配置加载。
+MSW 通过独立的 MOSS 运行环境加载它：MOSS 需要 Transformers 5.x，而 QwenASR 运行环境固定使用 Transformers 4.x，因此两者不能安装在同一个环境中。Launcher 选择 MOSS 后，安装按钮会使用 Python 3.11 创建 `local-runtime-moss`，模型缓存与其他引擎共用。运行环境版本 2 增加 ModelScope 下载依赖，旧版会显示需要修复；修复不会删除已下载权重。MOSS 需要 `trust_remote_code` 加载上游模型代码；MSW 对默认模型固定了 Hugging Face 模型仓库提交 `e8681d68...`，对 GitHub 推理包固定了提交 `e607537b...`。首次使用前仍请确认你信任 OpenMOSS 的模型仓库。使用 `--model` 指定其他模型时，MSW 不会替它推断或套用 revision；这类自定义模型会按其自身的远程代码配置加载。
 
 MOSS 单次推理最多约 90 分钟，MSW 不对它做分块，以免不同块中的 `S01` / `S02` 失去跨长音频的一致性。它会把秒级浮点时间戳转换为 MSW 要求的整数毫秒，并保留每个字幕段的 `speaker` 字段。CPU 可以运行但预计较慢，建议使用 CUDA；首次验证建议使用 30 秒、包含两位说话人的中文音频。MOSS 的公开评测主要集中在中文多人场景，其他语言应先用自己的音频验收。
 
@@ -46,9 +46,17 @@ uv run python generate_subtitle_local.py "D:\Videos\example.mp4" `
 
 热词通过 faster-whisper 的 `hotwords` 参数注入 decoder prompt，与 Qwen 路径的 context 提示类似，是提示而非保证命中的硬约束。按模型 ID 加载时同样遵循 `MSW_MODEL_CACHE_ROOT` 统一缓存根目录。该引擎不提供说话人分离（多人场景请用 MOSS）；GPU 推理需要用户自行安装 CUDA 12 与 cuDNN 9 库（CTranslate2 不复用 Torch 自带的 CUDA 依赖），设备选择为“自动”时如果 CUDA 运行库不可用会自动回退到 CPU，显式选择 CUDA 则保留错误。无 GPU 时以 int8 精度运行 CPU。Whisper 的词级时间戳来自交叉注意力对齐，精度低于 Qwen 的 Forced Aligner，静音处偶发幻觉属于上游已知行为；中文等非拉丁语言的验收请先用自己的音频进行。
 
+## 模型下载与目录记忆
+
+Qwen3-ASR 0.6B／1.7B、Qwen3 Forced Aligner、默认 MOSS 和 Faster-Whisper large-v3 共用下载助手。先查找完整的 Hugging Face／ModelScope 缓存；没有缓存时优先 Hugging Face，连接失败、超时或暂时性服务错误时改用已核对的 ModelScope 镜像。鉴权失败、仓库不存在、磁盘满和目录权限错误保留原错误，不通过换源掩盖。自定义仓库不猜测镜像，FunASR 保留现有下载方式。
+
+HF 缓存位于 `<模型缓存根>/huggingface/hub`，ModelScope 位于 `<模型缓存根>/modelscope`；兼容旧布局及系统默认缓存。检查会排除缺少配置、空权重和缺失分片的快照。下载进度会说明来源，取消仍由现有工作进程负责，重试交给下载库复用已有文件。MOSS 镜像使用与 HF 固定版本运行文件一致的 ModelScope 提交 `5999c187...`，不直接使用镜像主分支。
+
+启动器与编辑器按模型 ID 共用“已有／本地模型目录”的记录。启动器输入后自动保存；编辑器点击“保存识别设置”保存当前模型目录。切换模型或重开窗口会恢复，清空后重新使用自动缓存发现。自动扫描到的缓存路径只作为提示，不写入手动目录。失效目录保留供用户修正，明确提示错误；机器路径不随识别预设或配置导出。
+
 ## Qwen 自动设备与中断恢复
 
-Qwen 的自动设备顺序为 CUDA、Apple MPS、CPU；自动选择 MPS 后加载失败会回退 CPU，显式指定设备则保留错误。缺少词级时间码时仅做句段级拆分，不伪造词级对齐。安装或修复异常中断后可重新检查状态并重试。下载源可用 `MSW_PYTORCH_INDEX` 指定，兼容旧 `MAW_PYTORCH_INDEX`，网络探测保持 TLS 校验。
+Qwen 的自动设备顺序为 CUDA、CPU；macOS 默认使用 CPU，不再自动选择 MPS。Apple Silicon 用户可在启动器／编辑器手动选择“MPS（实验性）”，或通过 CLI 的 `--device mps` 启用；MPS 不可用或加载失败时会明确报错，可改回 CPU。其他识别引擎不接受 MPS。缺少词级时间码时仅做句段级拆分，不伪造词级对齐。安装或修复异常中断后可重新检查状态并重试。下载源可用 `MSW_PYTORCH_INDEX` 指定，兼容旧 `MAW_PYTORCH_INDEX`，网络探测保持 TLS 校验。
 
 ## 安装可选依赖
 

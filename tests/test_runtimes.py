@@ -66,7 +66,7 @@ class RuntimeRegistryTests(unittest.TestCase):
         # 无 install_uv 占位、无手写 requirements 列表。
         self.assertFalse(getattr(MOSS.spec, "install_uv", False))
         self.assertIsNone(MOSS.spec.requirements)
-        self.assertEqual(MOSS.spec.package_dirs, ("moss_transcribe_diarize", "transformers", "torch", "torchaudio"))
+        self.assertEqual(MOSS.spec.package_dirs, ("moss_transcribe_diarize", "transformers", "torch", "torchaudio", "modelscope"))
         self.assertEqual(MOSS.spec.requirements_key, "moss")
         self.assertEqual(MOSS.spec.requirements_bundle_name, "requirements-moss.txt")
 
@@ -104,7 +104,7 @@ class RuntimeInstallCommandTests(unittest.TestCase):
                 calls.append(command)
                 if "install" in command:
                     site = root / "site-packages"
-                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile"):
+                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile", "modelscope"):
                         (site / name).mkdir(parents=True, exist_ok=True)
                 return 0
 
@@ -179,7 +179,7 @@ class RuntimeInstallCommandTests(unittest.TestCase):
                 calls.append(command)
                 if "install" in command:
                     site = root / "site-packages"
-                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile"):
+                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile", "modelscope"):
                         (site / name).mkdir(parents=True, exist_ok=True)
                 return 0
 
@@ -258,7 +258,7 @@ class RuntimeInstallCommandTests(unittest.TestCase):
                 calls.append(command)
                 if "install" in command:
                     site = root / "site-packages"
-                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile"):
+                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile", "modelscope"):
                         (site / name).mkdir(parents=True, exist_ok=True)
                 return 0
 
@@ -301,7 +301,7 @@ class RuntimeInstallCommandTests(unittest.TestCase):
                 calls.append(command)
                 if "install" in command:
                     site = root / "site-packages"
-                    for name in ("moss_transcribe_diarize", "transformers", "torch", "torchaudio"):
+                    for name in ("moss_transcribe_diarize", "transformers", "torch", "torchaudio", "modelscope"):
                         (site / name).mkdir(parents=True, exist_ok=True)
                 return 0
 
@@ -340,7 +340,7 @@ class SourceModeInstallTests(unittest.TestCase):
                 calls.append(command)
                 if "install" in command:
                     site = root / "site-packages"
-                    for name in ("moss_transcribe_diarize", "transformers", "torch", "torchaudio"):
+                    for name in ("moss_transcribe_diarize", "transformers", "torch", "torchaudio", "modelscope"):
                         (site / name).mkdir(parents=True, exist_ok=True)
                 return 0
 
@@ -514,7 +514,7 @@ class VenvRuntimeInstallTests(unittest.TestCase):
                     python.parent.mkdir(parents=True, exist_ok=True)
                     python.write_bytes(b"python")
                 elif "install" in command:
-                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile"):
+                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile", "modelscope"):
                         (self._venv_site_packages(canonical_root) / name).mkdir(parents=True, exist_ok=True)
                 return 0
 
@@ -579,7 +579,7 @@ class VenvRuntimeInstallTests(unittest.TestCase):
                     python.parent.mkdir(parents=True, exist_ok=True)
                     python.write_bytes(b"python")
                 elif "install" in command:
-                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile"):
+                    for name in ("faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio", "quapeaks", "sherpa_onnx", "soundfile", "modelscope"):
                         (self._venv_site_packages(root) / name).mkdir(parents=True, exist_ok=True)
                 return 0
 

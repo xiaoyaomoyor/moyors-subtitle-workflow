@@ -33,6 +33,7 @@ def _register(keys, category, encoding='json', exportable=True):
 
 
 _register('moy.asr.editor.settings.v1', 'editor')
+_register('msw.local-model-paths.v1', 'launcher', exportable=False)
 _register('moy.asr.waveform.settings.v1', 'waveform')
 _register('moy.asr.editor.customThemes.v1 moy.asr.editor.themeCustomColors.v1', 'appearance')
 _register('mawe.language', 'language', 'text')
@@ -147,6 +148,9 @@ def validate(sections):
         if not isinstance(values, dict) or set(values) - set(allowed):
             raise ValueError(f'未登记的配置字段：{section}')
     for key, value in sections.get('browser', {}).items():
+        if key == 'msw.local-model-paths.v1':
+            from maw.local_model_preferences import normalize_paths
+            normalize_paths(value)
         if REGISTRY[key]['path'] != ['browser', key]:
             raise ValueError('配置保存位置不匹配')
         if REGISTRY[key]['encoding'] == 'text' and not isinstance(value, str):

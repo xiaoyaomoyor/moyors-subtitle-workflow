@@ -17,7 +17,7 @@ EMBED_PYTHON_ZIP = "python-3.11.9-embed-amd64.zip"
 _VERIFY_COMMAND = (
     "from funasr import AutoModel; from qwen_asr import Qwen3ASRModel; "
     "from faster_whisper import WhisperModel; "
-    "import jieba, quapeaks, sherpa_onnx, soundfile, torch, torchaudio; print('MAW_LOCAL_RUNTIME_READY')"
+    "import jieba, quapeaks, sherpa_onnx, soundfile, torch, torchaudio, modelscope; print('MAW_LOCAL_RUNTIME_READY')"
 )
 
 
@@ -43,7 +43,7 @@ LOCAL_SPEC = RuntimeSpec(
     verify_command=_VERIFY_COMMAND,
     package_dirs=(
         "faster_whisper", "funasr", "qwen_asr", "jieba", "torch", "torchaudio",
-        "quapeaks", "sherpa_onnx", "soundfile",
+        "quapeaks", "sherpa_onnx", "soundfile", "modelscope",
     ),
     worker_module="maw.local_runtime_worker",
     message_prefix="本地运行环境",

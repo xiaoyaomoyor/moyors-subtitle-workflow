@@ -32,6 +32,7 @@ from generate_subtitle_qwen_api import (
     split_coarse_segments,
     split_segments_auto,
 )
+from maw.hub_download import resolve_model_source
 from maw.ffmpeg import resolve_ffmpeg_tool
 from maw.alignment_models import FIRERED_ASR2_CTC_MODEL_ID
 from maw.local_debug import debug_json_value
@@ -176,8 +177,16 @@ def resolve_device(device: str, *, allow_mps: bool = False) -> str:
     """Resolve ``auto`` without importing Torch for the cloud-only path."""
     normalized = device.strip().lower()
     if normalized != "auto":
+        if normalized == "mps" and allow_mps:
+            try:
+                import torch
+            except ImportError as error:
+                raise ValueError("MPS 不可用，请选择 CPU 或安装支持 MPS 的 PyTorch。") from error
+            if not _mps_available(torch):
+                raise ValueError("当前设备不支持 MPS，请选择 CPU。")
+            return "mps"
         if normalized not in {"cpu", "cuda"}:
-            raise ValueError("device must be one of: auto, cpu, cuda")
+            raise ValueError("device must be auto, cpu, cuda; mps is opt-in for Qwen only")
         return normalized
 
     try:
@@ -186,8 +195,6 @@ def resolve_device(device: str, *, allow_mps: bool = False) -> str:
         return "cpu"
     if torch.cuda.is_available():
         return "cuda"
-    if allow_mps and _mps_available(torch):
-        return "mps"
     return "cpu"
 
 
@@ -644,7 +651,7 @@ class QwenAsrEngine:
         if self._runtime is not None:
             return self._runtime
         requested_device = self.device.strip().lower()
-        if sys.platform == "darwin" and requested_device == "auto":
+        if sys.platform == "darwin" and requested_device == "mps":
             os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
         try:
             from qwen_asr import Qwen3ASRModel  # type: ignore[import-not-found]
@@ -656,6 +663,8 @@ class QwenAsrEngine:
             raise _missing_dependency("torch", cause=error) from error
 
         resolved_device = resolve_device(self.device, allow_mps=True)
+        model_source = resolve_model_source(self.model_path, emit=on_event)
+        aligner_source = resolve_model_source(self.forced_aligner, emit=on_event) if self.forced_aligner else None
 
         def load_runtime(target_device: str) -> Any:
             device_map = "cuda:0" if target_device == "cuda" else target_device
@@ -669,27 +678,16 @@ class QwenAsrEngine:
                 "max_new_tokens": QWEN_MAX_NEW_TOKENS,
             }
             if self.forced_aligner:
-                kwargs["forced_aligner"] = self.forced_aligner
+                kwargs["forced_aligner"] = aligner_source
                 kwargs["forced_aligner_kwargs"] = {
                     "dtype": kwargs["dtype"],
                     "device_map": device_map,
                 }
             if on_event:
                 on_event(f"[local] loading QwenASR: {self.model_path} ({target_device})")
-            return Qwen3ASRModel.from_pretrained(self.model_path, **kwargs)
+            return Qwen3ASRModel.from_pretrained(model_source, **kwargs)
 
-        try:
-            self._runtime = load_runtime(resolved_device)
-        except Exception as error:
-            if resolved_device != "mps" or requested_device != "auto":
-                raise
-            if on_event:
-                on_event(f"[local] MPS 加载失败，正在回退 CPU：{error}")
-            try:
-                torch.mps.empty_cache()
-            except (AttributeError, RuntimeError):
-                pass
-            self._runtime = load_runtime("cpu")
+        self._runtime = load_runtime(resolved_device)
         if on_event:
             on_event("[local] QwenASR loaded")
         return self._runtime
@@ -1262,7 +1260,7 @@ class MossDiarizeEngine:
             return self._runtime
         try:
             import torch  # type: ignore[import-not-found]
-            from transformers import AutoModelForCausalLM, AutoProcessor  # type: ignore[import-not-found]
+            from transformers import AutoProcessor  # type: ignore[import-not-found]
             from moss_transcribe_diarize.attention import load_model_with_attention_fallback  # type: ignore[import-not-found]
         except ImportError as error:
             raise _missing_moss_dependency(error) from error
@@ -1273,26 +1271,12 @@ class MossDiarizeEngine:
         if on_event:
             on_event(f"[local] loading MOSS-Transcribe-Diarize: {self.model_path} ({device})")
         revision = MOSS_DEFAULT_REVISION if self.model == MOSS_DEFAULT_MODEL else ""
-        model_loader = None
-        if revision:
-            def model_loader(model_path: str, **kwargs: Any) -> Any:
-                return AutoModelForCausalLM.from_pretrained(model_path, revision=revision, **kwargs)
-
+        model_source = resolve_model_source(self.model_path, emit=on_event, revision=revision)
         model, attention_report = load_model_with_attention_fallback(
-            self.model_path,
-            device=device,
-            dtype=dtype,
-            model_loader=model_loader,
+            model_source, device=device, dtype=dtype,
         )
         model = model.to(dtype=dtype).to(device).eval()
-        if revision:
-            processor = AutoProcessor.from_pretrained(
-                self.model_path,
-                revision=revision,
-                trust_remote_code=True,
-            )
-        else:
-            processor = AutoProcessor.from_pretrained(self.model_path, trust_remote_code=True)
+        processor = AutoProcessor.from_pretrained(model_source, trust_remote_code=True)
         self._runtime = (model, processor, attention_report)
         if on_event:
             on_event("[local] MOSS-Transcribe-Diarize loaded")
@@ -1768,6 +1752,10 @@ class WhisperEngine:
         except ImportError as error:
             raise _missing_dependency("faster-whisper", cause=error) from error
 
+        model_ref = self.model_path
+        if not Path(model_ref).is_dir() and model_ref in {"large", "large-v3"}:
+            model_ref = "Systran/faster-whisper-large-v3"
+        model_source = resolve_model_source(model_ref, emit=on_event)
         resolved_device = resolve_device(self.device)
         compute_type = "float16" if resolved_device == "cuda" else "int8"
         if on_event:
@@ -1797,7 +1785,7 @@ class WhisperEngine:
             kwargs["download_root"] = hub_cache
         requested_device = self.device.strip().lower()
         try:
-            self._runtime = WhisperModel(self.model_path, **kwargs)
+            self._runtime = WhisperModel(model_source, **kwargs)
         except RuntimeError as error:
             # ``auto`` 可能只验证了 Torch 的 CUDA，而 CTranslate2 还需要
             # 自己的 CUDA 12/cuDNN 9 DLL。遇到这类 CUDA 初始化错误时回退
@@ -1816,7 +1804,7 @@ class WhisperEngine:
                 )
             fallback_kwargs = {**kwargs, "device": "cpu", "compute_type": "int8"}
             try:
-                self._runtime = WhisperModel(self.model_path, **fallback_kwargs)
+                self._runtime = WhisperModel(model_source, **fallback_kwargs)
             except (TypeError, ValueError, RuntimeError) as fallback_error:
                 raise LocalAsrError(
                     "faster-whisper 模型加载失败；CUDA 错误："
@@ -2028,6 +2016,8 @@ def create_local_engine(
     debug_writer: Callable[[str, object], object] | None = None,
 ) -> LocalAsrEngine:
     normalized = engine.strip().lower()
+    if device.strip().lower() == "mps" and normalized not in {"qwen", "qwen-asr", "qwen3-asr"}:
+        raise ValueError("MPS 仅支持 Qwen 本地模型。")
     if normalized in {"qwen", "qwen-asr", "qwen3-asr"}:
         return QwenAsrEngine(
             model or QWEN_DEFAULT_MODEL,

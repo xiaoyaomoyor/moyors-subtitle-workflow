@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,13 @@ from typing import Final
 from maw.app_paths import SOURCE_ROOT, default_env_path
 from maw.env_config import alias_keys, aliased_values, read_env
 from maw.qwen_audio import QWEN_AUDIO_31_MODEL_ID
+
+
+def local_device_choices(engine: str) -> tuple[str, ...]:
+    devices = ("auto", "cpu", "cuda")
+    if sys.platform == "darwin" and engine in {"qwen", "qwen-asr", "qwen3-asr"}:
+        devices += ("mps",)
+    return devices
 
 
 ROOT: Final = SOURCE_ROOT

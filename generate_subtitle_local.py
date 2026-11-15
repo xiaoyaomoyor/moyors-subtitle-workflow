@@ -66,8 +66,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--model-path", help="显式指定已经下载好的模型目录")
     parser.add_argument(
-        "--device", choices=("auto", "cpu", "cuda"), default="auto",
-        help="推理设备（默认: auto，优先 CUDA；不可用时回退 CPU）",
+        "--device", choices=("auto", "cpu", "cuda", "mps"), default="auto",
+        help="推理设备（auto 优先 CUDA，否则 CPU；Qwen 在 macOS 可显式选择实验性 mps）",
     )
     parser.add_argument(
         "--forced-aligner", default=QWEN_DEFAULT_FORCED_ALIGNER,
@@ -205,6 +205,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     if args.max_len < args.min_len or args.max_words < args.min_words:
         print("错误: 最大值不能小于对应的短句合并阈值")
+        return 2
+    if args.device == "mps" and args.engine != "qwen-asr":
+        print("错误: MPS 仅支持 Qwen 本地模型")
         return 2
     if args.with_waveform and not args.json:
         print("错误: --with-waveform 需要同时指定 --json")
