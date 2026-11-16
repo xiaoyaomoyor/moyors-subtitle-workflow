@@ -76,7 +76,7 @@ test('native preview keeps a zero-opacity shadow hidden during text wave animati
   await ready(page);await page.evaluate(()=>MSWSubtitleRenderer.repaint());
   await expect(page.locator('.JASSUB')).toBeVisible();
   const png=info.outputPath('opacity-wave-libass.png');await page.locator('.JASSUB').screenshot({path:png});
-  const counts=JSON.parse(execFileSync(process.env.MAW_E2E_PYTHON||'python',['-c',
+  const counts=JSON.parse(execFileSync(process.env.MSW_E2E_PYTHON||process.env.MAW_E2E_PYTHON||'python',['-c',
     'from PIL import Image; import sys,json; p=list(Image.open(sys.argv[1]).convert("RGB").getdata()); print(json.dumps([sum(r>g+10 and r>b+10 for r,g,b in p),sum(g>r+10 and g>b+10 for r,g,b in p)]))',png],{encoding:'utf8',windowsHide:true}));
   expect(counts[0]).toBeGreaterThan(20);expect(counts[1]).toBe(0);
 });
