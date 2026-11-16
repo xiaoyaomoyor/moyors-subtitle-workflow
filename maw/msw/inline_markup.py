@@ -41,9 +41,13 @@ def parse(value):
     runs, active, i = [], [], 0
     while i < len(source):
         if i in opens:
-            active.append(opens[i]['marker']); i += 2; continue
+            active.append(opens[i]['marker'])
+            i += 2
+            continue
         if i in closes:
-            active.remove(closes[i]['marker']); i += 2; continue
+            active.remove(closes[i]['marker'])
+            i += 2
+            continue
         length = escaped.get(i, 1)
         text = source[i+1:i+length] if i in escaped else source[i]
         if runs and runs[-1]['marks'] == active:
@@ -62,9 +66,11 @@ def appearance(base, marks):
     style, scale = dict(base), 1
     for mark in marks:
         if mark == '**':
-            style.update(bold=True, primaryColor='#ffaa00'); scale *= 1.3
+            style.update(bold=True, primaryColor='#ffaa00')
+            scale *= 1.3
         elif mark == '%%':
-            style['primaryColor'] = '#999999'; scale *= .8
+            style['primaryColor'] = '#999999'
+            scale *= .8
         elif mark == '++':
             scale *= 1.5
         elif mark == '--':
@@ -85,7 +91,8 @@ def graphemes(text, prefix=''):
     marks = [r['marks'] for r in runs for _ in r['text']]
     result, at = [], 0
     for unit in _characters(''.join(r['text'] for r in runs)):
-        result.append((unit, marks[at]));at += len(unit)
+        result.append((unit, marks[at]))
+        at += len(unit)
     return result
 
 

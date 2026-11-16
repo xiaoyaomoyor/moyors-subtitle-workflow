@@ -90,7 +90,8 @@ def _measure_inline(text, style, width, prefix):
     registry = installed_fonts()
     fallback_name = next((n for n in ('microsoft yahei','pingfang sc','noto sans cjk sc','arial','dejavu sans') if n in registry), '')
     def dimensions(unit):
-        value, marks = unit;local = inline_markup.appearance(style, marks)
+        value, marks = unit
+        local = inline_markup.appearance(style, marks)
         fallback = family_metrics(fallback_name, local['bold'], local['italic']) if fallback_name else {}
         amount = 0
         for ch in value:
@@ -103,33 +104,44 @@ def _measure_inline(text, style, width, prefix):
     def flush(trim=False):
         nonlocal line, used
         if trim:
-            while line and line[-1][0].isspace():line.pop()
-        lines.append(line);line, used = [], 0
+            while line and line[-1][0].isspace():
+                line.pop()
+        lines.append(line)
+        line, used = [], 0
     for i, unit in enumerate(measured):
         char, marks, amount, height = unit
-        if char == '\n':flush();continue
+        if char == '\n':
+            flush()
+            continue
         # Prefer a word boundary, then fall back to grapheme wrapping for CJK
         # and words wider than the picture. Manual character limits stay exact.
         if limit == math.inf and not char.isspace() and (i == 0 or measured[i-1][0].isspace()):
             word_width = 0
             for j in range(i,len(measured)):
                 upcoming = measured[j]
-                if upcoming[0].isspace():break
+                if upcoming[0].isspace():
+                    break
                 word_width += upcoming[2]
-            if line and used+word_width > available:flush(True)
-        if line and (used+amount > available or len(line) >= limit):flush(True)
-        if not line and char.isspace():continue
-        line.append(unit);used += amount
+            if line and used+word_width > available:
+                flush(True)
+        if line and (used+amount > available or len(line) >= limit):
+            flush(True)
+        if not line and char.isspace():
+            continue
+        line.append(unit)
+        used += amount
     flush()
     w = max([sum(u[2] for u in line) for line in lines]+[1])
     h = sum(max([u[3] for u in line]+[style['fontSize']*1.2*sy]) for line in lines)
     anchor = ((style['alignment']-1)%3)*w/2
-    angle = math.radians(style['angle']);c,s = math.cos(angle),math.sin(angle)
+    angle = math.radians(style['angle'])
+    c,s = math.cos(angle),math.sin(angle)
     corners = [((x-anchor)*c+y*s,-(x-anchor)*s+y*c) for x in (-padding,w+padding) for y in (-padding,h+padding)]
     left, top = min(x for x,y in corners), min(y for x,y in corners)
     marks = []
     for i, line in enumerate(lines):
-        if i:marks.append([])
+        if i:
+            marks.append([])
         marks.extend(u[1] for u in line)
     size = dict(text='\n'.join(''.join(u[0] for u in line) for line in lines),inlineMarks=marks,
                 width=max(x for x,y in corners)-left,height=max(y for x,y in corners)-top,
@@ -262,7 +274,8 @@ def layout(project, width=1920):
                 prefix = label+labels.get('separator', '：') if label and row['role']=='main' else ''
             row['motion'] = subtitle_animation.resolve(row['style'].get('animation'), cue.get('subtitle_animation'))
             row['prefix']=prefix
-            if inline_markup.enabled(project):row['style']['_inlineMarkup'] = True
+            if inline_markup.enabled(project):
+                row['style']['_inlineMarkup'] = True
             row['size'] = measured_text(cue.get('text', ''), row['style'], width, prefix=prefix)
         members[0]['localY'] = 0
         if len(members)==2:
@@ -371,7 +384,8 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
             palette[mark['name']]=mark['value']
     palette.update({c['name']:c['value'] for c in project.get('color_palette',[]) if isinstance(c,dict) and c.get('name') in palette and re.fullmatch(r'#[0-9a-fA-F]{6}',str(c.get('value','')))})
     mode=(project.get('preview') or {}).get('subtitle',{}).get('ass_color_style','text')
-    style_lines = {};effective_styles = []
+    style_lines = {}
+    effective_styles = []
     for i,r in enumerate(entries):
         style=dict(r['style']);color=palette.get(r['color'].get('name'))
         if 'speaker' not in r and color and mode in ('text','stroke') and ('primaryColor' if mode=='text' else 'outlineColor') not in r['cue'].get('subtitle_style', {}):
