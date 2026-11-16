@@ -4669,6 +4669,7 @@
       this.syncTrackHeads();
       this.drawRow(row);
       this.updatePlayback(false);
+      this.refreshBoundaryDragPointerLine();
     }
 
     renderMulti() {
@@ -4704,6 +4705,7 @@
         this.syncTrackHeads();
         for (const row of rows) this.drawRow(row);
         this.updatePlayback(false);
+        this.refreshBoundaryDragPointerLine();
         return;
       }
       // 增量更新：只移除滚出可视范围的行、只绘制新进入的行；
@@ -4724,6 +4726,7 @@
       this.syncTrackHeads();
       for (const row of created) this.drawRow(row);
       this.updatePlayback(false);
+      this.refreshBoundaryDragPointerLine();
     }
 
     createMultiRow(index, rowDurationMs) {

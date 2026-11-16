@@ -16,6 +16,8 @@ test.beforeAll(async()=>{
 test.afterAll(async()=>{await server?.stop();});
 test.beforeEach(async({page})=>{
   await disableOnboarding(page);await page.goto(server.url);
+  await page.evaluate(()=>MSWConfig.ready);
+  await page.waitForFunction(()=>player.readyState>=1&&Number.isFinite(player.duration));
   await expect(page.locator('.waveform-cue-block[data-idx="0"]').first()).toBeVisible();
   await page.evaluate(()=>{updateEditorSettings({autoSaveProject:false,hoverSeekPreview:true,waveformClickBehavior:'select-only'});player.pause();});
 });
@@ -36,7 +38,9 @@ for(const mode of ['basic','multi'])test(`waveform content geometry aligns canva
   for(const result of results){expect(result.canvasError).toBeLessThan(1);expect(Math.max(...result.errors)).toBeLessThan(.001);expect(result.reverseError).toBeLessThan(.01);}
 });
 async function pressEdge(page,side='left'){
-  const cue=page.locator('.waveform-cue-block[data-idx="0"]').first(),box=await cue.boundingBox();
+  const cue=page.locator('.waveform-cue-block[data-idx="0"]').first();
+  await expect(cue).toBeVisible();
+  const box=await cue.boundingBox();
   await page.mouse.move(side==='left'?box.x+1:box.x+box.width-1,box.y+box.height/2);
   await frames(page);await page.mouse.down();
   expect(await page.evaluate(()=>waveformEditor.drag?.kind)).toBe(side==='left'?'resize-left':'resize-right');
@@ -71,4 +75,24 @@ test('boundary indicator follows the existing cross-row mapping and clears on co
   await page.mouse.up();await expect(page.locator('.waveform-pointer-line.boundary-snapped')).toHaveCount(0);
   expect(await page.evaluate(()=>DATA.segments[0].end)).toBe(actual);
   await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.segments[0].end)).toBe(3000);
+});
+
+for(const mode of ['basic','multi'])test(`boundary indicator survives waveform data arriving during a drag in ${mode} mode`,async({page})=>{
+  await page.evaluate(mode=>waveformEditor.setMode(mode),mode);await frames(page);
+  const before=await page.evaluate(()=>DATA.segments[0].start),box=await pressEdge(page);
+  const row=await page.locator('.waveform-row').first().boundingBox();
+  await page.mouse.move(row.x+row.width*.7,box.y+box.height/2,{steps:8});await frames(page);
+  const actual=await page.evaluate(()=>DATA.segments[0].start);
+  expect(actual).toBeGreaterThan(before);expect(actual).toBeLessThan(3000);
+  // The real background ReaPeaks response rebuilds waveform rows while the
+  // pointer can remain held still. Feedback must survive without another move.
+  await page.evaluate(payload=>waveformEditor.setReapeaksWaveform(payload),generateWaveformPayload(30000));
+  await frames(page);
+  expect(await page.evaluate(()=>waveformEditor.drag?.kind)).toBe('resize-left');
+  const marker=await markerState(page);
+  expect(marker).not.toBeNull();expect(Math.abs(marker.time-actual)).toBeLessThan(25);
+  expect(await page.evaluate(()=>DATA.segments[0].start)).toBe(actual);
+  await page.keyboard.press('Escape');await page.mouse.up();
+  await expect(page.locator('.waveform-pointer-line.boundary-snapped')).toHaveCount(0);
+  expect(await page.evaluate(()=>DATA.segments[0].start)).toBe(before);
 });
