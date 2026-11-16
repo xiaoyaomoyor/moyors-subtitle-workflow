@@ -355,7 +355,9 @@ class VideoRenderTests(unittest.TestCase):
         from maw.postprocess_ffmpeg import BurnSubtitleRequest, run_burn_subtitles
         from maw.project_subtitle_style import builtin_presets
         subtitle=self.root/'caption.srt'
-        subtitle.write_text('1\n00:00:00,000 --> 00:00:01,000\n字幕\n',encoding='utf-8')
+        # This checks encoding options, not optional CJK font installation on
+        # the host. Missing-glyph rejection has its own rendering tests.
+        subtitle.write_text('1\n00:00:00,000 --> 00:00:01,000\nSubtitle\n',encoding='utf-8')
         settings=dict(video_encoding='h264',video_quality=23,video_preset='fast',audio_bitrate_kbps=128)
         from maw import postprocess_ffmpeg
         commands=[]
