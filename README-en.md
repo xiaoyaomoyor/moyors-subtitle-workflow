@@ -14,9 +14,9 @@ MSW (Moyor's Subtitle Workflow / 我的字幕流) is a local web workflow for AS
 
 [Project home](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [Documentation](docs/README.md) · [Optional environments](docs/ENVIRONMENT.md)
 
-Version 1.7.0 adds shared recognition presets and background prompts, video quality, encoding speed and audio bitrate controls, plus waveform coordinate and media-tool path fixes. MSW retains its multitrack editing, script workflow and 800ms default pause threshold. See the [changelog](CHANGELOG.md#170---2026-11-14).
+Version 1.8.0-beta.1 adds independent review markers, complete split punctuation controls, optional inline text styles and hold-Space 2× preview. It improves model downloads, timing boundaries, subtitle opacity, missing-glyph feedback and text editing reliability. MSW retains its multitrack editing, script workflow and 800ms default pause threshold. See the [changelog](CHANGELOG.md#180-beta1---2026-11-16).
 
-MSW **1.7.0 is released**. Download installers from the [v1.7.0 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0). Packages cover Windows x64 and macOS arm64 standard/lite editions, plus Linux x86_64 AppImage. MSW is independently maintained; equal version numbers do not imply identical features or project formats.
+The current source version is **1.8.0-beta.1**. Prerelease packages are listed on the [v1.8.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.8.0-beta.1); [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0) remains the stable version. Packages cover Windows x64 and macOS arm64 standard/lite editions, plus Linux x86_64 AppImage. MSW is independently maintained; equal version numbers do not imply identical features or project formats.
 
 ![MSWE with bilingual subtitles, voiceover clips and the asset library](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 

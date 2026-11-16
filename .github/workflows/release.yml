@@ -295,7 +295,7 @@ jobs:
         timeout-minutes: 15
         shell: pwsh
         run: |
-          npx playwright test tests/e2e/editor-text-reliability.spec.mjs tests/e2e/local-model-settings.spec.mjs tests/e2e/subtitle-glyphs.spec.mjs tests/e2e/ass-opacity.spec.mjs --project=chromium --max-failures=3 --output=test-results/selected-upstream
+          npx playwright test tests/e2e/editor-text-reliability.spec.mjs tests/e2e/local-model-settings.spec.mjs tests/e2e/subtitle-glyphs.spec.mjs tests/e2e/ass-opacity.spec.mjs tests/e2e/review-markers.spec.mjs tests/e2e/inline-markup.spec.mjs tests/e2e/space-hold.spec.mjs tests/e2e/playback-refresh.spec.mjs --project=chromium --max-failures=3 --output=test-results/selected-upstream
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics
