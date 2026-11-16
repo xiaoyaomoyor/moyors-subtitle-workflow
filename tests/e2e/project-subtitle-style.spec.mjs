@@ -133,12 +133,17 @@ for(const legacy of [false,true])for(const bound of [true,false])test(`${bound?'
   await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleStyle?.ready)).toBe(true);
   await toggleMediaSettings(page);await page.locator('#style-preview-mode').selectOption('project');await page.locator('#subtitle-properties-open').click();
   await page.evaluate(()=>{for(const id of ['overlay-toggle','extension-overlay-toggle']){const el=document.getElementById(id);el.checked=true;el.dispatchEvent(new Event('change'));}});
+  // A focused run has no earlier test to warm the font registry and renderer.
+  await page.waitForFunction(()=>player.readyState>=2);
+  await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer?.status),{timeout:45000}).toBe('libass');
   await page.evaluate(()=>{const p=window.MSWE.resolve('processing-host').player;p.currentTime=1;p.pause();});
   const distances=new Map();
   await page.evaluate(()=>{MSWSubtitleStyle.open('track');document.getElementById('style-more').open=true;});
   for(const [order,gap] of [['main-above',12],['secondary-above',36],['secondary-above',-12],['main-above',-12]]){
-    await page.locator('#style-pair-order').selectOption(order);
+    // Changing the order can render immediately, while the gap may already
+    // equal the requested value. Observe before either control changes.
     const rendered=page.waitForResponse(r=>r.url().endsWith('/subtitle-preview')&&r.status()===200);
+    await page.locator('#style-pair-order').selectOption(order);
     await page.locator('#style-pair-gap').fill(String(gap));await page.locator('#style-pair-gap').dispatchEvent('change');
     await rendered;
     await expect.poll(()=>page.evaluate(()=>window.MSWSubtitleRenderer.status==='libass'&&!window.MSWSubtitleRenderer.pending)).toBe(true);

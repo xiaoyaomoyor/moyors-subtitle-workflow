@@ -62,7 +62,11 @@ test('editor uses production catalog and persists dialect with independent saved
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   try {
     await disableOnboarding(page);
+    // Let the initial installed-font scan finish before timing settings saves.
+    // Large local font libraries can otherwise compete with configuration I/O.
+    const fonts=page.waitForResponse(r=>r.url().endsWith('/subtitle-fonts')&&r.ok(),{timeout:45000});
     await page.goto(server.url);
+    await fonts;
     async function open(){
       await page.waitForFunction(()=>window.MSWE?.resolve('asr'));
       await page.evaluate(()=>MSWE.resolve('asr').open('whole'));
