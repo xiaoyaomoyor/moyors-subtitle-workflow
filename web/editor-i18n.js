@@ -9,6 +9,9 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '播放/暂停 · 长按 2×':'Play/pause · Hold for 2×',
+    '短按播放／暂停；长按临时 2×，松开恢复原速度和播放状态':'Tap to play/pause; hold for temporary 2× playback. Release to restore the previous speed and playback state.',
+    '2× 快进 · 松开恢复':'2× playback · Release to restore',
     '句内样式':'Inline styles','启用 Markdown 句内样式':'Enable Markdown inline styles',
     '切换 Markdown 句内样式':'Toggle Markdown inline styles','句内样式开关无效':'Invalid inline style switch',
     '随当前工程保存，可撤销。**重点**：金色加粗、1.3 倍；//文字//：斜体；__文字__：下划线；~~文字~~：删除线；++文字++：1.5 倍；--文字--：0.8 倍；%%文字%%：灰色、0.8 倍。仅识别成对双符号，可嵌套。符号前加反斜杠可原样显示，例如 \\**。未配对符号保留原样。关闭后全部按原文显示。预览、ASS 与烧录显示样式，SRT／TXT 导出可见正文；剧本和工程保留标记。':'Saved with this project; supports undo. **emphasis**: bold gold, 1.3×; //italic//; __underline__; ~~strikeout~~; ++larger++: 1.5×; --smaller--: 0.8×; %%subdued%%: gray, 0.8×. Paired double markers can be nested. Escape a marker with a backslash (e.g. \\**) to show it literally. Unmatched markers stay literal. Disabling shows all original text. Preview, ASS and burned video display styles; SRT/TXT export visible text. Scripts and projects keep the markers.',

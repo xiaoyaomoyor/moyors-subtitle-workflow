@@ -1236,6 +1236,11 @@
     position: relative; flex: 1 1 auto; min-height: 0; width: 100%;
   }
   .player-stage video { display: block; cursor: pointer; }
+  .media-speed-hold {
+    position: absolute; top: 38px; left: 50%; transform: translateX(-50%); z-index: 25;
+    padding: 6px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 6px;
+    background: rgba(18,20,24,.82); color: #fff; font-size: 12px; white-space: nowrap; pointer-events: none;
+  }
   /* B 站式控制条：悬浮在视频画面底部，透明渐变底、图标化控件 */
   .media-controls {
     display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;

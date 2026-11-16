@@ -12645,6 +12645,7 @@ function bindPlayerEvents(mediaElement) {
   });
   mediaElement.addEventListener('playing', () => startPlaybackRefresh(mediaElement));
   mediaElement.addEventListener('pause', () => {
+    if (spacePlaybackPress?.media === mediaElement && spacePlaybackPress.active) finishSpacePlayback({resume:false});
     stopPlaybackRefresh(mediaElement);
     if (player !== mediaElement) return;
     if (cueListScroll.owner === 'follow') invalidateCueListVisualAnchorRestore();
@@ -12658,6 +12659,13 @@ function bindPlayerEvents(mediaElement) {
     waveformEditor?.updatePlayback();
   });
   mediaElement.addEventListener('emptied', () => stopPlaybackRefresh(mediaElement));
+  for (const name of ['ended','emptied','abort','error']) mediaElement.addEventListener(name, () => {
+    if (spacePlaybackPress?.media === mediaElement) finishSpacePlayback({resume:false});
+  });
+  mediaElement.addEventListener('ratechange', () => {
+    if (spacePlaybackPress?.media === mediaElement && spacePlaybackPress.active && mediaElement.playbackRate !== 2)
+      finishSpacePlayback({resume:false,restoreRate:false});
+  });
   if (mediaElement.tagName === 'VIDEO') {
     mediaElement.addEventListener('click', (event) => {
       if (event.defaultPrevented) return;
@@ -13027,33 +13035,79 @@ function showShortcutBlocked(message) {
   flashHint(message, 'invalid');
 }
 
-// 空格播放/暂停。捕获阶段先于原生媒体控件处理，避免控件获得焦点后执行默认行为。
+// Decide tap versus hold on release/threshold, so a playing video never pauses
+// briefly before accelerating. Temporary transport state is never persisted.
 let interceptedSpace = false;
+let spacePlaybackPress = null;
+function spacePlaybackAllowed(e) {
+  if (e.defaultPrevented || e.isComposing || editingState || extensionEditingState || isTextEditingTarget(e)) return false;
+  if (stickerModal.classList.contains('show') || stickerPreviewModal.classList.contains('show')
+      || projectMediaModal.classList.contains('show') || document.getElementById('sticker-root-modal').classList.contains('show')
+      || multiSubtitleSplitModal?.contains(document.activeElement) || ctxmenu.classList.contains('show')) return false;
+  if (!isPlaybackKeyboardTarget(e) && isNativeKeyboardControl(e)) return false;
+  return !e.ctrlKey && !e.altKey && !e.metaKey;
+}
+function spacePlaybackSameMedia(state) {
+  return player === state.media && mswProjectGeneration === state.generation
+    && (player.currentSrc || player.getAttribute('src')) === state.source;
+}
+function finishSpacePlayback({tap=false,resume=true,restoreRate=true}={}) {
+  const state=spacePlaybackPress;if(!state)return;
+  spacePlaybackPress=null;clearTimeout(state.timer);
+  document.getElementById('media-speed-hold').hidden=true;
+  const same=spacePlaybackSameMedia(state);
+  if(state.active) {
+    if(restoreRate) {
+      state.media.playbackRate=state.rate;
+      if(same)jklPlaybackRate=state.jklRate;
+      else if(jklPlaybackRate===2)jklPlaybackRate=player.playbackRate;
+    }
+    else if(same && jklPlaybackRate===2)jklPlaybackRate=player.playbackRate;
+    if(!same || !state.playing || state.reverse)state.media.pause();
+    if(same && state.reverse && resume && !state.media.ended)startJklReversePlayback();
+  } else if(tap && !state.longPress && same)togglePlayback();
+  syncMediaControls();
+}
+function startSpacePlaybackHold(state) {
+  if(spacePlaybackPress!==state)return;
+  state.longPress=true;
+  if(!spacePlaybackSameMedia(state) || document.hidden || !spacePlaybackAllowed({target:document.activeElement})) {
+    finishSpacePlayback({resume:false});return;
+  }
+  if(window.MSWE?.resolve('audio-timeline')?.hasAudible()) {flashHint('带配音贴片时使用 1× 播放');return;}
+  if(!hasLoadedMedia()) {flashHint('请先加载媒体，然后才能预览','invalid');return;}
+  state.active=true;
+  stopJklReversePlayback({render:false});jklPlaybackRate=2;state.media.playbackRate=2;
+  document.getElementById('media-speed-hold').hidden=false;
+  const promise=state.media.play();
+  if(promise?.catch)promise.catch(()=>{if(spacePlaybackPress===state)finishSpacePlayback({resume:false});});
+  syncMediaControls();
+}
 document.addEventListener('keydown', (e) => {
-  if (!isSpaceKey(e)) return;
-  if (editingState || isTextEditingTarget(e)) return;
-  if (stickerModal.classList.contains('show')) return;
-  if (stickerPreviewModal.classList.contains('show')) return;
-  if (projectMediaModal.classList.contains('show')) return;
-  // 保留切分确认区内原生按钮和“更多”的空格键操作。
-  if (multiSubtitleSplitModal?.contains(document.activeElement)) return;
-  if (ctxmenu.classList.contains('show')) return;
-  if (!isPlaybackKeyboardTarget(e) && isNativeKeyboardControl(e)) return;
-  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if(!isSpaceKey(e)) {if(spacePlaybackPress)finishSpacePlayback({resume:false});return;}
+  if(!interceptedSpace && !spacePlaybackAllowed(e))return;
   e.preventDefault();
   e.stopImmediatePropagation();
+  if(interceptedSpace || e.repeat)return;
   interceptedSpace = true;
-  if (e.repeat) return;
-  togglePlayback();
+  const state={media:player,source:player.currentSrc || player.getAttribute('src'),generation:mswProjectGeneration,
+    rate:player.playbackRate,jklRate:jklPlaybackRate,playing:isPlaybackActive(),reverse:jklReversePlaying,active:false,longPress:false,timer:0};
+  spacePlaybackPress=state;state.timer=setTimeout(()=>startSpacePlaybackHold(state),350);
 }, true);
 
 document.addEventListener('keyup', (e) => {
   if (!isSpaceKey(e) || !interceptedSpace) return;
+  const tap=spacePlaybackAllowed(e);
   e.preventDefault();
   e.stopImmediatePropagation();
   interceptedSpace = false;
+  finishSpacePlayback({tap});
 }, true);
-window.addEventListener('blur', () => { interceptedSpace = false; });
+window.addEventListener('blur', () => {interceptedSpace=false;finishSpacePlayback({resume:false});});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){interceptedSpace=false;finishSpacePlayback({resume:false});}});
+document.addEventListener('pointerdown',()=>finishSpacePlayback({resume:false}),true);
+document.addEventListener('focusin',event=>{if(spacePlaybackPress&&!spacePlaybackAllowed(event))finishSpacePlayback({resume:false});});
+for(const name of ['msw:project-changed','msw:player-changed','msw:media-changed'])window.addEventListener(name,()=>finishSpacePlayback({resume:false}));
 
 // J/L share the menu's speed steps. Reverse playback is driven by the timeline.
 function fmtRate(r) {

@@ -1279,7 +1279,7 @@ __WAVEFORM_CSS__
       <section class="help-subgroup">
         <h5 class="help-subtitle">播放</h5>
         <div class="help-category">
-          <span class="help-important"><kbd>空格</kbd> 播放/暂停</span>
+          <span class="help-important" title="短按播放／暂停；长按临时 2×，松开恢复原速度和播放状态"><kbd>空格</kbd> 播放/暂停 · 长按 2×</span>
           <span><kbd>\</kbd> 进入／退出视频全屏预览</span>
           <span class="help-break" aria-hidden="true"></span>
           <span><kbd>←</kbd>/<kbd>→</kbd> 无选中时前后跳转（时长：<span id="help-media-seek-step">1000ms</span>）</span>
@@ -2045,13 +2045,14 @@ __WAVEFORM_CSS__
   <div class="player-wrap">
     <div class="toolbar player-toolbar" aria-label="媒体模块栏"></div>
       <div class="module-key-hints" id="player-key-hints" aria-label="媒体播放器快捷键" hidden>
-        <span class="cue-editor-key-hint"><kbd>空格</kbd> 播放/暂停</span>
+        <span class="cue-editor-key-hint" title="短按播放／暂停；长按临时 2×，松开恢复原速度和播放状态"><kbd>空格</kbd> 播放/暂停 · 长按 2×</span>
         <span class="cue-editor-key-hint"><kbd>←</kbd>/<kbd>→</kbd> 跳转</span>
         <span class="cue-editor-key-hint"><kbd>J</kbd>/<kbd>K</kbd>/<kbd>L</kbd> 倒放/停止/播放</span>
         <span class="cue-editor-key-hint"><kbd>Home</kbd>/<kbd>End</kbd> 媒体首/尾</span>
       </div>
     <div class="player-stage">
       __MEDIA_HTML__
+      <div id="media-speed-hold" class="media-speed-hold" role="status" hidden>2× 快进 · 松开恢复</div>
           <div class="player-empty" id="player-empty">拖入工程、媒体或 SRT 开始编辑</div>
 <div class="media-controls" id="media-controls" role="group" aria-label="媒体播放控制">
       <button type="button" id="media-play-toggle" aria-label="播放" title="播放">▶</button>

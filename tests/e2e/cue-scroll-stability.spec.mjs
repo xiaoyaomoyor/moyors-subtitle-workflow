@@ -41,8 +41,8 @@ const undoKey = process.platform === 'darwin' ? 'Meta+z' : 'Control+z';
 const redoKey = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+Shift+z';
 
 function textSelector(index, kind, mode) {
-  if (mode === 'both') return `.cue[data-${kind === 'main' ? 'idx' : 'ext-idx'}="${index}"] .multi-cue-column.${kind} .text`;
-  return `.cue[data-${kind === 'main' ? 'idx' : 'ext-idx'}="${index}"] > .text`;
+  const cue=`.cue[data-${kind === 'main' ? 'idx' : 'ext-idx'}="${index}"]`;
+  return `${cue} .multi-cue-column.${kind} .text, ${cue} > .text`;
 }
 
 for (const mode of ['main', 'extension', 'both']) {
@@ -415,7 +415,10 @@ async function spacePlayback(page, following, paused, info, label) {
   expect(events.filter(e => e.type === 'seeking')).toHaveLength(0);
   await expect(page.locator('#cue-list-follow')).toHaveAttribute('aria-pressed', String(following));
   if (paused) expect(Math.abs(settled.time - late.time)).toBeLessThan(0.05);
-  if (!following || paused) expect(Math.abs(settled.top - before.top)).toBeLessThan(1.5);
+  // Playback (especially at 8x) may advance and follow between taking the
+  // pre-key snapshot and releasing Space. Once paused, scrolling must settle.
+  if (!following) expect(Math.abs(settled.top - before.top)).toBeLessThan(1.5);
+  else if (paused) expect(Math.abs(settled.top - after.top)).toBeLessThan(1.5);
 }
 
 for (const mode of ['main', 'extension', 'both']) {
@@ -424,7 +427,7 @@ for (const mode of ['main', 'extension', 'both']) {
       await open(page, { mode });
       await page.waitForFunction(() => player.readyState >= 1);
       await page.evaluate(autoScroll => {
-        player.muted = true; player.playbackRate = 8;
+        player.muted = true; player.playbackRate = 8; jklPlaybackRate = 8;
         updateEditorSettings({ cueListAutoScrollOnClick: autoScroll });
       }, autoScroll);
       const kind = mode === 'extension' ? 'extension' : 'main';
@@ -541,8 +544,10 @@ test('space input repeats and focused playback controls preserve prior following
   await page.evaluate(() => { player.muted = true; });
   await observeSpacePlayback(page);
   await page.locator('.cue[data-idx="0"] .text').click();
-  await page.keyboard.down('Space');
+  await page.keyboard.press('Space');
   await expect.poll(async () => (await playbackState(page)).events.some(e => e.type === 'playing')).toBe(true);
+  await page.keyboard.down('Space');
+  await expect.poll(() => page.locator('#player').evaluate(media => media.playbackRate)).toBe(2);
   await expect.poll(async () => (await playbackState(page)).time).toBeGreaterThan(0.1);
   await page.keyboard.down('Space'); // trusted repeat; one physical hold must not toggle twice
   await page.keyboard.up('Space');
