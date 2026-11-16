@@ -11,6 +11,7 @@ msw-cue-style.js
 msw-subtitle-layers.js
 msw-subtitle-tracks.js
 msw-edit-transaction.js
+msw-review-core.js
 msw-flat-subtitles.js
 msw-flat-editing.js
 msw-batch-editing.js
@@ -43,6 +44,7 @@ editor.js
 msw-media.js
 msw-media-analysis.js
 msw-range-selection.js
+msw-review-ui.js
 msw-result-view.js
 msw-asr-presets.js
 msw-asr.js

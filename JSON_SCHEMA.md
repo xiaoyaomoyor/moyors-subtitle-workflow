@@ -1332,3 +1332,41 @@ uv run --frozen python -m maw.msw.subtitle_tracks_io "测试工程.mosp"
 ```
 
 显式添加 `--write` 才在备份后写回；日常工程可直接在编辑器保存。详细验收见[第二阶段](docs/TEST_FEEDBACK_SUBTITLE_TRACKS_20261009.md)、[第三阶段](docs/TEST_FEEDBACK_SUBTITLE_TRACK_EDIT_20261009.md)、[第四阶段](docs/TEST_FEEDBACK_SUBTITLE_TRACK_PRESENTATION_20261009.md)和[第五阶段记录](docs/TEST_FEEDBACK_SUBTITLE_TRACK_FLOW_20261009.md)。
+
+
+## 独立复核标记（可选根字段）
+
+`review_markers` 独立于 `subtitles`、说话人颜色和 `gap_remove`；未使用此功能的旧工程可完全省略。保存、另存、恢复、派生工程保留它；SRT／ASS／视频字幕不渲染它。修改标记使用独立历史记录，不回滚正文、轨道或播放位置。
+
+```json
+{
+  "review_markers": {
+    "schema": "msw.review.v1",
+    "items": [{
+      "id": "review-1",
+      "start_ms": 1000,
+      "end_ms": 2500,
+      "name": "核对人名",
+      "note": "确认这段称呼的译法",
+      "color": "#e7b35a",
+      "status": "pending",
+      "track_id": "subtitle-track-1",
+      "cue_ids": ["cue-1"]
+    }]
+  }
+}
+```
+
+- `items` 最多 10000 项。`id` 唯一、非空且最多 160 个 UTF-16 代码单元。
+- `start_ms` 为非负安全整数毫秒；`end_ms` 省略表示时间点，存在时必须是严格大于开始时间的安全整数。`null` 不是省略。
+- `name`／`note` 必须是字符串，分别最多 120／2000 个 UTF-16 代码单元；允许空文本。`color` 是六位十六进制颜色，`status` 为 `pending`（待处理）或 `resolved`（已解决）。
+- `track_id`、`cue_ids` 为可选关联，使用 v4 的稳定 ID；`cue_ids` 最多 10000 个且不可重复。关联对象删除后仍保留标记及其 ID，界面显示缺失关联；移动／切分字幕不自动移动或重写标记时间。
+- 根字段由前后端共同校验；不接受重复标记、负数／小数时间或未知状态，不会静默删除损坏数据。
+
+## 完整断句设置（处理配置，非工程字幕字段）
+
+后处理方案的 `match` 步骤新增可选 `splitPunctuation` 数组。缺省或 `null` 沿用旧语言规则与 `extraSplitPunctuation`；数组（包括 `[]`）是完整替代列表，不再自动加入基础标点或旧追加符号。自定义列表只允许 Unicode 标点／符号，输入总长最多 512 字符，去重并忽略空白；换行继续作为文稿分段边界。旧方案版本仍兼容，不重新切分已经存在的字幕。
+
+识别预设／编辑器调用设置使用 `splitPunctuationMode: "legacy" | "custom"`、`splitPunctuation: string` 与 `preservePunctuation: string`。新任务快照固定 `split_punct`（`null` 为默认，`""` 为关闭标点断句）、`extra_strong_punct` 和 `strip_tail_punct`；之后改变设置不影响已提交任务。所有 ASR 子进程接受 `--split-punct=…`，省略保留旧行为，`--split-punct=` 明确关闭标点断句。
+
+句尾保留不必属于断句集合。默认模式保留原剥尾集合；自定义模式将常用 `，。！？；,.!?;:：` 和自定义断句符号作为剥尾候选，减去保留符号。逗号、句号、问号、感叹号（自定义模式还含分号、冒号）的中英文形式等效；不移除句内标点，继续保护末尾英文缩略词。文稿匹配按其断句集合移除用于分段且未保留的符号；预览与实际匹配一致。

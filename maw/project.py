@@ -235,6 +235,12 @@ def _normalize_copy(project: JsonValue, errors: list[ProjectValidationError]) ->
         errors.append(ProjectValidationError("$", "must be an object"))
         return {"segments": []}
     normalized = copy.deepcopy(project)
+    if normalized.get('schema') != 'msw.project.v4' and 'review_markers' in normalized:
+        from maw.msw.review_markers import validate as validate_reviews
+        try:
+            validate_reviews(normalized['review_markers'])
+        except ValueError as exc:
+            errors.append(ProjectValidationError('$.review_markers', str(exc)))
     if normalized.get('schema') == 'msw.project.v4':
         from maw.msw.flat_subtitles import validate as validate_flat
         from maw.msw.project_codec import validate_extension

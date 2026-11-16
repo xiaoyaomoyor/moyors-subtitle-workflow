@@ -2,23 +2,77 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping
 
 DEFAULT_TAIL_PUNCT = "，。,."
+DEFAULT_CUSTOM_SPLIT = "，。！？；,.!?;:："
 
 
-def _variants(symbols):
+def custom_symbols(value):
+    """None means the legacy language rules; an empty list means no punctuation breaks."""
+    if value is None:
+        return None
+    if not isinstance(value, (str, list, tuple)) or isinstance(value, (list, tuple)) and not all(isinstance(v, str) for v in value):
+        raise ValueError('断句符号必须是标点列表')
+    chars = ''.join(value)
+    if len(chars) > 512 or any(not ch.isspace() and unicodedata.category(ch)[0] not in 'PS' for ch in chars):
+        raise ValueError('断句符号只能包含标点或符号，最多 512 字符')
+    return list(dict.fromkeys(ch for ch in chars if not ch.isspace()))
+
+
+def match_step(plan):
+    return next((s for s in plan.get('steps', []) if isinstance(s, Mapping) and s.get('id') == 'match'), {})
+
+
+def split_symbols(extra=(), custom=None):
+    full = custom_symbols(custom)
+    return frozenset(('，', '。', ',', '.', '\n', *extra) if full is None else (*full, '\n'))
+
+
+def recognition_options(plan):
+    step = match_step(plan)
+    full = custom_symbols(step.get('splitPunctuation'))
+    return {'splitPunctuationMode': 'legacy' if full is None else 'custom',
+            'splitPunctuation': ''.join(full) if full is not None else DEFAULT_CUSTOM_SPLIT,
+            'preservePunctuation': ''.join(step.get('preservePunctuation', ['？', '！']))}
+
+
+def recognition_policy(payload, plan):
+    step = dict(match_step(plan))
+    mode = payload.get('splitPunctuationMode')
+    if mode not in (None, 'legacy', 'custom'):
+        raise ValueError('断句规则无效')
+    if mode == 'custom' and payload.get('splitPunctuation', '') is None:
+        raise ValueError('自定义断句符号不能为 null；请用空字符串关闭标点断句')
+    if 'preservePunctuation' in payload and payload['preservePunctuation'] is None:
+        raise ValueError('保留符号不能为 null；请用空字符串表示不保留')
+    if mode == 'custom':
+        step['splitPunctuation'] = custom_symbols(payload.get('splitPunctuation', ''))
+    elif mode == 'legacy':
+        step.pop('splitPunctuation', None)
+    if 'preservePunctuation' in payload:
+        step['preservePunctuation'] = custom_symbols(payload['preservePunctuation'])
+    full = custom_symbols(step.get('splitPunctuation'))
+    return {'split_punct': None if full is None else ''.join(full),
+            'strip_tail_punct': tail_strip_symbols({'steps': [dict(step, id='match')]}),
+            'extra_strong_punct': ''.join(step.get('extraSplitPunctuation', []))}
+
+
+def _variants(symbols, *, complete=False):
     result = set("".join(str(s) for s in symbols))
-    for pair in ("，,", "。.", "？?", "！!"):
+    for pair in ("，,", "。.", "？?", "！!") + (("；;", "：:") if complete else ()):
         if result.intersection(pair):
             result.update(pair)
     return result
 
 
 def tail_strip_symbols(plan: Mapping) -> str:
-    step = next((s for s in plan.get("steps", []) if isinstance(s, Mapping) and s.get("id") == "match"), {})
-    candidates = _variants([DEFAULT_TAIL_PUNCT, *step.get("extraSplitPunctuation", [])])
-    preserved = _variants(step.get("preservePunctuation", ["？", "！"]))
+    step = match_step(plan)
+    full = custom_symbols(step.get('splitPunctuation'))
+    candidates = _variants([DEFAULT_TAIL_PUNCT, *step.get("extraSplitPunctuation", [])] if full is None
+                           else [DEFAULT_CUSTOM_SPLIT, *full])
+    preserved = _variants(step.get("preservePunctuation", ["？", "！"]), complete=full is not None)
     return "".join(sorted(candidates - preserved))
 
 

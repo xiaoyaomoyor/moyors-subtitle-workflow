@@ -4349,11 +4349,11 @@ class LauncherAssetContractTests(unittest.TestCase):
             script,
         )
         self.assertIn(
-            'toolbox_extra_split_punctuation_hint: "每行一个符号；逗号、句号和换行默认生效，同时对转写后处理的句尾剥除生效。"',
+            'toolbox_extra_split_punctuation_hint: "默认模式沿用各语言和服务原有规则；这里仅追加符号。要删除原有断句符号，请切换到自定义完整列表。"',
             launcher_script,
         )
         self.assertIn(
-            'toolbox_extra_split_punctuation_hint: "One symbol per line; comma, period, and newline apply by default, and also drive tail-punctuation stripping in transcription post-processing."',
+            'toolbox_extra_split_punctuation_hint: "Default mode retains the original language and provider rules. These symbols are additions; choose the custom complete list to remove existing punctuation breaks."',
             launcher_script,
         )
 

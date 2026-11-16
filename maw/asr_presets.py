@@ -4,7 +4,7 @@ import json
 import re
 import uuid
 
-TEXT_FIELDS = frozenset('language maxLen minLen maxWords minWords gapSplit qwenAudioHotwords qwenAudioHotwordWeight openaiKeywords sonioxContextGeneral sonioxContextTerms sonioxContextTranslationTerms doubaoHotwords'.split())
+TEXT_FIELDS = frozenset('splitPunctuationMode splitPunctuation preservePunctuation language maxLen minLen maxWords minWords gapSplit qwenAudioHotwords qwenAudioHotwordWeight openaiKeywords sonioxContextGeneral sonioxContextTerms sonioxContextTranslationTerms doubaoHotwords'.split())
 BOOL_FIELDS = frozenset(('speakerColors', 'qwenKeepDialect', 'openaiDiarize'))
 CONTEXT_FIELDS = {'qwen': 'qwenAudioContext', 'openai': 'openaiPrompt', 'soniox': 'sonioxContextText'}
 
@@ -61,6 +61,12 @@ def validate_options(options):
                     maximum = 5
                 if not re.fullmatch(r'\d+', value) or not minimum <= int(value) <= maximum:
                     raise ValueError('识别预设数值参数无效')
+    from maw.subtitle_punctuation import custom_symbols
+    if options.get('splitPunctuationMode', 'legacy') not in {'legacy', 'custom'}:
+        raise ValueError('断句规则无效')
+    for key in ('splitPunctuation', 'preservePunctuation'):
+        if key in options:
+            custom_symbols(options[key])
     if int(options.get('maxLen') or 24) < int(options.get('minLen') or 5) or int(options.get('maxWords') or 13) < int(options.get('minWords') or 3):
         raise ValueError('短句合并阈值不能大于最大长度')
     return options

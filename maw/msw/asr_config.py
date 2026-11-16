@@ -14,6 +14,7 @@ from maw.gui_config import PROVIDERS, DEFAULT_MODEL_ID, OPENAI_ASR_DEFAULT_BASE_
 
 FIELDS = {'providerId', 'modelId', 'language', 'region', 'workspaceId', 'openaiModel', 'openaiBaseUrl',
           'device', 'localModelPath', 'fireredPunc', 'alignmentModel', 'alignmentModelPath',
+          'splitPunctuationMode', 'splitPunctuation', 'preservePunctuation',
           'maxLen', 'minLen', 'maxWords', 'minWords', 'gapSplit', 'speakerColors', 'qwenAudioContext',
           'qwenAudioHotwords', 'qwenAudioVocabularyId', 'qwenAudioHotwordWeight', 'qwenKeepDialect',
           'openaiPrompt', 'openaiKeywords', 'openaiDiarize', 'sonioxContextGeneral', 'sonioxContextText', 'sonioxContextTerms', 'sonioxContextTranslationTerms', 'doubaoHotwords', 'asrPrompts'}
@@ -44,6 +45,9 @@ def catalog(env_path, *, inspect_models=True):
                 'qwenAudioVocabularyId': stored.get('DASHSCOPE_QWEN_AUDIO_VOCABULARY_ID', ''),
                 'qwenAudioHotwordWeight': stored.get('DASHSCOPE_QWEN_AUDIO_HOTWORD_WEIGHT', '5'),
                 'qwenKeepDialect': False}
+    from maw.postprocess_pipeline import load_postprocess_plan
+    from maw.subtitle_punctuation import recognition_options
+    defaults.update(recognition_options(load_postprocess_plan(env_path)))
     defaults.update(device='auto', localModelPath='', fireredPunc='none', alignmentModel='', alignmentModelPath='')
     defaults.update({k: v for k, v in options.items() if k in FIELDS - CONNECTION_FIELDS})
     model_paths = load_model_paths(env_path, stored=stored)
@@ -157,7 +161,7 @@ def resolve_settings(env_path, raw, media_path=None, *, validate_runtime=True):
                      DASHSCOPE_QWEN_AUDIO_CONTEXT_FILE='')
     request = replace(request, environment_overrides=overrides)
     recipe = {key: getattr(request, key) for key in ('provider', 'model', 'language', 'region', 'workspace_id',
-              'max_len', 'min_len', 'max_words', 'min_words', 'gap_split', 'strip_tail_punct', 'extra_strong_punct', 'speaker_colors',
+              'max_len', 'min_len', 'max_words', 'min_words', 'gap_split', 'strip_tail_punct', 'extra_strong_punct', 'split_punct', 'speaker_colors',
               'qwen_audio_context', 'qwen_audio_hotwords', 'qwen_audio_vocabulary_id', 'qwen_audio_hotword_weight', 'qwen_keep_dialect',
               'soniox_context', 'doubao_hotwords', 'openai_prompt', 'openai_keywords', 'openai_diarize', 'base_url')}
     recipe['environment'] = {key: value for key, value in overrides.items() if key != 'FFMPEG_PATH'}

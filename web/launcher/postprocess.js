@@ -195,16 +195,15 @@
     return String($(id)?.value || "").split(/\r?\n/u).map((value) => value.trim()).filter(Boolean);
   }
 
+  const fullPunctuation=()=>Array.from(new Set(Array.from($('postprocessSplitPunctuation').value).filter(c=>c.trim())));
+  function splitPolicy(){return $('postprocessSplitPunctuationMode').value==='custom'?{splitPunctuation:fullPunctuation()}:{};}
+  function syncPunctuationMode(){const custom=$('postprocessSplitPunctuationMode').value==='custom';$('postprocessSplitPunctuation').disabled=!custom;$('postprocessLegacyPunctuation').hidden=custom;}
   function validateMatchPunctuation() {
-    if ($("postprocessMatchMode")?.value === "text") {
-      setFieldError("postprocessPreservePunctuation", "");
-      return true;
-    }
-    const split = new Set(punctuationLines("postprocessExtraSplitPunctuation"));
-    const missing = punctuationLines("postprocessPreservePunctuation").filter((value) => !split.has(value));
-    const message = missing.length ? `${t("toolbox_preserve_punctuation_invalid")} ${missing.join("、")}` : "";
-    setFieldError("postprocessPreservePunctuation", message);
-    return !message;
+    const valid=value=>value.length<=512&&/^[\p{P}\p{S}\s]*$/u.test(value);
+    const splitError=$('postprocessSplitPunctuationMode').value==='custom'&&!valid($('postprocessSplitPunctuation').value)?t('punctuation_invalid'):'';
+    const preserveError=!valid($('postprocessPreservePunctuation').value)?t('punctuation_invalid'):'';
+    setFieldError('postprocessSplitPunctuation',splitError);setFieldError('postprocessPreservePunctuation',preserveError);
+    return !splitError&&!preserveError;
   }
 
   function hideSplitPreview() {
@@ -235,7 +234,7 @@
     const result = await bridge("read_script_preview", {
       path,
       matchMode: $("postprocessMatchMode").value,
-      extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"),
+      extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"), ...splitPolicy(),
       preservePunctuation: punctuationLines("postprocessPreservePunctuation"),
       cleanMarkdownSymbols: $("postprocessCleanMarkdownSymbols").checked,
     });
@@ -266,7 +265,7 @@
       ...paths,
       scriptPath: path,
       matchMode: mode,
-      extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"),
+      extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"), ...splitPolicy(),
       preservePunctuation: punctuationLines("postprocessPreservePunctuation"),
       cleanMarkdownSymbols: $("postprocessCleanMarkdownSymbols").checked,
     });
@@ -977,7 +976,7 @@
     // S4：总开关移除——任一步骤勾选即视为启用（与模块卡一一对应）。
     const steps = [
         // 模块启用只来自 MSWModules；队列执行器为每项补充文稿和媒体。
-        { id: "match", enabled: stepEnabled("match"), scriptPath: $("postprocessScriptPath").value.trim(), matchMode: $("postprocessMatchMode").value, extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"), preservePunctuation: punctuationLines("postprocessPreservePunctuation"), cleanMarkdownSymbols: Boolean($("postprocessCleanMarkdownSymbols")?.checked) },
+        { id: "match", enabled: stepEnabled("match"), scriptPath: $("postprocessScriptPath").value.trim(), matchMode: $("postprocessMatchMode").value, extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"), ...splitPolicy(), preservePunctuation: punctuationLines("postprocessPreservePunctuation"), cleanMarkdownSymbols: Boolean($("postprocessCleanMarkdownSymbols")?.checked) },
         { id: "replace", enabled: stepEnabled("replace"), replacements: parseReplacements(), replacementSeparator: $("postprocessReplacementSeparator").value, replacementTrim: $("postprocessReplacementTrim").checked, replacementCustomSeparator: $("postprocessReplacementCustomSeparator").value, conversion: $("postprocessConversion").value },
         { id: "proofread", enabled: stepEnabled("proofread"), providerId: $("proofreadProvider").value, ...stepModelOverrides.proofread, customPrompt: getLlmPrompt("proofread") },
         { id: "resegment", enabled: stepEnabled("resegment"), providerId: $("resegmentProvider").value, ...stepModelOverrides.resegment, customPrompt: getLlmPrompt("resegment") },
@@ -1147,6 +1146,9 @@
     const match = byId.get("match") || {};
     $("postprocessMatchMode").value = match.matchMode === "text" ? "text" : "script";
     $("postprocessScriptPath").value = String(match.scriptPath || "");
+    $('postprocessSplitPunctuationMode').value=Array.isArray(match.splitPunctuation)?'custom':'legacy';
+    $('postprocessSplitPunctuation').value=Array.isArray(match.splitPunctuation)?match.splitPunctuation.join(''):'，。！？；,.!?;:：';
+    syncPunctuationMode();
     $("postprocessExtraSplitPunctuation").value = Array.isArray(match.extraSplitPunctuation) ? match.extraSplitPunctuation.join("\n") : "";
     $("postprocessPreservePunctuation").value = Array.isArray(match.preservePunctuation) ? match.preservePunctuation.join("\n") : "";
     $("postprocessCleanMarkdownSymbols").checked = match.cleanMarkdownSymbols !== false;
@@ -1513,6 +1515,7 @@
   $("runToolboxAlignment").addEventListener("click", () => { void runToolboxAlignment(); });
   $("stopToolboxAlignment").addEventListener("click", () => { void stopToolboxAlignment(); });
   $("postprocessScriptPath").addEventListener("input", () => { void refreshScriptPreview(); });
+  for(const id of ['postprocessSplitPunctuationMode','postprocessSplitPunctuation'])$(id).addEventListener('input',()=>{syncPunctuationMode();validateMatchPunctuation();void refreshScriptPreview();persistAutoPlanSoon();});
   $("postprocessExtraSplitPunctuation").addEventListener("input", () => { validateMatchPunctuation(); void refreshScriptPreview(); persistAutoPlanSoon(); });
   $("postprocessPreservePunctuation").addEventListener("input", () => { validateMatchPunctuation(); void refreshScriptPreview(); persistAutoPlanSoon(); });
   $("postprocessCleanMarkdownSymbols").addEventListener("input", () => { void refreshScriptPreview(); persistAutoPlanSoon(); });
@@ -1871,6 +1874,13 @@
   // T3/A8：深链指向真实面板 ID settingsFilesPanel（旧 filesPanel 定位失效）。
   $("openOutputSettings")?.addEventListener("click", () => window.MSWLauncher.openSettings("settingsFilesPanel"));
   window.MSWLauncher.getAutoPostprocessPayload = autoPlanFromControls;
+  window.MSWLauncher.getRecognitionPunctuation=()=>({splitPunctuationMode:$('postprocessSplitPunctuationMode').value,splitPunctuation:$('postprocessSplitPunctuation').value,preservePunctuation:punctuationLines('postprocessPreservePunctuation').join('')});
+  window.MSWLauncher.applyRecognitionPunctuation=values=>{
+    if(Object.hasOwn(values,'splitPunctuationMode'))$('postprocessSplitPunctuationMode').value=values.splitPunctuationMode;
+    if(Object.hasOwn(values,'splitPunctuation'))$('postprocessSplitPunctuation').value=values.splitPunctuation;
+    if(Object.hasOwn(values,'preservePunctuation'))$('postprocessPreservePunctuation').value=Array.from(values.preservePunctuation).join('\n');
+    syncPunctuationMode();validateMatchPunctuation();void refreshScriptPreview();persistAutoPlanSoon();
+  };
   window.MSWLauncher.onLanguageChanged = () => {
     syncProviderOptionLabels();
     if (window.MSWLauncher.config?.postprocessProviders?.length) renderProviderKeyStatus(provider());

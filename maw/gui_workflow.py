@@ -49,6 +49,7 @@ class TranscriptionRequest:
     gap_split: str = ""
     strip_tail_punct: str = ""
     extra_strong_punct: str = ""
+    split_punct: str | None = None
     qwen_audio_context: str = ""
     qwen_audio_hotwords: str = ""
     qwen_audio_hotwords_file: str = ""
@@ -420,6 +421,9 @@ def build_transcribe_command(
     _append_option(command, "--gap-split", request.gap_split)
     # 始终显式下发（含空串）：空串表示共享保留符号配置要求完全不剥尾。
     command.extend(["--strip-tail-punct", request.strip_tail_punct])
+    if request.split_punct is not None:
+        # Keep the explicit empty value: it disables punctuation-based breaks.
+        command.append("--split-punct=" + request.split_punct)
     if request.provider == "qwen" and request.model in QWEN_AUDIO_MODEL_IDS:
         if request.model == QWEN_AUDIO_31_MODEL_ID and request.qwen_keep_dialect:
             command.append("--keep-dialect")

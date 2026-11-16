@@ -11,6 +11,34 @@ async function open(page) {
   await page.evaluate(() => MSWNavigation.show('prefab'));
 }
 
+test('complete punctuation survives an empty custom list and reaches presets, ASR and postprocessing',async({page},info)=>{
+  let plan={version:1,steps:[{id:'match',enabled:false,extraSplitPunctuation:['？','！',','],preservePunctuation:['？','！']}]};
+  await page.exposeFunction('punctuationPlan',value=>{if(value)plan=value;return plan;});
+  await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{
+    MSWLauncher.bridgeOverride=async(method,payload,next)=>{
+      if(method==='get_config')return {...await next(method,payload),postprocessAutoPlan:await window.punctuationPlan()};
+      if(method==='save_postprocess_plan'){await window.punctuationPlan(payload.plan);return {ok:true,plan:payload.plan};}
+      return next(method,payload);
+    };
+  },{once:true}));
+  await open(page);await page.evaluate(()=>MSWLauncher.openSettings('punctuationSettingsSection'));
+  await expect(page.locator('#postprocessSplitPunctuationMode')).toHaveValue('legacy');
+  await page.locator('#postprocessSplitPunctuationMode').selectOption('custom');
+  await page.locator('#postprocessSplitPunctuation').fill('');
+  await page.locator('#postprocessPreservePunctuation').fill('。\n！');
+  await expect.poll(()=>plan.steps.find(s=>s.id==='match').splitPunctuation).toEqual([]);
+  const payload=await page.evaluate(()=>MSWLauncher.getTranscriptionPayload());
+  expect(payload).toMatchObject({splitPunctuationMode:'custom',splitPunctuation:'',preservePunctuation:'。！'});
+  await page.reload();await page.waitForFunction(()=>MSWLauncher.getRecognitionPunctuation?.().splitPunctuationMode==='custom');
+  await page.evaluate(()=>MSWLauncher.openSettings('punctuationSettingsSection'));
+  await expect(page.locator('#postprocessSplitPunctuation')).toHaveValue('');
+  await page.evaluate(()=>MSWLauncher.applyRecognitionPunctuation({splitPunctuationMode:'custom',splitPunctuation:'!？',preservePunctuation:'.'}));
+  await expect(page.locator('#postprocessSplitPunctuation')).toHaveValue('!？');
+  await expect(page.locator('#postprocessPreservePunctuation')).toHaveValue('.');
+  expect(await page.evaluate(()=>MSWLauncher.getAutoPostprocessPayload().steps[0].splitPunctuation)).toEqual(['!','？']);
+  await page.screenshot({path:info.outputPath('complete-punctuation-launcher.png')});
+});
+
 test('segmentation fields restore native preferences after reload including zero and cleared values', async ({ page }) => {
   let saved = {};
   await page.exposeFunction('segmentationPrefs', (values) => { if (values) saved = values; return saved; });

@@ -73,6 +73,7 @@ def main():
         "--keep-punct", action="store_true",
         help="保留每条字幕末尾的逗号和句号（默认去除）",
     )
+    parser.add_argument("--split-punct", default=None, help="完整断句标点；空串仅禁用标点断句，省略沿用语言默认规则")
     parser.add_argument(
         "--strip-tail-punct", default="，。,.",
         help="句尾剥除的标点集合；传空串禁用剥除（默认剥逗号和句号）",
@@ -123,6 +124,8 @@ def main():
         help="默认输出文件名不附加供应商标识段（默认附加 bcut）",
     )
     args = parser.parse_args()
+    from generate_subtitle_qwen_api import configure_split_punct
+    configure_split_punct(args.split_punct)
     if args.audio_track < 0:
         parser.error("--audio-track 必须是非负整数")
     if args.default_audio_track is not None and args.default_audio_track < 0:

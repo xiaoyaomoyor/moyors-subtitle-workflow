@@ -117,6 +117,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-words", type=int, default=DEFAULT_MAX_WORDS, help="英文单条字幕最大单词数")
     parser.add_argument("--min-words", type=int, default=DEFAULT_MIN_WORDS, help="英文短句合并阈值（单词数）")
     parser.add_argument("--gap-split", type=int, default=800, help="静音超过多少毫秒时切句")
+    parser.add_argument("--split-punct", default=None, help="完整断句标点；空串仅禁用标点断句，省略沿用语言默认规则")
     parser.add_argument(
         "--strip-tail-punct", default="，。,.",
         help="句尾剥除的标点集合；传空串禁用剥除（默认剥逗号和句号）",
@@ -184,6 +185,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     _apply_msw_env_aliases()
     configure_utf8_stdio()
     args = build_parser().parse_args(argv)
+    from generate_subtitle_qwen_api import configure_split_punct
+    configure_split_punct(args.split_punct)
     input_path = Path(args.input).expanduser().resolve()
     if not input_path.exists() or not input_path.is_file():
         print(f"错误: 输入文件不存在: {input_path}")

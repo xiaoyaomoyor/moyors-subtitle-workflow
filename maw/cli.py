@@ -101,6 +101,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument("--diarize", action="store_true", help="OpenAI diarized_json")
     parser.add_argument("--model", help="覆盖当前供应商的 ASR 模型")
     parser.add_argument("--base-url", help="OpenAI 兼容 ASR Base URL（仅适用于 --provider openai；默认读取 .env）")
+    parser.add_argument("--split-punct", default=None, help="完整断句标点；空串关闭标点断句")
     parser.add_argument("--extra-strong-punct", default="", help="阿里云额外强断句符号")
     parser.add_argument("--max-len", type=int, help="每条字幕最大字数")
     parser.add_argument("--min-len", type=int, help="句号间最短字数")
@@ -373,6 +374,8 @@ def _generator_args(args: argparse.Namespace, input_path: Path, srt_path: Path) 
         result.extend(["--keyword", keyword])
     if args.diarize:
         result.append("--diarize")
+    if args.split_punct is not None:
+        result.append("--split-punct=" + args.split_punct)
     if args.extra_strong_punct:
         if args.provider != "qwen":
             raise ValueError("--extra-strong-punct 仅适用于 qwen")

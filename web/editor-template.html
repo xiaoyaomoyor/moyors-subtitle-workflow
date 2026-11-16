@@ -2000,6 +2000,7 @@ __WAVEFORM_CSS__
 <input type="file" id="load-srt-file" accept=".srt,text/plain" style="display:none">
 
 <div class="editor-workspace waveform-basic" id="editor-workspace">
+  <section class="msw-review-panel" id="review-panel" aria-label="复核列表" hidden><div id="review-content"></div></section>
   <section class="msw-subtitle-properties" id="subtitle-properties" aria-label="属性列表" hidden><div id="subtitle-properties-content"></div></section>
   <section class="msw-asset-library" id="asset-library" aria-label="素材库" hidden>
     <div class="msw-asset-toolbar">
@@ -2342,6 +2343,10 @@ __WAVEFORM_CSS__
           <label>英文最大单词数 <input id="msw-asr-maxWords" type="number" min="1"></label>
           <label>英文短句合并阈值 <input id="msw-asr-minWords" type="number" min="1"></label>
           <label>停顿切句阈值（毫秒）<input id="msw-asr-gapSplit" type="number" min="0"></label>
+          <label>断句规则<select id="msw-asr-splitPunctuationMode"><option value="legacy">默认规则（兼容原配置）</option><option value="custom">自定义完整列表</option></select></label>
+          <label>完整断句符号<input id="msw-asr-splitPunctuation" maxlength="512" value="，。！？；,.!?;:：" disabled></label>
+          <label>句尾保留符号<input id="msw-asr-preservePunctuation" maxlength="512" value="？！"></label>
+          <p class="msw-processing-hint">自定义列表可移除任何标点，清空则不按标点断句；换行、长度、停顿及服务段落边界仍生效。句尾保留符号独立设置，半角与全角等效；不改写已有字幕。</p>
           <label data-asr-context>Qwen 上下文（最多 400 字）<textarea id="msw-asr-qwenAudioContext" maxlength="400"></textarea></label>
           <label data-asr-hotwords>即时热词 <textarea id="msw-asr-qwenAudioHotwords"></textarea></label>
           <div data-asr-openai class="msw-processing-fields">

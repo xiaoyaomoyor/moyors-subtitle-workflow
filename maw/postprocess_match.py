@@ -27,6 +27,8 @@ from scripts.mosp_match_text import (
 )
 
 
+from maw.subtitle_punctuation import split_symbols as effective_split_symbols
+
 SCRIPT_EXTENSIONS = frozenset({".txt", *MARKDOWN_EXTENSIONS})
 MIN_MATCH_COVERAGE = 0.55
 DEFAULT_SPLIT_PUNCTUATION = frozenset({"，", "。", ",", ".", "\n"})
@@ -60,6 +62,7 @@ class ScriptMatchRequest:
     preserve_punctuation: tuple[str, ...] = ()
     match_mode: str = "script"
     clean_markdown_symbols: bool = True
+    split_punctuation: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +97,7 @@ def run_script_match(request: ScriptMatchRequest) -> SubtitleArtifact:
         extra_split_punctuation,
         preserve_punctuation,
         clean_markdown_symbols=request.clean_markdown_symbols,
+        split_punctuation=request.split_punctuation,
     )
     if (
         request.match_mode == "script"
@@ -105,12 +109,13 @@ def run_script_match(request: ScriptMatchRequest) -> SubtitleArtifact:
             prepared_script,
             request.extra_split_punctuation,
             request.preserve_punctuation,
+            request.split_punctuation,
         )
     else:
         matched, warnings = _match_project(
             project,
             prepared_script,
-            DEFAULT_SPLIT_PUNCTUATION | frozenset(request.extra_split_punctuation),
+            effective_split_symbols(request.extra_split_punctuation, request.split_punctuation),
             frozenset(request.preserve_punctuation),
             request.match_mode,
         )
@@ -137,23 +142,16 @@ def prepare_script_text(
     preserve_punctuation: tuple[str, ...] = (),
     *,
     clean_markdown_symbols: bool = False,
+    split_punctuation: tuple[str, ...] | None = None,
 ) -> tuple[str, str]:
     """Validate and apply custom manuscript punctuation before matching."""
 
     prepared_text = clean_markdown_inline_symbols(script_text) if clean_markdown_symbols else script_text
     split_symbols = tuple(symbol for symbol in extra_split_punctuation if symbol)
     preserve_symbols = tuple(symbol for symbol in preserve_punctuation if symbol)
-    # 基础断句集（逗号、句号、换行）始终生效；问号和感叹号由额外
-    # 断句符号配置提供。
-    missing = tuple(
-        symbol
-        for symbol in preserve_symbols
-        if symbol not in split_symbols and symbol not in DEFAULT_SPLIT_PUNCTUATION
-    )
-    if missing:
-        raise ValueError(
-            "保留符号必须来自额外断句符号：" + "、".join(missing)
-        )
+    if split_punctuation is not None:
+        effective = effective_split_symbols((), split_punctuation)
+        return prepared_text, f"自定义断句符号：{len(effective) - 1} 个；换行仍断句。"
     if not split_symbols:
         return prepared_text, "未配置额外断句符号。"
     return prepared_text, f"额外断句符号：{len(split_symbols)} 个；保留：{len(preserve_symbols)} 个。"
@@ -166,6 +164,7 @@ def processed_script_text(
     extra_split_punctuation: tuple[str, ...] = (),
     preserve_punctuation: tuple[str, ...] = (),
     clean_markdown_symbols: bool = True,
+    split_punctuation: tuple[str, ...] | None = None,
 ) -> str:
     """Return the same manuscript representation that matching will consume.
 
@@ -180,11 +179,12 @@ def processed_script_text(
         extra_split_punctuation if match_mode == "script" else (),
         preserve_punctuation if match_mode == "script" else (),
         clean_markdown_symbols=clean_markdown_symbols,
+        split_punctuation=split_punctuation,
     )
     normalized_text = prepared_text.replace("\r\n", "\n").replace("\r", "\n")
     if match_mode == "text":
         return normalized_text
-    split_punctuation = DEFAULT_SPLIT_PUNCTUATION | frozenset(extra_split_punctuation)
+    split_punctuation = effective_split_symbols(extra_split_punctuation, split_punctuation)
     preserved = frozenset(preserve_punctuation)
     return "\n".join(_split_script_segments(normalized_text, split_punctuation, preserved))
 
@@ -221,8 +221,9 @@ def _match_project_with_character_timings(
     script_text: str,
     extra_split_punctuation: tuple[str, ...],
     preserve_punctuation: tuple[str, ...],
+    split_punctuation: tuple[str, ...] | None = None,
 ) -> tuple[JsonDict, tuple[str, ...]]:
-    split_punctuation = DEFAULT_SPLIT_PUNCTUATION | frozenset(extra_split_punctuation)
+    split_punctuation = effective_split_symbols(extra_split_punctuation, split_punctuation)
     preserved = frozenset(preserve_punctuation)
     if any(len(symbol) != 1 for symbol in split_punctuation | preserved):
         return _match_project(project, script_text, split_punctuation, preserved, "script")

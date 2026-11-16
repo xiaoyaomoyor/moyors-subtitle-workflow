@@ -71,13 +71,14 @@
   const RENDERER_PRESETS = ['classic', 'wave-right', 'custom'];
   // 内置工作区 id：下拉框可选项；custom 预设都由各自的布局树渲染。
   const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'three-fold', 'cinema'];
-  const MODULE_IDS = ['player', 'panel', 'cues', 'wave', 'assets', 'properties'];
-  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库', properties: '属性列表' };
+  const MODULE_IDS = ['player', 'panel', 'cues', 'wave', 'assets', 'properties', 'reviews'];
+  const MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库', properties: '属性列表', reviews: '复核列表' };
   // 模块标签叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
   const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   // 工作区窗口图标：16x16 线性 SVG，stroke 跟随 currentColor（强调色）。
   // 字幕编辑区用 T 形文字图标，与字幕列表的多行列表图标区分。
   const MODULE_ICONS = {
+    reviews: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2h10l-2 3 2 3H3"/></svg>',
     properties: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12M5 2v4M11 6v4M7 10v4"/></svg>',
     assets: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4h5l1-2h7v12h-13z"/><path d="M5 8v3M8 6v6M11 8v3"/></svg>',
     player: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6.5 5.8v4.4L10.4 8z" class="dock-icon-fill"/></svg>',
@@ -203,7 +204,7 @@
     layoutColumnPercent: 30,
     layoutRows: [...DEFAULT_LAYOUT_ROWS],
     layoutTree: DEFAULT_RIGHT_LAYOUT_TREE,
-    hiddenModules: ['assets', 'properties'],
+    hiddenModules: ['assets', 'properties', 'reviews'],
     layoutEditing: false,
     waveformScale: 1,
     waveformScaleAuto: true,
@@ -398,6 +399,7 @@
   function normalizeModuleOrder(value) {
     if (Array.isArray(value) && value.length === 4 && new Set(value).size === 4 && value.every(id => MODULE_IDS.includes(id) && id !== 'assets')) value = [...value, 'assets'];
     if (Array.isArray(value) && value.length === 5 && new Set(value).size === 5 && value.every(id => MODULE_IDS.includes(id) && id !== 'properties')) value = [...value, 'properties'];
+    if (Array.isArray(value) && value.length === 6 && new Set(value).size === 6 && value.every(id => MODULE_IDS.includes(id) && id !== 'reviews')) value = [...value, 'reviews'];
     return Array.isArray(value) && value.length === MODULE_IDS.length
       && value.every((id) => MODULE_IDS.includes(id))
       && new Set(value).size === MODULE_IDS.length
@@ -1853,6 +1855,7 @@
       this.pane = document.getElementById('waveform-pane');
       this.assetLibrary = document.getElementById('asset-library');
       this.properties = document.getElementById('subtitle-properties');
+      this.reviews = document.getElementById('review-panel');
       this.scroll = document.getElementById('waveform-scroll');
       this.content = document.getElementById('waveform-content');
       this.empty = document.getElementById('waveform-empty');
@@ -2413,7 +2416,7 @@
       this.settings.layoutTree = normalized.tree;
       this.settings.layoutEditing = false;
       // 预设布局固定展示全部四个模块：清掉标签/关闭留下的隐藏状态。
-      this.settings.hiddenModules = ['assets', 'properties'];
+      this.settings.hiddenModules = ['assets', 'properties', 'reviews'];
       observeSettings(this.settings);
       this.applyLayout();
       this.render();
@@ -2536,7 +2539,9 @@
       if (!MODULE_IDS.includes(id)) return false;
       if (!this.getHiddenModules().includes(id)) return false;
       let nextTree;
-      if (id === 'properties' && collectLayoutModules(this.settings.layoutTree).includes('panel')) {
+      if (id === 'reviews' && collectLayoutModules(this.settings.layoutTree).includes('cues')) {
+        nextTree = appendModuleAsTab(this.settings.layoutTree, 'cues', id);
+      } else if (id === 'properties' && collectLayoutModules(this.settings.layoutTree).includes('panel')) {
         nextTree = appendModuleAsTab(this.settings.layoutTree, 'panel', id);
         // The text editor is often a very short strip. Give the new inspector
         // usable room on first opening; existing larger/custom slots stay put.
@@ -2649,6 +2654,7 @@
         wave: this.pane,
         assets: this.assetLibrary,
         properties: this.properties,
+        reviews: this.reviews,
       };
       MODULE_IDS.forEach((id) => {
         const element = elements[id];
@@ -2891,6 +2897,7 @@
         wave: this.pane,
         assets: this.assetLibrary,
         properties: this.properties,
+        reviews: this.reviews,
       };
       Object.entries(elements).forEach(([id, element]) => {
         if (!element) return;
@@ -3118,12 +3125,13 @@
         wave: this.pane,
         assets: this.assetLibrary,
         properties: this.properties,
+        reviews: this.reviews,
       };
       if (!this.customLayoutRoot?.isConnected) return;
       Object.entries(elements).forEach(([id, element]) => {
         if (element) {
           element.style.gridArea = '';
-          element.hidden = ['assets','properties'].includes(id);
+          element.hidden = ['assets','properties','reviews'].includes(id);
           this.workspace.insertBefore(element, this.customLayoutRoot);
         }
       });
@@ -3140,6 +3148,7 @@
         wave: this.pane,
         assets: this.assetLibrary,
         properties: this.properties,
+        reviews: this.reviews,
       };
       if (node.type === 'tabs') {
         const slot = document.createElement('div');
@@ -3292,6 +3301,7 @@
         wave: this.pane,
         assets: this.assetLibrary,
         properties: this.properties,
+        reviews: this.reviews,
       };
       Object.entries(moduleElements).forEach(([id, element]) => {
         if (!renderedModules.has(id) && element?.isConnected) element.remove();
@@ -4788,6 +4798,7 @@
       this.appendGapBlocks(row, startMs, endMs);
       this.appendCueBlocks(row, startMs, endMs);
       this.audioLayer?.renderRow(row, startMs, endMs);
+      window.MSWE?.resolve('reviews')?.renderRow(row, startMs, endMs);
 
       row.addEventListener('pointerdown', (event) => {
         // 每次按下时读取最新模式；设置切换会重绘空隙块，但不会重建仍在

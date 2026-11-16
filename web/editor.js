@@ -4,12 +4,13 @@ const CANONICAL_PROJECT_FIELDS = new Set([
   'schema', 'media', 'language', 'language_source', 'split_mode', 'timestamp_granularity',
   'model', 'sticker_root', 'timebase', 'segments', 'multi_subtitle', 'overlay_track', 'waveform',
   'media_metadata', 'media_time_reference', 'spectral', 'waveform_reapeaks', 'loudness', 'gap_remove',
-  'script_alignment', 'workspace', 'preview', 'msw', 'subtitle_tracks', 'editor_state',
+  'script_alignment', 'workspace', 'preview', 'msw', 'subtitle_tracks', 'editor_state', 'review_markers',
 ]);
 function getProjectExtensionFields(project) {
   return Object.fromEntries(Object.entries(project).filter(([key]) => !CANONICAL_PROJECT_FIELDS.has(key)));
 }
 function validateProjectForLoad(project) {
+  window.MSWReview.validate(project.review_markers);
   if((productionFlatRequested||window.MSWFlatTrialRequested)&&project?.schema===window.MSWFlatSubtitles.SCHEMA){window.MSWFlatSubtitles.validate(project);const extension=window.MSWProject.normalize(project.msw);window.MSWAudio.assertCapacity(extension);return extension;}
   if (!(fixedTracksRequested && project?.schema === fixedTrackCore.SCHEMA) && !window.AsrEditorUtils.supportsProjectSchema(project)) {
     const message = '此工程的格式版本不受支持，请使用对应版本的编辑器打开';
@@ -1889,6 +1890,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='review-markers')return {kind,label,value:structuredClone(DATA.review_markers)};
   if(kind==='subtitle-edit')return {...sourceRecord,forward:!sourceRecord.forward,view:snapshotEditorSelection()};
   if(kind==='subtitle-text')return window.MSWFindEdit.capture(sourceRecord,label);
   if(kind==='subtitle-insertion')return productionInsertionRecord(sourceRecord.patch,!sourceRecord.present,label);
@@ -2015,6 +2017,11 @@ function applyHistoryRecord(record) {
     refreshSubtitlePreview(); scheduleAutoSaveFlush();
     window.dispatchEvent(new Event('msw:burn-style'));
     return true;
+  }
+  if (record.kind === 'review-markers') {
+    if(record.value===undefined)delete DATA.review_markers;else DATA.review_markers=structuredClone(record.value);
+    projectImportDirty=true;scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:reviews-changed'));return true;
   }
   if (record.kind === 'source-gain') {
     if (record.mediaKey !== sourceGainMediaKey()) { flashHint('媒体已改变，未恢复旧媒体的试听音量', 'warning'); return false; }
@@ -11765,6 +11772,7 @@ function projectDraftFingerprint({includePlayhead=true}={}) {
     extensionEditingState&&[extensionEditingState.trackId,extensionEditingState.index,extensionEditingState.textEl.innerText]]);
 }
 function buildSavedProjectJson() {
+  window.MSWE?.resolve('reviews')?.commitEdit();
   captureProjectPlayhead();
   window.MSWE?.resolve('asset-library')?.commitEdit();
   const host=window.MSWE?.resolve('persistence-host'),key=host?.draftFingerprint();
@@ -16197,6 +16205,7 @@ function buildJson({compact=false}={}) {
   const out = {
     schema: DATA.schema,
     ...projectExtensionFields,
+    ...(DATA.review_markers ? {review_markers:structuredClone(DATA.review_markers)} : {}),
     ...(DATA.editor_state ? {editor_state: structuredClone(DATA.editor_state)} : {}),
     ...(layerMode() ? { subtitle_layers: structuredClone(DATA.subtitle_layers) } : {}),
     ...(fixedTrackMode() ? { subtitle_tracks: structuredClone(DATA.subtitle_tracks) } : {}),
@@ -19119,6 +19128,7 @@ function applyCanonicalProject(data, filename) {
   projectExtensionFields = getProjectExtensionFields(data);
   DATA.schema = data.schema || window.AsrEditorUtils.PROJECT_SCHEMA;
   DATA.msw = msw;
+  if(data.review_markers)DATA.review_markers=structuredClone(data.review_markers);else delete DATA.review_markers;
   mswProjectGeneration += 1;
   currentCuePanelIdx = -1;
   currentCuePanelKind = 'main';
@@ -23775,7 +23785,7 @@ document.getElementById('non-subtitle-gap-apply')?.addEventListener('click', () 
 });
 
 // === 「窗口 → 显示窗口」：找回已关闭的工作区窗口 ===
-const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库', properties: '属性列表' };
+const DOCK_MODULE_LABELS = { player: '媒体播放器', panel: '字幕编辑器', cues: '字幕列表', wave: '波形显示器', assets: '素材库', properties: '属性列表', reviews: '复核列表' };
 function rebuildShowModuleMenu() {
   const menu = document.getElementById('show-module-menu');
   const submenu = document.getElementById('show-module-submenu');
@@ -24198,6 +24208,16 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
   },
 }));
 window.MSWE?.register('processing-host', () => Object.freeze({
+  commitReviews: (value,label) => {
+    window.MSWReview.validate(value);
+    if(JSON.stringify(DATA.review_markers)===JSON.stringify(value))return false;
+    commitProcessingEdits();
+    editorHistory.push(snapshotCurrentForKind('review-markers',label));updateUndoRedoButtons();
+    DATA.review_markers=structuredClone(value);projectImportDirty=true;scheduleAutoSaveFlush();
+    window.dispatchEvent(new Event('msw:reviews-changed'));return true;
+  },
+  isPlaying: isPlaybackActive,
+  pause: pauseTimelinePlayback,
   ensureMediaProject: () => ensureProjectCheckpointForImport(null, { usePicker: false }),
   get waveform() { return waveformEditor; },
   applyWaveform: (payload, layers = {}) => {

@@ -48,6 +48,7 @@ from maw.postprocess_llm import (
     preset_by_id,
 )
 from maw.postprocess_match import ScriptMatchRequest, run_script_match
+from maw.subtitle_punctuation import custom_symbols
 from maw.postprocess_ocr import OcrDedupArtifact, OcrDedupRequest, OcrRegion, run_ocr_dedup
 from maw.ocr_runtime import OCR_MODEL_ID, run_ocr_in_runtime
 from maw.project_preview import JsonValue
@@ -177,7 +178,9 @@ def normalize_plan(raw: object) -> dict[str, object]:
                 step[key] = [str(item).strip() for item in value if str(item).strip()] if isinstance(value, Sequence) and not isinstance(value, (str, bytes)) else []
             else:
                 step[key] = str(value or "").strip()
-        if step_id == "match":
+        if step_id == "match" and source.get("splitPunctuation") is not None:
+            step["splitPunctuation"] = custom_symbols(source["splitPunctuation"])
+        if step_id == "match" and "splitPunctuation" not in step:
             extra = step.get("extraSplitPunctuation")
             preserve = step.get("preservePunctuation")
             if isinstance(extra, list) and isinstance(preserve, list):
@@ -1014,6 +1017,7 @@ def _run_step(
             output_directory=output_directory,
             media_path=media_path,
             match_mode=str(step.get("matchMode") or "script"),
+            split_punctuation=step.get("splitPunctuation"),
             extra_split_punctuation=tuple(str(value) for value in step.get("extraSplitPunctuation", ()) if str(value)),
             preserve_punctuation=tuple(str(value) for value in step.get("preservePunctuation", ()) if str(value)),
             clean_markdown_symbols=step.get("cleanMarkdownSymbols", True) is not False,

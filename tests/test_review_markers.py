@@ -1,0 +1,34 @@
+import copy
+import unittest
+
+from maw.msw.review_markers import SCHEMA, validate
+from maw.msw.flat_subtitles import migrate_project
+from maw.project import normalize_project
+
+
+class ReviewMarkersTest(unittest.TestCase):
+    def sample(self):
+        return {'schema': SCHEMA, 'items': [{'id': 'r', 'start_ms': 1000, 'end_ms': 2000,
+                'name': '核对', 'note': '备注', 'color': '#e7b35a', 'status': 'pending',
+                'cue_ids': ['deleted'], 'track_id': 'deleted'}]}
+
+    def test_normalization_retains_independent_notes(self):
+        p = migrate_project({'segments': [{'id': 'a', 'start': 0, 'end': 3000, 'text': 'hello'}]})
+        before = copy.deepcopy(p['subtitles'])
+        p['review_markers'] = self.sample()
+        result = normalize_project(p)
+        self.assertEqual(result['review_markers'], p['review_markers'])
+        self.assertEqual(result['subtitles'], before)
+
+    def test_invalid_data_is_rejected_without_coercion(self):
+        for patch in ({'start_ms': True}, {'start_ms': -1}, {'end_ms': 1000}, {'end_ms': None},
+                      {'status': 'done'}, {'color': ['#e7b35a']}, {'cue_ids': ['a', 'a']},
+                      {'note': '😀' * 1001}):
+            value = self.sample()
+            value['items'][0].update(patch)
+            with self.subTest(patch=patch), self.assertRaises(ValueError):
+                validate(value)
+        value = self.sample()
+        value['items'] *= 2
+        with self.assertRaises(ValueError):
+            validate(value)

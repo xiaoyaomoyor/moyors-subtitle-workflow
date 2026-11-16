@@ -3,6 +3,7 @@
 (function(global) {
   'use strict';
   const old = typeof module !== 'undefined' && module.exports ? require('./msw-subtitle-tracks.js') : global.MSWSubtitleTracks;
+  const reviews = typeof module !== 'undefined' && module.exports ? require('./msw-review-core.js') : global.MSWReview;
   const SCHEMA='msw.project.v4', MODEL_SCHEMA='msw.subtitles.v1', MIGRATION_SCHEMA='msw.subtitle-migration.v1';
   const cueStyle=typeof module!=='undefined'&&module.exports?require('./msw-cue-style.js'):global.MSWCueStyle;
   const motion=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-animation.js'):global.MSWSubtitleAnimation;
@@ -67,6 +68,7 @@
   function validate(project) {
     jsonValue(project);
     if(!object(project)||project.schema!==SCHEMA)fail('不支持的工程版本');
+    if(Object.hasOwn(project,'review_markers'))reviews.validate(project.review_markers);
     const speakers=global.MSWSpeaker||(typeof require==='function'?require('./msw-speaker.js'):null);
     if(project.preview&&Object.hasOwn(project.preview,'speaker_palette')&&speakers&&!speakers.valid(project.preview.speaker_palette))fail('说话人色系配置无效');
     if(project.preview?.speaker_label_export!==undefined&&typeof project.preview.speaker_label_export!=='boolean')fail('说话人名称导出选项无效');

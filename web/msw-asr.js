@@ -7,6 +7,7 @@
   const pageId=global.MSWProject.id('asr-page'),token=()=>`${pageId}.${host.generation}`;
   const fields=['providerId','modelId','language','region','workspaceId','openaiModel','openaiBaseUrl','maxLen','minLen',
     'device','localModelPath','fireredPunc','alignmentModel','alignmentModelPath',
+    'splitPunctuationMode','splitPunctuation','preservePunctuation',
     'maxWords','minWords','gapSplit','qwenAudioContext','qwenAudioHotwords','qwenAudioVocabularyId','qwenAudioHotwordWeight',
     'openaiPrompt','openaiKeywords','sonioxContextGeneral','sonioxContextText','sonioxContextTerms','sonioxContextTranslationTerms','doubaoHotwords'];
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
@@ -18,7 +19,7 @@
     getOptions:()=>({...Object.fromEntries(fields.map(key=>[key,el(key).value])),speakerColors:el('speakerColors').checked,qwenKeepDialect:el('qwenKeepDialect').checked,openaiDiarize:el('openaiDiarize').checked}),
     context:()=>{const p=providers.find(p=>p.id===el('providerId').value),m=p?.models.find(m=>m.id===el('modelId').value)||{};
       return {id:p?.id,model:m,languages:(m.languages||[]).map(x=>x.id),multiLanguage:p?.multiLanguage,caps:openaiOptions(),diarize:el('openaiDiarize').checked};},
-    applyOptions:values=>{for(const [key,value] of Object.entries(values)){const node=el(key);if(node){if(node.type==='checkbox')node.checked=value;else node.value=value;}}updateScope();},
+    applyOptions:values=>{for(const [key,value] of Object.entries(values)){const node=el(key);if(node){if(node.type==='checkbox')node.checked=value;else node.value=value;}}syncPunctuation();updateScope();},
     onPrompts:value=>{for(const [id,key] of Object.entries({qwen:'qwenAudioContext',openai:'openaiPrompt',soniox:'sonioxContextText'}))el(key).value=global.MSWAsrPresets.promptFor(value,id);}
   });
   for(const key of ['qwenAudioContext','openaiPrompt','sonioxContextText'])el(key).closest('label').classList.add('asr-prompt-legacy');
@@ -43,7 +44,10 @@
       openaiPrompt:caps?.prompt&&!diarize?el('openaiPrompt').value:'',
       openaiKeywords:caps?.keywords&&!diarize?el('openaiKeywords').value:''};
   }
+  function syncPunctuation(){el('splitPunctuation').disabled=busy||Boolean(loading)||el('splitPunctuationMode').value!=='custom';}
+  el('splitPunctuationMode').addEventListener('change',syncPunctuation);
   function selectProvider(modelId=null) {
+    syncPunctuation();
     const provider=providers.find(item=>item.id===el('providerId').value);
     if (!provider) return;
     options(el('modelId'),provider.models,modelId||provider.models[0].id);
@@ -138,6 +142,7 @@
     el('save-settings').disabled=!available||busy||Boolean(loading)||!providers.length;
     el('save-environment').disabled=!available||busy||Boolean(loading);
     for (const input of document.querySelectorAll('#msw-asr-settings input,#msw-asr-settings select,#msw-asr-settings textarea,#msw-asr-environment-fields input,#msw-asr-environment-fields select')) input.disabled=busy||Boolean(loading);
+    syncPunctuation();
     presetUi?.refresh();
     return snapshot;
   }

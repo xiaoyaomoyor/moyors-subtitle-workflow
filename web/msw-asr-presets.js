@@ -2,9 +2,11 @@
 (function(global){
   'use strict';
   const clone=v=>JSON.parse(JSON.stringify(v)),same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-  const names={language:'语言',maxLen:'最大字数',minLen:'短句合并阈值',maxWords:'英文最大单词数',minWords:'英文短句合并阈值',gapSplit:'停顿切句阈值（毫秒）',speakerColors:'区分说话人',qwenKeepDialect:'保留方言表达',qwenAudioHotwords:'Qwen 热词',qwenAudioHotwordWeight:'热词权重',openaiKeywords:'OpenAI Keywords',openaiDiarize:'OpenAI 说话人',sonioxContextGeneral:'Soniox General',sonioxContextTerms:'Soniox Terms',sonioxContextTranslationTerms:'Soniox Translation Terms',doubaoHotwords:'豆包热词'};
+  const names={splitPunctuationMode:'断句规则',splitPunctuation:'完整断句符号',preservePunctuation:'句尾保留符号',language:'语言',maxLen:'最大字数',minLen:'短句合并阈值',maxWords:'英文最大单词数',minWords:'英文短句合并阈值',gapSplit:'停顿切句阈值（毫秒）',speakerColors:'区分说话人',qwenKeepDialect:'保留方言表达',qwenAudioHotwords:'Qwen 热词',qwenAudioHotwordWeight:'热词权重',openaiKeywords:'OpenAI Keywords',openaiDiarize:'OpenAI 说话人',sonioxContextGeneral:'Soniox General',sonioxContextTerms:'Soniox Terms',sonioxContextTranslationTerms:'Soniox Translation Terms',doubaoHotwords:'豆包热词'};
   const english={'识别预设':'Recognition presets','背景与提示词':'Background and prompts','通用背景':'Shared background','服务专用覆盖':'Provider overrides','保存背景':'Save background','重新读取':'Reload','当前参数':'Current settings','已修改':'Modified','未保存':'Unsaved','已保存':'Saved','搜索预设':'Search presets','已删除':'Deleted','名称':'Name','描述':'Description','参数预览':'Settings preview','加载预设':'Load preset','另存当前参数':'Save current as new','更新为当前参数':'Update from current','保存名称与描述':'Save name and description','复制':'Duplicate','删除':'Delete','恢复':'Restore','关闭':'Close','暂无预设':'No presets','选择预设以预览':'Select a preset to preview','新预设':'New preset','副本':'Copy','启用':'Enabled','关闭选项':'Off','默认':'Default','已加载':'Loaded','未应用的参数':'Settings not applied','已删除，可在“已删除”中恢复':'Deleted. Restore it from Deleted.','当前模型不发送背景文本':'This model does not send background text','Qwen 最多 400 字':'Qwen: up to 400 characters','Soniox 上下文合计最多 10000 字':'Soniox: up to 10,000 characters across all context fields','背景随任务固定；保存后供两个入口复用。':'Each task keeps its own background. Save to reuse it in both interfaces.','加载仅修改参数，保留当前服务、模型和识别范围。':'Loading updates settings and keeps the current provider, model and scope.','预设不包含密钥、服务地址、业务空间、路径或账号热词表。':'Presets exclude keys, endpoints, workspaces, paths and account vocabulary IDs.','语言':'Language','最大字数':'Maximum characters','短句合并阈值':'Short segment threshold','英文最大单词数':'Maximum English words','英文短句合并阈值':'Short English segment threshold','停顿切句阈值（毫秒）':'Pause threshold (ms)','区分说话人':'Identify speakers','保留方言表达':'Preserve dialect','Qwen 热词':'Qwen hotwords','热词权重':'Hotword weight','OpenAI 说话人':'OpenAI diarization','豆包热词':'Doubao hotwords','识别预设与背景':'Recognition presets and background','请填写预设名称':'Enter a preset name','正在处理…':'Working…','刷新会放弃尚未保存的背景修改。':'Reloading discards unsaved background changes.','继续':'Continue'};
   Object.assign(english,{
+    '断句规则':'Segmentation rules','完整断句符号':'Complete split punctuation','句尾保留符号':'Preserved trailing punctuation',
+    '自定义完整列表':'Custom complete list','默认规则（兼容原配置）':'Language defaults (compatible)','不按标点断句':'No punctuation breaks','不保留句尾标点':'Strip trailing punctuation',
     '配置已在其他窗口更新；本窗口改动已保留，请刷新后重试':'Settings changed in another window. Your draft is preserved; reload before saving again.',
     '已存在同名识别预设':'A preset with this name already exists.',
     '请填写有效的预设名称（最多 80 字）':'Enter a valid preset name (up to 80 characters).',
@@ -19,7 +21,7 @@
     const applied={},skipped=[];
     const diarize=ctx.caps?.customDiarize&&Object.hasOwn(options,'openaiDiarize')?options.openaiDiarize:ctx.diarize;
     for(const [key,value] of Object.entries(options)){
-      let allowed=key==='asrPrompts'||['maxLen','minLen','maxWords','minWords','gapSplit'].includes(key);
+      let allowed=key==='asrPrompts'||['maxLen','minLen','maxWords','minWords','gapSplit','splitPunctuationMode','splitPunctuation','preservePunctuation'].includes(key);
       if(key==='language')allowed=!value||value.split(',').every(x=>ctx.languages.includes(x))&&(ctx.multiLanguage||!value.includes(','));
       if(key==='speakerColors')allowed=Boolean(ctx.model.supportsSpeaker);
       if(key.startsWith('qwen'))allowed=ctx.id==='qwen'&&(key==='qwenKeepDialect'?ctx.model.supportsKeepDialect:ctx.model.supportsHotwords);
@@ -75,9 +77,12 @@
       }
       if(!list.children.length)list.textContent=t('暂无预设');
     }
-    function preview(options){const lines=[];for(const [key,value] of [['asrPrompts',options.asrPrompts],...Object.entries(options).filter(([key,value])=>key!=='asrPrompts'&&value!=='')]){
+    function preview(options){const lines=[];for(const [key,value] of [['asrPrompts',options.asrPrompts],...Object.entries(options).filter(([key,value])=>key!=='asrPrompts'&&(value!==''||['splitPunctuation','preservePunctuation'].includes(key)))]){
       if(value===undefined)continue;
       if(key==='asrPrompts'){lines.push(`${t('通用背景')}\n${value.text||'—'}`);for(const [id,content] of Object.entries(value.overrides))lines.push(`${id} · ${t('服务专用覆盖')}\n${content||'—'}`);}
+      else if(key==='splitPunctuationMode')lines.push(`${t(names[key])}: ${t(value==='custom'?'自定义完整列表':'默认规则（兼容原配置）')}`);
+      else if(key==='splitPunctuation') {if(options.splitPunctuationMode==='custom')lines.push(`${t(names[key])}: ${value||t('不按标点断句')}`);}
+      else if(key==='preservePunctuation')lines.push(`${t(names[key])}: ${value||t('不保留句尾标点')}`);
       else lines.push(`${t(names[key]||key)}: ${typeof value==='boolean'?t(value?'启用':'关闭选项'):value||t('默认')}`);
     }return lines.join('\n');}
     function renderDetail(fill=false){

@@ -9,6 +9,15 @@
   // The editor keeps one source template. Exact UI strings are translated at
   // the DOM boundary; project content is excluded from traversal below.
   const EN_TEXT = {
+    '复核列表':'Review list','＋时间点':'＋Point','＋时间选区':'＋Time ranges','波形标记':'Waveform markers',
+    '搜索名称、备注':'Search names and notes','搜索复核标记':'Search review notes','全部状态':'All statuses','待处理':'Pending','已解决':'Resolved',
+    '全部类型':'All types','时间点':'Point','区段':'Range','结束（留空为时间点）':'End (blank for point)','备注':'Note',
+    '记录需要检查的内容':'Describe what needs review','未命名复核标记':'Untitled review note','关联所选字幕':'Link selected cues','解除关联':'Unlink',
+    '循环区段':'Loop range','停止循环':'Stop loop','独立时间标记':'Independent time marker',
+    '断句规则':'Segmentation rules','默认规则（兼容原配置）':'Language defaults (compatible)','自定义完整列表':'Custom complete list',
+    '完整断句符号':'Complete split punctuation','句尾保留符号':'Preserved trailing punctuation',
+    '自定义列表可移除任何标点，清空则不按标点断句；换行、长度、停顿及服务段落边界仍生效。句尾保留符号独立设置，半角与全角等效；不改写已有字幕。':'Remove any punctuation, or leave the custom list empty for no punctuation breaks. Newlines, length, pauses and provider boundaries still apply. Trailing punctuation is configured separately, treating half/full-width forms equally. Existing subtitles are unchanged.',
+
     '保留方言表达': 'Preserve dialect expressions',
     '未勾选时转为普通话文本': 'Transcribe as Mandarin text when disabled',
     '参考价：输入 ¥{input} / 输出 ¥{output}，每百万 Token；以实际账单为准': 'Reference: input ¥{input} / output ¥{output} per million tokens; actual billing may vary',

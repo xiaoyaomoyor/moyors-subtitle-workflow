@@ -114,6 +114,9 @@ def validate(project):
     _json_value(project)
     if not isinstance(project, dict) or project.get("schema") != SCHEMA:
         _fail("不支持的工程版本")
+    if 'review_markers' in project:
+        from maw.msw.review_markers import validate as validate_reviews
+        validate_reviews(project['review_markers'])
     if isinstance(project.get('preview'), dict) and 'speaker_palette' in project['preview']:
         from maw.msw.speaker_palette import validate as validate_speakers
         validate_speakers(project['preview']['speaker_palette'])

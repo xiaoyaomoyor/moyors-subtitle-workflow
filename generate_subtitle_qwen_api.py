@@ -409,6 +409,20 @@ def generate_srt(segments: list[dict]) -> str:
 # 共享断句配置里的「额外断句符号」，并入转写侧强断句符号。
 # CLI 进程内只需配置一次（见 configure_extra_strong_punct），因此使用模块级集合。
 _EXTRA_STRONG_PUNCT: set[str] = set()
+_CUSTOM_SPLIT_PUNCT: set[str] | None = None
+
+
+def configure_split_punct(chars: str | None) -> None:
+    """Configure once in each ASR child process; None retains language defaults."""
+    from maw.subtitle_punctuation import custom_symbols
+    global _CUSTOM_SPLIT_PUNCT
+    value = custom_symbols(chars)
+    _CUSTOM_SPLIT_PUNCT = None if value is None else set(value)
+
+
+def _weak_punct_set(defaults: str) -> set[str]:
+    return set(defaults) if _CUSTOM_SPLIT_PUNCT is None else _CUSTOM_SPLIT_PUNCT
+
 
 
 def configure_extra_strong_punct(chars: object) -> None:
@@ -419,7 +433,7 @@ def configure_extra_strong_punct(chars: object) -> None:
 
 def _strong_punct_set(defaults: str) -> set[str]:
     """默认强断句符号并上额外断句符号后的有效集合。"""
-    return set(defaults) | _EXTRA_STRONG_PUNCT
+    return set(defaults) | _EXTRA_STRONG_PUNCT if _CUSTOM_SPLIT_PUNCT is None else _CUSTOM_SPLIT_PUNCT | {'\n'}
 
 
 def split_by_silence(items: list[dict], min_gap_ms: int) -> list[list[dict]]:
@@ -527,7 +541,7 @@ def _split_cjk_group_naturally(
     try:
         import jieba.posseg as pseg
     except ImportError:
-        return _split_long_group(items, max_len, set("，、：,;"))
+        return _split_long_group(items, max_len, _weak_punct_set("，、：,;"))
 
     tokens: list[tuple[int, int, str, str]] = []
     position = 0
@@ -553,7 +567,7 @@ def _split_cjk_group_naturally(
     favorable_flags = {"n", "nr", "ns", "nt", "nz", "vn", "l", "y", "o"}
     acceptable_flags = {"v", "m", "q", "a", "i", "eng"}
     weak_flags = {"d", "p", "r", "uj", "c", "u", "f", "xc", "ul"}
-    weak_punctuation = set("，、：,;")
+    weak_punctuation = _weak_punct_set("，、：,;")
     measure_words = {
         "个", "分钟", "秒", "倍", "次", "岁", "年", "月", "天", "元",
     }
@@ -684,7 +698,7 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
     4. 没有弱标点时，用 jieba 分词找最佳断点
     """
     STRONG_PUNCT = _strong_punct_set("。！？；\n")
-    WEAK_PUNCT = set("，、：,;")
+    WEAK_PUNCT = _weak_punct_set("，、：,;")
 
     def to_seg(group):
         text = "".join(it["text"] for it in group)
@@ -757,7 +771,7 @@ _TRAILING_QUOTES = "\"'”’)]}』」"
 
 def _western_strong_end() -> str:
     """西文句末强标点（含额外断句符号）。"""
-    return WESTERN_STRONG_END + "".join(_EXTRA_STRONG_PUNCT)
+    return "".join(_strong_punct_set(WESTERN_STRONG_END))
 
 
 def is_cjk_char(char: str) -> bool:
@@ -784,6 +798,12 @@ def is_cjk_dominant(items: list[dict]) -> bool:
 
 
 def _ends_with_punct(text: str, punct: str) -> bool:
+    if _CUSTOM_SPLIT_PUNCT is not None:
+        tail = text.rstrip()
+        # An explicitly selected closing quote is itself a break; do not strip
+        # it as decoration first. Keep newline handling when punctuation is off.
+        if tail and tail[-1] in punct or '\n' in punct and text.rstrip(' \t\r').endswith('\n'):
+            return True
     stripped = text.rstrip().rstrip(_TRAILING_QUOTES)
     return bool(stripped) and stripped[-1] in punct
 
@@ -838,7 +858,7 @@ def _split_long_western(group: list[dict], max_words: int, min_words: int = 1) -
             balanced = [(i, n) for i, n in candidates if n >= minimum and total - n >= minimum]
             available = balanced or candidates
             punctuation = [i for i, _ in available if _ends_with_punct(
-                "".join(item["text"] for item in units[i - 1]), WESTERN_WEAK_END)]
+                "".join(item["text"] for item in units[i - 1]), "".join(_weak_punct_set(WESTERN_WEAK_END)))]
             phrases = [i for i, n in available if n >= max_words / 2 and
                        "".join(item["text"] for item in units[i]).strip().lower() in _WESTERN_PHRASE_STARTS]
             cut = (punctuation or phrases or [available[-1][0]])[-1]
@@ -1090,7 +1110,7 @@ def build_interpolated_items(
     if end_ms <= start_ms:
         return []
 
-    breaks = set(_COARSE_PIECE_BREAK_PUNCT) | _EXTRA_STRONG_PUNCT
+    breaks = _strong_punct_set(_COARSE_PIECE_BREAK_PUNCT)
     pieces: list[str] = []
     buf = ""
     for ch in clean:
@@ -2039,7 +2059,7 @@ def build_segments_from_api_sentences(
         for run in split_items_by_speaker(items):
             run_text = "".join(item.get("text", "") for item in run)
             has_internal_punctuation = any(
-                any(char in (set(_COARSE_PIECE_BREAK_PUNCT) | _EXTRA_STRONG_PUNCT) for char in item.get("text", ""))
+                any(char in (_strong_punct_set(_COARSE_PIECE_BREAK_PUNCT)) for char in item.get("text", ""))
                 for item in run[:-1]
             )
             run_segments = split_segments_auto(
@@ -2291,6 +2311,7 @@ def main():
         "--keep-punct", action="store_true",
         help="保留每条字幕末尾的逗号和句号（默认去除）",
     )
+    parser.add_argument("--split-punct", default=None, help="完整断句标点；空串仅禁用标点断句，省略沿用语言默认规则")
     parser.add_argument(
         "--strip-tail-punct", default="，。,.",
         help="句尾剥除的标点集合；传空串禁用剥除（默认剥逗号和句号）",
@@ -2390,6 +2411,7 @@ def main():
     )
     parser.add_argument("--keep-dialect", action="store_true", help="保留方言表达（仅 Qwen-Audio 3.1）")
     args = parser.parse_args()
+    configure_split_punct(args.split_punct)
     # Model-specific options are validated before any media or network work.
     if args.keep_dialect and args.model != QWEN_AUDIO_31_FILETRANS_MODEL:
         parser.error("--keep-dialect 仅适用于 Qwen-Audio 3.1")

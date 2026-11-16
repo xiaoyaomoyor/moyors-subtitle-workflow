@@ -676,6 +676,7 @@ def main() -> None:
     parser.add_argument("--gap-split", type=int, default=800)
     parser.add_argument("-ll", "--length-limit", type=parse_duration, default=None)
     parser.add_argument("--keep-punct", action="store_true")
+    parser.add_argument("--split-punct", default=None, help="完整断句标点；空串仅禁用标点断句，省略沿用语言默认规则")
     parser.add_argument(
         "--strip-tail-punct",
         default="，。,.",
@@ -695,6 +696,8 @@ def main() -> None:
     parser.add_argument("--debug-raw", action="store_true")
     parser.add_argument("--no-model-tag", action="store_true", help="输出文件名不附加模型标识段（本 CLI 默认无该段，保留以统一接口）")
     args = parser.parse_args()
+    from generate_subtitle_qwen_api import configure_split_punct
+    configure_split_punct(args.split_punct)
     if args.audio_track < 0:
         parser.error("--audio-track 必须是非负整数")
     if args.default_audio_track is not None and args.default_audio_track < 0:

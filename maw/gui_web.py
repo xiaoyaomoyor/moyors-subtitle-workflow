@@ -114,6 +114,7 @@ from maw.postprocess_ffmpeg import (
     run_extract_audio as process_extract_audio,
     run_ffconcat_rebuild as process_ffconcat_rebuild,
 )
+from maw.subtitle_punctuation import recognition_policy, split_symbols as effective_split_symbols
 from maw.postprocess_match import DEFAULT_SPLIT_PUNCTUATION, SCRIPT_EXTENSIONS, MatchCoverageError, ScriptMatchRequest, SubtitleMatchError, _has_complete_item_timings, _match_project, _match_project_with_character_timings, _read_script, prepare_script_text, processed_script_text, run_script_match as process_script_match
 from maw.postprocess_ocr import OcrDedupRequest, OcrRegion
 from maw.postprocess_llm import DEFAULT_REASONING_MODE, LlmClientError, LlmSettings, PRESETS as POSTPROCESS_PRESETS, complete_subtitle_groups, list_llm_models, normalize_reasoning_mode, preset_by_id, test_llm_connection
@@ -1637,6 +1638,7 @@ class LauncherApi:
                     script_path=script_path,
                     output_mode=_output_mode(payload.get("outputMode")),
                     media_path=_optional_path(payload.get("mediaPath")),
+                    split_punctuation=payload.get("splitPunctuation"),
                     extra_split_punctuation=tuple(str(value) for value in payload.get("extraSplitPunctuation", ()) if str(value)),
                     preserve_punctuation=tuple(str(value) for value in payload.get("preservePunctuation", ()) if str(value)),
                     match_mode=str(payload.get("matchMode") or "script"),
@@ -2039,6 +2041,7 @@ class LauncherApi:
                 script_text,
                 match_mode=match_mode,
                 extra_split_punctuation=extra_split,
+                split_punctuation=payload.get("splitPunctuation"),
                 preserve_punctuation=preserve,
                 clean_markdown_symbols=payload.get("cleanMarkdownSymbols", True) is not False,
             )
@@ -2081,6 +2084,7 @@ class LauncherApi:
                 extra_split if match_mode == "script" else (),
                 preserve if match_mode == "script" else (),
                 clean_markdown_symbols=clean_markdown_symbols,
+                split_punctuation=payload.get("splitPunctuation"),
             )
             if match_mode == "script" and project_path is not None and _has_complete_item_timings(project):
                 matched, warnings = _match_project_with_character_timings(
@@ -2088,12 +2092,13 @@ class LauncherApi:
                     prepared,
                     extra_split,
                     preserve,
+                    payload.get("splitPunctuation"),
                 )
             else:
                 matched, warnings = _match_project(
                     project,
                     prepared,
-                    DEFAULT_SPLIT_PUNCTUATION | frozenset(extra_split if match_mode == "script" else ()),
+                    effective_split_symbols(extra_split if match_mode == "script" else (), payload.get("splitPunctuation")),
                     frozenset(preserve if match_mode == "script" else ()),
                     match_mode,
                 )
@@ -4604,7 +4609,11 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
     max_words = _segmentation_option(payload, field="maxWords", label="英文最大单词数", minimum=1)
     min_words = _segmentation_option(payload, field="minWords", label="英文短句合并阈值（单词）", minimum=1)
     gap_split = _segmentation_option(payload, field="gapSplit", label="停顿切句阈值", minimum=0)
-    strip_tail_punct = _transcribe_strip_tail_punct(env_path)
+    try:
+        punctuation = recognition_policy(payload, load_postprocess_plan(env_path))
+    except ValueError as error:
+        raise PreflightError("postprocessSplitPunctuation", "segmentation_invalid", str(error)) from error
+    strip_tail_punct = punctuation["strip_tail_punct"]
     if max_len and min_len and int(max_len) < int(min_len):
         raise PreflightError(
             "maxLen",
@@ -4770,9 +4779,8 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         min_words=min_words,
         gap_split=gap_split,
         strip_tail_punct=strip_tail_punct,
-        extra_strong_punct="".join(str(symbol) for step in load_postprocess_plan(env_path).get("steps", [])
-            if isinstance(step, Mapping) and step.get("id") == "match"
-            for symbol in step.get("extraSplitPunctuation", []) if isinstance(symbol, str)),
+        extra_strong_punct=punctuation["extra_strong_punct"],
+        split_punct=punctuation["split_punct"],
         qwen_audio_context=qwen_audio_context,
         qwen_keep_dialect=model.supports_keep_dialect and payload.get("qwenKeepDialect") is True,
         qwen_audio_hotwords=qwen_audio_hotwords,
