@@ -313,7 +313,7 @@ def boundaries(raw, duration, count):
     return result
 
 
-def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefix='', speaker_color=None, *, drawing=None, align_offset=0):
+def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefix='', speaker_color=None, *, drawing=None, align_offset=0, inline_marks=None, inline_style=None):
     """Yield source-relative fragments. Hidden text retains its original geometry."""
     from maw.subtitle_wrapping import _characters
     from maw.msw.subtitle_style import ass_text
@@ -327,6 +327,10 @@ def fragments(raw, text, style, duration, lo, hi, x, y, alignment, speaker_prefi
     units = _characters(text)
     from maw.msw.subtitle_fonts import font_tags
     fonts = font_tags(units, style)
+    if inline_marks is not None and drawing is None:
+        from maw.msw.inline_markup import glyph_tags
+        local_tags = glyph_tags(text, inline_style or style, inline_marks, speaker_prefix, speaker_color)
+        fonts = [local+font for local,font in zip(local_tags,fonts)]
     count = sum(not unit.isspace() for unit in units)
     use_gradient=drawing is None and gradient.enabled(style)
     color_tags=[];color_index=0

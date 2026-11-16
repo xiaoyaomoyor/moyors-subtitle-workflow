@@ -91,13 +91,18 @@ function fixedMeasureText(row, projectStyle, width) {
   const exportView=window.MSWSubtitleStyle?.currentPreview()?.scope==='export';
   const locale=DATA.subtitle_tracks?.tracks.find(t=>t.id===row.subtitle_track_id)?.language;
   const prefix=DATA.preview?.speaker_palette?window.MSWSpeaker.prefix(exportView?{preview:{...DATA.preview,speaker_label_export:document.getElementById('video-export-speaker-labels').checked}}:DATA,profile,locale):speaker?speaker+labels.separator:'';
-  const text=prefix+window.MSWProjectStyle.wrapText(row.cue.text,style);
-  const key=JSON.stringify([text,prefix,style,width]);if(fixedTextMeasures.has(key))return fixedTextMeasures.get(key);
+  const markup=window.MSWInlineMarkup,inlineUnits=markup.enabled(DATA)?markup.display(row.cue.text,style,prefix):null;
+  const text=inlineUnits?inlineUnits.map(u=>u.text).join(''):prefix+window.MSWProjectStyle.wrapText(row.cue.text,style);
+  const key=JSON.stringify([text,prefix,style,width,inlineUnits]);if(fixedTextMeasures.has(key))return fixedTextMeasures.get(key);
   if(!fixedMeasureRoot){fixedMeasureRoot=document.createElement('div');fixedMeasureRoot.className='fixed-subtitle-measure';document.body.append(fixedMeasureRoot);}
   fixedMeasureRoot.style.width=width+'px';
   const node=document.createElement('div');node.textContent=text;node.className='fixed-subtitle-text';
   if(window.AsrEditorUtils.ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k]))node.replaceChildren(...window.MSWProjectStyle.characters(text).map(unit=>{
     const span=document.createElement('span');span.textContent=unit;span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));return span;
+  }));
+  if(inlineUnits)node.replaceChildren(...inlineUnits.map(unit=>{
+    const span=document.createElement('span');span.textContent=unit.text;markup.applyCss(span,markup.appearance(style,unit.marks));
+    span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit.text,style));return span;
   }));
   const metrics={resolution:{width,height:1080},stageWidth:width,stageHeight:1080,scaleX:1,scaleY:1};
   applyAssPreviewElement(node,style,{opacity:1},metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
@@ -108,7 +113,7 @@ function fixedMeasureText(row, projectStyle, width) {
     textAlign:style.textAlign||['left','center','right'][((style.alignment||2)-1)%3],whiteSpace:'pre-wrap',overflowWrap:'anywhere'});
   fixedMeasureRoot.replaceChildren(node);
   const rect=node.getBoundingClientRect(),root=fixedMeasureRoot.getBoundingClientRect();
-  const result={width:rect.width+2*padding,height:rect.height+2*padding,css:node.style.cssText,text,prefix,maxWidth,
+  const result={width:rect.width+2*padding,height:rect.height+2*padding,css:node.style.cssText,text,prefix,maxWidth,inlineUnits,
     innerX:padding-(rect.left-root.left),innerY:padding-(rect.top-root.top),padding,
     textWidth:node.offsetWidth*style.scaleX/100,textHeight:node.offsetHeight*style.scaleY/100};
   if(bg) {
@@ -205,11 +210,11 @@ function fixedRefreshSubtitlePreview(tMs) {
     applyAssPreviewElement(text,animated,animation,metrics,{x:0,y:0},{left:style.marginL,right:style.marginR});
     const gradient=window.MSWSubtitleGradient.enabled(style);
     const mixedFonts=window.AsrEditorUtils.ASS_FONT_SCRIPTS.slice(1).some(([,k])=>style[k]);
-    if(motion||gradient||mixedFonts){
+    if(motion||gradient||mixedFonts||size.inlineUnits){
       text.replaceChildren();let seen=0,prefix=0,phase=0;
       const wave=entry.motion?.effects.wave;
       const units=window.MSWProjectStyle.characters(size.text),count=units.filter(u=>u.trim()).length;
-      for(const unit of units){
+      for(const [unitIndex,unit] of units.entries()){
         if(unit.trim())seen++;const span=document.createElement('span');span.textContent=unit;
         if(mixedFonts)span.style.fontFamily=subtitleFontFamilyCss(window.AsrEditorUtils.assTextFont(unit,style));
         if(motion&&seen>motion.revealed)span.style.visibility='hidden';
@@ -220,6 +225,7 @@ function fixedRefreshSubtitlePreview(tMs) {
         if(unit==='\n')phase=0;
         if(gradient)span.style.color=window.MSWSubtitleGradient.color(style,seen-1,count);
         else if(prefix<size.prefix.length)span.style.color=speaker.style.color;
+        if(size.inlineUnits)window.MSWInlineMarkup.applyCss(span,window.MSWInlineMarkup.appearance({...animated,primaryColor:span.style.color||animated.primaryColor},size.inlineUnits[unitIndex]?.marks||[]));
         text.append(span);if(unit!=='\n')prefix+=unit.length;
       }
     }

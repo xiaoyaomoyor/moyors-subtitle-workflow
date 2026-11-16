@@ -5,7 +5,9 @@ import html
 import math
 
 
-def mapped_subtitles(project, plan, *, include_styles=False, include_identity=False):
+def mapped_subtitles(project, plan, *, include_styles=False, include_identity=False, plain_text=False):
+    from maw.msw.inline_markup import enabled, plain
+    def text(value):return plain(value, plain_text and enabled(project))
     if project.get('schema') == 'msw.project.v4':
         from maw.msw.render_project import visible_cues
         result = []
@@ -23,7 +25,7 @@ def mapped_subtitles(project, plan, *, include_styles=False, include_identity=Fa
                         continue
                     row = dict(id=c['id'], subtitle_track_id=track['id'], subtitle_track_name=track['name'],
                                start=span['output_start_ms']+lo-span['start_ms'],
-                               end=span['output_start_ms']+hi-span['start_ms'], text=s['text'])
+                               end=span['output_start_ms']+hi-span['start_ms'], text=text(s['text']))
                     if include_styles:
                         head = lookup.get((s.get('color_ref') or {}).get('cue_id'), {})
                         row['color'] = s.get('color') or head.get('content', {}).get('color') or {}
@@ -62,7 +64,7 @@ def mapped_subtitles(project, plan, *, include_styles=False, include_identity=Fa
                 lo, hi = max(s['start'], k['start_ms']), min(s['end'], k['end_ms'])
                 if hi > lo:
                     cue = dict(start=k['output_start_ms'] + lo - k['start_ms'],
-                               end=k['output_start_ms'] + hi - k['start_ms'], text=s.get('text', ''))
+                               end=k['output_start_ms'] + hi - k['start_ms'], text=text(s.get('text', '')))
                     if include_identity:
                         cue['id'] = s.get('id', source_index)
                     if project.get('schema') in ('msw.project.v2','msw.project.v3'):

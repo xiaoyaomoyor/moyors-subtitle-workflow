@@ -6,6 +6,7 @@
   const copy=value=>JSON.parse(JSON.stringify(value));
   const cueStyle=typeof module!=='undefined'&&module.exports?require('./msw-cue-style.js'):global.MSWCueStyle;
   const motion=typeof module!=='undefined'&&module.exports?require('./msw-subtitle-animation.js'):global.MSWSubtitleAnimation;
+  const markup=typeof module!=='undefined'&&module.exports?require('./msw-inline-markup.js'):global.MSWInlineMarkup;
   const fail=message=>{throw Error(message);};
   const body=p=>p.subtitles;
   const cue=(p,id)=>body(p).cues.find(c=>c.id===id);
@@ -238,8 +239,10 @@
       for(const c of members) {
         const content=c.content,cut=Math.round(time);
         if(cut<=content.start||cut>=content.end)fail('切分时间必须在每条参与字幕的内部');
-        const offset=nearestOffset(content.text,positions[c.id]??offsetAt(content,cut));
-        const texts=keepText?[content.text,content.text]:[content.text.slice(0,offset),content.text.slice(offset)];
+        let offset=nearestOffset(content.text,positions[c.id]??offsetAt(content,cut));
+        const balanced=!keepText&&markup.enabled(n)?markup.split(content.text,offset):null;
+        if(balanced)offset=balanced.offset;
+        const texts=keepText?[content.text,content.text]:balanced?[balanced.left,balanced.right]:[content.text.slice(0,offset),content.text.slice(offset)];
         const pair=texts.map((text,i)=>{const out=copy(c);out.id=makeId('cue');out.content={...copy(content),text,start:i?cut:content.start,end:i?content.end:cut,items:[],_dirty:true};
           let cursor=0;
           for(const item of content.items||[]) {
@@ -249,6 +252,7 @@
             part.start=Math.max(out.content.start,item.start);part.end=Math.min(out.content.end,item.end);
             if(part.end>=part.start)out.content.items.push(part);
           }
+          if(balanced)out.content.items=markup.retargetItems(out.content.items,text);
           for(const field of ['color','sticker'])if(marker(n,c,field)){out.content[field]={...copy(marker(n,c,field)),start:out.content.start,end:out.content.end};delete out.content[field+'_ref'];}
           frame(n,out.content);return out;});halves.set(c.id,pair);ids.push(...pair.map(c=>c.id));
       }
@@ -272,8 +276,9 @@
         const members=group.map(c=>cue(n,c.id)),rows=members.map(c=>({...copy(c.content),id:c.id}));
         for(const row of rows)for(const field of ['color','sticker'])if(marker(n,cue(n,row.id),field)){row[field]=copy(marker(n,cue(n,row.id),field));delete row[field+'_ref'];}
         if(rows.length===1)return copy(members[0]);
-        const virtual=layers.migrate({segments:rows}),plan=layers.planMerge(virtual,{role:'main',track_id:null},rows.map(c=>c.id),{mode,makeId:()=>makeId('cue'),joinText:cues=>joinText?joinText(cues,members[0].track_id):cues.map(c=>c.text).join(cues.every(c=>/[\u3400-\u9fff]/.test(c.text))?'':' ')});
+        const virtual=layers.migrate({segments:rows}),plan=layers.planMerge(virtual,{role:'main',track_id:null},rows.map(c=>c.id),{mode,makeId:()=>makeId('cue'),joinText:cues=>joinText?joinText(cues,members[0].track_id):markup.enabled(n)?markup.join(cues.map(c=>c.text),cues.every(c=>/[\u3400-\u9fff]/.test(c.text))?'':' '):cues.map(c=>c.text).join(cues.every(c=>/[\u3400-\u9fff]/.test(c.text))?'':' ')});
         const merged=plan.changes[0].merged;conflicts.push(...plan.conflicts);
+        if(markup.enabled(n))merged.items=markup.retargetItems(merged.items,merged.text);
         const earliest=members.slice().sort((a,b)=>a.content.start-b.content.start||a.content.end-b.content.end||a.id.localeCompare(b.id))[0];
         if(earliest.content.subtitle_position)merged.subtitle_position=copy(earliest.content.subtitle_position);
         else delete merged.subtitle_position;

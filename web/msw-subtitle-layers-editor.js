@@ -209,7 +209,7 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
         joinText:(cues,trackId)=>{
           const text=cues.map(c=>c.text||'').join('\n'), target=project.subtitles.tracks.find(t=>t.id===trackId);
           const splitMode=['word','continuous'].includes(target?.split_mode)?target.split_mode:MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text);
-          return window.AsrEditorUtils.joinSegmentTexts(cues,mergeJoinSeparatorForMode(splitMode));
+          return joinSubtitleTextForProject(cues,mergeJoinSeparatorForMode(splitMode));
         },
       });
       const removed = new Set(project.subtitles.cues.filter(c=>!result.project.subtitles.cues.some(n=>n.id===c.id)).map(c=>c.id));
@@ -238,10 +238,11 @@ function layerMergeSelected(indices, role = 'main', track = null, mode = 'union'
         const text = cues.map(c => c.text || '').join('\n');
         const sample={...cues[0],text};
         const splitMode = target.role === 'extension' ? getExtensionSubtitleSplitMode(getExtensionTrack(target.track_id), sample) : getMainSubtitleSplitMode(sample);
-        return window.AsrEditorUtils.joinSegmentTexts(cues, mergeJoinSeparatorForMode(splitMode));
+        return joinSubtitleTextForProject(cues, mergeJoinSeparatorForMode(splitMode));
       },
     });
     fixedMergePlan(plan);
+    if(window.MSWInlineMarkup.enabled(DATA))for(const change of plan.changes)if(change.changed)change.merged.items=window.MSWInlineMarkup.retargetItems(change.merged.items,change.merged.text);
     for (const change of plan.changes) if (change.changed) syncSegmentTimebase(change.merged, projectTimebase(), {preferFrames:false});
   } catch (error) { if (fixedTrackMode()) fixedStatus(error.message); else flashHint(error.message, 'warning'); return false; }
   const feedback = captureMergeFeedback(plan);

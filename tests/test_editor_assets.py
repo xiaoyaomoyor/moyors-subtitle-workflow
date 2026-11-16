@@ -34,6 +34,7 @@ class EditorAssetContractTests(unittest.TestCase):
                 "editor-runtime.js",
                 "gap-remove-core.js",
                 "editor-utils.js",
+                "msw-inline-markup.js",
                 "msw-subtitle-animation.js",
                 "msw-subtitle-background.js",
                 "msw-subtitle-gradient.js",

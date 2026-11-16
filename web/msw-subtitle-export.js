@@ -73,6 +73,7 @@
     return project;
   }
   function textFiles(project,{format,mode,removeGaps}) {
+    if(global.MSWInlineMarkup.enabled(project))for(const t of layerCore.tracks(project))for(const c of t.segments)c.text=global.MSWInlineMarkup.plain(c.text);
     const sources=layerCore.tracks(project),rows=sources.flatMap(t=>t.segments).sort((a,b)=>a.start-b.start||a.end-b.end);
     const speaker=speakerExportOptions(),removed=removeGaps?getRemovedGapRanges():[];
     const options={...speaker,alignFirstStart:EDITOR_SETTINGS.exportStartAtZero,formatTime:fmtSrtTime,
@@ -92,6 +93,7 @@
   }
   async function dynamicFile(project,format,ids,removeGaps) {
     const rows=layerCore.tracks(project).flatMap(t=>t.segments).sort((a,b)=>a.start-b.start);
+    if(global.MSWInlineMarkup.enabled(project))for(const c of rows)c.text=global.MSWInlineMarkup.plain(c.text);
     const data=buildDynamicCaptionExportData(rows,removeGaps);if(!data)throw Error('没有可导出的动态字幕');
     const size=dynamicExportCanvasSize(el('resolution'),el('width'),el('height'));
     let appearance={...getPreviewGeometry(),...getSubtitleAppearance()};

@@ -1890,6 +1890,7 @@ function applyPreviewState(state) {
 }
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label, sourceRecord = null) {
+  if(kind==='inline-markup')return {kind,label,value:DATA.preview?.inline_markup};
   if(kind==='review-markers')return {kind,label,value:structuredClone(DATA.review_markers)};
   if(kind==='subtitle-edit')return {...sourceRecord,forward:!sourceRecord.forward,view:snapshotEditorSelection()};
   if(kind==='subtitle-text')return window.MSWFindEdit.capture(sourceRecord,label);
@@ -2017,6 +2018,9 @@ function applyHistoryRecord(record) {
     refreshSubtitlePreview(); scheduleAutoSaveFlush();
     window.dispatchEvent(new Event('msw:burn-style'));
     return true;
+  }
+  if (record.kind === 'inline-markup') {
+    applyInlineMarkup(record.value);return true;
   }
   if (record.kind === 'review-markers') {
     if(record.value===undefined)delete DATA.review_markers;else DATA.review_markers=structuredClone(record.value);
@@ -4986,6 +4990,23 @@ autoSnapAdjacentCuesToggle?.addEventListener('change', () => {
 });
 cueEditorCancelOnEscapeToggle?.addEventListener('change', () => {
   updateEditorSettings({ cueEditorCancelOnEscape: cueEditorCancelOnEscapeToggle.checked });
+});
+function syncInlineMarkup() {
+  document.getElementById('cue-editor-inline-markup').checked=window.MSWInlineMarkup.enabled(DATA);
+}
+function applyInlineMarkup(value) {
+  DATA.preview ||= {};
+  if(value===undefined)delete DATA.preview.inline_markup;else DATA.preview.inline_markup=value;
+  previewGeometryDirty=true;projectImportDirty=true;fixedPreviewInvalidate();
+  syncInlineMarkup();renderAll();refreshSubtitlePreview();scheduleAutoSaveFlush();
+  window.dispatchEvent(new Event('msw:burn-style'));
+}
+syncInlineMarkup();
+window.addEventListener('msw:project-changed',syncInlineMarkup);
+document.getElementById('cue-editor-inline-markup').addEventListener('change',event=>{
+  commitProcessingEdits();
+  editorHistory.push(snapshotCurrentForKind('inline-markup','切换 Markdown 句内样式'));updateUndoRedoButtons();
+  applyInlineMarkup(event.target.checked);
 });
 for (const [id, key] of [
   ['cue-editor-split-more-actions', 'cueEditorSplitMoreActions'],
@@ -7999,6 +8020,7 @@ function buildSearchRegex(query, caseSensitive) {
 
 // === 字数 ===
 function calcCharWidth(text, mode = null) {
+  text=window.MSWInlineMarkup.plain(text,window.MSWInlineMarkup.enabled(DATA));
   return mode
     ? window.AsrEditorUtils.countSubtitleUnits(text, mode)
     : window.AsrEditorUtils.countTextUnits(text);
@@ -9259,10 +9281,15 @@ function buildSplitPair(
   const mode = MULTI_SUBTITLE_UTILS.MULTI_SUBTITLE_SPLIT_MODES.has(splitMode)
     ? splitMode : MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text);
   const safeOffset = Math.max(0, Math.min(text.length, Math.round(Number(offset) || 0)));
-  const parts = duplicateText
+  let parts = duplicateText
     ? (text ? { left: text, right: text, offset: safeOffset } : null)
     : MULTI_SUBTITLE_UTILS.splitSubtitleText(text, safeOffset, mode);
   if (!parts) return null;
+  if(!duplicateText&&window.MSWInlineMarkup.enabled(DATA)&&window.MSWInlineMarkup.parse(text).pairs.length) {
+    const preserve=mode==='word'&&MULTI_SUBTITLE_UTILS.isWordSplitConnectorBoundary(text,parts.offset);
+    parts=window.MSWInlineMarkup.split(text,parts.offset,{trim:(value,side)=>MULTI_SUBTITLE_UTILS.cleanSplitTextParts(value,side==='left'?value.length:0,preserve)[side]});
+    if(!window.MSWInlineMarkup.plain(parts.left).trim()||!window.MSWInlineMarkup.plain(parts.right).trim())return null;
+  }
   const itemParts = splitItemsAtChar(
     includeItems ? segment : { ...segment, items: [] },
     parts.offset,
@@ -9315,6 +9342,7 @@ function buildSplitPair(
     items: rightItems,
     _dirty: true,
   };
+  if(!duplicateText&&window.MSWInlineMarkup.enabled(DATA))for(const cue of [left,right])cue.items=window.MSWInlineMarkup.retargetItems(cue.items,cue.text);
   if (segment.sticker) {
     right.sticker = null;
     right.sticker_ref = { name: segment.sticker.name, headIdx: 0 };
@@ -10507,7 +10535,7 @@ function mergeContiguousIndices(sorted) {
     ),
     start: segs[0].start,
     end: segs[segs.length - 1].end,
-    text: window.AsrEditorUtils.joinSegmentTexts(
+    text: joinSubtitleTextForProject(
       segs,
       mergeJoinSeparatorForMode(getMainSubtitleSplitMode({ text: segs.map((s) => s.text || '').join('\n') })),
     ),
@@ -10520,6 +10548,7 @@ function mergeContiguousIndices(sorted) {
     disabled: !!segs[0].disabled,  // 合并后取 index=0 的禁用状态
     _dirty: true,
   };
+  if(window.MSWInlineMarkup.enabled(DATA))merged.items=window.MSWInlineMarkup.retargetItems(merged.items,merged.text);
   if (merged.items.length === 0) merged.items = null;
 
   let mergedExtension = null;
@@ -10530,7 +10559,7 @@ function mergeContiguousIndices(sorted) {
       ),
       start: Math.min(...extensionMergeSegments.map((segment) => segment.start)),
       end: Math.max(...extensionMergeSegments.map((segment) => segment.end)),
-      text: window.AsrEditorUtils.joinSegmentTexts(
+      text: joinSubtitleTextForProject(
         extensionMergeSegments,
         mergeJoinSeparatorForMode(getExtensionSubtitleSplitMode(extensionTrack, {
           text: extensionMergeSegments.map((s) => s.text || '').join('\n'),
@@ -10540,6 +10569,7 @@ function mergeContiguousIndices(sorted) {
     };
     if (extensionMergeSegments.some((segment) => Array.isArray(segment.items))) {
       mergedExtension.items = extensionMergeSegments.flatMap((segment) => segment.items || []);
+      if(window.MSWInlineMarkup.enabled(DATA))mergedExtension.items=window.MSWInlineMarkup.retargetItems(mergedExtension.items,mergedExtension.text);
     }
   }
 
@@ -11044,7 +11074,7 @@ function buildAutoMergePlan(p,makeId) {
     joinText:(cues,trackId)=>{
       const track=p.subtitles.tracks.find(t=>t.id===trackId),text=cues.map(c=>c.text||'').join('\n');
       const mode=['word','continuous'].includes(track?.split_mode)?track.split_mode:MULTI_SUBTITLE_UTILS.detectSubtitleSplitMode(text);
-      return AsrEditorUtils.joinSegmentTexts(cues,mergeJoinSeparatorForMode(mode));
+      return joinSubtitleTextForProject(cues,mergeJoinSeparatorForMode(mode));
     },
   });
 }
@@ -15985,6 +16015,9 @@ function exportColorContextResolver(overlaySet, overlaySegments) {
   return (segment) => (overlaySet.has(segment) ? overlaySegments : DATA.segments);
 }
 
+function joinSubtitleTextForProject(cues,separator) {
+  return window.MSWInlineMarkup.enabled(DATA)?window.MSWInlineMarkup.join(cues.map(c=>String(c.text||'')),separator):window.AsrEditorUtils.joinSegmentTexts(cues,separator);
+}
 function buildSrt() {
   const { segments, overlaySet, overlaySegments } = mergedExportSegments();
   const firstEnabledIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
@@ -15992,6 +16025,7 @@ function buildSrt() {
     EDITOR_SETTINGS.exportStartAtZero,
   );
   return window.AsrEditorUtils.buildSrtPayload(segments, {
+    textTransform:text=>window.MSWInlineMarkup.plain(text,window.MSWInlineMarkup.enabled(DATA)),
     alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
     firstEnabledIndex,
     keepDisabledPlaceholder: EXPORT_KEEP_DISABLED_PLACEHOLDER,
@@ -16028,6 +16062,7 @@ function buildAss() {
 
 function buildExtensionSrt(track = getActiveExtensionTrack()) {
   return window.AsrEditorUtils.buildSrtPayload(fixedTrackMode()?fixedSrtProject().multi_subtitle?.tracks.find(t=>t.id===track?.id)?.segments||[]:track?.segments || [], {
+    textTransform:text=>window.MSWInlineMarkup.plain(text,window.MSWInlineMarkup.enabled(DATA)),
     ...speakerExportOptions(),
     formatTime: fmtSrtTime,
   });
@@ -16045,6 +16080,7 @@ function buildGapRemovedSrt() {
     EDITOR_SETTINGS.exportStartAtZero,
   );
   return window.AsrEditorUtils.buildSrtPayload(segments, {
+    textTransform:text=>window.MSWInlineMarkup.plain(text,window.MSWInlineMarkup.enabled(DATA)),
     alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
     firstEnabledIndex,
     mapTime: (timeMs) => window.AsrEditorUtils.mapGapRemovedTime(timeMs, removed),

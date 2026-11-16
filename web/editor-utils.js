@@ -4174,12 +4174,13 @@
       outputIndex += 1;
       parts.push(String(outputIndex));
       parts.push(`${formatTime(start)} --> ${formatTime(end)}`);
+      const textSegment=typeof options.textTransform==='function'?{...segment,text:options.textTransform(segment.text)}:segment;
       parts.push(disabled ? '' : options.speakerLabelsEnabled===true&&typeof options.speakerTextResolver==='function'
-        ? options.speakerTextResolver(segment,colorContext) : speakerLabels
+        ? options.speakerTextResolver(textSegment,colorContext) : speakerLabels
         ? formatSpeakerLabelledText(
-          segment.text, segment, colorContext, speakerLabels, options.speakerSeparators?.[effectiveColorName(segment,colorContext)] ?? speakerLabelSeparator,
+          textSegment.text, segment, colorContext, speakerLabels, options.speakerSeparators?.[effectiveColorName(segment,colorContext)] ?? speakerLabelSeparator,
         )
-        : String(segment.text || ''));
+        : String(textSegment.text || ''));
       parts.push('');
     });
     return parts.join('\n');
@@ -6925,6 +6926,7 @@ export default MawDynamicCaptions;
     moveSegmentBetweenTracks,
     detectSubtitleSplitMode,
     isWordSplitConnector,
+    isWordSplitConnectorBoundary,
     SPLIT_TRIM_PRIMARY_SYMBOLS,
     DEFAULT_EXTRA_SPLIT_TRIM_SYMBOLS,
     DEFAULT_SPLIT_TRIM_SYMBOLS,

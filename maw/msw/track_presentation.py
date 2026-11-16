@@ -14,6 +14,7 @@ from maw.msw.subtitle_fonts import family_metrics, installed_fonts, text_font, s
 from maw.project_subtitle_style import normalize_project_style, builtin_presets
 from maw.subtitle_wrapping import wrap_text, _characters
 from maw.msw import cue_style
+from maw.msw import inline_markup
 from maw.msw import subtitle_animation
 from maw.msw import subtitle_background as background
 from maw.font_scripts import SCRIPT_FONTS
@@ -34,6 +35,8 @@ def _cached_measurement(text, style_key, width, prefix):
 
 
 def _measure_text(text, style, width, *, prefix=''):
+    if style.get('_inlineMarkup'):
+        return _measure_inline(text, style, width, prefix)
     metrics = family_metrics(style['fontName'], style['bold'], style['italic'])
     tables = {style['fontName']: metrics}
     for field in SCRIPT_FONTS:
@@ -74,6 +77,66 @@ def _measure_text(text, style, width, *, prefix=''):
     if background.enabled(style):
         bounds = background.bounds(style, size, style['alignment'])
         size.update(width=bounds['width'], height=bounds['height'])
+    return size
+
+
+def _measure_inline(text, style, width, prefix):
+    """Wrap visible graphemes with their own metrics; keep markup out of bounds."""
+    units = inline_markup.graphemes(text, prefix)
+    sx, sy = style['scaleX']/100, style['scaleY']/100
+    padding = (style['outline']+style['shadow'])*max(1, sx, sy)
+    pad_x = background.normalize(style)['backgroundPaddingX'] if background.enabled(style) else 0
+    available = max(1, width-style['marginL']-style['marginR']-(padding+pad_x)*2)
+    registry = installed_fonts()
+    fallback_name = next((n for n in ('microsoft yahei','pingfang sc','noto sans cjk sc','arial','dejavu sans') if n in registry), '')
+    def dimensions(unit):
+        value, marks = unit;local = inline_markup.appearance(style, marks)
+        fallback = family_metrics(fallback_name, local['bold'], local['italic']) if fallback_name else {}
+        amount = 0
+        for ch in value:
+            table = family_metrics(text_font(ch, local), local['bold'], local['italic'])
+            amount += (table.get(ord(ch), fallback.get(ord(ch), 1.1 if ord(ch)>255 else .55))*local['fontSize']+local['spacing'])*sx
+        return amount, local['fontSize']*1.2*sy
+    measured = [(*u, *dimensions(u)) for u in units]
+    lines, line, used = [], [], 0
+    limit = style['charsPerLine'] if style.get('wrapMode') == 'characters' else math.inf
+    def flush(trim=False):
+        nonlocal line, used
+        if trim:
+            while line and line[-1][0].isspace():line.pop()
+        lines.append(line);line, used = [], 0
+    for i, unit in enumerate(measured):
+        char, marks, amount, height = unit
+        if char == '\n':flush();continue
+        # Prefer a word boundary, then fall back to grapheme wrapping for CJK
+        # and words wider than the picture. Manual character limits stay exact.
+        if limit == math.inf and not char.isspace() and (i == 0 or measured[i-1][0].isspace()):
+            word_width = 0
+            for j in range(i,len(measured)):
+                upcoming = measured[j]
+                if upcoming[0].isspace():break
+                word_width += upcoming[2]
+            if line and used+word_width > available:flush(True)
+        if line and (used+amount > available or len(line) >= limit):flush(True)
+        if not line and char.isspace():continue
+        line.append(unit);used += amount
+    flush()
+    w = max([sum(u[2] for u in line) for line in lines]+[1])
+    h = sum(max([u[3] for u in line]+[style['fontSize']*1.2*sy]) for line in lines)
+    anchor = ((style['alignment']-1)%3)*w/2
+    angle = math.radians(style['angle']);c,s = math.cos(angle),math.sin(angle)
+    corners = [((x-anchor)*c+y*s,-(x-anchor)*s+y*c) for x in (-padding,w+padding) for y in (-padding,h+padding)]
+    left, top = min(x for x,y in corners), min(y for x,y in corners)
+    marks = []
+    for i, line in enumerate(lines):
+        if i:marks.append([])
+        marks.extend(u[1] for u in line)
+    size = dict(text='\n'.join(''.join(u[0] for u in line) for line in lines),inlineMarks=marks,
+                width=max(x for x,y in corners)-left,height=max(y for x,y in corners)-top,
+                padding=padding,originX=-left,originY=-top,textWidth=w,textHeight=h)
+    if background.enabled(style):
+        bounds = background.bounds(style, size, style['alignment'])
+        size.update(width=bounds['width'],height=bounds['height'])
     return size
 
 
@@ -199,6 +262,7 @@ def layout(project, width=1920):
                 prefix = label+labels.get('separator', '：') if label and row['role']=='main' else ''
             row['motion'] = subtitle_animation.resolve(row['style'].get('animation'), cue.get('subtitle_animation'))
             row['prefix']=prefix
+            if inline_markup.enabled(project):row['style']['_inlineMarkup'] = True
             row['size'] = measured_text(cue.get('text', ''), row['style'], width, prefix=prefix)
         members[0]['localY'] = 0
         if len(members)==2:
@@ -307,11 +371,12 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
             palette[mark['name']]=mark['value']
     palette.update({c['name']:c['value'] for c in project.get('color_palette',[]) if isinstance(c,dict) and c.get('name') in palette and re.fullmatch(r'#[0-9a-fA-F]{6}',str(c.get('value','')))})
     mode=(project.get('preview') or {}).get('subtitle',{}).get('ass_color_style','text')
-    style_lines = {}
+    style_lines = {};effective_styles = []
     for i,r in enumerate(entries):
         style=dict(r['style']);color=palette.get(r['color'].get('name'))
         if 'speaker' not in r and color and mode in ('text','stroke') and ('primaryColor' if mode=='text' else 'outlineColor') not in r['cue'].get('subtitle_style', {}):
             style['primaryColor' if mode=='text' else 'outlineColor']=color
+        effective_styles.append(style)
         style_key = json.dumps(style, sort_keys=True)
         if style_key not in style_lines:
             style_lines[style_key] = ass_style_line(style, name='').partition(',')[2]
@@ -361,6 +426,9 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
             text=tag(color)+styled_text(r['size']['text'][:cut],r['style'])+tag(r['style']['primaryColor'])+font_tag(r['style']['fontName'])+styled_text(r['size']['text'][cut:],r['style'])
         if gradient.enabled(r['style']):
             text=gradient.ass(r['size']['text'],r['style'])
+        inline_marks = r['size'].get('inlineMarks')
+        if inline_marks is not None:
+            text = inline_markup.ass(r['size']['text'],effective_styles[i],inline_marks,r['prefix'],color if cue_mode=='speaker' else None)
         for interval in plan['intervals']:
             lo,hi=max(r['cue']['start'],interval['start_ms']),min(r['cue']['end'],interval['end_ms'])
             if hi<=lo:continue
@@ -378,7 +446,8 @@ def fixed_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fram
                 if clip_hi<=clip_lo:continue
                 origin=r['cue']['start']
                 streams = [(text_layer, subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
-                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if cue_mode=='speaker' else None,align_offset=align_offset))]
+                        clip_lo-origin,clip_hi-origin,x,y,alignment,r['prefix'],color if cue_mode=='speaker' else None,align_offset=align_offset,
+                        inline_marks=inline_marks,inline_style=effective_styles[i]))]
                 if drawing:
                     streams.insert(0, (layer, subtitle_animation.fragments(r['motion'],r['size']['text'],r['style'],r['cue']['end']-origin,
                         clip_lo-origin,clip_hi-origin,x,y,7,drawing=drawing)))

@@ -120,7 +120,7 @@ def build_timeline(project, plan, pieces, references, source_url, info, source_a
         empty['children'].append(gap(length, rate))
         tracks.append(empty)
     markers = []
-    for name, cues in mapped_subtitles(project, plan):
+    for name, cues in mapped_subtitles(project, plan, plain_text=True):
         for c in cues:
             markers.append(dict(OTIO_SCHEMA='Marker.2', name=c['text'], color='BLUE',
                 metadata=dict(msw=dict(subtitle_track=name, **({'cue_id':c['id']} if 'id' in c else {}),**{k:c[k] for k in ('subtitle_track_id','subtitle_track_name','subtitle_kind','subtitle_purpose','subtitle_layout') if k in c})), marked_range=time_range(c['start'], c['end'] - c['start'], 1000)))
@@ -251,7 +251,7 @@ def render_bundle(project, plan, output, tools, cancel, progress, resolve_asset,
             archive.writestr('msw-export.json', json.dumps(dict(schema='msw.otio-bundle.v1', options=settings, plan=plan,
                 assets=provenance, audio_clips=project['msw'].get('audio_clips', []),
                 attenuation_db=result['attenuation_db']), ensure_ascii=False, indent=2) + '\n')
-            for i, (_, cues) in enumerate(mapped_subtitles(project, plan)):
+            for i, (_, cues) in enumerate(mapped_subtitles(project, plan, plain_text=True)):
                 archive.writestr(f'subtitles/track-{i + 1}.srt', srt(cues).encode('utf-8-sig'))
             archive.writestr('README.txt', 'MSW OTIOZ\nImport content.otio after extraction if your editor cannot open OTIOZ.\n'
                 'Keep media/ beside content.otio. Audio gain and peak attenuation are baked into float WAV clips.\n'

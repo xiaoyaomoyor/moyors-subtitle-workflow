@@ -3,6 +3,15 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {setup,snap,inputs,apply} from './find-unified-fixture.mjs';
 setup();
 const full=async page=>{await page.locator('#find-edit-group').selectOption('script');return inputs(page).inputValue();};
+test('enabled inline styles remain editable markers through external script import',async({page})=>{
+ await page.evaluate(()=>applyInlineMarkup(true));
+ const before=await full(page),replacement='**重点** //斜体// %%弱化%% \\**原样\\**';
+ await load(page,before.replace('  Alpha Bravo  ',replacement),true);
+ await page.locator('#script-exchange-stage').click();await apply(page);
+ const project=await snap(page);expect(project.preview.inline_markup).toBe(true);
+ expect(project.subtitles.cues.some(c=>c.content.text===replacement)).toBe(true);
+ expect(await full(page)).toContain(replacement);
+});
 async function load(page,text,file=false){
  await page.locator('#script-exchange-open').click();
  if(file)await page.locator('#script-exchange-file').setInputFiles({name:'polish.txt',mimeType:'text/plain',buffer:Buffer.from('\uFEFF'+text.replaceAll('\n','\r\n'))});

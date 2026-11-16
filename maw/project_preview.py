@@ -66,6 +66,8 @@ def validate_preview(project: JsonDict) -> tuple[ValidationIssue, ...]:
             issues.append(('$.preview.burn_subtitles',str(error)))
     if "ass_library_exports" in preview and type(preview["ass_library_exports"]) is not bool:
         issues.append(("$.preview.ass_library_exports", "must be a boolean"))
+    if 'inline_markup' in preview and type(preview['inline_markup']) is not bool:
+        issues.append(('$.preview.inline_markup', 'must be a boolean'))
     subtitle = preview.get("subtitle")
     if subtitle is not None:
         if not isinstance(subtitle, dict):
