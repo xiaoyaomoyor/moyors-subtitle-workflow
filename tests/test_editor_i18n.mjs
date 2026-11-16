@@ -28,6 +28,10 @@ test('current dynamic UI translations preserve values and literal speaker names'
     ['第 8 行：缺少轨道名称','Line 8: Missing track name'],
     ['已导入 12 条草稿，请检查后应用编辑','Staged 12 drafts; review and apply edits'],
     ['锁定 S2','Lock S2'],
+    ['2 / 5 条 · 3 条待处理','2 / 5 markers · 3 pending'],
+    ['标为已解决：术语确认','Mark as resolved: 术语确认'],
+    ['中文轨 · 关联 2 条字幕（1 条已删除，备注保留）','中文轨 · 2 linked cues (1 deleted; note retained)'],
+    ['关联轨道已删除 · 关联 1 条字幕','Linked track deleted · 1 linked cues'],
   ]){
     assert.equal(translateText(source,'en'),expected);
     assert.equal(translateText(source,'zh'),source);

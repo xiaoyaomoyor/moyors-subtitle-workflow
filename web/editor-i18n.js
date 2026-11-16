@@ -20,6 +20,16 @@
     '全部类型':'All types','时间点':'Point','区段':'Range','结束（留空为时间点）':'End (blank for point)','备注':'Note',
     '记录需要检查的内容':'Describe what needs review','未命名复核标记':'Untitled review note','关联所选字幕':'Link selected cues','解除关联':'Unlink',
     '循环区段':'Loop range','停止循环':'Stop loop','独立时间标记':'Independent time marker',
+    '状态':'Status','定位':'Locate','复核列表窗口标签':'Review list tab','关闭复核列表窗口':'Close review list',
+    '复核状态':'Review status','标记类型':'Marker type','复核标记':'Review markers',
+    '时:分:秒.毫秒':'hours:minutes:seconds.milliseconds','复核开始时间':'Review start time','复核结束时间':'Review end time',
+    '在播放头添加时间点，或将波形时间选区记为复核区段。':'Add a point at the playhead, or turn waveform time selections into review ranges.',
+    '没有符合筛选条件的标记':'No markers match the filters','关联轨道已删除':'Linked track deleted',
+    '添加复核标记':'Add review marker','编辑复核标记':'Edit review marker','移动复核标记':'Move review marker',
+    '删除复核标记':'Delete review marker','解决复核标记':'Resolve review marker','重新打开复核标记':'Reopen review marker',
+    '改为时间点':'Convert to point','关联复核字幕':'Link review cues','解除复核关联':'Unlink review cues',
+    '请先选择需要关联的字幕':'Select cues to link first','复核区段超出可播放的媒体范围':'The review range is outside the playable media',
+    '结束时间必须晚于开始时间':'The end time must be after the start time','复核标记格式无效':'Invalid review marker format',
     '断句规则':'Segmentation rules','默认规则（兼容原配置）':'Language defaults (compatible)','自定义完整列表':'Custom complete list',
     '完整断句符号':'Complete split punctuation','句尾保留符号':'Preserved trailing punctuation',
     '自定义列表可移除任何标点，清空则不按标点断句；换行、长度、停顿及服务段落边界仍生效。句尾保留符号独立设置，半角与全角等效；不改写已有字幕。':'Remove any punctuation, or leave the custom list empty for no punctuation breaks. Newlines, length, pauses and provider boundaries still apply. Trailing punctuation is configured separately, treating half/full-width forms equally. Existing subtitles are unchanged.',
@@ -3060,6 +3070,12 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
+    const reviewCount=/^(\d+) \/ (\d+) 条 · (\d+) 条待处理$/.exec(text);
+    if(reviewCount)return `${reviewCount[1]} / ${reviewCount[2]} markers · ${reviewCount[3]} pending`;
+    const reviewResolved=/^标为已解决：(.+)$/.exec(text);
+    if(reviewResolved)return `Mark as resolved: ${reviewResolved[1]}`;
+    const reviewLinks=/^(?:(.*) · )?关联 (\d+) 条字幕(?:（(\d+) 条已删除，备注保留）)?$/.exec(text);
+    if(reviewLinks)return `${reviewLinks[1]?(reviewLinks[1]==='关联轨道已删除'?'Linked track deleted':reviewLinks[1])+' · ':''}${reviewLinks[2]} linked cues${reviewLinks[3]?` (${reviewLinks[3]} deleted; note retained)`:''}`;
     const scriptLine=/^第 (\d+) 行：(.+)$/.exec(text);
     if(scriptLine)return `Line ${scriptLine[1]}: ${translateText(scriptLine[2],lang)}`;
     const scriptSelected=/^已选 (\d+) 条正文$/.exec(text);
