@@ -1,7 +1,9 @@
 (function(global) {
   'use strict';
   const host=global.MSWE?.resolve('processing-host'),core=global.MSWReview,wave=host?.waveform;
-  const root=document.getElementById('review-content');
+  // Restoring a custom workspace can detach closed panels before this module
+  // loads. Initialize the retained dock node so reopening it has real content.
+  const root=wave?.reviews?.querySelector('#review-content');
   if(!root||!wave)return;
   const $=id=>root.querySelector('#review-'+id),ranges=()=>global.MSWE.resolve('time-range')?.ranges||[];
   let selected='',drag=null,loop=null,loopFrame=0,visible=true,draftDirty=false;

@@ -5,20 +5,20 @@ import {join} from 'node:path';
 import {disableOnboarding,findFreePort,generateWaveformPayload,makeTempDir,startServer} from './helpers.mjs';
 let server,projectFile;
 test.setTimeout(120000);
-test.beforeAll(async()=>{
+test.beforeEach(async()=>{
   const folder=makeTempDir('review-markers'),media=join(folder,'synthetic.mp4');projectFile=join(folder,'project.mosp');
   process.env.MSW_APP_DATA_ROOT=join(folder,'settings');process.env.MSW_ENV_FILE=process.env.MAW_ENV_FILE=join(folder,'isolated.env');
   execFileSync(process.env.MSW_E2E_FFMPEG||'ffmpeg',['-v','error','-f','lavfi','-i','color=c=black:s=640x360:r=25:d=8','-c:v','libx264','-pix_fmt','yuv420p',media],{windowsHide:true});
   writeFileSync(projectFile,JSON.stringify({media,segments:[{id:'a',start:0,end:6000,text:'Review subtitle'}],waveform:generateWaveformPayload(8000,10)}));
   server=await startServer(projectFile,media,await findFreePort());
 });
-test.afterAll(async()=>server?.stop());
+test.afterEach(async()=>server?.stop());
 test.beforeEach(async({page})=>{
   await disableOnboarding(page);await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false})));
   await page.goto(server.url);await page.waitForFunction(()=>window.MSWE?.resolve('reviews'),null,{timeout:90000});
-  await page.evaluate(()=>MSWE.resolve('reviews').open());
 });
 test('review notes edit, resolve, filter, undo and persist separately from subtitles',async({page},info)=>{
+  await page.evaluate(()=>MSWE.resolve('reviews').open());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.evaluate(()=>{MSWE.resolve('processing-host').seek(1,{pauseAfterSeek:true});});
   await page.locator('#review-add-point').click();await page.locator('#review-name').fill('检查人名');await page.locator('#review-note').fill('确认发音');expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
@@ -42,6 +42,7 @@ test('review notes edit, resolve, filter, undo and persist separately from subti
   await page.screenshot({path:info.outputPath('review-list-light.png')});expect(errors).toEqual([]);
 });
 test('time selections create ranges, dragging commits once, Escape cancels and points stay independent',async({page})=>{
+  await page.evaluate(()=>MSWE.resolve('reviews').open());
   await page.evaluate(()=>{MSWE.resolve('processing-host').commitReviews(MSWReview.empty(),'清空测试');MSWE.resolve('time-range').setRange({start:2000,end:4000});});
   await page.locator('#review-add-range').click();await expect(page.locator('#review-end')).toHaveValue('00:00:04.000');
   const flag=page.locator('.msw-review-flag').first();await expect(flag).toBeVisible();
@@ -55,4 +56,48 @@ test('time selections create ranges, dragging commits once, Escape cancels and p
   await page.locator('#review-loop').click();
   await page.locator('#review-end').fill('');await page.locator('#review-end').press('Tab');await expect(page.locator('#review-loop')).toBeDisabled();
   expect(await page.evaluate(()=>DATA.segments[0].start)).toBe(0);
+});
+
+async function openReviewFromMenu(page) {
+  await page.locator('[data-menubar-item="window"] > button').click();
+  await page.locator('#show-module-toggle').hover();
+  await page.locator('#show-module-menu').getByRole('menuitem',{name:'复核列表',exact:true}).click();
+}
+
+for(const entry of ['window menu','tab plus'])test(`closed review panel initializes after restoring a custom workspace via ${entry}`,async({page},info)=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const withMarker=entry==='tab plus';
+  await openReviewFromMenu(page);
+  if(withMarker) {
+    await page.getByRole('button',{name:'＋时间点',exact:true}).click();
+    await page.locator('#review-name').fill('核对人名');
+    await page.locator('#review-note').fill('确认译名');
+    await page.locator('#review-note').press('Tab');
+  }
+  await page.locator('[data-tab-for="reviews"]:visible .tab-close').click();
+  await expect(page.locator('#review-panel')).toHaveCount(0);
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
+  const saved=JSON.parse(readFileSync(projectFile,'utf8'));
+  expect(saved.workspace.preset).toBe('custom');
+  expect(saved.workspace.hiddenModules).toContain('reviews');
+  await page.reload();
+  await page.waitForFunction(()=>window.MSWE?.has('processing-host'),null,{timeout:90000});
+  await expect(page.locator('#review-panel')).toHaveCount(0);
+  if(entry==='window menu')await openReviewFromMenu(page);
+  else {
+    await page.locator('[data-dock-module="cues"] .module-tab-add').click();
+    await page.getByRole('menu',{name:'添加窗口到此标签组'}).getByRole('button',{name:'把复核列表加入此标签组'}).click();
+  }
+  await expect(page.getByRole('button',{name:'＋时间点',exact:true})).toBeVisible();
+  if(withMarker) {
+    await expect(page.locator('.msw-review-entry')).toContainText('核对人名');
+    await page.locator('.msw-review-entry').click();
+    await expect(page.locator('#review-note')).toHaveValue('确认译名');
+  } else await expect(page.locator('#review-list')).toContainText('在播放头添加时间点');
+  await page.getByRole('button',{name:'＋时间点',exact:true}).click();
+  await expect(page.locator('.msw-review-row')).toHaveCount(withMarker?2:1);
+  await page.evaluate(()=>performUndo());
+  await expect(page.locator('.msw-review-row')).toHaveCount(withMarker?1:0);
+  expect(errors).toEqual([]);
+  await page.screenshot({path:info.outputPath('restored-review-panel.png')});
 });
