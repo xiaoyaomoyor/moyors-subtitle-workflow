@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 import json
 import math
+import struct
 import subprocess
 import sys
 import threading
@@ -217,6 +218,40 @@ def _append_bucket(output: bytearray, samples: array) -> None:
     output.extend((low & 0xFF, high & 0xFF))
 
 
+def parse_ffmpeg_wav_header(header: bytes) -> tuple[int, int, int] | None:
+    """Read the PCM layout from a bounded FFmpeg WAV pipe header.
+
+    FFmpeg uses WAVE_FORMAT_EXTENSIBLE for surround audio; Python 3.11's
+    wave reader cannot read it. Data sizes on non-seekable pipes are unknown.
+    """
+    if len(header) < 12 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
+        return None
+    layout = None
+    offset = 12
+    while offset + 8 <= len(header):
+        tag = header[offset:offset + 4]
+        size = struct.unpack_from("<I", header, offset + 4)[0]
+        if tag == b"data":
+            return (*layout, offset + 8) if layout else None
+        if offset + 8 + size > len(header):
+            return None
+        if tag == b"fmt ":
+            if size < 16:
+                return None
+            codec, channels, rate, _, alignment, bits = struct.unpack_from("<HHIIHH", header, offset + 8)
+            if codec == 0xFFFE:
+                pcm_guid = bytes.fromhex("0100000000001000800000aa00389b71")
+                if size < 40 or header[offset + 32:offset + 48] != pcm_guid:
+                    return None
+            elif codec != 1:
+                return None
+            if not (1 <= channels <= 64 and rate > 0 and bits == 16 and alignment == channels * 2):
+                return None
+            layout = (channels, rate)
+        offset += 8 + size + (size & 1)
+    return None
+
+
 def extract_waveform(
     media_path: Path,
     *,
@@ -227,7 +262,7 @@ def extract_waveform(
     cancel_event: threading.Event | None = None,
     progress=None,
 ) -> dict[str, Any]:
-    """Stream a mono PCM envelope from FFmpeg without retaining decoded audio.
+    """Stream per-channel extrema without retaining decoded audio.
 
     At the default 100 peaks/second, three hours of audio produces about
     2.9 MiB of base64 data while extraction memory remains effectively flat.
@@ -252,8 +287,6 @@ def extract_waveform(
     if not ffmpeg:
         raise WaveformError("找不到 ffmpeg，无法预生成波形")
 
-    bucket_samples = max(1, round(pcm_sample_rate / peaks_per_second))
-    actual_peaks_per_second = round(pcm_sample_rate / bucket_samples)
     command = [
         ffmpeg,
         "-nostdin",
@@ -265,12 +298,12 @@ def extract_waveform(
         "-map",
         f"0:a:{audio_track}",
         "-vn",
-        "-ac",
-        "1",
         "-ar",
         str(pcm_sample_rate),
+        "-acodec",
+        "pcm_s16le",
         "-f",
-        "s16le",
+        "wav",
         "pipe:1",
     ]
     if cancel_event is not None and cancel_event.is_set():
@@ -311,23 +344,44 @@ def extract_waveform(
     encoded = bytearray()
     byte_carry = b""
     sample_carry = array("h")
-    total_samples = 0
+    total_frames = 0
 
     try:
+        header = bytearray()
+        parsed = None
+        while len(header) < 65536:
+            chunk = process.stdout.read(4096)
+            if not chunk:
+                break
+            header.extend(chunk)
+            parsed = parse_ffmpeg_wav_header(header)
+            if parsed is not None:
+                break
+        if parsed is None:
+            if cancel_event is not None and cancel_event.is_set():
+                raise WaveformError('波形生成已取消')
+            raise WaveformError('FFmpeg 返回的 WAV 头无法解析')
+        channels, sample_rate, data_offset = parsed
+        frame_bytes = channels * 2
+        bucket_frames = max(1, round(sample_rate / peaks_per_second))
+        bucket_samples = bucket_frames * channels
+        actual_peaks_per_second = round(sample_rate / bucket_frames)
+        chunk = header[data_offset:]
         while True:
-            chunk = process.stdout.read(64 * 1024)
+            if not chunk:
+                chunk = process.stdout.read(64 * 1024)
             if not chunk:
                 break
             raw = byte_carry + chunk
-            even_length = len(raw) - (len(raw) % 2)
-            byte_carry = raw[even_length:]
+            complete_bytes = len(raw) - (len(raw) % frame_bytes)
+            byte_carry = raw[complete_bytes:]
             values = array("h")
-            values.frombytes(raw[:even_length])
+            values.frombytes(raw[:complete_bytes])
             if sys.byteorder != "little":
                 values.byteswap()
-            total_samples += len(values)
+            total_frames += len(values) // channels
             if progress:
-                progress(round(total_samples * 1000 / pcm_sample_rate))
+                progress(round(total_frames * 1000 / sample_rate))
             if sample_carry:
                 sample_carry.extend(values)
                 values = sample_carry
@@ -335,6 +389,7 @@ def extract_waveform(
             for offset in range(0, complete_length, bucket_samples):
                 _append_bucket(encoded, values[offset : offset + bucket_samples])
             sample_carry = array("h", values[complete_length:])
+            chunk = b""
         if sample_carry:
             _append_bucket(encoded, sample_carry)
         return_code = process.wait()
@@ -357,15 +412,15 @@ def extract_waveform(
         raise WaveformError("ffmpeg 返回了不完整的 PCM 数据")
 
     peak_count = len(encoded) // 2
-    duration_ms = round(total_samples * 1000 / pcm_sample_rate)
+    duration_ms = round(total_frames * 1000 / sample_rate)
     return {
         "schema": WAVEFORM_SCHEMA,
         "encoding": WAVEFORM_ENCODING,
         "peaks_per_second": actual_peaks_per_second,
         # bin i covers [i * division / sample_rate, (i + 1) * ...): the exact
         # pair, so consumers never have to rely on the rounded rate above.
-        "sample_rate": pcm_sample_rate,
-        "division": bucket_samples,
+        "sample_rate": sample_rate,
+        "division": bucket_frames,
         "peak_count": peak_count,
         "duration_ms": duration_ms,
         "data": base64.b64encode(encoded).decode("ascii"),

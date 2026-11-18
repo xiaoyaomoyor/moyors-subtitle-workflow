@@ -11,6 +11,25 @@ async function open(page) {
   await page.evaluate(() => MSWNavigation.show('prefab'));
 }
 
+test('ASR failures show actionable localized messages and retain unknown-error reporting', async ({ page }) => {
+  await open(page);
+  for (const [code, zh, en] of [
+    ['asr_auth_failed', 'API Key', 'rejected the key'],
+    ['asr_rate_limited', '限流', 'quota'],
+    ['audio_no_stream', '没有可用音轨', 'no audio track'],
+    ['asr_empty_result_multitrack', '人声音轨', 'speech track'],
+  ]) {
+    for (const [lang, text] of [['zh', zh], ['en', en]]) {
+      await setLauncherLanguage(page, lang);
+      await page.evaluate(code => MSWLauncher.onBackendEvent({type:'error', code, detail:'synthetic diagnostic'}), code);
+      await expect(page.locator('#errorNoticeMessage')).toContainText(text);
+      await expect(page.locator('#errorNoticeIssue')).toBeHidden();
+    }
+  }
+  await page.evaluate(() => MSWLauncher.onBackendEvent({type:'error', code:'transcription_failed', detail:'unknown failure'}));
+  await expect(page.locator('#errorNoticeIssue')).toBeVisible();
+});
+
 test('complete punctuation survives an empty custom list and reaches presets, ASR and postprocessing',async({page},info)=>{
   let plan={version:1,steps:[{id:'match',enabled:false,extraSplitPunctuation:['？','！',','],preservePunctuation:['？','！']}]};
   await page.exposeFunction('punctuationPlan',value=>{if(value)plan=value;return plan;});

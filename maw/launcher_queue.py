@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace, is_dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from maw.asr_errors import ASR_ERROR_MESSAGES, asr_error_code, redact_asr_text
 from maw.gui_workflow import (
     TranscriptionCancelledError, default_srt_path, run_transcription, unique_output_path, render_editor_html,
 )
@@ -289,7 +290,7 @@ def prepare_queue(plan, *, env_path, tools, request_builder):
             request = None
             if recognize:
                 module = "asr"
-                request = request_builder({**plan.get("recognition", {}), "mediaPath": str(media), "srtPath": str(anchor), "audioTrack": track, "defaultAudioTrack": default_track, "generateWaveform": False, "generateSpectral": False, "generateHtml": False, "autoPostprocess": None, "batchSrtOnly": False})
+                request = request_builder({**plan.get("recognition", {}), "mediaPath": str(media), "srtPath": str(anchor), "audioTrack": track, "audioTrackCount": len(tracks) if tracks is not None else None, "defaultAudioTrack": default_track, "generateWaveform": False, "generateSpectral": False, "generateHtml": False, "autoPostprocess": None, "batchSrtOnly": False})
             warnings = list(info["warnings"])
             waveform = bool(modules.get("waveform")) and bool(media) and tracks != [] and not output.get("srtOnly")
             if modules.get("waveform") and not waveform:
@@ -360,7 +361,16 @@ def _run_task(task, *, env_path, tools, cancel, emit, ocr_runtime_root=None, req
             else:
                 request = copy.copy(task.request)
                 request.srt_path = recognition_output
-            result = run_transcription(request, cancel_event=cancel, on_event=lambda message: emit({"message": message}))
+            try:
+                result = run_transcription(request, cancel_event=cancel, on_event=lambda message: emit({"message": redact_asr_text(message, getattr(request, "api_key", ""))}))
+            except TranscriptionCancelledError:
+                raise
+            except Exception as error:
+                from maw.audio_diagnostics import AudioInputError
+                code = asr_error_code(error, provider=getattr(request, "provider", "local"))
+                if code:
+                    raise AudioInputError(code, ASR_ERROR_MESSAGES[code] + "\n" + redact_asr_text(error, getattr(request, "api_key", ""))) from error
+                raise
             recognized = read_project(result.json_path)
         source_id = scope.get('sourceTrackId') or project['subtitles']['tracks'][0]['id']
         recognized_view = native_project(recognized)
@@ -435,7 +445,8 @@ def run_queue(tasks, *, run_id, cancel, emit, execute):
                 cancel.set()
                 outcome = {**base, "status": "cancelled"}
             except Exception as error:
-                outcome = {**base, "status": "failed", "message": str(error)}
+                key = getattr(getattr(task, "request", None), "api_key", "")
+                outcome = {**base, "status": "failed", "code": getattr(error, "code", ""), "message": redact_asr_text(error, key)}
         results.append(outcome)
         emit({"type": "queueItem", **outcome})
     emit({"type": "queueDone", "runId": run_id, "cancelled": cancel.is_set(), "results": results})

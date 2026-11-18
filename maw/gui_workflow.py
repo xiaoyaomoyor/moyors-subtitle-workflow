@@ -16,10 +16,12 @@ from pathlib import Path
 from threading import Event
 from typing import BinaryIO, Final, TextIO, final
 
+from maw.asr_errors import redact_asr_text
+from maw.audio_diagnostics import empty_transcription_error, is_empty_transcription_error
 from maw.console import configure_utf8_environment
 from maw.ffmpeg import MACOS_FFMPEG_CANDIDATE_DIRECTORIES, bundled_ffmpeg_directory, ffmpeg_search_path, resolve_ffmpeg_tools
 from maw.gui_config import QWEN_AUDIO_MODEL_ID, DEFAULT_MODEL_ID, DEFAULT_ENV_PATH, effective_config, load_env
-from maw.gui_platform import asset_path, popen_process_tree, process_group_kwargs, release_process_tree, terminate_process_tree
+from maw.gui_platform import asset_path, popen_process_tree, process_group_kwargs, release_process_tree, restore_host_library_path, terminate_process_tree
 from maw.media import read_bwf_time_reference
 from maw.output_naming import debug_artifact_path, maw_root
 from maw.qwen_audio import (split_qwen_audio_hotwords, QWEN_AUDIO_31_MODEL_ID, QWEN_AUDIO_MODEL_IDS,
@@ -89,6 +91,7 @@ class TranscriptionRequest:
     min_words: str = ""
     env_path: Path | None = None
     environment_overrides: dict[str, str] | None = None
+    audio_track_count: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -518,6 +521,8 @@ def run_transcription(
     )
     if request.environment_overrides:
         env.update(request.environment_overrides)
+    if request.provider == "local" and request.runtime_python:
+        env = restore_host_library_path(env)
     command = build_transcribe_command(request, executable=executable, frozen=frozen)
     process = popen_process_tree(
         command,
@@ -537,6 +542,7 @@ def run_transcription(
         if billing is not None and line.startswith(QWEN_USAGE_PREFIX):
             billing = parse_qwen_audio_usage_line(line, request.region) or billing
             return
+        line = redact_asr_text(line, request.api_key)
         collected.append(line[-16000:])
         if len(collected) > 200:
             del collected[:-200]
@@ -549,10 +555,22 @@ def run_transcription(
         if process.poll() is None:
             terminate_process_tree(process, timeout=3)
         release_process_tree(process)
+    if cancel_event and cancel_event.is_set():
+        raise TranscriptionCancelledError
     if process.returncode != 0:
+        if is_empty_transcription_error(collected):
+            raise empty_transcription_error(request.audio_track_count, audio_track=request.audio_track, detail="\n".join(collected[-40:]))
         raise TranscriptionProcessError(process.returncode, output=collected)
     _require_output(paths.srt, "SRT")
     _require_output(paths.json, "JSON")
+    # Only classify a well-formed intermediate ASR result; malformed output
+    # remains a format error, and native projects are not empty legacy segments.
+    with paths.json.open(encoding="utf-8") as stream:
+        project = json.load(stream)
+    if isinstance(project, dict) and isinstance(project.get("segments"), list) and not project.get("subtitles"):
+        if not any(isinstance(cue, dict) and isinstance(cue.get("text"), str) and cue["text"].strip()
+                   for cue in project["segments"]):
+            raise empty_transcription_error(request.audio_track_count, audio_track=request.audio_track)
     raw_path = (
         local_debug_manifest_path(
             paths.srt,
@@ -575,7 +593,7 @@ def run_transcription(
             paths.html.parent.mkdir(parents=True, exist_ok=True)
             html_path = render_editor_html(paths.json, request.media_path, paths.html, request.ui_language)
         except Exception as error:  # HTML is optional; preserve successful SRT/JSON outputs.
-            (on_event or _ignore)(f"[warning] 编辑器 HTML 生成失败，SRT/JSON 已保留：{error}")
+            forward(f"[warning] 编辑器 HTML 生成失败，SRT/JSON 已保留：{error}")
     result = TranscriptionResult(
         srt_path=paths.srt,
         json_path=paths.json,

@@ -179,7 +179,7 @@
       const status = file.error || file.linkedError ? t("queue_invalid") : outcome ? t("queue_status_" + outcome.status) : state.inspecting && !file.meta ? t("queue_reading") : t("queue_ready");
       const badge = node("span", "queue-status" + (file.error || file.linkedError || outcome?.status === "failed" ? " error" : ""), status);
       head.append(icon, title, badge, button(t("batch_remove"), () => remove(file.id))); item.append(head);
-      if (file.error || file.linkedError || outcome?.message) item.append(node("p", "field-error visible", file.error || file.linkedError || outcome.message));
+      if (file.error || file.linkedError || outcome?.message) item.append(node("p", "field-error visible", file.error || file.linkedError || (outcome.code ? window.MSWLauncher.errorText(outcome.code, outcome.message) : outcome.message)));
       const warnings = [...file.meta?.warnings || [], ...outcome?.result?.warnings || []];
       if (warnings.length) item.append(node("p", "hint", warnings.join(" · ")));
       const details = node("details", "queue-details"); details.open = state.opened.has(file.id);

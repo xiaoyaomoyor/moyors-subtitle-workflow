@@ -1004,7 +1004,7 @@
 
   function autoLlmReady(providerId) {
     const item = provider(providerId);
-    return Boolean(item?.verified && item?.hasApiKey !== false && item?.hasBaseUrl !== false && item?.hasModel !== false);
+    return Boolean(item?.verified && (item?.requiresApiKey === false || item?.hasApiKey !== false) && item?.hasBaseUrl !== false && item?.hasModel !== false);
   }
 
   function autoStepReady(stepId) {
@@ -1103,7 +1103,7 @@
       const item = provider($(stepId + "Provider").value);
       const focusId = ["llmApiKey", "llmBaseUrl", "llmModel"].includes(invalidField)
         ? invalidField
-        : (item?.hasApiKey === false ? "llmApiKey" : (item?.hasBaseUrl === false ? "llmBaseUrl" : "llmModel"));
+        : (item?.requiresApiKey !== false && item?.hasApiKey === false ? "llmApiKey" : (item?.hasBaseUrl === false ? "llmBaseUrl" : "llmModel"));
       if (highlightConnection) setTestConnectionAttention(true);
       window.MSWLauncher.openSettings("llmSettingsSection", focusId);
       return;
@@ -1241,6 +1241,7 @@
     item.label = result.label || providerLabel(item);
     item.maskedApiKey = result.maskedApiKey || item.maskedApiKey;
     item.verified = Boolean(result.verified);
+    item.requiresApiKey = result.requiresApiKey !== false;
     $("llmApiKey").value = "";
     syncProviderOptionLabels();
     renderProviderKeyStatus(item);
@@ -1279,6 +1280,7 @@
           item.hasModel = Boolean(item.model);
         }
         item.verified = Boolean(result.verified);
+        item.requiresApiKey = result.requiresApiKey !== false;
         item.maskedApiKey = result.maskedApiKey || item.maskedApiKey;
         item.hasApiKey = Boolean(result.maskedApiKey || $("llmApiKey").value.trim() || item.hasApiKey);
         if (result.saved) $("llmApiKey").value = "";

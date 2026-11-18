@@ -835,8 +835,8 @@ def api_key_for_provider(provider_id: str, path: Path = DEFAULT_ENV_PATH, enviro
     env_key = provider.models[0].env_key
     env = aliased_values(os.environ if environ is None else environ)
     if env_key.startswith("MAW_") and env_key in env:
-        return env[env_key]
-    return env.get(env_key) or load_env(path).get(env_key, "")
+        return env[env_key].strip()
+    return (env.get(env_key) or load_env(path).get(env_key, "")).strip()
 
 
 def region_label(region_id: str) -> str:

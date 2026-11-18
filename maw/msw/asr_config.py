@@ -119,6 +119,8 @@ def resolve_settings(env_path, raw, media_path=None, *, validate_runtime=True):
         raise ValueError('ASR 模型不属于所选服务')
     options.update(providerId=provider.id, modelId=model_id)
     key = raw.get('apiKey') or api_key_for_provider(provider.id, env_path)
+    if isinstance(key, str):
+        key = key.strip()
     if provider.requires_api_key and (not isinstance(key, str) or not key.strip() or len(key) > 4096 or any(c in key for c in '\r\n\0')):
         raise ValueError('请填写 ASR API Key，或使用启动器已保存的同一服务配置')
     if not provider.requires_api_key:

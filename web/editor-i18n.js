@@ -839,6 +839,7 @@
     "正在读取…": "Loading\u2026",
     "读取在线音色列表，不进行语音合成": "Refresh the online voice list without synthesizing speech",
     "请输入 API Key": "Enter API key",
+    "本机服务可留空": "Optional for a local service",
     "已持有本地密钥": "Local API key available",
     "MiniMax 云端": "MiniMax cloud",
     "Mossland 云端": "Mossland cloud",

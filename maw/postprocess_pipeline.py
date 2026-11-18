@@ -46,6 +46,7 @@ from maw.postprocess_llm import (
     llm_request_summary,
     normalize_reasoning_mode,
     preset_by_id,
+    postprocess_api_key_required,
 )
 from maw.postprocess_match import ScriptMatchRequest, run_script_match
 from maw.subtitle_punctuation import custom_symbols
@@ -251,7 +252,7 @@ def _llm_values(env_path: Path, provider_id: str) -> dict[str, str]:
     if provider_id == "qwen" and not api_key:
         api_key = os.environ.get("DASHSCOPE_API_KEY") or values.get("DASHSCOPE_API_KEY", "")
     return {
-        "apiKey": api_key,
+        "apiKey": api_key.strip(),
         "baseUrl": os.environ.get(f"{prefix}_BASE_URL") or values.get(f"{prefix}_BASE_URL", "") or preset.base_url,
         "model": os.environ.get(f"{prefix}_MODEL") or values.get(f"{prefix}_MODEL", "") or preset.model,
     }
@@ -302,7 +303,8 @@ def postprocess_provider_status(env_path: Path, provider_id: str) -> dict[str, o
     values = _llm_values(env_path, provider_id)
     return {
         "verified": is_llm_verified(env_path, provider_id),
-        "hasApiKey": bool(values["apiKey"]),
+        "hasApiKey": bool(values["apiKey"].strip()),
+        "requiresApiKey": postprocess_api_key_required(provider_id, values["baseUrl"]),
         "hasBaseUrl": bool(values["baseUrl"]),
         "hasModel": bool(values["model"]),
     }
@@ -372,8 +374,8 @@ def validate_plan(
             if path.suffix.lower() not in SCRIPT_EXTENSIONS or not path.is_file():
                 errors.append({"step": step_id, "field": "postprocessScriptPath", "message": "文稿匹配需要一个存在的 .txt、.md 或 .markdown 文稿文件。"})
         elif step_id in {"proofread", "resegment", "translate"}:
-            status = _snapshot_provider_status(_step_llm_settings(env_path, step, llm_settings))
-            if not status["hasApiKey"]:
+            status = _snapshot_provider_status({**_step_llm_settings(env_path, step, llm_settings), "providerId": str(step.get("providerId") or "deepseek")})
+            if not status["hasApiKey"] and status["requiresApiKey"]:
                 errors.append({"step": step_id, "field": "llmApiKey", "message": "LLM 供应商缺少 API Key，请在更多设置的供应商环境中填写并保存。"})
             elif not status["hasBaseUrl"]:
                 errors.append({"step": step_id, "field": "llmBaseUrl", "message": "LLM 供应商缺少 API URL，请在更多设置的供应商环境中填写并保存。"})
@@ -1554,7 +1556,8 @@ def _snapshot_provider_status(values: Mapping[str, str] | None) -> dict[str, obj
     values = values or {}
     return {
         "verified": bool(values.get("verified", "")),
-        "hasApiKey": bool(values.get("apiKey", "")),
+        "hasApiKey": bool(values.get("apiKey", "").strip()),
+        "requiresApiKey": postprocess_api_key_required(values.get("providerId", ""), values.get("baseUrl", "")),
         "hasBaseUrl": bool(values.get("baseUrl", "")),
         "hasModel": bool(values.get("model", "")),
     }

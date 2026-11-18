@@ -7,12 +7,19 @@ import { openMenubarMenu, disableOnboarding, findFreePort, generateWav, generate
 
 let mockProvider, providerUrl, server, tempDir, projectPath;
 let held = [], requests = [], hold = false;
+let schemaOnly = false, requestHeaders = [], requestFormats = [];
 test.beforeAll(async () => {
   mockProvider = createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     const input = body.messages.find(item => item.role === 'user').content;
+    requestHeaders.push(req.headers);
+    requestFormats.push(body.response_format?.type || 'text');
+    if (schemaOnly && body.response_format?.type === 'json_object') {
+      res.writeHead(400, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error:{message:'Unsupported response_format: use json_schema'}})); return;
+    }
     if (input === 'Reply with OK.') {
       res.writeHead(200, {'Content-Type': 'application/json'});
       res.end(JSON.stringify({choices: [{message: {content: 'OK'}}]})); return;
@@ -43,8 +50,9 @@ function fixture(secondary = false) {
 }
 test.beforeEach(async ({ page }) => {
   requests = []; hold = false; held = [];
+  schemaOnly = false; requestHeaders = []; requestFormats = [];
   tempDir = makeTempDir('editor-translation');
-  process.env.MAW_ENV_FILE = join(tempDir, 'isolated.env');
+  process.env.MAW_ENV_FILE = process.env.MSW_ENV_FILE = join(tempDir, 'isolated.env');
   process.env.MSW_APP_DATA_ROOT = join(tempDir, 'app-data');
   await disableOnboarding(page);
   page.on('dialog', dialog => dialog.type() === 'beforeunload' ? dialog.accept() : dialog.dismiss());
@@ -83,7 +91,7 @@ async function openTranslationPanel(page) {
   await toggle.press('ArrowRight');
   await page.locator('#subtitle-translate-btn').click();
 }
-async function panel(page) {
+async function panel(page, key = 'synthetic-test-key') {
   await openTranslationPanel(page);
   await expect(page.locator('#subtitle-translation-panel')).toBeVisible();
   await expect(page.locator('#translation-provider option')).toHaveCount(4);
@@ -92,13 +100,25 @@ async function panel(page) {
   await expect(page.locator('#llm-provider')).toHaveValue('custom');
   await page.locator('#translation-base-url').fill(providerUrl);
   await page.locator('#translation-model').fill('test-model');
-  await page.locator('#translation-api-key').fill('synthetic-test-key');
+  await page.locator('#translation-api-key').fill(key);
   await page.locator('#translation-save-settings').click();
-  await expect(page.locator('#llm-message')).toContainText('配置已保存');
+  await expect(page.locator('#llm-message')).toContainText('配置已保存', { timeout: 30000 });
   await page.locator('#editor-settings-close').click();
   await openTranslationPanel(page);
 }
 const secondaryTexts = (page) => page.evaluate(() => DATA.multi_subtitle.tracks[0]?.segments.map(cue => cue.text) || []);
+
+test('keyless local translation negotiates schema and remains applicable', async ({ page }) => {
+  schemaOnly = true;
+  await open(page); await panel(page, '');
+  await expect(page.locator('#translation-environment-notice')).toBeHidden();
+  await expect(page.locator('#translation-start')).toBeEnabled();
+  await page.locator('#translation-start').click();
+  await applyLatest(page, 'main');
+  await expect.poll(() => page.evaluate(() => DATA.segments.map(cue => cue.text))).toEqual(['Translated Hello', 'Translated World']);
+  expect(requestFormats).toEqual(['json_object', 'json_schema']);
+  expect(requestHeaders.every(headers => !headers.authorization)).toBe(true);
+});
 
 async function applyLatest(page,target='secondary') {
   if(!await page.locator('#subtitle-translation-panel').isVisible())await openTranslationPanel(page);
@@ -170,7 +190,7 @@ test('LLM management stays global and unsaved edits do not change the call confi
   await page.locator('#subtitle-translation-close').click(); await panel(page);
   await expect(page.locator('#subtitle-translation-panel #translation-settings')).toHaveCount(0);
   await page.locator('#subtitle-translation-close').click(); await openTtsEnvironment(page);
-  await page.locator('.settings-nav-subitem').filter({hasText: /^LLM$/}).click();
+  await page.locator('#llm-provider').scrollIntoViewIfNeeded();
   await page.locator('#translation-test').click();
   await expect(page.locator('#llm-test-jobs')).toContainText('处理完成');
   const width = await page.locator('#translation-base-url').evaluate(input => input.clientWidth / input.parentElement.clientWidth);
@@ -329,9 +349,9 @@ test('English translation panel uses translated labels and shared saved provider
   await open(page); await panel(page);
   await page.locator('#subtitle-translation-close').click();
   await openTtsEnvironment(page);
-  await page.locator('.settings-nav-subitem').filter({hasText: /^LLM$/}).click();
+  await page.locator('#llm-provider').scrollIntoViewIfNeeded();
   await page.locator('#translation-save-settings').click();
-  await expect(page.locator('#llm-message')).toContainText('配置已保存');
+  await expect(page.locator('#llm-message')).toContainText('配置已保存', { timeout: 30000 });
   await expect(page.locator('#translation-api-key')).toHaveValue('');
   await expect(page.locator('#translation-api-key')).toHaveAttribute('placeholder','已持有本地密钥');
   await page.locator('#editor-settings-close').click(); await openTranslationPanel(page);

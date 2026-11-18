@@ -10,6 +10,8 @@ import tempfile
 import time
 import wave
 
+from maw.asr_errors import ASR_ERROR_MESSAGES, asr_error_code
+from maw.audio_diagnostics import AudioInputError, empty_transcription_error
 from maw.gui_workflow import run_transcription, TranscriptionProcessError
 from maw.msw.audio_render import check_cancel, command_prefix, run
 from maw.msw.project_codec import valid_id, valid_cue_id
@@ -34,8 +36,11 @@ def process_failure(error, settings):
         detail = re.sub(r'([\'"])(?:[A-Za-z]:[\\/]|/)[^\r\n]*?\1', '[已隐藏路径]', detail)
         detail = re.sub(r'(?i)\b[A-Z]:[\\/][^\s<>\'"`]+', '[已隐藏路径]', detail)
         detail = re.sub(r'[\x00-\x1f\x7f]+', ' ', detail).strip()[:500]
-    prefix = f'ASR 进程失败（退出码 {error.exit_code}）'
-    return f'{prefix}：{detail}' if detail else f'{prefix}；未获得具体错误，请检查模型、服务连接与额度'
+    code = asr_error_code(error, provider=getattr(settings, "provider_id", "local"))
+    prefix = ASR_ERROR_MESSAGES.get(code) or f'ASR 进程失败（退出码 {error.exit_code}）'
+    if detail:
+        return f'{prefix.rstrip("。")}：{detail}'
+    return prefix if code else f'{prefix}；未获得具体错误，请检查模型、服务连接与额度'
 
 
 def validate_snapshot(raw):
@@ -221,7 +226,8 @@ class AsrService:
             isolated_env = root / 'isolated.env'
             isolated_env.write_bytes(b'')
             request = replace(settings.request, media_path=source, srt_path=root / 'result.srt', audio_track=0,
-                              default_audio_track=0, env_path=isolated_env)
+                              default_audio_track=0, env_path=isolated_env,
+                              audio_track_count=len(record['metadata']['audio_tracks']) if isinstance(record.get('metadata', {}).get('audio_tracks'), list) else None)
             last_progress = 0
             def on_event(_line):
                 nonlocal last_progress
@@ -233,12 +239,17 @@ class AsrService:
                 result = self.transcribe(request, cancel_event=cancel, on_event=on_event)
             except TranscriptionProcessError as error:
                 raise ValueError(process_failure(error, settings)) from error
+            except AudioInputError as error:
+                raise ValueError(ASR_ERROR_MESSAGES[error.code]) from error
             check_cancel(cancel)
             self.source(snapshot)
             if result.json_path.stat().st_size > 32 * 1024 * 1024:
                 raise ValueError('识别结果过大，请缩小时间范围')
             project = json.loads(result.json_path.read_text(encoding='utf-8'))
             candidates = map_candidates(project, span, job['id'])
+            if not any(cue.get('text', '').strip() for cue in candidates):
+                error = empty_transcription_error(request.audio_track_count)
+                raise ValueError(ASR_ERROR_MESSAGES[error.code])
             if len(candidates) > 10000:
                 raise ValueError('识别结果超过 10000 条，请分段处理')
             progress('ready', {'message': '识别完成，等待结果应用'})

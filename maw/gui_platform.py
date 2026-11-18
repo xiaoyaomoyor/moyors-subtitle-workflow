@@ -32,6 +32,21 @@ def creationflags() -> int:
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
+def restore_host_library_path(env: dict[str, str]) -> dict[str, str]:
+    """Return a child-only environment for host programs in frozen Linux.
+
+    PyInstaller's bundled libraries belong to the application, not the host
+    Python/venv or desktop tools. Never change the parent's environment.
+    """
+    result = dict(env)
+    if sys.platform == "linux" and getattr(sys, "frozen", False):
+        if "LD_LIBRARY_PATH_ORIG" in result:
+            result["LD_LIBRARY_PATH"] = result["LD_LIBRARY_PATH_ORIG"]
+        else:
+            result.pop("LD_LIBRARY_PATH", None)
+    return result
+
+
 def process_group_kwargs() -> dict[str, object]:
     """Start a child in an independently terminable process group."""
     flags = creationflags()

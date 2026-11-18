@@ -37,7 +37,7 @@
   }
   function updateEnvironment() {
     const provider = providers.find(item => item.id === el('translation-provider').value);
-    const issue = providerError || (!provider ? '正在读取本机 LLM 配置…' : !provider.hasApiKey
+    const issue = providerError || (!provider ? '正在读取本机 LLM 配置…' : !provider.hasApiKey && provider.requiresApiKey !== false
       ? '当前 LLM 服务尚未配置密钥，请前往环境配置。' : !provider.baseUrl || !provider.model ? '请在 LLM 环境配置中填写 API 地址和模型。' : '');
     el('translation-environment-notice').hidden = !available || !issue;
     el('translation-environment-notice').textContent = t(issue);
@@ -115,7 +115,7 @@
     el('translation-model').value = provider.model;
     el('translation-reasoning').value = provider.reasoningMode || 'auto';
     el('translation-api-key').value = '';
-    el('translation-api-key').placeholder = t(provider.hasApiKey ? '已持有本地密钥' : '请输入 API Key');
+    el('translation-api-key').placeholder = t(provider.hasApiKey ? '已持有本地密钥' : provider.requiresApiKey === false ? '本机服务可留空' : '请输入 API Key');
   }
   async function loadProviders() {
     if (loadingProviders) return loadingProviders;

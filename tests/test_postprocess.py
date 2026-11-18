@@ -921,7 +921,7 @@ class PostprocessTests(unittest.TestCase):
         )
         first = mock.Mock()
         first.json.return_value = {
-            "choices": [{"message": {"content": '{"groups":[{"id":"c0001","text":"坏",}]}'}}]
+            "choices": [{"message": {"content": '{"groups":[{"id":"c0001","text":"坏'}}]
         }
         second = mock.Mock()
         second.json.return_value = {

@@ -13,10 +13,13 @@
 from __future__ import annotations
 
 import base64
+import os
 import shutil
 import subprocess
 import sys
 from typing import Final
+
+from maw.gui_platform import restore_host_library_path
 
 _WINDOWS_CREATE_NO_WINDOW: Final = 0x08000000
 # Windows 气泡提示的文本上限较小，超出会被系统截断；这里主动收紧并去掉换行。
@@ -47,7 +50,7 @@ def _normalize(value: str, limit: int) -> str:
     return text
 
 
-def _spawn(command: list[str]) -> bool:
+def _spawn(command: list[str], *, env: dict[str, str] | None = None) -> bool:
     if not command:
         return False
     kwargs: dict[str, object] = {
@@ -55,6 +58,8 @@ def _spawn(command: list[str]) -> bool:
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
     }
+    if env is not None:
+        kwargs["env"] = env
     if sys.platform == "win32":
         kwargs["creationflags"] = _WINDOWS_CREATE_NO_WINDOW
     else:
@@ -117,4 +122,5 @@ def _notify_linux(title: str, message: str) -> bool:
     executable = shutil.which("notify-send")
     if not executable:
         return False
-    return _spawn([executable, "--app-name=MSW", title, message])
+    return _spawn([executable, "--app-name=MSW", title, message],
+                  env=restore_host_library_path(dict(os.environ)))

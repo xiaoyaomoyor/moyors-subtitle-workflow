@@ -269,7 +269,7 @@ class GuiWorkflowTests(unittest.TestCase):
             generate_html=False,
         )
         self.srt_path.write_text("1\n", encoding="utf-8")
-        self.srt_path.with_suffix(".mosp").write_text('{"segments": []}\n', encoding="utf-8")
+        self.srt_path.with_suffix(".mosp").write_text('{"segments": [{"id": 0, "start": 0, "end": 1000, "text": "Test"}]}\n', encoding="utf-8")
         manifest = local_debug_manifest_path(self.srt_path, media_path=self.media_path, explicit_output=True)
         manifest.parent.mkdir(parents=True, exist_ok=True)
         manifest.write_text('{"schema": "moy.asr.local_debug.v1"}\n', encoding="utf-8")
@@ -486,7 +486,7 @@ class GuiWorkflowTests(unittest.TestCase):
             ui_language="en",
         )
         self.srt_path.write_text("1\n", encoding="utf-8")
-        self.srt_path.with_suffix(".mosp").write_text('{"segments": []}\n', encoding="utf-8")
+        self.srt_path.with_suffix(".mosp").write_text('{"segments": [{"id": 0, "start": 0, "end": 1000, "text": "Test"}]}\n', encoding="utf-8")
         events: list[str] = []
 
         class FakeProcess:
@@ -693,7 +693,7 @@ class GuiWorkflowTests(unittest.TestCase):
     def test_run_transcription_reports_child_pid_after_popen(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path)
         self.srt_path.write_text("1\n", encoding="utf-8")
-        self.srt_path.with_suffix(".mosp").write_text('{"segments": []}\n', encoding="utf-8")
+        self.srt_path.with_suffix(".mosp").write_text('{"segments": [{"id": 0, "start": 0, "end": 1000, "text": "Test"}]}\n', encoding="utf-8")
         started: list[int] = []
 
         class FakeProcess:
@@ -720,7 +720,7 @@ class GuiWorkflowTests(unittest.TestCase):
         class FakeProcess:
             pid = 4321
             returncode = 1
-            stdout = ["[info] 提交任务...\n".encode(), "错误: 未识别到任何内容\n".encode()]
+            stdout = ["[info] 提交任务...\n".encode(), "错误: 模型无法处理请求\n".encode()]
 
             def poll(self) -> int | None:
                 return 1
@@ -733,14 +733,14 @@ class GuiWorkflowTests(unittest.TestCase):
                 run_transcription(request, on_event=events.append)
 
         self.assertEqual(raised.exception.exit_code, 1)
-        self.assertTrue(any("未识别到任何内容" in line for line in raised.exception.output))
-        self.assertIn("未识别到任何内容", str(raised.exception))
+        self.assertTrue(any("模型无法处理请求" in line for line in raised.exception.output))
+        self.assertIn("模型无法处理请求", str(raised.exception))
         self.assertTrue(any("提交任务" in event for event in events))
 
     def test_run_transcription_keeps_json_when_optional_html_render_fails(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path, generate_html=True)
         self.srt_path.write_text("1\n", encoding="utf-8")
-        self.srt_path.with_suffix(".mosp").write_text('{"segments": []}\n', encoding="utf-8")
+        self.srt_path.with_suffix(".mosp").write_text('{"segments": [{"id": 0, "start": 0, "end": 1000, "text": "Test"}]}\n', encoding="utf-8")
         events: list[str] = []
 
         class FakeProcess:

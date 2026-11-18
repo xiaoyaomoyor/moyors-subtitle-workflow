@@ -50,7 +50,7 @@ mimetypes.add_type("audio/ogg", ".opus")
 
 import edit  # noqa: E402
 from maw.console import configure_utf8_stdio  # noqa: E402
-from maw.gui_platform import startupinfo  # noqa: E402
+from maw.gui_platform import startupinfo, restore_host_library_path  # noqa: E402
 from maw import reapeaks  # noqa: E402
 from maw import stickers as _stickers  # noqa: E402
 from maw.ass_styles import load_ass_style_library, save_ass_style_library  # noqa: E402
@@ -2279,7 +2279,8 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
                 elif sys.platform == "darwin":
                     subprocess.Popen(["open", str(folder)], startupinfo=startupinfo())  # noqa: S603,S607
                 else:
-                    subprocess.Popen(["xdg-open", str(folder)], startupinfo=startupinfo())  # noqa: S603,S607
+                    subprocess.Popen(["xdg-open", str(folder)], startupinfo=startupinfo(),
+                                     env=restore_host_library_path(dict(os.environ)))  # noqa: S603,S607
             self.send_json(HTTPStatus.OK, {"ok": True, "folder": str(folder), "dryRun": dry_run})
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
             self.send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(error)})

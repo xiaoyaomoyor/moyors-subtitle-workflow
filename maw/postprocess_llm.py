@@ -11,6 +11,7 @@ import random
 import re
 import ssl
 import time
+from threading import Lock
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from email.utils import parsedate_to_datetime
@@ -74,6 +75,23 @@ MAX_RETRY_DELAY: Final[float] = 60.0
 TRANSIENT_HTTP_STATUSES: Final[frozenset[int]] = frozenset({408, 429, 500, 502, 503, 504})
 CONNECTION_TEST_READ_TIMEOUT: Final[int] = 90
 MAX_PROVIDER_DIAGNOSTIC_CHARS: Final[int] = 240
+_json_constraint_modes: dict[tuple[str, str], str] = {}
+_json_constraint_lock = Lock()
+_SUBTITLE_GROUPS_SCHEMA = {
+    "name": "msw_subtitle_groups",
+    "schema": {
+        "type": "object",
+        "properties": {"groups": {"type": "array", "items": {
+            "type": "object", "properties": {
+                "source_ids": {"type": "array", "items": {"type": "string"}},
+                "atom_ids": {"type": "array", "items": {"type": "string"}},
+                "id": {"type": "string"}, "text": {"type": "string"},
+                "source_text": {"type": "string"},
+            },
+        }}},
+        "required": ["groups"],
+    },
+}
 _REASONING_ALIASES: Final[dict[str, str]] = {
     "default": DEFAULT_REASONING_MODE,
     "disabled": "off",
@@ -152,7 +170,8 @@ def complete_subtitle_groups(
             prompt = system_prompt
         while True:
             try:
-                body = _request_completion(settings, prompt, cues, on_delta=on_delta)
+                body = _request_completion(settings, prompt, cues, on_delta=on_delta,
+                                           on_fallback=(lambda: retry_wait(0)) if retry_wait else None)
                 break
             except LlmClientError as error:
                 if not _is_transient_response(error):
@@ -174,7 +193,7 @@ def complete_subtitle_groups(
                     on_delta("reset", "")
         content = _response_content(body)
         try:
-            parsed = json.loads(_strip_json_fence(content))
+            parsed = _loads_with_trailing_repair(_strip_json_fence(content))
         except json.JSONDecodeError as error:
             last_error = f"JSON syntax error: {error.msg} at character {error.pos}"
             if attempt + 1 < MAX_RESPONSE_ATTEMPTS:
@@ -229,6 +248,55 @@ def _request_completion(
     cues: list[dict[str, JsonValue]],
     *,
     on_delta: LlmDelta | None,
+    on_fallback: Callable[[], None] | None = None,
+) -> dict[str, JsonValue]:
+    """Negotiate only explicitly rejected formats, at most object/schema/text.
+
+    Keep transport retries in the caller, with its shared budget. No empty
+    completion, auth error, timeout or generic HTTP 400 triggers a downgrade.
+    """
+    key = (_chat_endpoint(settings.base_url), _request_model(settings))
+    with _json_constraint_lock:
+        mode = _json_constraint_modes.get(key, "object")
+    formats = {
+        "object": {"type": "json_object"},
+        "schema": {"type": "json_schema", "json_schema": _SUBTITLE_GROUPS_SCHEMA},
+        "text": None,
+    }
+    while True:
+        try:
+            return _request_completion_once(settings, system_prompt, cues,
+                                            on_delta=on_delta, json_format=formats[mode])
+        except LlmClientError as error:
+            detail = f"{error.message} {error.diagnostic}".lower()
+            rejected = (
+                error.status_code in {400, 422}
+                and any(word in detail for word in ("response_format", "json_object", "json_schema"))
+                and any(word in detail for word in (
+                    "unsupported", "not support", "invalid", "unknown", "unrecognized",
+                    "not permitted", "must be", "only", "not allowed", "not available",
+                ))
+            )
+            if mode == "text" or not rejected:
+                raise
+            mode = "schema" if mode == "object" else "text"
+            with _json_constraint_lock:
+                if key not in _json_constraint_modes and len(_json_constraint_modes) >= 128:
+                    _json_constraint_modes.pop(next(iter(_json_constraint_modes)))
+                _json_constraint_modes[key] = mode
+            if on_fallback is not None:
+                on_fallback()  # Cancellable callers check before another request.
+            if on_delta is not None:
+                on_delta("reset", "")
+
+
+def _request_completion_once(
+    settings: LlmSettings,
+    system_prompt: str,
+    cues: list[dict[str, JsonValue]],
+    *,
+    on_delta: LlmDelta | None,
+    json_format: dict | None,
 ) -> dict[str, JsonValue]:
     endpoint = _chat_endpoint(settings.base_url)
     payload = {
@@ -237,8 +305,9 @@ def _request_completion(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(cues, ensure_ascii=False)},
         ],
-        "response_format": {"type": "json_object"},
     }
+    if json_format is not None:
+        payload["response_format"] = json_format
     # Gemini 3.6+ no longer accepts the old sampling controls. Use the
     # provider default rather than carrying our generic temperature override.
     if _provider_family(settings) != "gemini":
@@ -667,7 +736,7 @@ def _reasoning_parameters(settings: LlmSettings) -> dict[str, JsonValue]:
 
 
 def _request_headers(settings: LlmSettings, *, streaming: bool) -> dict[str, str]:
-    headers = {"Authorization": f"Bearer {settings.api_key}"}
+    headers = {"Authorization": f"Bearer {settings.api_key.strip()}"} if settings.api_key.strip() else {}
     if streaming and _provider_family(settings) == "qwen":
         headers["X-DashScope-SSE"] = "enable"
     return headers
@@ -909,6 +978,20 @@ def _is_loopback_host(host: str | None) -> bool:
         return False
 
 
+def postprocess_api_key_required(provider_id: str, base_url: str) -> bool:
+    """Only valid custom loopback endpoints can omit credentials."""
+    try:
+        parsed = urlparse(base_url.strip())
+        # Accessing port also validates malformed/non-numeric port values.
+        parsed.port
+        local = (parsed.scheme in {"http", "https"}
+                 and _is_loopback_host(parsed.hostname)
+                 and not (parsed.username or parsed.password or parsed.query or parsed.fragment))
+    except ValueError:
+        local = False
+    return not (provider_id == "custom" and local)
+
+
 def _response_content(body: JsonValue) -> str:
     if not isinstance(body, dict):
         raise LlmClientError("LLM response must be a JSON object")
@@ -926,5 +1009,79 @@ def _response_content(body: JsonValue) -> str:
 
 def _strip_json_fence(content: str) -> str:
     value = content.strip()
+    # Strip reasoning before the answer only. A subtitle may legitimately
+    # contain the literal string "<think>"; never rewrite JSON string values.
+    while value.lower().startswith("<think>"):
+        end = value.lower().find("</think>", len("<think>"))
+        if end < 0:
+            return ""  # An unfinished reasoning block is not an answer.
+        value = value[end + len("</think>"):].strip()
     match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", value, re.DOTALL | re.IGNORECASE)
     return match.group(1) if match else value
+
+
+def _close_truncated_json(value: str) -> str | None:
+    """Close missing containers or remove one comma at the structural tail.
+
+    Only a clean structural prefix can be repaired: an unterminated string or
+    a mismatched closer means the damage is mid-content, and silently closing
+    it would accept a truncated answer, so ``None`` is returned instead.
+    """
+    stack: list[str] = []
+    closer_for = {"{": "}", "[": "]"}
+    in_string = False
+    escaped = False
+    last_comma: int | None = None
+    for index, char in enumerate(value):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append(char)
+        elif char in "}]":
+            if not stack or closer_for[stack.pop()] != char:
+                return None
+        elif char == ",":
+            last_comma = index
+    if in_string:
+        return None
+    repaired = value.rstrip()
+    if last_comma is not None:
+        prefix = value[:last_comma].rstrip()
+        suffix = value[last_comma + 1:]
+        # Repair a comma only at the structural tail, whether the closing
+        # containers were emitted or omitted. Never remove string content or
+        # a comma without a preceding value (e.g. {,} or [,]).
+        if prefix and prefix[-1] not in "{[:," and all(
+            char.isspace() or char in "}]" for char in suffix
+        ):
+            repaired = (value[:last_comma] + suffix).rstrip()
+    if not stack and repaired == value.rstrip():
+        return None
+    return repaired + "".join(closer_for[opener] for opener in reversed(stack))
+
+
+def _loads_with_trailing_repair(content: str) -> JsonValue:
+    """json.loads with one best-effort repair for truncated JSON suffixes.
+
+    Local models occasionally stop one closing bracket short or leave a
+    trailing comma before the closers. Only these structural suffixes are
+    repaired; anything else re-raises the original error so the normal
+    protocol retry still happens.
+    """
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as error:
+        repaired = _close_truncated_json(content)
+        if repaired is not None:
+            try:
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+        raise error from None

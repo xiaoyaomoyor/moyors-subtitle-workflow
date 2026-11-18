@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 from maw.gui_config import load_env, save_env
 from maw.env_config import aliased_values
-from maw.postprocess_llm import DEFAULT_REASONING_MODE, PRESETS, LlmSettings, normalize_reasoning_mode
+from maw.postprocess_llm import DEFAULT_REASONING_MODE, PRESETS, LlmSettings, normalize_reasoning_mode, postprocess_api_key_required
 from maw.postprocess_pipeline import invalidate_llm_verification_if_changed
 
 
@@ -35,7 +35,7 @@ def read_values(env_path: Path, prefix: str) -> dict[str, str]:
     if prefix == "MAW_POSTPROCESS_QWEN" and not api_key:
         api_key = pick("DASHSCOPE_API_KEY")
     return {
-        "apiKey": api_key,
+        "apiKey": api_key.strip(),
         "baseUrl": pick(f"{prefix}_BASE_URL"),
         "model": pick(f"{prefix}_MODEL"),
         "displayName": pick(f"{prefix}_DISPLAY_NAME"),
@@ -54,6 +54,7 @@ def provider_payloads(env_path: Path) -> dict:
             "model": values["model"] or preset.model,
             "reasoningMode": values["reasoningMode"],
             "hasApiKey": bool(values["apiKey"]),
+            "requiresApiKey": postprocess_api_key_required(preset.id, values["baseUrl"] or preset.base_url),
         })
     values = load_env(env_path)
     selected = values.get("MAW_POSTPROCESS_LAST_PROVIDER", "deepseek")
@@ -66,7 +67,7 @@ def resolve_settings(env_path: Path, payload: dict) -> LlmSettings:
     key = str(payload.get("apiKey") or stored["apiKey"]).strip()
     base_url = str(payload.get("baseUrl") or stored["baseUrl"] or preset.base_url).strip()
     model = str(payload.get("model") or stored["model"] or preset.model).strip()
-    if not key:
+    if not key and postprocess_api_key_required(preset.id, base_url):
         raise ValueError("请先填写 API Key，或在启动器配置同一翻译服务")
     parsed = urlsplit(base_url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:

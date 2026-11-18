@@ -41,6 +41,7 @@ from maw.gui_platform import (
     popen_process_tree,
     process_group_kwargs,
     release_process_tree,
+    restore_host_library_path,
     terminate_process_tree,
 )
 from maw.runtime_manifest import (
@@ -651,6 +652,7 @@ class ManagedRuntime:
             encoding="utf-8",
             errors="replace",
             timeout=30,
+            env=self.environment(),
         )
         if probe.returncode != 0:
             raise self._error(f"宿主 python3 版本过低：{spec.message_prefix}需要 Python 3.11+。")
@@ -782,7 +784,7 @@ class ManagedRuntime:
             env.update(model_cache_environment(model_cache_root))
         if runtime_root is not None:
             env["PYTHONPATH"] = str(self.site_packages(runtime_root))
-        return env
+        return restore_host_library_path(env)
 
     def run(
         self,
@@ -983,6 +985,7 @@ def _has_cuda() -> bool:
             [nvidia_smi, "--query-gpu=name", "--format=csv,noheader"],
             capture_output=True,
             timeout=10,
+            env=restore_host_library_path(dict(os.environ)),
         )
         return result.returncode == 0
     except (subprocess.TimeoutExpired, OSError):

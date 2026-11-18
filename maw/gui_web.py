@@ -24,6 +24,7 @@ from pathlib import Path
 from threading import Event, Lock
 from typing import BinaryIO, Final, final
 
+from maw.asr_errors import ASR_ERROR_MESSAGES, api_key_error_code, asr_error_code, redact_asr_text
 from maw.app_paths import default_emoji_font_path
 from maw.qwen_audio import qwen_audio_billing_info
 from maw.env_config import aliased_values, alias_keys
@@ -53,7 +54,7 @@ from maw.gui_config import (
     provider_for_model,
     save_env,
 )
-from maw.gui_platform import apply_dark_title_bar, apply_theme_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, startupinfo, terminate_process_tree
+from maw.gui_platform import apply_dark_title_bar, apply_theme_title_bar, asset_path, creationflags, popen_process_tree, process_group_kwargs, release_process_tree, restore_host_library_path, startupinfo, terminate_process_tree
 from maw.gui_workflow import TranscriptionCancelledError, TranscriptionProcessError, TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, build_alignment_serve_command, build_output_paths, build_serve_command, default_srt_path, raw_response_path, run_transcription, unique_output_path, with_test_suffix
 from maw.launcher_batch import BatchItem, run_batch
 from maw.launcher_queue import inspect_input, prepare_queue, run_queue, run_task
@@ -117,7 +118,7 @@ from maw.postprocess_ffmpeg import (
 from maw.subtitle_punctuation import recognition_policy, split_symbols as effective_split_symbols
 from maw.postprocess_match import SCRIPT_EXTENSIONS, MatchCoverageError, ScriptMatchRequest, SubtitleMatchError, _has_complete_item_timings, _match_project, _match_project_with_character_timings, _read_script, prepare_script_text, processed_script_text, run_script_match as process_script_match
 from maw.postprocess_ocr import OcrDedupRequest, OcrRegion
-from maw.postprocess_llm import DEFAULT_REASONING_MODE, LlmClientError, LlmSettings, PRESETS as POSTPROCESS_PRESETS, complete_subtitle_groups, list_llm_models, normalize_reasoning_mode, preset_by_id, test_llm_connection
+from maw.postprocess_llm import DEFAULT_REASONING_MODE, LlmClientError, LlmSettings, PRESETS as POSTPROCESS_PRESETS, complete_subtitle_groups, list_llm_models, normalize_reasoning_mode, preset_by_id, postprocess_api_key_required, test_llm_connection
 from maw.postprocess_pipeline import (
     PostprocessCancelled,
     default_postprocess_plan,
@@ -178,6 +179,7 @@ ERROR_MESSAGES: Final[dict[str, str]] = {
     "json_not_found": "Project file does not exist.",
     "media_not_found": "Media file does not exist.",
     "server_media_missing": "Project media is missing, unsupported, or ambiguous. Choose media manually.",
+    **ASR_ERROR_MESSAGES,
     "api_key_missing": "API key is required.",
     "custom_asr_model_missing": "请填写自定义 ASR 模型名。",
     "custom_asr_base_url_missing": "请填写自定义 ASR Base URL。",
@@ -1232,6 +1234,9 @@ class LauncherApi:
         updates = {}
         key = str(payload.get("apiKey") or "").strip()
         if key:
+            code = api_key_error_code(key)
+            if code:
+                return _error_result("apiKey", code, ASR_ERROR_MESSAGES[code])
             updates[provider.models[0].env_key] = key
         if provider.id == "qwen":
             updates["DASHSCOPE_REGION"] = str(payload.get("region") or "beijing")
@@ -1373,6 +1378,7 @@ class LauncherApi:
             "label": display_name if preset.id == "custom" and display_name else preset.label,
             "displayName": display_name if preset.id == "custom" else "",
             "maskedApiKey": masked_secret(api_key),
+            "requiresApiKey": postprocess_api_key_required(preset.id, updates[f"{preset.env_prefix}_BASE_URL"]),
             "reasoningMode": reasoning_mode,
             "verified": is_llm_verified(self.paths.env_path, preset.id),
         }
@@ -1405,7 +1411,7 @@ class LauncherApi:
             model=str(payload.get("model") or "").strip() or file_values["model"] or preset.model,
             reasoning_mode=reasoning_mode,
         )
-        if not settings.api_key:
+        if not settings.api_key.strip() and postprocess_api_key_required(settings.provider_id, settings.base_url):
             return _error_result("postprocessApiKey", "api_key_missing", "Post-processing API key is required.")
         if not settings.base_url or not settings.model:
             detail = "LLM API URL and model are required."
@@ -1476,7 +1482,7 @@ class LauncherApi:
             base_url=str(payload.get("baseUrl") or "").strip() or file_values["baseUrl"] or preset.base_url,
             model=str(payload.get("model") or "").strip() or file_values["model"] or preset.model,
         )
-        if not settings.api_key:
+        if not settings.api_key.strip() and postprocess_api_key_required(settings.provider_id, settings.base_url):
             return _error_result("postprocessApiKey", "api_key_missing", "Post-processing API key is required.")
         try:
             models = list_llm_models(settings)
@@ -1725,7 +1731,7 @@ class LauncherApi:
             model=str(payload.get("model") or "").strip() or file_values["model"] or preset.model,
             reasoning_mode=reasoning_mode,
         )
-        if not settings.api_key:
+        if not settings.api_key.strip() and postprocess_api_key_required(settings.provider_id, settings.base_url):
             return _error_result("postprocessApiKey", "api_key_missing", "Post-processing API key is required.")
         if not settings.base_url or not settings.model:
             return {"ok": False, "field": "postprocessProvider", "code": "postprocess_failed", "detail": "LLM API URL and model are required.", "error": "LLM API URL and model are required."}
@@ -3867,7 +3873,9 @@ class LauncherApi:
         flow_t0 = time.perf_counter()
 
         def on_child_event(line: str) -> None:
+            line = redact_asr_text(line, request.api_key)
             child_output.append(line)
+            del child_output[:-200]
             self._emit({"type": "log", "message": line})
 
         try:
@@ -3888,29 +3896,29 @@ class LauncherApi:
                 self._emit({
                     "type": "error",
                     "code": "ffmpeg_missing",
-                    "detail": str(error),
+                    "detail": redact_asr_text(error, request.api_key),
                 })
             elif _is_ffprobe_start_failure(child_output):
                 self._emit({
                     "type": "error",
                     "code": "ffprobe_start_failed",
-                    "detail": str(error),
+                    "detail": redact_asr_text(error, request.api_key),
                 })
             elif _is_ffmpeg_start_failure(child_output):
                 self._emit({
                     "type": "error",
                     "code": "ffmpeg_start_failed",
-                    "detail": str(error),
+                    "detail": redact_asr_text(error, request.api_key),
                 })
             else:
-                self._emit({"type": "error", "code": "transcription_failed", "detail": str(error)})
+                self._emit({"type": "error", "code": asr_error_code(error, provider=request.provider) or "transcription_failed", "detail": redact_asr_text(error, request.api_key)})
             if self.worker is threading.current_thread():
                 self.worker = None
             self.pump.flush()
             return
         # The pywebview worker boundary must report every backend failure to JS.
         except Exception as error:  # noqa: BLE001
-            self._emit({"type": "error", "code": "transcription_failed", "detail": str(error)})
+            self._emit({"type": "error", "code": asr_error_code(error, provider=request.provider) or "transcription_failed", "detail": redact_asr_text(error, request.api_key)})
             if self.worker is threading.current_thread():
                 self.worker = None
             self.pump.flush()
@@ -4576,6 +4584,8 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         raise PreflightError("mediaPath", "media_not_found", "Media file does not exist.")
     if not srt_text or not srt.name:
         raise PreflightError("srtPath", "output_missing", "SRT output path is required.")
+    if validate_media and type(payload.get("audioTrackCount")) is int and payload["audioTrackCount"] == 0:
+        raise PreflightError("mediaPath", "audio_no_stream", ASR_ERROR_MESSAGES["audio_no_stream"])
     audio_track = _payload_audio_track(payload, field="audioTrack")
     if audio_track is None:
         raise PreflightError(
@@ -4694,8 +4704,10 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
                 raise PreflightError("alignmentModel", "local_runtime_missing", alignment_status.detail)
             if not alignment_status.installed:
                 raise PreflightError("alignmentModel", "alignment_model_missing", alignment_status.detail)
-    if provider.requires_api_key and not api_key:
-        raise PreflightError("apiKey", "api_key_missing", "API key is required.")
+    if provider.requires_api_key:
+        code = api_key_error_code(api_key)
+        if code:
+            raise PreflightError("apiKey", code, ERROR_MESSAGES[code])
     if provider.id == "qwen" and region == "singapore" and not workspace_id:
         raise PreflightError("workspaceId", "workspace_missing", "Workspace ID is required for Singapore region.")
     qwen_audio_context = (
@@ -4768,6 +4780,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
         media_path=media,
         srt_path=srt,
         audio_track=audio_track,
+        audio_track_count=payload.get("audioTrackCount") if type(payload.get("audioTrackCount")) is int and payload["audioTrackCount"] >= 0 else None,
         default_audio_track=default_audio_track,
         model=custom_model if provider.id == "openai" else (model.model_ref or model.id),
         language=str(payload.get("language") or ""),
@@ -5106,7 +5119,8 @@ def _postprocess_provider_payloads(env_path: Path) -> list[dict[str, object]]:
             "maskedApiKey": masked_secret(values["apiKey"]),
             "selected": file_values.get("MAW_POSTPROCESS_LAST_PROVIDER", "deepseek") == preset.id,
             "verified": is_llm_verified(env_path, preset.id),
-            "hasApiKey": bool(values["apiKey"]),
+            "hasApiKey": bool(values["apiKey"].strip()),
+            "requiresApiKey": postprocess_api_key_required(preset.id, values["baseUrl"] or preset.base_url),
             "hasBaseUrl": bool(values["baseUrl"] or preset.base_url),
             "hasModel": bool(values["model"] or preset.model),
         })
@@ -5327,12 +5341,7 @@ def _stop_external_maw_server(port: int) -> bool:
 
 def _open_external(target: str) -> None:
     if sys.platform == "linux" and getattr(sys, "frozen", False):
-        env = os.environ.copy()
-        original = env.get("LD_LIBRARY_PATH_ORIG")
-        if original is not None:
-            env["LD_LIBRARY_PATH"] = original
-        else:
-            env.pop("LD_LIBRARY_PATH", None)
+        env = restore_host_library_path(dict(os.environ))
         subprocess.Popen(["xdg-open", target], env=env)
     else:
         webbrowser.open(target)

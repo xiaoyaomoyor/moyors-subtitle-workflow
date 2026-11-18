@@ -1415,6 +1415,19 @@
       waveform_cancelled: "媒体工程生成已取消。",
       batch_media_only: "批量只支持媒体输入；请切回「媒体预制」再开始批量。",
       server_stop_failed: "无法停止当前端口上的 MSW 字幕编辑服务器。",
+      api_key_invalid_format: "API Key 格式有误，请只粘贴密钥本身，不要包含空格、引号、地址或字段名。",
+      asr_auth_failed: "ASR 服务拒绝了密钥，请检查当前服务的 API Key。",
+      asr_permission_denied: "ASR 服务拒绝访问，请检查账号权限、模型授权及服务区域。",
+      asr_endpoint_invalid: "ASR 服务地址或模型不存在，请检查连接配置。",
+      asr_rate_limited: "ASR 服务限流或额度不足，请检查额度，稍后重试。",
+      asr_service_unavailable: "ASR 服务暂时不可用，请稍后重试。",
+      asr_timeout: "ASR 请求超时，请检查网络和服务状态后重试。",
+      asr_request_invalid: "ASR 服务不接受当前请求，请检查模型、识别参数及音频格式或大小。",
+      asr_network_error: "无法连接 ASR 服务，请检查网络、代理和服务地址。",
+      audio_no_stream: "媒体没有可用音轨，请选择包含音频的文件。",
+      audio_extraction_failed: "提取 ASR 音频失败，请检查源媒体和所选音轨。",
+      asr_empty_result: "未识别到可用文字，请试听所选范围，确认包含清晰语音，并检查识别语言。",
+      asr_empty_result_multitrack: "未识别到可用文字。该媒体有多条音轨，请先试听并确认选择了人声音轨，再检查识别范围和语言。",
       api_key_missing: "请先填写 API Key；密钥只保存在本机连接配置。",
       custom_asr_base_url_missing: "请填写自定义 ASR Base URL。",
       custom_asr_model_missing: "请填写自定义 ASR 模型名。",
@@ -1475,6 +1488,19 @@
       waveform_task_running: "A media project task is already running.",
       waveform_cancelled: "Media project generation cancelled.",
       batch_media_only: "Batch accepts media inputs only; switch back to media mode before starting a batch.",
+      api_key_invalid_format: "Invalid API Key format. Paste only the key, without spaces, quotes, a URL or a field name.",
+      asr_auth_failed: "The ASR service rejected the key. Check the API Key for this provider.",
+      asr_permission_denied: "ASR access was denied. Check account permissions, model access and service region.",
+      asr_endpoint_invalid: "The ASR endpoint or model was not found. Check the connection settings.",
+      asr_rate_limited: "ASR rate or quota limit reached. Check your quota and retry later.",
+      asr_service_unavailable: "The ASR service is temporarily unavailable. Retry later.",
+      asr_timeout: "The ASR request timed out. Check your network and service status, then retry.",
+      asr_request_invalid: "The ASR service rejected this request. Check the model, options, audio format and size.",
+      asr_network_error: "Unable to connect to the ASR service. Check your network, proxy and endpoint.",
+      audio_no_stream: "This media has no audio track. Choose a file containing audio.",
+      audio_extraction_failed: "Unable to extract ASR audio. Check the source media and selected audio track.",
+      asr_empty_result: "No usable text was recognized. Preview the selected range, check for clear speech and verify the recognition language.",
+      asr_empty_result_multitrack: "No usable text was recognized. This media has multiple audio tracks. Preview and select the speech track, then check the range and language.",
       api_key_missing: "Enter an API Key first; keys are stored only in the local connection config.",
       custom_asr_base_url_missing: "Enter a custom ASR Base URL.",
       custom_asr_model_missing: "Enter a custom ASR model name.",
@@ -1611,7 +1637,7 @@
   const MAX_SUPER_HOTWORDS = 50;
   const OPENAI_ASR_CUSTOM_MODEL_ID = "custom-asr";
   const OPENAI_ASR_OFFICIAL_MODEL_IDS = new Set(["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"]);
-  const state = { activeSessionUrl: "", waveformTaskId: "", prefabTaskId: "", lang: "zh", prefabTask: false, serverRunning: false, serverStarting: false, serverStopping: false, serverProjectPath: "", serverStatusUrl: "", moseStarting: false, running: false, localPreparing: false, localProgressMessage: "", localProgress: null, localModelId: "", localModelPaths: {}, localRuntimeInstalling: false, localRuntimeProgress: 0, localRuntimeProgressMessage: "", ocrRuntimeInstalling: false, ocrRuntimeProgress: 0, ocrRuntimeProgressMessage: "", lastLogMessage: "", result: null, errorReport: null, errorCopyTimer: 0, config: null, srtAuto: true, testSuffixAdded: false, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system", toolboxBusy: false, toolboxOpen: false, audioTracks: [], audioTrack: null, audioTrackPath: "", audioTrackProbeToken: 0, audioTrackProbeTimer: 0 };
+  const state = { activeSessionUrl: "", waveformTaskId: "", prefabTaskId: "", lang: "zh", prefabTask: false, serverRunning: false, serverStarting: false, serverStopping: false, serverProjectPath: "", serverStatusUrl: "", moseStarting: false, running: false, localPreparing: false, localProgressMessage: "", localProgress: null, localModelId: "", localModelPaths: {}, localRuntimeInstalling: false, localRuntimeProgress: 0, localRuntimeProgressMessage: "", ocrRuntimeInstalling: false, ocrRuntimeProgress: 0, ocrRuntimeProgressMessage: "", lastLogMessage: "", result: null, errorReport: null, errorCopyTimer: 0, config: null, srtAuto: true, testSuffixAdded: false, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system", toolboxBusy: false, toolboxOpen: false, audioTracks: [], audioTrackCount: null, audioTrack: null, audioTrackPath: "", audioTrackProbeToken: 0, audioTrackProbeTimer: 0 };
   const dragState = { depth: 0 };
   let api = null;
   let prefsTimer = 0;
@@ -2609,7 +2635,7 @@
   function clearErrors() { ["mediaPath", "srtPath", "apiKey", "openaiBaseUrl", "openaiModel", "workspaceId", "localModelPath", "localModelCachePath", "maxLen", "minLen", "maxWords", "minWords", "gapSplit", "qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordsFile", "sonioxContextGeneral", "sonioxContextText", "sonioxContextTerms", "sonioxContextTranslationTerms", "jsonPath", "serverMediaPath", "port", "ffmpegPath", "stickerDir", "toolboxUtilityMediaPath", "toolboxBurnSubtitlePath", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "toolboxAlignmentScriptPath"].forEach((field) => setError(field, "")); hideErrorNotice(); }
   // S4/§3.3：波形开关来自模块注册表（与方案对象同源）——ASR 单文件与批量共用本载荷。
   function waveformModuleEnabled() { return window.MSWModules ? window.MSWModules.isEnabled("waveform") !== false : true; }
-  function formPayload() { const caps=syncOpenaiCapabilities(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&$('openaiDiarize').checked)); const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; const waveformOn = waveformModuleEnabled(); return { ...(window.MSWLauncher?.getRecognitionPunctuation?.()||{}), ...(asrPresetUi?.ready?{asrPrompts:asrPresetUi.prompts}:{}), providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), defaultAudioTrack: getDefaultAudioTrackForMedia($("mediaPath").value.trim()), srtPath: $("srtPath").value.trim(), apiKey: "", openaiBaseUrl: state.config.openaiBaseUrl || "https://api.openai.com/v1", openaiModel, openaiPrompt: caps?.prompt&&!diarize?$("openaiPrompt").value.trim():"", openaiKeywords: caps?.keywords&&!diarize?$("openaiKeywords").value.trim():"", openaiDiarize: diarize, region: state.config.region || "beijing", workspaceId: state.config.workspaceId || "", localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, fireredPunc: $("fireredPunc").value, alignmentModel: $("alignmentModel").value, alignmentModelPath: $("alignmentModelPath").value.trim(), language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), doubaoHotwords: $("doubaoHotwords").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenKeepDialect: $("qwenAudioKeepDialect").checked, qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateWaveform: waveformOn, generateSpectral: waveformOn && $("generateSpectral").checked, generateHtml: false, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
+  function formPayload() { const caps=syncOpenaiCapabilities(),diarize=Boolean(caps?.diarize||(caps?.customDiarize&&$('openaiDiarize').checked)); const modelId = $("model").value; const openaiModel = isOpenAiProvider() ? (isCustomOpenAiModel() ? $("openaiModel").value.trim() : modelId) : ""; const waveformOn = waveformModuleEnabled(); return { ...(window.MSWLauncher?.getRecognitionPunctuation?.()||{}), ...(asrPresetUi?.ready?{asrPrompts:asrPresetUi.prompts}:{}), providerId: $("provider").value, modelId, mediaPath: $("mediaPath").value.trim(), audioTrack: getAudioTrackForMedia($("mediaPath").value.trim()), defaultAudioTrack: getDefaultAudioTrackForMedia($("mediaPath").value.trim()), audioTrackCount: audioTrackPathKey($("mediaPath").value) === state.audioTrackPath ? state.audioTrackCount : null, srtPath: $("srtPath").value.trim(), apiKey: "", openaiBaseUrl: state.config.openaiBaseUrl || "https://api.openai.com/v1", openaiModel, openaiPrompt: caps?.prompt&&!diarize?$("openaiPrompt").value.trim():"", openaiKeywords: caps?.keywords&&!diarize?$("openaiKeywords").value.trim():"", openaiDiarize: diarize, region: state.config.region || "beijing", workspaceId: state.config.workspaceId || "", localModelPath: $("localModelPath").value.trim(), device: $("localDevice").value, fireredPunc: $("fireredPunc").value, alignmentModel: $("alignmentModel").value, alignmentModelPath: $("alignmentModelPath").value.trim(), language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), maxLen: $("maxLen").value.trim(), minLen: $("minLen").value.trim(), maxWords: $("maxWords").value.trim(), minWords: $("minWords").value.trim(), gapSplit: $("gapSplit").value.trim(), doubaoHotwords: $("doubaoHotwords").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenKeepDialect: $("qwenAudioKeepDialect").checked, qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value, qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, sonioxContextGeneral: $("sonioxContextGeneral").value.trim(), sonioxContextText: $("sonioxContextText").value.trim(), sonioxContextTerms: $("sonioxContextTerms").value.trim(), sonioxContextTranslationTerms: $("sonioxContextTranslationTerms").value.trim(), testRun: $("testRun").checked, debugRaw: $("debugRaw").checked, speakerColors: $("speakerColors").checked, generateWaveform: waveformOn, generateSpectral: waveformOn && $("generateSpectral").checked, generateHtml: false, autoPostprocess: window.MSWLauncher?.getAutoPostprocessPayload?.() || null, guiLang: state.lang }; }
   function serverPayload(extra = {}) { return Object.assign({ jsonPath: $("jsonPath").value.trim(), mediaPath: $("serverMediaPath").value.trim(), port: $("port").value || "8250", guiLang: state.lang }, extra); }
   function renderServerButton() {
     const running = Boolean(state.serverRunning || state.detectedServerUrl || state.serverStatusUrl);
@@ -3179,6 +3205,7 @@
     const token = ++state.audioTrackProbeToken;
     state.audioTrackPath = key;
     state.audioTracks = [];
+    state.audioTrackCount = null;
     state.audioTrack = null;
     if (!value || !VIDEO_EXTS.has(ext(value))) {
       renderAudioTracks([]);
@@ -3189,6 +3216,7 @@
     if (token !== state.audioTrackProbeToken || key !== audioTrackPathKey($("mediaPath").value)) return;
     const tracks = result?.ok && Array.isArray(result.tracks) ? result.tracks : [];
     state.audioTracks = tracks;
+    state.audioTrackCount = result?.ok && Array.isArray(result.tracks) ? tracks.length : null;
     renderAudioTracks(tracks);
     if (!result.ok && tracks.length === 0) $("audioTrackHint").textContent = t("audio_track_probe_failed");
     else if (tracks.length > 1) $("audioTrackHint").textContent = t("audio_track_hint");
@@ -3199,6 +3227,7 @@
     state.audioTrackProbeToken += 1;
     state.audioTrackPath = audioTrackPathKey(value);
     state.audioTracks = [];
+    state.audioTrackCount = null;
     state.audioTrack = null;
     if (VIDEO_EXTS.has(ext(value))) showAudioTrackLoading();
     else renderAudioTracks([]);

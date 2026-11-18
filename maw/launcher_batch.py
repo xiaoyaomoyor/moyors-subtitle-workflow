@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import Event
 
+from maw.asr_errors import asr_error_code, redact_asr_text
 from maw.app_paths import default_env_path
 from maw.ffmpeg import media_duration_seconds
 from maw.gui_workflow import (
@@ -167,8 +168,8 @@ def run_batch(
                 "id": item.item_id,
                 "status": "failed",
                 "index": index,
-                "code": "postprocess_failed" if isinstance(error, PostprocessPipelineError) else "transcription_failed",
-                "error": str(error),
+                "code": "postprocess_failed" if isinstance(error, PostprocessPipelineError) else asr_error_code(error, provider=item.request.provider) or "transcription_failed",
+                "error": redact_asr_text(error, item.request.api_key),
             }
         outcomes.append(outcome)
         _update_manifest(manifest, index, outcome, manifest_path)

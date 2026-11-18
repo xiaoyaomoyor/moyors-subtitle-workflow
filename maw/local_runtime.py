@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 
+from maw.gui_platform import restore_host_library_path
+
 from maw.runtimes import LOCAL
 from maw.runtimes.base import (
     RuntimeEvent,
@@ -563,7 +565,7 @@ def _runtime_env(
         # 托管依赖目录按平台安装模式解析（unix 打包版为 venv 的
         # lib/python3.x/site-packages；其余为扁平 site-packages）。
         env["PYTHONPATH"] = str(LOCAL.site_packages(runtime_root))
-    return env
+    return restore_host_library_path(env)
 
 
 def _from_runtime_status(status: RuntimeStatus) -> LocalRuntimeStatus:
