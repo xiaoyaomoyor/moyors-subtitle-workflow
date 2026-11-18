@@ -66,6 +66,9 @@ test('boundary indicator follows constrained timing and suppresses pending hover
 });
 
 test('boundary indicator follows the existing cross-row mapping and clears on commit',async({page})=>{
+  // Preferences persist on the test server; cross-row dragging needs multi mode.
+  await page.evaluate(()=>waveformEditor.setMode('multi'));await frames(page);
+  await expect(page.locator('.waveform-row[data-row-index="1"]')).toBeVisible();
   await pressEdge(page,'right');
   const row=page.locator('.waveform-row[data-row-index="1"]'),box=await row.boundingBox();
   await page.mouse.move(box.x+box.width*.55,box.y+box.height*.5,{steps:8});await frames(page);

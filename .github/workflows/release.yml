@@ -288,7 +288,9 @@ jobs:
         timeout-minutes: 15
         shell: pwsh
         run: |
-          npx playwright test tests/e2e/editor-text-reliability.spec.mjs tests/e2e/local-model-settings.spec.mjs tests/e2e/subtitle-glyphs.spec.mjs tests/e2e/ass-opacity.spec.mjs tests/e2e/review-markers.spec.mjs tests/e2e/inline-markup.spec.mjs tests/e2e/space-hold.spec.mjs tests/e2e/playback-refresh.spec.mjs tests/e2e/boundary-feedback.spec.mjs tests/e2e/hover-seek-preview.spec.mjs --project=chromium --max-failures=3 --output=test-results/selected-upstream
+          npx playwright test tests/e2e/editor-text-reliability.spec.mjs tests/e2e/local-model-settings.spec.mjs tests/e2e/subtitle-glyphs.spec.mjs tests/e2e/ass-opacity.spec.mjs tests/e2e/review-markers.spec.mjs tests/e2e/inline-markup.spec.mjs tests/e2e/space-hold.spec.mjs tests/e2e/playback-refresh.spec.mjs tests/e2e/boundary-feedback.spec.mjs tests/e2e/hover-seek-preview.spec.mjs tests/e2e/launcher-queue.spec.mjs --project=chromium --max-failures=3 --output=test-results/selected-upstream
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright test tests/e2e/launcher-interactions.spec.mjs --grep 'error reports' --project=chromium --max-failures=1 --output=test-results/error-reports
           exit $LASTEXITCODE
 
       - name: Check English UI and real video exports in Chromium

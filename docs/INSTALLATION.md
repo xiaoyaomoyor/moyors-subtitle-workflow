@@ -1,14 +1,14 @@
 # 安装与升级
 
-本轮预发行包位于 [MSW v1.8.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.8.0-beta.1)，稳定版仍为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。以下列出 beta.1 文件名，按系统选择；请解压到新目录并保留工程及素材备份。
+当前源码准备发布 **MSW v1.9.0-beta.1** ，尚未公开；下表列出本轮候选包名称。已公开预发行包见 [v1.8.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.8.0-beta.1)，稳定版为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。请解压到新目录并保留工程及素材备份。
 
 | 文件 | 系统 | 内置 FFmpeg |
 | --- | --- | --- |
-| `MSW-Windows-x64-v1.8.0-beta.1.zip` | Windows x64 | 是 |
-| `MSW-lite-Windows-x64-v1.8.0-beta.1.zip` | Windows x64 | 否 |
-| `MSW-macOS-arm64-v1.8.0-beta.1.zip` | macOS Apple Silicon | 是 |
-| `MSW-lite-macOS-arm64-v1.8.0-beta.1.zip` | macOS Apple Silicon | 否 |
-| `MSW-Linux-x86_64-v1.8.0-beta.1.AppImage` | Linux x86_64 | 是 |
+| `MSW-Windows-x64-v1.9.0-beta.1.zip` | Windows x64 | 是 |
+| `MSW-lite-Windows-x64-v1.9.0-beta.1.zip` | Windows x64 | 否 |
+| `MSW-macOS-arm64-v1.9.0-beta.1.zip` | macOS Apple Silicon | 是 |
+| `MSW-lite-macOS-arm64-v1.9.0-beta.1.zip` | macOS Apple Silicon | 否 |
+| `MSW-Linux-x86_64-v1.9.0-beta.1.AppImage` | Linux x86_64 | 是 |
 
 GitHub 另提供 **Source code (zip)** 和 **Source code (tar.gz)**，包含标签对应的源码，不是可直接启动的应用包。macOS Intel、Windows ARM64、Linux ARM64 暂无本轮官方构建产物。
 
