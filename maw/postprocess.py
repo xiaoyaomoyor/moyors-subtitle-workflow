@@ -67,6 +67,8 @@ class LlmPostprocessRequest:
     translation_progress_path: Path | None = None
     translation_provider_fingerprint: str = ""
     proofread_progress_path: Path | None = None
+    resegment_max_chars: int = 0
+    split_punctuation: tuple[str, ...] | None = None
 
 
 class PostprocessStepError(RuntimeError):
@@ -301,7 +303,12 @@ def process_llm_snapshot(
     if strict_translation:
         if request.merge_bilingual and request.embed_translations:
             raise ValueError("「将双语字幕合并为单个字幕」与「只翻译非中文（英文）的字幕」不能同时启用，请只选择一个输出方式。")
-    item_aware_resegment = request.operation == "resegment" and _has_complete_items(project)
+    item_aware_resegment = request.operation == "resegment"
+    if item_aware_resegment:
+        from maw.resegment_boundaries import normalize_max_chars
+        maximum = normalize_max_chars(request.resegment_max_chars)
+        if maximum:
+            custom += f"\n每条字幕尽量不超过 {maximum} 个非空白字符，不能拆开完整词项、数字或单位。"
     system_prompt = _protocol_prompt(
         operation_prompt,
         custom,
@@ -406,6 +413,9 @@ def process_llm_snapshot(
                     f"第 {index}/{len(batches)} 批（{first_id}–{last_id}）处理失败：{error}",
                     error,
                 ) from error
+            if item_aware_resegment:
+                from maw.resegment_boundaries import cue_response_as_atoms
+                response = cue_response_as_atoms(response, batch)
             clean_response, batch_skipped, batch_warnings, response_mode = _sanitize_llm_response(
                 response,
                 batch,
@@ -423,10 +433,11 @@ def process_llm_snapshot(
         report = _format_skip_report(skipped_source_ids, response_warnings)
         detail = f"\n{report}" if report else ""
         raise ValueError(f"LLM 没有生成可用字幕，未写出输出产物。{detail}")
-    if strict_translation and skipped_source_ids:
+    if (strict_translation or item_aware_resegment) and skipped_source_ids:
         report = _format_skip_report(skipped_source_ids, response_warnings)
         detail = f"\n{report}" if report else ""
-        raise ValueError(f"翻译结果仍有遗漏，未写出输出产物。{detail}")
+        operation_name = "重新断句" if item_aware_resegment else "翻译"
+        raise ValueError(f"{operation_name}结果仍有遗漏，未写出输出产物。{detail}")
     _notify_status(on_status, "toolbox_status_reorganizing")
     response = _combine_llm_responses(responses)
     if item_aware_resegment and all(mode == "atoms" for mode in response_modes):
@@ -434,19 +445,7 @@ def process_llm_snapshot(
             project,
             response,
             skipped_source_ids=skipped_source_ids,
-        )
-    elif item_aware_resegment and all(mode == "cues" for mode in response_modes):
-        processed, warnings = _apply_llm_groups_with_warnings(
-            project,
-            response,
-            strict_translation=strict_translation,
-            skipped_source_ids=skipped_source_ids,
-            preserve_items_on_equal_text=False,
-            drop_items=True,
-        )
-        warnings = (
-            "模型未返回字词边界，已使用字幕级安全重分句；本次不保留逐词时间码。",
-            *warnings,
+            maximum=maximum, split_punctuation=request.split_punctuation,
         )
     elif item_aware_resegment:
         raise ValueError("LLM 分批返回了不一致的字词边界协议，未写出输出产物。")
@@ -1368,6 +1367,8 @@ def _apply_llm_atom_groups_with_warnings(
     response: Mapping[str, JsonValue],
     *,
     skipped_source_ids: Collection[str] = (),
+    maximum: int = 0,
+    split_punctuation: tuple[str, ...] | None = None,
 ) -> tuple[JsonDict, tuple[str, ...]]:
     """Rebuild resegmented cues from original item atoms only.
 
@@ -1381,13 +1382,15 @@ def _apply_llm_atom_groups_with_warnings(
     active_source_ids = [source_id for source_id in all_source_ids if source_id not in skipped]
     source_index_by_id = {source_id: index for index, source_id in enumerate(all_source_ids)}
 
+    coarse_sources: set[str] = set()
     atom_by_id: dict[str, JsonDict] = {}
     source_atoms: dict[str, tuple[str, ...]] = {}
     active_atom_ids: list[str] = []
     for source_id, source_index in source_index_by_id.items():
         items = _validated_items(source_segments[source_index])
         if items is None:
-            raise ValueError(f"{source_id} 缺少可用于重新断句的有效字词时间码")
+            coarse_sources.add(source_id)
+            items = [_coarse_atom(source_segments[source_index])]
         source_atom_ids: list[str] = []
         for item_index, item in enumerate(items, 1):
             atom_id = f"{source_id}a{item_index:04d}"
@@ -1430,6 +1433,10 @@ def _apply_llm_atom_groups_with_warnings(
         for atom_id in atom_ids
         if source_id not in skipped
     }
+    from maw.resegment_boundaries import constrain_groups
+    from maw.subtitle_punctuation import split_symbols
+    parsed, length_warnings = constrain_groups(parsed, atom_by_id, atom_source_id, coarse_sources,
+                                               maximum, split_symbols((), split_punctuation))
     source_occurrences: dict[str, int] = {}
     for atom_ids in parsed:
         for source_id in {atom_source_id[atom_id] for atom_id in atom_ids}:
@@ -1462,9 +1469,9 @@ def _apply_llm_atom_groups_with_warnings(
         if end <= start:
             raise ValueError("LLM atom groups cannot create a non-positive subtitle duration")
         text = "".join(str(atom_by_id[atom_id]["text"]) for atom_id in atom_ids)
-        segment = copy.deepcopy(first_source) if full_source and not regrouped else _copy_common_metadata(source_group)
+        segment = copy.deepcopy(first_source) if full_source else _copy_common_metadata(source_group)
         segment.update({"start": start, "end": end, "text": text})
-        if not full_source or regrouped:
+        if not full_source:
             segment["id"] = _unique_derived_segment_id(
                 first_source,
                 group_source_ids[0],
@@ -1475,8 +1482,11 @@ def _apply_llm_atom_groups_with_warnings(
             used_output_ids.add(str(segment["id"]))
         if len(group_source_ids) == 1:
             split_positions[group_source_ids[0]] = split_positions.get(group_source_ids[0], 0) + 1
-        segment["items"] = [copy.deepcopy(atom_by_id[atom_id]) for atom_id in atom_ids]
-        if regrouped:
+        if not coarse_sources.intersection(group_source_ids):
+            segment["items"] = [copy.deepcopy(atom_by_id[atom_id]) for atom_id in atom_ids]
+        else:
+            segment.pop("items", None)
+        if not full_source:
             for field in VISUAL_FIELDS:
                 _ = segment.pop(field, None)
         for field in SAFE_SCALARS:
@@ -1488,8 +1498,11 @@ def _apply_llm_atom_groups_with_warnings(
     result = copy.deepcopy(project)
     result["segments"] = output_segments
     warnings: list[str] = []
+    warnings.extend(length_warnings)
+    if coarse_sources:
+        warnings.append(f"{len(coarse_sources)} 条字幕缺少可靠字词时间码，已保持整句边界；其余条目保留原字词时间。")
     if regrouped:
-        warnings.append("已按字词时间码重新断句，并保留逐词时间对齐。")
+        warnings.append("已按字词时间码的可靠边界重新断句，正文和原有字词时间保持不变。")
     return normalize_project(result), tuple(warnings)
 
 
@@ -1922,6 +1935,10 @@ def _validated_items(segment: JsonDict) -> list[JsonDict] | None:
         previous_end = item_end
     return items
 
+def _coarse_atom(segment: JsonDict) -> JsonDict:
+    return {key: copy.deepcopy(segment[key]) for key in ("start", "end", "text")}
+
+
 def _has_complete_items(project: JsonDict) -> bool:
     segments = _segments(project)
     return bool(segments) and all(_validated_items(segment) is not None for segment in segments)
@@ -1963,7 +1980,7 @@ def _protocol_prompt(
         )
     if item_aware_resegment:
         return (
-            "你处理的是带字词时间码的字幕。输入按顺序包含 cue ID、文字和 items；每个 item 都有不透明 atom ID 与文字。"
+            "输入按顺序包含 cue ID、文字和 items；每个 item 都有不透明 atom ID 与文字。可靠字词逐项提供，没有可靠字词时间的整句作为不可拆分的一项。"
             "本次只允许重新组织字幕边界，不得改写、增删或重排任何文字。"
             "不要猜测、输出或修改时间。只返回严格有效的 JSON 对象，不要 Markdown 代码块、注释、解释或额外文字。"
             "返回格式：{\"groups\":[{\"atom_ids\":[\"c0001a0001\",\"c0001a0002\"]}]}。"
@@ -2002,7 +2019,7 @@ def _llm_cues(project: JsonDict, *, include_items: bool = False) -> list[dict[st
         if include_items:
             items = _validated_items(segment)
             if items is None:
-                raise ValueError(f"c{index:04d} 缺少可用于重新断句的有效字词时间码")
+                items = [_coarse_atom(segment)]
             cue["items"] = [
                 {
                     "id": f"c{index:04d}a{item_index:04d}",

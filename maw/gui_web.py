@@ -115,8 +115,8 @@ from maw.postprocess_ffmpeg import (
     run_extract_audio as process_extract_audio,
     run_ffconcat_rebuild as process_ffconcat_rebuild,
 )
-from maw.subtitle_punctuation import recognition_policy, split_symbols as effective_split_symbols
-from maw.postprocess_match import SCRIPT_EXTENSIONS, MatchCoverageError, ScriptMatchRequest, SubtitleMatchError, _has_complete_item_timings, _match_project, _match_project_with_character_timings, _read_script, prepare_script_text, processed_script_text, run_script_match as process_script_match
+from maw.subtitle_punctuation import match_step, recognition_policy, split_symbols as effective_split_symbols
+from maw.postprocess_match import SCRIPT_EXTENSIONS, MatchCancelledError, MatchCoverageError, ScriptMatchRequest, SubtitleMatchError, _has_complete_item_timings, _match_project, _match_project_with_character_timings, _read_script, prepare_script_text, processed_script_text, run_script_match as process_script_match
 from maw.postprocess_ocr import OcrDedupRequest, OcrRegion
 from maw.postprocess_llm import DEFAULT_REASONING_MODE, LlmClientError, LlmSettings, PRESETS as POSTPROCESS_PRESETS, complete_subtitle_groups, list_llm_models, normalize_reasoning_mode, preset_by_id, postprocess_api_key_required, test_llm_connection
 from maw.postprocess_pipeline import (
@@ -783,6 +783,7 @@ class LauncherApi:
         self._media_tool_lock = Lock()
         self.media_tool_process: subprocess.Popen[str] | None = None
         self.media_tool_cancel_event: Event | None = None
+        self._media_tool_committing = False
         self.result: TranscriptionResult | None = None
         self.postprocess_retry_context: dict[str, object] | None = None
         self.postprocess_workspace_directory: Path | None = None
@@ -1634,9 +1635,10 @@ class LauncherApi:
             return _error_result("postprocessScriptPath", "script_invalid", "A script file is required.")
         project_path = _optional_path(payload.get("projectPath"))
         srt_path = _optional_path(payload.get("srtPath"))
-        self._emit_postprocess_status("toolbox_status_reading")
+        cancel_event = self._begin_media_tool()
+        if cancel_event is None:
+            return _error_result("postprocessScriptPath", "media_tool_busy", "已有处理任务正在运行。")
         try:
-            self._emit_postprocess_status("toolbox_status_matching")
             result = process_script_match(
                 ScriptMatchRequest(
                     project_path=project_path,
@@ -1649,9 +1651,13 @@ class LauncherApi:
                     preserve_punctuation=tuple(str(value) for value in payload.get("preservePunctuation", ()) if str(value)),
                     match_mode=str(payload.get("matchMode") or "script"),
                     clean_markdown_symbols=payload.get("cleanMarkdownSymbols", True) is not False,
-                )
+                ),
+                is_cancelled=cancel_event.is_set,
+                begin_commit=lambda: self._begin_media_tool_commit(cancel_event),
+                on_status=self._emit_postprocess_status,
             )
-            self._emit_postprocess_status("toolbox_status_writing")
+        except MatchCancelledError as error:
+            return _error_result("postprocessScriptPath", "media_tool_cancelled", str(error))
         except MatchCoverageError as error:
             return _match_coverage_error_result("postprocessScriptPath", error)
         except PostprocessFileError as error:
@@ -1668,6 +1674,8 @@ class LauncherApi:
             return _error_result("postprocessScriptPath", "subtitle_invalid", str(error))
         except (OSError, UnicodeError, ValueError) as error:
             return {"ok": False, "field": "postprocessScriptPath", "code": "postprocess_failed", "detail": str(error), "error": str(error)}
+        finally:
+            self._finish_media_tool(cancel_event)
         return _subtitle_artifact_result(result)
 
     @_queue_idle
@@ -1749,12 +1757,15 @@ class LauncherApi:
             )
 
         try:
+            match_policy = match_step(load_postprocess_plan(self.paths.env_path)) if operation == "resegment" else {}
             result = process_llm_postprocess(
                 LlmPostprocessRequest(
                     project_path=_optional_path(payload.get("projectPath")),
                     srt_path=_optional_path(payload.get("srtPath")),
                     output_mode=_output_mode(payload.get("outputMode")),
                     operation=operation,
+                    resegment_max_chars=payload.get("maxChars", 0),
+                    split_punctuation=tuple(sorted(effective_split_symbols(match_policy.get("extraSplitPunctuation", ()), match_policy.get("splitPunctuation")))),
                     custom_prompt=custom_prompt,
                     task_prompt=(str(payload.get("taskPrompt") or "") if "taskPrompt" in payload else None),
                     media_path=_optional_path(payload.get("mediaPath")),
@@ -1934,6 +1945,8 @@ class LauncherApi:
 
     def cancel_media_tool(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
         with self._media_tool_lock:
+            if self._media_tool_committing:
+                return {"ok": True, "cancelling": False, "committing": True}
             cancel_event = self.media_tool_cancel_event
             process = None
             if cancel_event is not None and not cancel_event.is_set():
@@ -1960,7 +1973,15 @@ class LauncherApi:
             cancel_event = Event()
             self.media_tool_cancel_event = cancel_event
             self.media_tool_process = None
+            self._media_tool_committing = False
             return cancel_event
+
+    def _begin_media_tool_commit(self, cancel_event: Event) -> bool:
+        with self._media_tool_lock:
+            if self.media_tool_cancel_event is not cancel_event or cancel_event.is_set():
+                return False
+            self._media_tool_committing = True
+            return True
 
     def _set_media_tool_process(self, process: subprocess.Popen[str]) -> None:
         cancel_requested = False
@@ -1988,6 +2009,7 @@ class LauncherApi:
             if self.media_tool_cancel_event is cancel_event:
                 self.media_tool_cancel_event = None
                 self.media_tool_process = None
+                self._media_tool_committing = False
 
     def _emit_media_tool_progress(self, key: str, _details: Mapping[str, str]) -> None:
         now = time.monotonic()

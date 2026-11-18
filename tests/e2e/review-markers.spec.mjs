@@ -19,6 +19,48 @@ test.beforeEach(async({page})=>{
   await disableOnboarding(page);await page.addInitScript(()=>localStorage.setItem('moy.asr.editor.settings.v1',JSON.stringify({autoSaveProject:false})));
   await page.goto(server.url);await page.waitForFunction(()=>window.MSWE?.resolve('reviews'),null,{timeout:90000});
 });
+test('filtered review multiselect, literal highlighting and bulk history preserve cue data',async({page},info)=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const before=await page.evaluate(()=>{
+    const host=MSWE.resolve('processing-host');host.commitReviews({schema:'msw.review.v1',items:[
+      {id:'a',start_ms:1000,name:'检查 [人名]',note:'<b>需核对</b>',color:'#e7b35a',status:'pending'},
+      {id:'b',start_ms:2000,end_ms:3500,name:'译文',note:'核对 [人名]',color:'#7aa2f7',status:'pending'},
+      {id:'c',start_ms:4000,name:'其他',note:'保留',color:'#8ac99b',status:'resolved'}
+    ]},'准备复核');MSWE.resolve('reviews').open();return JSON.stringify(MSWProductionProject.toProject(host.data).subtitles);
+  });
+  await page.locator('#review-search').fill('[人名]');
+  await expect(page.locator('.msw-review-row')).toHaveCount(2);
+  await expect(page.locator('.msw-review-entry mark')).toHaveCount(2);
+  await expect(page.locator('.msw-review-note b')).toHaveCount(0);
+  await page.locator('.msw-review-row[data-id="a"] input').check();
+  expect(await page.locator('#review-select-all').evaluate(el=>el.indeterminate)).toBe(true);
+  await page.locator('#review-select-all').check();await expect(page.locator('#review-selected-count')).toHaveText('已选 2 条');
+  await page.locator('#review-batch-resolve').click();
+  expect(await page.evaluate(()=>DATA.review_markers.items.map(m=>m.status))).toEqual(['resolved','resolved','resolved']);
+  await page.evaluate(()=>performUndo());expect(await page.evaluate(()=>DATA.review_markers.items.map(m=>m.status))).toEqual(['pending','pending','resolved']);
+  await page.evaluate(()=>performRedo());
+  await page.locator('#review-batch-pending').click();await page.locator('#review-batch-delete').click();
+  expect(await page.evaluate(()=>DATA.review_markers.items.map(m=>m.id))).toEqual(['c']);
+  await page.evaluate(()=>performUndo());await expect(page.locator('.msw-review-row')).toHaveCount(2);
+  await page.locator('#review-select-all').check();await page.locator('#review-search').fill('其他');
+  await expect(page.locator('#review-selected-count')).toHaveText('已选 0 条');await expect(page.locator('#review-batch-delete')).toBeDisabled();
+  await page.locator('#review-search').fill('');
+  await page.locator('.msw-review-row[data-id="c"] .msw-review-state').click();
+  expect(await page.evaluate(()=>DATA.review_markers.items.find(m=>m.id==='c').status)).toBe('pending');
+  expect(await page.evaluate(()=>JSON.stringify(MSWProductionProject.toProject(MSWE.resolve('processing-host').data).subtitles))).toBe(before);
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
+  expect(JSON.parse(readFileSync(projectFile,'utf8')).review_markers.items).toHaveLength(3);
+  await page.locator('#review-panel').evaluate(el=>{el.style.width='280px';el.style.maxWidth='280px';});
+  expect(await page.locator('#review-content').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  await page.locator('#review-panel').screenshot({path:info.outputPath('review-batch-narrow.png')});
+  await page.reload();await page.waitForFunction(()=>window.MSWE?.resolve('reviews'));await page.evaluate(()=>MSWE.resolve('reviews').open());
+  await expect(page.locator('.msw-review-row')).toHaveCount(3);await expect(page.locator('#review-selected-count')).toHaveText('已选 0 条');
+  await page.evaluate(()=>MSWE_I18N.applyLanguage('en',false));
+  await expect(page.locator('#review-select-all')).toHaveAttribute('aria-label','Select all filtered markers');
+  await page.locator('#review-select-all').check();await expect(page.locator('#review-selected-count')).toHaveText('3 selected');
+  await page.locator('#review-panel').screenshot({path:info.outputPath('review-batch-english.png')});
+  expect(errors).toEqual([]);
+});
 test('review notes edit, resolve, filter, undo and persist separately from subtitles',async({page},info)=>{
   await page.evaluate(()=>MSWE.resolve('reviews').open());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));

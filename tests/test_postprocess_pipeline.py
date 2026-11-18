@@ -33,6 +33,46 @@ from maw.postprocess_pipeline import (
 
 
 class PostprocessPipelineTests(unittest.TestCase):
+    def test_resegment_uses_frozen_split_policy_and_preserves_punctuation(self):
+        from maw.postprocess_io import read_project
+        text = '甲乙；丙丁！戊己'
+        self.project.write_text(json.dumps({'segments':[{'id':'cue','start':0,'end':len(text)*100,
+            'text':text,'items':[{'start':i*100,'end':(i+1)*100,'text':c} for i,c in enumerate(text)]}]}), encoding='utf-8')
+        # Saved settings differ from this submitted task. The task snapshot wins.
+        save_postprocess_plan(self.env_path, self.plan({'id':'match','enabled':False,'splitPunctuation':[]}))
+        for policy in ({'splitPunctuation':['；']}, {'extraSplitPunctuation':['；']}):
+            with mock.patch('maw.postprocess_pipeline.complete_subtitle_groups', side_effect=lambda settings,prompt,cues,**kw:
+                    {'groups':[{'atom_ids':[a['id'] for c in cues for a in c['items']]}]}):
+                result = run_postprocess_pipeline(self.plan({'id':'match','enabled':False,**policy},
+                    {'id':'resegment','enabled':True,'maxChars':5,'providerId':'deepseek'}),
+                    media_path=self.media,project_path=self.project,srt_path=self.srt,env_path=self.env_path,
+                    ffmpeg_path=None,cancel_event=Event(),llm_settings={'deepseek':{'apiKey':'test','baseUrl':'https://example.test','model':'test','verified':'1'}})
+            rows=read_project(result.project_path)['segments']
+            self.assertEqual(rows[0]['text'], '甲乙；')
+            self.assertEqual(''.join(row['text'] for row in rows), text)
+
+    def test_match_cancelled_during_computation_never_publishes(self):
+        from maw import postprocess_match
+        script = self.root / 'manuscript.txt'
+        script.write_text('错字保留', encoding='utf-8')
+        cancel = Event()
+        original = postprocess_match._match_project
+        def compute(*args, **kwargs):
+            result = original(*args, **kwargs)
+            cancel.set()
+            return result
+        before = self.project.read_bytes()
+        with mock.patch.object(postprocess_match, '_match_project', side_effect=compute), mock.patch('maw.postprocess_pipeline._publish_final') as publish:
+            with self.assertRaises(PostprocessCancelled):
+                run_postprocess_pipeline(self.plan({'id':'match','enabled':True,'scriptPath':str(script)}),
+                    media_path=self.media, project_path=self.project, srt_path=self.srt,
+                    env_path=self.env_path, ffmpeg_path=None, cancel_event=cancel)
+            publish.assert_not_called()
+        self.assertEqual(self.project.read_bytes(), before)
+        manifests = list(self.root.rglob('manifest.json'))
+        self.assertTrue(manifests)
+        self.assertEqual(json.loads(manifests[0].read_text(encoding='utf-8'))['status'], 'cancelled')
+
     def test_resume_checks_actual_input_schema_before_mutating_manifest(self) -> None:
         run = self.root / 'resume-v2'
         run.mkdir()

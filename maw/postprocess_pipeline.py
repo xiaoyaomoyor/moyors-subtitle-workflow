@@ -49,7 +49,7 @@ from maw.postprocess_llm import (
     postprocess_api_key_required,
 )
 from maw.postprocess_match import ScriptMatchRequest, run_script_match
-from maw.subtitle_punctuation import custom_symbols
+from maw.subtitle_punctuation import custom_symbols, match_step, split_symbols
 from maw.postprocess_ocr import OcrDedupArtifact, OcrDedupRequest, OcrRegion, run_ocr_dedup
 from maw.ocr_runtime import OCR_MODEL_ID, run_ocr_in_runtime
 from maw.project_preview import JsonValue
@@ -92,7 +92,7 @@ def default_postprocess_plan() -> dict[str, object]:
             },
             {"id": "replace", "enabled": False, "replacements": [], "replacementSeparator": "arrow", "replacementTrim": True, "replacementCustomSeparator": "", "conversion": TextConversion.OFF.value},
             {"id": "proofread", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "customPrompt": ""},
-            {"id": "resegment", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "customPrompt": ""},
+            {"id": "resegment", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "customPrompt": "", "maxChars": 0},
             {"id": "ocr", "enabled": False, "modelId": OCR_MODEL_ID, "videoPath": "", "videoPathMode": "", "regionMode": "full", "regionX1": 0, "regionY1": 0, "regionX2": 100, "regionY2": 100, "threshold": 0.5, "report": False},
             {"id": "translate", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "target": "zh", "mergeBilingual": False, "embedTranslations": False, "bilingualLineOrder": "", "customPrompt": ""},
         ],
@@ -148,7 +148,10 @@ def normalize_plan(raw: object) -> dict[str, object]:
             if key in {"id", "enabled"} or key not in source:
                 continue
             value = source[key]
-            if key == "reasoningMode":
+            if key == "maxChars":
+                from maw.resegment_boundaries import normalize_max_chars
+                step[key] = normalize_max_chars(value)
+            elif key == "reasoningMode":
                 step[key] = normalize_reasoning_mode(value) if value else ""
             elif key == "replacements":
                 step[key] = _normalize_replacements(value, trim=replacement_trim)
@@ -640,6 +643,7 @@ def run_postprocess_pipeline(
     normalized, errors = validate_plan(plan, env_path=env_path, media_path=media_path, ffmpeg_path=ffmpeg_path, llm_settings=llm_settings)
     if errors:
         raise ValueError(errors[0]["message"])
+    match_policy = match_step(normalized)
     steps = enabled_steps(normalized)
     if not steps:
         raise ValueError("自动后处理没有选择任何步骤。")
@@ -767,6 +771,7 @@ def run_postprocess_pipeline(
                     llm_settings=llm_settings,
                     track_scope=scope if native else None,
                     strip_tail_punct=tail_strip_symbols(normalized),
+                    split_punctuation=tuple(sorted(split_symbols(match_policy.get("extraSplitPunctuation", ()), match_policy.get("splitPunctuation")))),
                 )
                 if step_id == "translate" and not native:
                     artifact, artifact_index = _number_pipeline_artifact(
@@ -881,6 +886,7 @@ def run_postprocess_pipeline(
                 "srtName": current_srt.name,
                 "translatedSrtName": current_translated_srt.name if current_translated_srt is not None else "",
             })
+        _check_cancel(cancel_event)
         final_bilingual_srt = None
         if separate_outputs:
             if original_srt is None and not translation_target:
@@ -998,6 +1004,7 @@ def _run_step(
     llm_settings: Mapping[str, Mapping[str, str]] | None,
     track_scope: Mapping[str, object] | None = None,
     strip_tail_punct: str | None = None,
+    split_punctuation: tuple[str, ...] | None = None,
     translation_progress_directory: Path | None = None,
 ) -> SubtitleArtifact:
     if track_scope is not None:
@@ -1007,6 +1014,7 @@ def _run_step(
                               ocr_runtime_root=ocr_runtime_root, output_directory=output_directory,
                               cancel_event=cancel_event, on_event=on_event, llm_settings=llm_settings,
                               strip_tail_punct=strip_tail_punct,
+                              split_punctuation=split_punctuation,
                               translation_progress_directory=translation_progress_directory or output_directory)
     step_id = str(step["id"])
     output_mode = OutputMode.BOTH
@@ -1023,7 +1031,8 @@ def _run_step(
             extra_split_punctuation=tuple(str(value) for value in step.get("extraSplitPunctuation", ()) if str(value)),
             preserve_punctuation=tuple(str(value) for value in step.get("preservePunctuation", ()) if str(value)),
             clean_markdown_symbols=step.get("cleanMarkdownSymbols", True) is not False,
-        ))
+        ), is_cancelled=cancel_event.is_set,
+            on_status=lambda status: _emit(on_event, {"stage": "match_status", "step": "match", "key": status}))
     if step_id == "replace":
         replacements = tuple(
             Replacement(source=str(item.get("source") or ""), target=str(item.get("target") or ""))
@@ -1115,6 +1124,8 @@ def _run_step(
         srt_path=srt_path,
         output_mode=output_mode,
         operation=operation,
+        resegment_max_chars=step.get("maxChars", 0),
+        split_punctuation=split_punctuation,
         custom_prompt=str(step.get("customPrompt") or "").strip(),
         output_directory=output_directory,
         media_path=media_path,

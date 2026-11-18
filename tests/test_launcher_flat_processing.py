@@ -223,6 +223,40 @@ class NativeAlignmentTests(unittest.TestCase):
 
 
 class NativeStepTests(unittest.TestCase):
+    def test_resegment_mixed_timing_splits_only_the_scoped_unbound_track(self):
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from threading import Event
+        from unittest.mock import patch
+        from maw.postprocess_pipeline import _run_step
+        from maw.postprocess_io import read_project
+        with TemporaryDirectory() as directory:
+            root=Path(directory);project=flat_fixture()
+            note=next(c for c in project['subtitles']['cues'] if c['content']['text']=='Note')
+            note['content'].update(start=0,end=1000,text='甲乙',items=[
+                {'start':100,'end':400,'text':'甲'},{'start':500,'end':900,'text':'乙'}])
+            coarse=copy.deepcopy(note);coarse['id']='coarse-note'
+            coarse['content'].update(start=1200,end=2000,text='保留整句');coarse['content'].pop('items')
+            project['subtitles']['cues'].append(coarse)
+            source=root/'source.mosp';source.write_text(json.dumps(project),encoding='utf-8')
+            with patch('maw.postprocess_pipeline.complete_subtitle_groups',side_effect=lambda settings,prompt,cues,**kw:
+                    {'groups':[{'atom_ids':[a['id'] for c in cues for a in c['items']]}]}):
+                artifact=_run_step({'id':'resegment','maxChars':1},project_path=source,srt_path=root/'source.srt',
+                    media_path=root/'video.mp4',env_path=root/'empty.env',ffmpeg_path=None,ocr_runtime_root=None,
+                    output_directory=root/'result',cancel_event=Event(),on_event=None,
+                    llm_settings={'deepseek':{'apiKey':'test','baseUrl':'https://example.test','model':'test','verified':'1'}},
+                    track_scope={'sourceTrackId':note['track_id']})
+            saved=read_project(artifact.project_path)
+            self.assertEqual(saved['subtitles']['bindings'],project['subtitles']['bindings'])
+            self.assertEqual([c for c in saved['subtitles']['cues'] if c['track_id']!=note['track_id']],
+                [c for c in project['subtitles']['cues'] if c['track_id']!=note['track_id']])
+            rows=[c for c in saved['subtitles']['cues'] if c['track_id']==note['track_id']]
+            self.assertEqual([c['content']['text'] for c in rows],['甲','乙','保留整句'])
+            self.assertEqual([(c['content']['start'],c['content']['end']) for c in rows],[(100,400),(500,900),(1200,2000)])
+            self.assertEqual(rows[-1]['id'],'coarse-note')
+            self.assertEqual(read_project(source),project)
+
     def test_match_proofread_resegment_and_ocr_preserve_other_tracks(self):
         import json
         from pathlib import Path
@@ -251,8 +285,10 @@ class NativeStepTests(unittest.TestCase):
                                     frame_extractor=lambda *a: True, image_loader=lambda _: FakeImage())
             for operation in ('match', 'proofread', 'resegment', 'ocr'):
                 def complete(_settings, _prompt, cues, **_kwargs):
+                    if operation == 'resegment':
+                        return {'groups': [{'atom_ids': [a['id'] for a in c['items']]} for c in cues]}
                     return {'groups': [{'id': c['id'], 'text': text} for c in cues
-                                       for text in (['Part one', 'Part two'] if operation == 'resegment' else ['Edited note'])]}
+                                       for text in ['Edited note']]}
                 with self.subTest(operation=operation), patch('maw.postprocess_pipeline.complete_subtitle_groups', side_effect=complete), patch('maw.postprocess_pipeline.run_ocr_dedup', side_effect=ocr):
                     artifact = _run_step({'id': operation, 'scriptPath': str(script), 'matchMode': 'text', 'report': True},
                         project_path=source, srt_path=root / 'source.srt', media_path=media, env_path=root / 'empty.env',
@@ -264,8 +300,7 @@ class NativeStepTests(unittest.TestCase):
                                      [c for c in project['subtitles']['cues'] if c['track_id'] != note['track_id']])
                     rows = [c for c in saved['subtitles']['cues'] if c['track_id'] == note['track_id']]
                     if operation == 'resegment':
-                        self.assertEqual(len(rows), 2)
-                        self.assertEqual(rows[0]['content']['end'], rows[1]['content']['start'])
+                        self.assertEqual(rows, [note])  # Coarse timing cannot safely create word cuts.
                     elif operation == 'ocr':
                         self.assertTrue(rows[0]['content']['disabled'])
                         self.assertTrue(artifact.report_path.exists())

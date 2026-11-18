@@ -836,6 +836,8 @@
     auto_step_replace: "固定处理",
     auto_step_proofread: "LLM 校对",
     auto_step_resegment: "重新断句",
+    resegment_max_chars: "每条最大字数",
+    resegment_max_chars_hint: "0 表示不限制；按非空白字符计数。优先使用断句标点，保留数字与单位；缺少可靠时间码的整句不强行拆分。",
     auto_step_ocr: "OCR 字幕去重",
     auto_step_translate: "翻译",
     auto_translate_target: "翻译目标",
@@ -925,6 +927,8 @@
     auto_step_replace: "Fixed processing",
     auto_step_proofread: "LLM proofread",
     auto_step_resegment: "Resegment",
+    resegment_max_chars: "Maximum characters per cue",
+    resegment_max_chars_hint: "0 means unlimited. Count non-whitespace characters. Prefer configured punctuation; keep numbers and units together. Cues without reliable word timing remain whole.",
     auto_step_ocr: "OCR subtitle dedup",
     auto_step_translate: "Translate",
     auto_translate_target: "Translation target",
@@ -2426,7 +2430,9 @@
     const action = $("errorNoticeAction");
     const issue = $("errorNoticeIssue");
     clearErrorReport();
-    state.errorReport = { code: code || "backend_error", message: String(message || ""), detail: String(detail || "") };
+    state.errorReport = { code: code || "backend_error", message: String(message || ""), detail: String(detail || ""),
+      occurredAt: new Date().toISOString(), version: state.config?.appVersion || $("appVersion")?.textContent?.trim() || "unknown" };
+    $("errorNoticeContext").textContent = `MSW ${state.errorReport.version} · ${new Date(state.errorReport.occurredAt).toLocaleString(state.lang === 'zh' ? 'zh-CN' : 'en-US', {hour12:false})}`;
     $("errorNoticeTitle").textContent = t("error_notice_title");
     renderMessage($("errorNoticeMessage"), message);
     if (code === "ffmpeg_missing") {
@@ -2448,16 +2454,17 @@
   function errorReportText() {
     const report = state.errorReport;
     if (!report) return "";
-    const version = state.config?.appVersion || $("appVersion")?.textContent?.trim() || "unknown";
+    const version = report.version;
     const log = redactSensitive($("log")?.textContent || "");
     const labels = state.lang === "zh"
-      ? { title: "MSW Launcher 错误报告", version: "版本", code: "错误码", message: "提示", detail: "详细信息", log: "日志" }
-      : { title: "MSW Launcher error report", version: "Version", code: "Error code", message: "Message", detail: "Detail", log: "Log" };
+      ? { title: "MSW Launcher 错误报告", version: "版本", time: "发生时间", code: "错误码", message: "提示", detail: "详细信息", log: "日志" }
+      : { title: "MSW Launcher error report", version: "Version", time: "Occurred at", code: "Error code", message: "Message", detail: "Detail", log: "Log" };
     const message = compactDetail(report.message);
     const detail = compactDetail(report.detail);
     return [
       labels.title,
       `${labels.version}: ${redactSensitive(version)}`,
+      `${labels.time}: ${report.occurredAt}`,
       `${labels.code}: ${redactSensitive(report.code)}`,
       `${labels.message}: ${redactSensitive(report.message)}`,
       ...(detail && detail !== message ? [`${labels.detail}: ${redactSensitive(report.detail)}`] : []),

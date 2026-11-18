@@ -249,6 +249,8 @@ def run_track_step(step, *, scope, runner, **kwargs):
                or getattr(artifact, 'report_path', None) and output.with_suffix(artifact.report_path.suffix).exists()):
             output = seed.with_name(f'{seed.stem}-{suffix}{seed.suffix}')
             suffix += 1
+        from maw.postprocess_pipeline import _check_cancel
+        _check_cancel(kwargs['cancel_event'])
         warnings = (*artifact.warnings, *write_derived_project(processed, output, source_path))
         output_srt = output.with_suffix('.srt')
         export_ids = scope.get('exportTrackIds', [track_id])

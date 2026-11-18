@@ -38,6 +38,19 @@ const textFor=(page,kind)=>page.evaluate(kind=>(kind==='main'?DATA.segments:getA
 const undo=page=>page.evaluate(()=>document.getElementById('undo-btn').click());
 const redo=page=>page.evaluate(()=>document.getElementById('redo-btn').click());
 
+test('reapplying language does not rewrite unchanged text or attributes',async({page})=>{
+  const changes=await page.evaluate(()=>{
+    const probe=document.createElement('button');probe.textContent='取消';probe.title='取消';document.body.append(probe);
+    MSWE_I18N.applyLanguage('en',false);
+    const observer=new MutationObserver(()=>{});observer.observe(probe,{characterData:true,attributes:true,subtree:true});
+    MSWE_I18N.applyLanguage('en',false);
+    const same=observer.takeRecords().length;
+    MSWE_I18N.applyLanguage('zh',false);
+    const switched=probe.textContent;observer.disconnect();probe.remove();return {same,switched};
+  });
+  expect(changes).toEqual({same:0,switched:'取消'});
+});
+
 for(const kind of ['main','extension']){
   test(`${kind}: cancelled panel text preserves redo and bound subtitle data`,async({page})=>{
     await selectPanel(page,kind);const panel=page.locator('#cue-panel-text');

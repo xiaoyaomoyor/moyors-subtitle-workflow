@@ -5457,6 +5457,14 @@
 .msw-review-row { display:flex; align-items:center; gap:6px; border-left:3px solid var(--review-color); border-bottom:1px solid var(--border-subtle); padding:3px 7px; }
 .msw-review-row:hover { background:var(--btn-bg-hover); }
 .msw-review-row.selected { background:var(--accent-tint); }
+.msw-review-row.checked { box-shadow:inset 2px 0 var(--accent); }
+.msw-review-batch { display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:4px 8px; border-bottom:1px solid var(--border-subtle); }
+.msw-review-batch label { display:flex; align-items:center; gap:5px; white-space:nowrap; }
+#review-selected-count { margin-right:auto; padding:0 4px; }
+#review-content .msw-review-batch button, #review-content .msw-review-state { min-height:24px; padding:2px 5px; font-size:11px; white-space:nowrap; }
+#review-content .msw-review-state { flex:none; color:var(--text-secondary); }
+#review-content .danger { color:var(--red-hover); }
+.msw-review-entry mark { color:inherit; background:var(--orange-soft,var(--accent-tint)); border-radius:2px; }
 #review-content .msw-review-entry { display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; padding:3px 4px; background:none; border:0; text-align:left; }
 #review-content .msw-review-entry:hover { background:none; }
 .msw-review-entry strong,.msw-review-entry span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

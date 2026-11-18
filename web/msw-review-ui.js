@@ -7,6 +7,7 @@
   if(!root||!wave)return;
   const $=id=>root.querySelector('#review-'+id),ranges=()=>global.MSWE.resolve('time-range')?.ranges||[];
   let selected='',selectionActive=false,drag=null,loop=null,loopFrame=0,visible=true,draftDirty=false;
+  const checked=new Set();let filteredIds=[];
   const state=()=>host.data.review_markers||core.empty(),item=()=>state().items.find(x=>x.id===selected);
   root.innerHTML=`<div class="msw-review-toolbar">
     <button type="button" id="review-add-point">＋时间点</button><button type="button" id="review-add-range">＋时间选区</button>
@@ -14,7 +15,11 @@
     <div class="msw-review-filters"><input type="search" id="review-search" placeholder="搜索名称、备注" aria-label="搜索复核标记">
     <select id="review-filter" aria-label="复核状态"><option value="">全部状态</option><option value="pending">待处理</option><option value="resolved">已解决</option></select>
     <select id="review-kind" aria-label="标记类型"><option value="">全部类型</option><option value="point">时间点</option><option value="range">区段</option></select></div>
-    <div id="review-count" class="msw-review-muted" role="status"></div><div id="review-list" role="list" aria-label="复核标记"></div>
+    <div id="review-count" class="msw-review-muted" role="status"></div>
+    <div class="msw-review-batch"><label title="仅选择当前筛选结果"><input type="checkbox" id="review-select-all" aria-label="全选当前筛选结果">全选</label>
+      <span id="review-selected-count" class="msw-review-muted" role="status"></span>
+      <button type="button" id="review-batch-resolve">已解决</button><button type="button" id="review-batch-pending">待处理</button><button type="button" id="review-batch-delete" class="danger">删除</button></div>
+    <div id="review-list" role="list" aria-label="复核标记"></div>
     <form id="review-edit" hidden><div class="msw-review-fields">
       <label class="msw-review-wide">名称<input id="review-name" maxlength="120" placeholder="未命名复核标记"></label>
       <label>开始<input id="review-start" aria-label="复核开始时间" title="时:分:秒.毫秒" required></label>
@@ -37,25 +42,59 @@
   function refreshOverlays(){wave.renderedRows.forEach(row=>renderRow(row,Number(row.dataset.startMs),Number(row.dataset.endMs)));}
   function select(id,{jump=false}={}) {selected=id;selectionActive=true;open();refresh();$('edit').scrollTop=0;if(jump)jumpTo(item());}
   function jumpTo(mark) {if(mark){stopLoop();host.seek(mark.start_ms/1000,{pauseAfterSeek:true});wave.revealTime(mark.start_ms);}}
+  function highlighted(element,text,query) {
+    element.replaceChildren();
+    if(!query){element.textContent=text;return;}
+    const pattern=new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'giu');let end=0;
+    for(const match of text.matchAll(pattern)) {
+      element.append(document.createTextNode(text.slice(end,match.index)));
+      const highlight=document.createElement('mark');highlight.textContent=match[0];element.append(highlight);end=match.index+match[0].length;
+    }
+    element.append(document.createTextNode(text.slice(end)));
+  }
+  function refreshBatch() {
+    const count=checked.size,all=$('select-all');
+    all.checked=Boolean(filteredIds.length&&count===filteredIds.length);all.indeterminate=count>0&&!all.checked;all.disabled=!filteredIds.length;
+    $('selected-count').textContent=`已选 ${count} 条`;
+    for(const action of ['resolve','pending','delete'])$('batch-'+action).disabled=!count;
+    $('list').querySelectorAll('.msw-review-row').forEach(row=>{row.classList.toggle('checked',checked.has(row.dataset.id));row.querySelector('input').checked=checked.has(row.dataset.id);});
+  }
+  function batch(action) {
+    if(!checked.size)return;
+    const ids=new Set(checked);
+    if(action!=='delete'&&!state().items.some(mark=>ids.has(mark.id)&&mark.status!==action))return;
+    stopLoop();change(action==='delete'?'批量删除复核标记':action==='resolved'?'批量解决复核标记':'批量重新打开复核标记',items=>{
+      if(action==='delete'){for(let i=items.length-1;i>=0;i--)if(ids.has(items[i].id))items.splice(i,1);}
+      else for(const mark of items)if(ids.has(mark.id))mark.status=action;
+    });
+  }
+  $('select-all').onchange=()=>{checked.clear();if($('select-all').checked)filteredIds.forEach(id=>checked.add(id));refreshBatch();};
+  $('batch-resolve').onclick=()=>batch('resolved');$('batch-pending').onclick=()=>batch('pending');$('batch-delete').onclick=()=>batch('delete');
   function refresh() {
     draftDirty=false;
     const marks=core.sorted(state()),query=$('search').value.toLocaleLowerCase(),filter=$('filter').value,kind=$('kind').value;
     const filtered=marks.filter(m=>(!filter||m.status===filter)&&(!kind||(m.end_ms===undefined?'point':'range')===kind)
       &&`${m.name}\n${m.note}`.toLocaleLowerCase().includes(query));
+    filteredIds=filtered.map(mark=>mark.id);const available=new Set(filteredIds);
+    for(const id of checked)if(!available.has(id))checked.delete(id);
+    if(selected&&!marks.some(mark=>mark.id===selected)){selected='';selectionActive=false;}
     $('count').textContent=`${filtered.length} / ${marks.length} 条 · ${marks.filter(m=>m.status==='pending').length} 条待处理`;
     const list=$('list');list.replaceChildren();
     if(!filtered.length){const p=document.createElement('p');p.className='msw-review-muted';p.textContent=marks.length?'没有符合筛选条件的标记':'在播放头添加时间点，或将波形时间选区记为复核区段。';list.append(p);}
     for(const mark of filtered) {
       const row=document.createElement('div');row.className='msw-review-row';row.setAttribute('role','listitem');row.dataset.id=mark.id;
       row.classList.toggle('selected',mark.id===selected);row.style.setProperty('--review-color',mark.color);
-      const check=document.createElement('input');check.type='checkbox';check.checked=mark.status==='resolved';check.setAttribute('aria-label',`标为已解决：${mark.name||'未命名'}`);
-      check.onchange=()=>change(check.checked?'解决复核标记':'重新打开复核标记',items=>{items.find(x=>x.id===mark.id).status=check.checked?'resolved':'pending';});
+      const check=document.createElement('input');check.type='checkbox';check.setAttribute('aria-label',`选择标记：${mark.name||'未命名'}`);
+      check.onchange=()=>{if(check.checked)checked.add(mark.id);else checked.delete(mark.id);refreshBatch();};
       const button=document.createElement('button');button.type='button';button.className='msw-review-entry';button.setAttribute('aria-pressed',String(mark.id===selected));
-      const name=document.createElement('strong');name.textContent=mark.name||'未命名复核标记';name.setAttribute('data-i18n-skip','');
+      const name=document.createElement('strong');highlighted(name,mark.name||'未命名复核标记',query);name.setAttribute('data-i18n-skip','');
       const time=document.createElement('span');time.textContent=core.format(mark.start_ms)+(mark.end_ms===undefined?'':` → ${core.format(mark.end_ms)}`);
-      const note=document.createElement('span');note.className='msw-review-note';note.textContent=mark.note;note.setAttribute('data-i18n-skip','');
-      button.append(name,time,note);button.onclick=()=>select(mark.id);button.ondblclick=()=>jumpTo(mark);row.append(check,button);list.append(row);
+      const note=document.createElement('span');note.className='msw-review-note';highlighted(note,mark.note,query);note.setAttribute('data-i18n-skip','');
+      const status=document.createElement('button');status.type='button';status.className='msw-review-state';status.textContent=mark.status==='resolved'?'已解决':'待处理';status.setAttribute('aria-label',`${mark.status==='resolved'?'标为待处理':'标为已解决'}：${mark.name||'未命名'}`);
+      status.onclick=()=>change(mark.status==='resolved'?'重新打开复核标记':'解决复核标记',items=>{items.find(x=>x.id===mark.id).status=mark.status==='resolved'?'pending':'resolved';});
+      button.append(name,time,note);button.onclick=()=>select(mark.id);button.ondblclick=()=>jumpTo(mark);row.append(check,button,status);list.append(row);
     }
+    refreshBatch();
     const mark=item();$('edit').hidden=!mark;
     if(mark) {
       for(const key of ['name','note','color','status'])$(key).value=mark[key];
@@ -206,7 +245,7 @@
     if(drag||loop){e.preventDefault();e.stopImmediatePropagation();finish(true);stopLoop({pause:true});}
     else if(selectionActive){selectionActive=false;updateMarkerSelection();}
   },true);
-  global.addEventListener('msw:project-changed',()=>{finish(true);stopLoop();selected='';selectionActive=false;refresh();});
+  global.addEventListener('msw:project-changed',()=>{finish(true);stopLoop();checked.clear();selected='';selectionActive=false;refresh();});
   global.addEventListener('msw:reviews-changed',()=>{stopLoop();refresh();});
   global.addEventListener('msw:range-changed',()=>{
     $('add-range').disabled=!ranges().length;

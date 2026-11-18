@@ -28,6 +28,8 @@
     '没有符合筛选条件的标记':'No markers match the filters','关联轨道已删除':'Linked track deleted',
     '添加复核标记':'Add review marker','编辑复核标记':'Edit review marker','移动复核标记':'Move review marker',
     '删除复核标记':'Delete review marker','解决复核标记':'Resolve review marker','重新打开复核标记':'Reopen review marker',
+    '全选当前筛选结果':'Select all filtered markers','仅选择当前筛选结果':'Select only the current filtered results',
+    '批量删除复核标记':'Delete selected review markers','批量解决复核标记':'Resolve selected review markers','批量重新打开复核标记':'Reopen selected review markers',
     '改为时间点':'Convert to point','关联复核字幕':'Link review cues','解除复核关联':'Unlink review cues',
     '请先选择需要关联的字幕':'Select cues to link first','复核区段超出可播放的媒体范围':'The review range is outside the playable media',
     '结束时间必须晚于开始时间':'The end time must be after the start time','复核标记格式无效':'Invalid review marker format',
@@ -3074,6 +3076,10 @@
     if (EN_ATTR[text]) return EN_ATTR[text];
     const reviewCount=/^(\d+) \/ (\d+) 条 · (\d+) 条待处理$/.exec(text);
     if(reviewCount)return `${reviewCount[1]} / ${reviewCount[2]} markers · ${reviewCount[3]} pending`;
+    const reviewSelection=/^已选 (\d+) 条$/.exec(text);
+    if(reviewSelection)return `${reviewSelection[1]} selected`;
+    const reviewAction=/^(选择标记|标为待处理)：(.+)$/.exec(text);
+    if(reviewAction)return `${reviewAction[1]==='选择标记'?'Select marker':'Mark pending'}: ${reviewAction[2]}`;
     const reviewResolved=/^标为已解决：(.+)$/.exec(text);
     if(reviewResolved)return `Mark as resolved: ${reviewResolved[1]}`;
     const reviewLinks=/^(?:(.*) · )?关联 (\d+) 条字幕(?:（(\d+) 条已删除，备注保留）)?$/.exec(text);
@@ -3505,7 +3511,10 @@
     const leading = original.match(/^\s*/)?.[0] || '';
     const trailing = original.match(/\s*$/)?.[0] || '';
     const core = original.trim();
-    if (core) node.nodeValue = leading + translateText(core) + trailing;
+    if (core) {
+      const next = leading + translateText(core) + trailing;
+      if (node.nodeValue !== next) node.nodeValue = next;
+    }
   }
 
   function translateAttributes(element) {

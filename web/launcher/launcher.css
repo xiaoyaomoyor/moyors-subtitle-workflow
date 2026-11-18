@@ -2674,6 +2674,8 @@ textarea::placeholder {
   width: auto;
 }
 
+#errorNoticeContext { display:block; margin-top:6px; color:var(--text-muted); font-size:11px; overflow-wrap:anywhere; }
+
 .error-notice-actions .small {
   width: auto;
   min-height: 30px;

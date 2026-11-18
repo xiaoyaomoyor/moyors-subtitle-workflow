@@ -530,6 +530,7 @@
             </div>
             <div class="field"><label for="resegmentReasoningMode" data-i18n="llm_reasoning_mode">思考强度</label><select id="resegmentReasoningMode"><option value="">跟随更多设置</option></select></div>
           </div>
+          <div class="field"><label for="resegmentMaxChars" data-i18n="resegment_max_chars">每条最大字数</label><input id="resegmentMaxChars" type="number" min="0" max="1000" step="1" value="0"><p class="hint" data-i18n="resegment_max_chars_hint" data-help>0 表示不限制；按非空白字符计数。优先使用断句标点，保留数字与单位；缺少可靠时间码的整句不强行拆分。</p></div>
           <details class="preset-prompt"><summary><span data-i18n="module_preset_prompt">预设提示词</span> · <span id="resegmentPresetName"></span></summary><pre id="resegmentPresetText"></pre></details>
           <div class="field">
             <label for="postprocessPromptResegment" data-i18n="toolbox_prompt_resegment">断句提示词（追加）</label>
@@ -731,6 +732,7 @@
           <div class="error-notice-copy">
             <strong id="errorNoticeTitle" data-i18n="error_notice_title">任务未完成</strong>
             <p id="errorNoticeMessage"></p>
+            <small id="errorNoticeContext"></small>
           </div>
           <div id="errorNoticeActions" class="error-notice-actions">
             <button id="errorNoticeAction" class="ghost small hidden" type="button"></button>

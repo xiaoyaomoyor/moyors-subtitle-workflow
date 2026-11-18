@@ -979,7 +979,7 @@
         { id: "match", enabled: stepEnabled("match"), scriptPath: $("postprocessScriptPath").value.trim(), matchMode: $("postprocessMatchMode").value, extraSplitPunctuation: punctuationLines("postprocessExtraSplitPunctuation"), ...splitPolicy(), preservePunctuation: punctuationLines("postprocessPreservePunctuation"), cleanMarkdownSymbols: Boolean($("postprocessCleanMarkdownSymbols")?.checked) },
         { id: "replace", enabled: stepEnabled("replace"), replacements: parseReplacements(), replacementSeparator: $("postprocessReplacementSeparator").value, replacementTrim: $("postprocessReplacementTrim").checked, replacementCustomSeparator: $("postprocessReplacementCustomSeparator").value, conversion: $("postprocessConversion").value },
         { id: "proofread", enabled: stepEnabled("proofread"), providerId: $("proofreadProvider").value, ...stepModelOverrides.proofread, customPrompt: getLlmPrompt("proofread") },
-        { id: "resegment", enabled: stepEnabled("resegment"), providerId: $("resegmentProvider").value, ...stepModelOverrides.resegment, customPrompt: getLlmPrompt("resegment") },
+        { id: "resegment", enabled: stepEnabled("resegment"), providerId: $("resegmentProvider").value, ...stepModelOverrides.resegment, maxChars: $("resegmentMaxChars").value, customPrompt: getLlmPrompt("resegment") },
         { id: "ocr", enabled: stepEnabled("ocr"), modelId: $("ocrModel").value, videoPath: ocrVideoManual ? $("ocrVideoPath").value.trim() : "", videoPathMode: ocrVideoManual ? "manual" : "auto", ...ocr, threshold: Number($("ocrThreshold").value), report: Boolean($("ocrReport").checked) },
         { id: "translate", enabled: stepEnabled("translate"), providerId: $("translateProvider").value, ...stepModelOverrides.translate, target: $("autoTranslateTarget").value || "zh", mergeBilingual: ($("translationWriteMode").value === "bilingual"), embedTranslations: ($("translationWriteMode").value === "backfill"), bilingualLineOrder: $("autoTranslateBilingualOrder")?.value || "", customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
       ];
@@ -1143,6 +1143,7 @@
       select.value = [...select.options].some(option => option.value === selected) ? selected : select.options[0]?.value || '';
       stepModelOverrides[id] = {model: String(byId.get(id)?.model || ''), reasoningMode: String(byId.get(id)?.reasoningMode || '')};
     }
+    $("resegmentMaxChars").value = String(byId.get("resegment")?.maxChars ?? 0);
     const match = byId.get("match") || {};
     $("postprocessMatchMode").value = match.matchMode === "text" ? "text" : "script";
     $("postprocessScriptPath").value = String(match.scriptPath || "");
@@ -1649,6 +1650,7 @@
     $(id).addEventListener("change", () => { renderAutoPostprocessState(); maybeEnablePendingAutoStep(); persistAutoPlanSoon(); });
   });
   for (const id of ["generateSpectral", "waveformCacheMode"]) $(id).addEventListener("change", persistAutoPlanSoon);
+  $("resegmentMaxChars").addEventListener("change", () => { if ($("resegmentMaxChars").reportValidity()) persistAutoPlanSoon(); });
   $("autoPostprocessRetain").addEventListener("change", () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
   // S4：目标语言切换 → 翻译卡提示词换键（proofread/resegment 各自独立，不受影响）。
   $("autoTranslateTarget").addEventListener("change", () => {
@@ -1677,6 +1679,7 @@
   window.MSWLauncher.onPostprocessStatus = renderPostprocessStatus;
   window.MSWLauncher.onPostprocessStream = renderPostprocessStream;
   window.MSWLauncher.onPostprocessPipeline = (event) => {
+    if (event.stage === "match_status") renderPostprocessStatus(event);
     if (event.stage === "step_start") setResult(`${autoStepLabel(event.step)}：${t("toolbox_running")}`);
     if (event.stage === "step_done") setResult(`${autoStepLabel(event.step)}：${t("toolbox_done")}`, "success");
   };

@@ -577,8 +577,8 @@ class PostprocessTests(unittest.TestCase):
         if result.project_path is None:
             self.fail("JSON output mode must create a project")
         output = project_segments(read_project(result.project_path))
-        self.assertTrue(all("items" not in segment for segment in output))
-        self.assertIn("未返回字词边界", "".join(result.warnings))
+        self.assertTrue(all("items" in segment for segment in output))
+        self.assertEqual([s["items"] for s in output], [s["items"] for s in project_segments(project)])
 
     def test_llm_text_edit_preserves_unknown_metadata_and_untouched_word_timings(self) -> None:
         project = sample_project(self.media)
@@ -694,7 +694,7 @@ class PostprocessTests(unittest.TestCase):
             self.fail("JSON output mode must create a project file")
         output = project_segments(read_project(result.project_path))
         ids = [str(segment["id"]) for segment in output]
-        self.assertEqual(ids, ["source-first-part-001", "source-first-part-002", "source-second-part-001"])
+        self.assertEqual(ids, ["source-first-part-001", "source-first-part-002", "source-second"])
         self.assertEqual(len(ids), len(set(ids)))
 
     def test_llm_regroup_removes_all_positional_visual_refs_and_word_timings(self) -> None:

@@ -23,6 +23,7 @@ class MediaToolCancellationTests(unittest.TestCase):
         self.api._media_tool_lock = threading.Lock()
         self.api.media_tool_cancel_event = None
         self.api.media_tool_process = None
+        self.api._media_tool_committing = False
 
     def test_cancel_before_registration_terminates_late_process(self):
         cancel = self.api._begin_media_tool()

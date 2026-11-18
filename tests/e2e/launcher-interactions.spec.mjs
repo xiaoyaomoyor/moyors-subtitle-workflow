@@ -686,7 +686,8 @@ test('error notice and status remain above the fixed footer at desktop and narro
   expect(narrowDynamic.close.bottom).toBeLessThanOrEqual(narrowDynamic.notice.top + 42);
 });
 
-test('error reports copy safe details and support file URL fallback', async ({ page }) => {
+test('error reports copy safe details and support file URL fallback', async ({ page },info) => {
+  await page.clock.setFixedTime(new Date('2026-11-18T02:03:04.000Z'));
   await page.goto(`file://${launcherPath}`);
   await page.waitForFunction(() => window.MSWLauncher?.config?.postprocessProviders?.length > 0);
   await page.evaluate(() => window.MSWNavigation.show('prefab'));
@@ -713,10 +714,14 @@ test('error reports copy safe details and support file URL fallback', async ({ p
     window.MSWLauncher.appendLog('[detail] unrelated child detail');
   });
   await expect(page.locator('#errorNoticeIssue')).toBeVisible();
+  await expect(page.locator('#errorNoticeContext')).toContainText('MSW');
+  await page.locator('#errorNotice').screenshot({path:info.outputPath('error-context.png')});
+  await page.clock.setFixedTime(new Date('2026-11-18T02:08:04.000Z'));
   await page.locator('#errorNoticeCopy').click();
   await expect(page.locator('#errorNoticeCopy')).toHaveText('已复制');
   const report = (await page.evaluate(() => window.__copiedReports[0]));
   expect(report).toContain('错误码: transcription_failed');
+  expect(report).toContain('发生时间: 2026-11-18T02:03:04.000Z');
   expect(report).toContain('backend detail');
   expect(report).toContain('child output: duration probe failed');
   expect(report).toContain('[error] unrelated child failure');

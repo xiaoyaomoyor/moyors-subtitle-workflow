@@ -271,7 +271,7 @@
     if (event.type === "queueItem") { state.results[event.taskId] = event; render(); }
     if (event.type === "queueProgress") {
       const module = event.step || ({ asr: 'asr', waveform: 'waveform', postprocess: 'replace' })[event.stage];
-      const message = event.message || (module ? t('mod_' + module) : '');
+      const message = event.message || (event.key ? t(event.key) : module ? t('mod_' + module) : '');
       if (message) window.MSWLauncher.appendLog(String(message));
     }
     if (event.type === 'queueItem' && event.status === 'running') window.MSWLauncher.setQueueProgress(`${event.index + 1}/${state.activeIds.length} · ${basename(state.files.find(f => f.id === event.taskId)?.path)}`);
