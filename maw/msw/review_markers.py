@@ -28,6 +28,8 @@ def validate(value):
                 or 'end_ms' in item and (not time(item['end_ms']) or item['end_ms'] <= item['start_ms'])
                 or not text(item.get('name'), 120) or not text(item.get('note'), 2000)
                 or not isinstance(item.get('color'), str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', item['color'])
+                or 'text_color' in item and (not isinstance(item['text_color'], str)
+                    or not re.fullmatch(r'#[0-9a-fA-F]{6}', item['text_color']))
                 or item.get('status') not in ('pending', 'resolved')
                 or 'track_id' in item and not identity(item['track_id'])):
             fail()

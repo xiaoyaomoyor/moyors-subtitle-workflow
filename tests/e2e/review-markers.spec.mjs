@@ -66,6 +66,69 @@ async function openReviewFromMenu(page) {
   await page.locator('#show-module-menu').getByRole('menuitem',{name:'复核列表',exact:true}).click();
 }
 
+test('solid review labels contain text and icons, with independent colors surviving undo and reload',async({page},info)=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.evaluate(()=>{
+    waveformEditor.settings.secondsPerRow=10;waveformEditor.setMode('multi');waveformEditor.render();
+    MSWE.resolve('processing-host').commitReviews({schema:'msw.review.v1',items:[
+      {id:'point',start_ms:2500,name:'核对人名',note:'',color:'#e7b35a',status:'pending'},
+      {id:'range',start_ms:4200,end_ms:7000,name:'很长的区段名称：核对译文与专有名词 Ag jp '.repeat(3),note:'',color:'#e7b35a',status:'pending'},
+      {id:'narrow',start_ms:7200,end_ms:7201,name:'不可溢出的极短区段',note:'',color:'#e7b35a',status:'pending'},
+      {id:'unnamed',start_ms:7500,end_ms:7900,name:'',note:'',color:'#345678',text_color:'#fedcba',status:'resolved'}
+    ]},'测试颜色');MSWE.resolve('reviews').open();
+  });
+  const range=page.locator('.msw-review-flag[data-review-id="range"]'),point=page.locator('.msw-review-flag[data-review-id="point"]');
+  await page.locator('.msw-review-row[data-id="range"] .msw-review-entry').click();
+  await expect(page.locator('#review-content').getByLabel('标签色',{exact:true})).toHaveValue('#e7b35a');
+  await expect(page.locator('#review-content').getByLabel('文字色',{exact:true})).toHaveValue('#20242b');
+  expect(await page.evaluate(()=>Object.hasOwn(DATA.review_markers.items[1],'text_color'))).toBe(false);
+  // Drive the native color input's events without depending on an OS picker.
+  const setColor=async(id,value)=>page.locator(id).evaluate((input,value)=>{
+    input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));
+  },value);
+  await setColor('#review-color','#2a4f7a');await expect(page.locator('#review-text-color')).toHaveValue('#20242b');
+  await setColor('#review-text-color','#ffeecc');
+  const colors=locator=>locator.evaluate(button=>({background:getComputedStyle(button,'::before').backgroundColor,text:getComputedStyle(button.querySelector('.msw-review-label')).color}));
+  expect(await colors(range)).toEqual({background:'rgb(42, 79, 122)',text:'rgb(255, 238, 204)'});
+  await page.evaluate(()=>performUndo());expect(await colors(range)).toEqual({background:'rgb(42, 79, 122)',text:'rgb(32, 36, 43)'});
+  await page.evaluate(()=>performRedo());await expect(page.locator('#review-text-color')).toHaveValue('#ffeecc');
+  await page.locator('.msw-review-row[data-id="point"] .msw-review-entry').click();
+  await setColor('#review-color','#204060');await setColor('#review-text-color','#ffdd88');
+  expect(await point.locator('svg').evaluate(svg=>getComputedStyle(svg).fill)).toBe('rgb(255, 221, 136)');
+  expect(await colors(range)).toEqual({background:'rgb(42, 79, 122)',text:'rgb(255, 238, 204)'});
+  expect(await page.evaluate(()=>saveCurrentProject({silent:true}))).toBe(true);
+  const saved=JSON.parse(readFileSync(projectFile,'utf8'));
+  expect(saved.review_markers.items[0]).toMatchObject({color:'#204060',text_color:'#ffdd88'});
+  expect(saved.review_markers.items[1]).toMatchObject({color:'#2a4f7a',text_color:'#ffeecc'});
+  expect(Object.hasOwn(saved.review_markers.items[2],'text_color')).toBe(false);
+  await page.reload();await page.waitForFunction(()=>window.MSWE?.resolve('reviews'));await page.evaluate(()=>MSWE.resolve('reviews').open());
+  await page.locator('.msw-review-row[data-id="range"] .msw-review-entry').click();
+  await expect(page.locator('#review-color')).toHaveValue('#2a4f7a');await expect(page.locator('#review-text-color')).toHaveValue('#ffeecc');
+  for(const theme of ['default','alice']) {
+    await page.evaluate(theme=>{updateEditorSettings({themePreset:theme,colors:null});applyThemeAndColors();},theme);
+    expect(await colors(range)).toEqual({background:'rgb(42, 79, 122)',text:'rgb(255, 238, 204)'});
+    expect(await point.locator('svg').evaluate(svg=>getComputedStyle(svg).fill)).toBe('rgb(255, 221, 136)');
+    const layout=await page.locator('.msw-review-flag').evaluateAll(buttons=>buttons.map(button=>{
+      const label=button.querySelector('.msw-review-label'),box=button.getBoundingClientRect(),body=getComputedStyle(button,'::before'),rect=label.getBoundingClientRect();
+      const bodyHeight=parseFloat(getComputedStyle(button).getPropertyValue('--review-body-height'));
+      return {contained:rect.left>=box.left-.5&&rect.right<=box.right+.5&&rect.top>=box.top-.5&&rect.bottom<=box.top+bodyHeight+.5,
+        clipped:getComputedStyle(label).overflow==='hidden',solid:body.backgroundColor.startsWith('rgb(')&&getComputedStyle(button).opacity==='1'};
+    }));
+    expect(layout.every(value=>value.contained&&value.clipped&&value.solid)).toBe(true);
+    const text=await range.locator('.msw-review-label').evaluate(label=>{
+      const range=document.createRange();range.selectNodeContents(label);const glyph=range.getBoundingClientRect(),box=label.getBoundingClientRect();
+      return {fits:glyph.top>=box.top&&glyph.bottom<=box.bottom,ellipsized:label.scrollWidth>label.clientWidth&&getComputedStyle(label).textOverflow==='ellipsis'};
+    });
+    expect(text).toEqual({fits:true,ellipsized:true});
+    await page.locator('#waveform-pane').screenshot({path:info.outputPath('review-colors-'+theme+'.png')});
+    await page.locator('#review-text-color').scrollIntoViewIfNeeded();
+    await page.locator('#review-panel').screenshot({path:info.outputPath('review-color-controls-'+theme+'.png')});
+  }
+  const unnamed=page.locator('.msw-review-flag[data-review-id="unnamed"]');
+  expect(await unnamed.locator('svg').evaluate(svg=>getComputedStyle(svg).fill)).toBe('rgb(254, 220, 186)');
+  expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Review subtitle');expect(errors).toEqual([]);
+});
+
 for(const mode of ['basic','multi'])test(`top review markers align to time and yield to subtitle editing in ${mode} waveform`,async({page},info)=>{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.evaluate(mode=>{

@@ -20,7 +20,8 @@
       <label>开始<input id="review-start" aria-label="复核开始时间" title="时:分:秒.毫秒" required></label>
       <label>结束（留空为时间点）<input id="review-end" aria-label="复核结束时间" title="时:分:秒.毫秒"></label>
       <label>状态<select id="review-status"><option value="pending">待处理</option><option value="resolved">已解决</option></select></label>
-      <label>颜色<input type="color" id="review-color" value="#e7b35a"></label>
+      <div class="msw-review-colors"><label>标签色<input type="color" id="review-color" value="#e7b35a"></label>
+      <label>文字色<input type="color" id="review-text-color" value="#20242b" title="用于标记文字和旗帜图标"></label></div>
       <label class="msw-review-wide">备注<textarea id="review-note" rows="3" maxlength="2000" placeholder="记录需要检查的内容"></textarea></label>
     </div><div id="review-links" class="msw-review-muted"></div><div class="msw-review-toolbar">
       <button type="button" id="review-link">关联所选字幕</button><button type="button" id="review-unlink">解除关联</button>
@@ -58,6 +59,7 @@
     const mark=item();$('edit').hidden=!mark;
     if(mark) {
       for(const key of ['name','note','color','status'])$(key).value=mark[key];
+      $('text-color').value=core.textColor(mark);
       $('start').value=core.format(mark.start_ms);$('end').value=mark.end_ms===undefined?'':core.format(mark.end_ms);
       $('loop').disabled=mark.end_ms===undefined;$('loop').textContent=loop?.id===mark.id?'停止循环':'循环区段';
       const project=global.MSWProductionProject.toProject(host.data),cues=new Set(project.subtitles?.cues.map(c=>c.id)||[]),tracks=project.subtitles?.tracks||[];
@@ -80,14 +82,14 @@
   function edit() {
     const mark=item();if(!mark)return;
     try {
-      const next={...mark,name:$('name').value,note:$('note').value,color:$('color').value,status:$('status').value,start_ms:core.parse($('start').value)};
+      const next={...mark,name:$('name').value,note:$('note').value,color:$('color').value,text_color:$('text-color').value,status:$('status').value,start_ms:core.parse($('start').value)};
       if($('end').value.trim())next.end_ms=core.parse($('end').value);else delete next.end_ms;
       if(next.end_ms!==undefined&&next.end_ms<=next.start_ms)throw Error('结束时间必须晚于开始时间');
       stopLoop();change('编辑复核标记',items=>{items[items.findIndex(x=>x.id===selected)]=next;});
     }catch(error){message(error.message);}
   }
-  for(const id of ['name','note','color','status','start','end'])$(id).addEventListener('input',()=>{draftDirty=true;});
-  for(const id of ['name','note','color','status','start','end'])$(id).addEventListener('change',()=>{
+  for(const id of ['name','note','color','text-color','status','start','end'])$(id).addEventListener('input',()=>{draftDirty=true;});
+  for(const id of ['name','note','color','text-color','status','start','end'])$(id).addEventListener('change',()=>{
     if(id==='end'&&!$('end').value.trim()) {stopLoop();change('改为时间点',items=>{delete items.find(x=>x.id===selected).end_ms;});}
     else edit();
   });
@@ -158,12 +160,19 @@
       if(isPoint?!pointInRow(mark.start_ms,start,end):mark.start_ms>=end||finish<=start)continue;
       const button=document.createElement('button');button.type='button';button.className='msw-review-flag';button.dataset.reviewId=mark.id;
       button.style.setProperty('--review-color',mark.color);button.style.left=`${Math.max(0,(mark.start_ms-start)/(end-start)*100)}%`;
+      button.style.setProperty('--review-text-color',core.textColor(mark));
       button.classList.add(isPoint?'point':'range');
       if(!isPoint)button.style.width=`${(Math.min(finish,end)-Math.max(mark.start_ms,start))/(end-start)*100}%`;
       button.classList.toggle('resolved',mark.status==='resolved');button.classList.toggle('selected',selectionActive&&mark.id===selected);
       button.setAttribute('aria-pressed',String(selectionActive&&mark.id===selected));
       button.title=`${mark.status==='resolved'?'已解决':'待处理'} · ${mark.name||'未命名'}\n${core.format(mark.start_ms)}${mark.end_ms===undefined?'':` → ${core.format(mark.end_ms)}`}\n${mark.note}`;
-      button.setAttribute('aria-label',button.title);const label=document.createElement('span');label.textContent=mark.end_ms===undefined?'⚑':mark.name||'⚑';label.setAttribute('data-i18n-skip','');button.append(label);
+      button.setAttribute('aria-label',button.title);
+      const label=document.createElement('span');label.className='msw-review-label';label.setAttribute('data-i18n-skip','');
+      if(isPoint||!mark.name) {
+        label.classList.add('is-icon');
+        label.innerHTML='<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1h1v1c2-2 4 2 7 0v6c-3 2-5-2-7 0v3H2z"/></svg>';
+      } else label.textContent=mark.name;
+      button.append(label);
       if(mark.end_ms!==undefined)for(const edge of ['start','end']) {
         if(edge==='start'&&mark.start_ms<start||edge==='end'&&mark.end_ms>end)continue;
         const handle=document.createElement('span');handle.className='msw-review-edge '+edge;handle.dataset.edge=edge;button.append(handle);

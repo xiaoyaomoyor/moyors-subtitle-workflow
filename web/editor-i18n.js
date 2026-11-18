@@ -22,6 +22,7 @@
     '循环区段':'Loop range','停止循环':'Stop loop','独立时间标记':'Independent time marker',
     '状态':'Status','定位':'Locate','复核列表窗口标签':'Review list tab','关闭复核列表窗口':'Close review list',
     '复核状态':'Review status','标记类型':'Marker type','复核标记':'Review markers',
+    '标签色':'Label color','用于标记文字和旗帜图标':'Used for marker text and flag icons',
     '时:分:秒.毫秒':'hours:minutes:seconds.milliseconds','复核开始时间':'Review start time','复核结束时间':'Review end time',
     '在播放头添加时间点，或将波形时间选区记为复核区段。':'Add a point at the playhead, or turn waveform time selections into review ranges.',
     '没有符合筛选条件的标记':'No markers match the filters','关联轨道已删除':'Linked track deleted',

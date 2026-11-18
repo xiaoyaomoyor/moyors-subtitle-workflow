@@ -1351,6 +1351,7 @@ uv run --frozen python -m maw.msw.subtitle_tracks_io "测试工程.mosp"
       "name": "核对人名",
       "note": "确认这段称呼的译法",
       "color": "#e7b35a",
+      "text_color": "#20242b",
       "status": "pending",
       "track_id": "subtitle-track-1",
       "cue_ids": ["cue-1"]
@@ -1361,7 +1362,8 @@ uv run --frozen python -m maw.msw.subtitle_tracks_io "测试工程.mosp"
 
 - `items` 最多 10000 项。`id` 唯一、非空且最多 160 个 UTF-16 代码单元。
 - `start_ms` 为非负安全整数毫秒；`end_ms` 省略表示时间点，存在时必须是严格大于开始时间的安全整数。`null` 不是省略。
-- `name`／`note` 必须是字符串，分别最多 120／2000 个 UTF-16 代码单元；允许空文本。`color` 是六位十六进制颜色，`status` 为 `pending`（待处理）或 `resolved`（已解决）。
+- `name`／`note` 必须是字符串，分别最多 120／2000 个 UTF-16 代码单元；允许空文本。`color` 是六位十六进制标签色，`status` 为 `pending`（待处理）或 `resolved`（已解决）。
+- `text_color` 为可选的六位十六进制文字色，同时用于波形标记文字和旗帜图标；`null`、空值与其他格式无效。旧工程缺省时，界面按标签色对比度自动选择深色 `#20242b` 或白色 `#ffffff`，读取不补写字段；显式设置的文字色不随主题变化。标签和尖角实心填色，已解决标记使用顶部虚线表示状态；选中对齐虚线仍沿用 `color`。
 - `track_id`、`cue_ids` 为可选关联，使用 v4 的稳定 ID；`cue_ids` 最多 10000 个且不可重复。关联对象删除后仍保留标记及其 ID，界面显示缺失关联；移动／切分字幕不自动移动或重写标记时间。
 - 根字段由前后端共同校验；不接受重复标记、负数／小数时间或未知状态，不会静默删除损坏数据。
 
