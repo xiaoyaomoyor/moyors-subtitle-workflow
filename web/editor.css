@@ -5483,10 +5483,27 @@
 @container (max-width:260px) {
   .msw-review-fields { grid-template-columns:minmax(0,1fr); }
 }
-.msw-review-layer { position:absolute; top:28px; left:0; right:0; height:15px; z-index:12; pointer-events:none; }
-.msw-review-flag { position:absolute; top:0; height:15px; min-width:4px; padding:0; border:0; border-top:3px solid var(--review-color); border-radius:2px; color:var(--text-primary); background:color-mix(in srgb,var(--review-color) 35%,var(--bg-panel)); pointer-events:auto; cursor:grab; font:10px/11px var(--font-sans); text-align:left; touch-action:none; }
-.msw-review-flag > span:first-child { display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; pointer-events:none; }
-.msw-review-flag.resolved { opacity:.5; border-top-style:dashed; }
-.msw-review-flag.selected { outline:1px solid var(--accent); }
-.msw-review-edge { position:absolute; top:-3px; bottom:0; width:6px; cursor:ew-resize; }
+.msw-review-layer { position:absolute; top:2px; left:0; right:0; height:18px; z-index:12; pointer-events:none; }
+/* Keep the existing time badge readable below the marker strip. */
+.waveform-row.has-review-markers .waveform-row-time { top:22px; }
+.msw-review-flag { position:absolute; top:0; height:18px; min-width:0; padding:0; border:0; border-radius:0; color:var(--text-primary); background:transparent; pointer-events:auto; cursor:grab; font:10px/12px var(--font-sans); text-align:left; touch-action:none; }
+.msw-review-flag::before { content:""; position:absolute; inset:0 0 6px; box-sizing:border-box; border-top:2px solid var(--review-color); background:color-mix(in srgb,var(--review-color) 35%,var(--bg-panel)); pointer-events:none; }
+.msw-review-flag.point { width:16px; transform:translateX(-50%); text-align:center; }
+.msw-review-flag:active:not(:disabled) { transform:none; }
+.msw-review-flag.point:active:not(:disabled) { transform:translateX(-50%); }
+.msw-review-flag.point::before { bottom:0; clip-path:polygon(0 0,100% 0,100% 56%,50% 100%,0 56%); background:var(--review-color); }
+.msw-review-flag.point > span:first-child { color:var(--bg-panel); }
+.msw-review-flag > span:first-child { position:relative; display:block; height:12px; padding:0 3px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; pointer-events:none; }
+.msw-review-flag.point > span:first-child { padding:0; }
+.msw-review-flag.resolved { opacity:.5; }
+.msw-review-flag.resolved::before { border-top-style:dashed; }
+.msw-review-flag.selected { filter:drop-shadow(0 0 2px var(--review-color)); }
+.msw-review-flag:focus-visible { outline:1px solid var(--review-color); outline-offset:2px; }
+.msw-review-edge { position:absolute; top:0; bottom:0; width:min(6px,50%); cursor:ew-resize; }
+.msw-review-edge::after { content:""; position:absolute; top:12px; bottom:0; left:0; right:0; background:var(--review-color); pointer-events:none; }
+.msw-review-edge.start::after { clip-path:polygon(0 0,100% 0,0 100%); }
+.msw-review-edge.end::after { clip-path:polygon(0 0,100% 0,100% 100%); }
 .msw-review-edge.start { left:0; }.msw-review-edge.end { right:0; }
+/* Separate stacking context: guides must stay behind cue blocks (z-index:5). */
+.msw-review-guides { position:absolute; inset:20px 0 0; z-index:4; pointer-events:none; }
+.msw-review-guide { position:absolute; top:0; bottom:0; width:0; border-left:1px dashed var(--review-color); transform:translateX(-.5px); pointer-events:none; }

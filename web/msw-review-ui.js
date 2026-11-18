@@ -6,7 +6,7 @@
   const root=wave?.reviews?.querySelector('#review-content');
   if(!root||!wave)return;
   const $=id=>root.querySelector('#review-'+id),ranges=()=>global.MSWE.resolve('time-range')?.ranges||[];
-  let selected='',drag=null,loop=null,loopFrame=0,visible=true,draftDirty=false;
+  let selected='',selectionActive=false,drag=null,loop=null,loopFrame=0,visible=true,draftDirty=false;
   const state=()=>host.data.review_markers||core.empty(),item=()=>state().items.find(x=>x.id===selected);
   root.innerHTML=`<div class="msw-review-toolbar">
     <button type="button" id="review-add-point">＋时间点</button><button type="button" id="review-add-range">＋时间选区</button>
@@ -34,7 +34,7 @@
   }
   function open() {wave.showModule('reviews',{recordUndo:false});wave.activateModuleTab('reviews');}
   function refreshOverlays(){wave.renderedRows.forEach(row=>renderRow(row,Number(row.dataset.startMs),Number(row.dataset.endMs)));}
-  function select(id,{jump=false}={}) {selected=id;open();refresh();$('edit').scrollTop=0;if(jump)jumpTo(item());}
+  function select(id,{jump=false}={}) {selected=id;selectionActive=true;open();refresh();$('edit').scrollTop=0;if(jump)jumpTo(item());}
   function jumpTo(mark) {if(mark){stopLoop();host.seek(mark.start_ms/1000,{pauseAfterSeek:true});wave.revealTime(mark.start_ms);}}
   function refresh() {
     draftDirty=false;
@@ -70,7 +70,7 @@
   }
   function add(values) {
     const marks=values.map(span=>({id:crypto.randomUUID(),start_ms:span.start,...(span.end>span.start?{end_ms:span.end}:{}),name:'',note:'',color:'#e7b35a',status:'pending'}));
-    selected=marks[0].id;open();if(change('添加复核标记',items=>items.push(...marks)))$('name').focus();
+    selected=marks[0].id;selectionActive=true;open();if(change('添加复核标记',items=>items.push(...marks)))$('name').focus();
   }
   $('add-point').onclick=()=>add([{start:Math.round(wave.currentTimeMs())}]);
   $('add-range').onclick=()=>{if(ranges().length)add(ranges());};
@@ -116,31 +116,67 @@
     // Media playback may start asynchronously after the seek.
     const current=loop;setTimeout(()=>{if(loop===current)loopFrame=requestAnimationFrame(loopTick);},150);
   };
+  function pointInRow(time,start,end) {return time>=start&&(time<end||time===end&&end===wave.durationMs);}
+  function renderGuides(row,start,end) {
+    row.querySelector('.msw-review-guides')?.remove();
+    if(!visible||!selectionActive||end<=start)return;
+    const mark=drag?.id===selected?drag.preview:item();if(!mark)return;
+    const guides=document.createElement('div');guides.className='msw-review-guides';guides.setAttribute('aria-hidden','true');
+    guides.style.setProperty('--review-color',mark.color);
+    const times=[];
+    if(pointInRow(mark.start_ms,start,end))times.push(mark.start_ms);
+    if(mark.end_ms!==undefined&&mark.end_ms>start&&mark.end_ms<=end)times.push(mark.end_ms);
+    for(const time of times) {
+      const line=document.createElement('span');line.className='msw-review-guide';line.style.left=`${(time-start)/(end-start)*100}%`;guides.append(line);
+    }
+    if(times.length)row.append(guides);
+  }
+  function updateMarkerSelection() {
+    wave.renderedRows.forEach(row=>{
+      row.querySelectorAll('.msw-review-flag').forEach(button=>{
+        const active=selectionActive&&button.dataset.reviewId===selected;
+        button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));
+      });
+      renderGuides(row,Number(row.dataset.startMs),Number(row.dataset.endMs));
+    });
+  }
+  // Retain the inspector target for "link selected subtitles", but show guides
+  // only while the user is working with a review marker, not editing a cue.
+  function updateSelectionFocus(event) {
+    const target=event.target;if(!(target instanceof Element)||target.closest('.msw-review-flag'))return;
+    const active=Boolean(selected&&root.contains(target));
+    if(selectionActive!==active){selectionActive=active;updateMarkerSelection();}
+  }
+  global.addEventListener('pointerdown',updateSelectionFocus,true);
+  global.addEventListener('focusin',updateSelectionFocus,true);
   function renderRow(row,start,end) {
-    row.querySelector('.msw-review-layer')?.remove();if(!visible||end<=start)return;
+    row.querySelector('.msw-review-layer')?.remove();renderGuides(row,start,end);row.classList.remove('has-review-markers');
+    if(!visible||end<=start)return;
     const layer=document.createElement('div');layer.className='msw-review-layer';
     for(const original of core.sorted(state())) {
-      const mark=drag?.id===original.id?drag.preview:original,finish=mark.end_ms??mark.start_ms;
-      if(mark.start_ms>=end||finish<start||mark.end_ms!==undefined&&finish===start)continue;
+      const mark=drag?.id===original.id?drag.preview:original,isPoint=mark.end_ms===undefined,finish=mark.end_ms??mark.start_ms;
+      if(isPoint?!pointInRow(mark.start_ms,start,end):mark.start_ms>=end||finish<=start)continue;
       const button=document.createElement('button');button.type='button';button.className='msw-review-flag';button.dataset.reviewId=mark.id;
       button.style.setProperty('--review-color',mark.color);button.style.left=`${Math.max(0,(mark.start_ms-start)/(end-start)*100)}%`;
-      button.style.width=mark.end_ms===undefined?'16px':`${Math.max(.3,(Math.min(finish,end)-Math.max(mark.start_ms,start))/(end-start)*100)}%`;
-      button.classList.toggle('resolved',mark.status==='resolved');button.classList.toggle('selected',mark.id===selected);
+      button.classList.add(isPoint?'point':'range');
+      if(!isPoint)button.style.width=`${(Math.min(finish,end)-Math.max(mark.start_ms,start))/(end-start)*100}%`;
+      button.classList.toggle('resolved',mark.status==='resolved');button.classList.toggle('selected',selectionActive&&mark.id===selected);
+      button.setAttribute('aria-pressed',String(selectionActive&&mark.id===selected));
       button.title=`${mark.status==='resolved'?'已解决':'待处理'} · ${mark.name||'未命名'}\n${core.format(mark.start_ms)}${mark.end_ms===undefined?'':` → ${core.format(mark.end_ms)}`}\n${mark.note}`;
       button.setAttribute('aria-label',button.title);const label=document.createElement('span');label.textContent=mark.end_ms===undefined?'⚑':mark.name||'⚑';label.setAttribute('data-i18n-skip','');button.append(label);
       if(mark.end_ms!==undefined)for(const edge of ['start','end']) {
         if(edge==='start'&&mark.start_ms<start||edge==='end'&&mark.end_ms>end)continue;
         const handle=document.createElement('span');handle.className='msw-review-edge '+edge;handle.dataset.edge=edge;button.append(handle);
       }
-      button.onpointerdown=e=>beginDrag(e,mark,row);button.onclick=e=>{e.stopPropagation();};button.ondblclick=e=>{e.stopPropagation();select(mark.id,{jump:true});};
+      button.onpointerdown=e=>beginDrag(e,mark,row);button.onclick=e=>{e.stopPropagation();if(e.detail===0)select(mark.id);};button.ondblclick=e=>{e.stopPropagation();select(mark.id,{jump:true});};
       layer.append(button);
     }
-    row.append(layer);
+    if(layer.childElementCount){row.classList.add('has-review-markers');row.append(layer);}
   }
   function beginDrag(event,mark,row) {
     if(event.button!==0)return;event.preventDefault();event.stopPropagation();stopLoop();
     drag={id:mark.id,original:{...mark},preview:{...mark},edge:event.target.dataset.edge||'move',start:wave.timeFromPointer(event,row),x:event.clientX,y:event.clientY,moved:false,generation:host.generation};
-    wave.cancelHoverSeekPreview();selected=mark.id;
+    wave.cancelHoverSeekPreview();selected=mark.id;selectionActive=true;updateMarkerSelection();
   }
   global.addEventListener('pointermove',event=>{
     if(!drag)return;event.preventDefault();event.stopImmediatePropagation();
@@ -156,10 +192,18 @@
   global.addEventListener('pointerup',()=>finish(),true);
   global.addEventListener('pointercancel',()=>finish(true),true);
   global.addEventListener('blur',()=>{finish(true);stopLoop();});
-  global.addEventListener('keydown',e=>{if(e.key==='Escape'&&(drag||loop)){e.preventDefault();e.stopImmediatePropagation();finish(true);stopLoop({pause:true});}},true);
-  global.addEventListener('msw:project-changed',()=>{finish(true);stopLoop();selected='';refresh();});
+  global.addEventListener('keydown',e=>{
+    if(e.key!=='Escape')return;
+    if(drag||loop){e.preventDefault();e.stopImmediatePropagation();finish(true);stopLoop({pause:true});}
+    else if(selectionActive){selectionActive=false;updateMarkerSelection();}
+  },true);
+  global.addEventListener('msw:project-changed',()=>{finish(true);stopLoop();selected='';selectionActive=false;refresh();});
   global.addEventListener('msw:reviews-changed',()=>{stopLoop();refresh();});
-  global.addEventListener('msw:range-changed',()=>{$('add-range').disabled=!ranges().length;});
+  global.addEventListener('msw:range-changed',()=>{
+    $('add-range').disabled=!ranges().length;
+    // The range tool captures pointer events before ordinary selection handlers.
+    if(selectionActive){selectionActive=false;updateMarkerSelection();}
+  });
   global.addEventListener('msw:subtitles-changed',()=>{if(!draftDirty&&root.getClientRects().length)refresh();});
   global.MSWE.register('reviews',()=>({open,renderRow,commitEdit(){if(draftDirty){edit();if($('message').textContent)throw Error($('message').textContent);draftDirty=false;}},get dragging(){return Boolean(drag);}}));
   refresh();
