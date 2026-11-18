@@ -181,10 +181,14 @@ test('editing the target while ASR runs blocks application but retains library i
 
 test('empty recognition never clears existing subtitles or creates empty assets',async({page})=>{
   await page.evaluate(()=>{DATA.segments.push({id:'old',start:0,end:1000,text:'Keep'});renderAll();});reply={segments:[]};
-  await open(page);await page.locator('#msw-asr-start').click();const id=await completed(page);await page.evaluate(id=>MSWE.resolve('asr').showResult(id),id);
-  await expect(page.locator('#msw-asr-apply')).toBeDisabled();await expect(page.locator('#msw-asr-jobs .msw-result-status')).toContainText('没有识别到语音');
+  await open(page);await page.locator('#msw-asr-start').click();
+  await expect.poll(()=>page.evaluate(()=>MSWE.resolve('asr').jobs[0]?.status)).toBe('failed');
+  await page.locator('#msw-asr-history > summary').click();
+  await page.locator('#msw-asr-jobs .msw-result-toggle').click();
+  await expect(page.locator('#msw-asr-apply')).toBeDisabled();await expect(page.locator('#msw-asr-jobs .msw-result-status')).toContainText('未识别到可用文字');
   await expect(page.locator('#msw-asr-store')).toBeDisabled();await expect(page.locator('#msw-asr-discard')).toHaveCount(0);
-  expect(await page.evaluate(()=>DATA.segments[0].text)).toBe('Keep');
+  expect(await page.evaluate(()=>DATA.segments.map(({id,start,end,text})=>({id,start,end,text})))).toEqual([{id:'old',start:0,end:1000,text:'Keep'}]);
+  expect(await page.evaluate(()=>DATA.msw.subtitle_assets||[])).toEqual([]);
 });
 
 test('a missing submit response is retried with the same request identity',async({page})=>{
