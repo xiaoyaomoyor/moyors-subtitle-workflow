@@ -1,5 +1,7 @@
 # MSW v1.9.0-beta.1：回归与发布准备
 
+后续：已于 2026-11-19 按用户授权公开 [v1.9.0-beta.1](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.1)，发布操作与最终下载核对见[发布记录](TEST_FEEDBACK_RELEASE_190_BETA1_20261119.md)。下文保留 2026-11-18 的准备阶段记录。
+
 用户确认其他新增内容无需跟进，本轮只回归已接受改动并准备候选版本及安装包。基线 `my-feature` / `0347133c`；不创建标签或公开 Release。`main` 保持 `a8bf4384`，保留 `debug.log`（35 行增加）及原有 `.test-appdata/`、`output/`、`tests/test_data/_msw/`，不读取个人 `.env`。
 
 | 项目 | 状态 | 范围与证据 |
