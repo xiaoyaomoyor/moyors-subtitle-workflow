@@ -36,7 +36,9 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(json.loads(self.path.read_text(encoding='utf-8'))['media'], self.media.name)
         self.assertEqual(self.server.project.data['media'], absolute['media'])
         self.assertEqual(result['fileExportMediaIdentity']['reference'], absolute['media'])
-        self.assertEqual(Path(result['fileExportMediaIdentity']['path']), self.media.resolve())
+        export_path = Path(result['fileExportMediaIdentity']['path'])
+        self.assertTrue(export_path.is_absolute())
+        self.assertEqual(export_path.resolve(), self.media.resolve())
         absolute['language'] = 'fr'
         _, _, again = self.server.save_project(absolute, include_context=True)
         self.assertEqual(again['fileExportMediaIdentity']['reference'], absolute['media'])

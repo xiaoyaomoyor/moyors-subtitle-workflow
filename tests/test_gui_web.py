@@ -1648,7 +1648,9 @@ class GuiWebBridgeTests(unittest.TestCase):
         command = popen.call_args.args[0]
         self.assertIn("serve.py", command[1])
         self.assertEqual(command[2], str(project))
-        self.assertEqual(command[command.index("-m") + 1], str(media))
+        media_argument = Path(command[command.index("-m") + 1])
+        self.assertTrue(media_argument.is_absolute())
+        self.assertEqual(media_argument.resolve(), media.resolve())
         self.assertEqual(command[command.index("--port") + 1], "9876")
         self.assertEqual(result["url"], "http://127.0.0.1:9876/?lang=en")
         self.assertEqual(
