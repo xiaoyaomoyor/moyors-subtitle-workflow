@@ -1,6 +1,6 @@
 # 安装与升级
 
-当前源码准备发布 **MSW v1.9.0-beta.1** ，尚未公开；下表列出本轮候选包名称。已公开预发行包见 [v1.8.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.8.0-beta.1)，稳定版为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。请解压到新目录并保留工程及素材备份。
+本轮预发行包位于 [MSW v1.9.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.1)，稳定版仍为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。下表列出本轮安装包名称，按系统选择；请解压到新目录并保留工程及素材备份。
 
 | 文件 | 系统 | 内置 FFmpeg |
 | --- | --- | --- |

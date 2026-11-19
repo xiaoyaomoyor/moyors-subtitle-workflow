@@ -14,9 +14,9 @@ MSW (Moyor's Subtitle Workflow / 我的字幕流) is a local web workflow for AS
 
 [Project home](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [Releases](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [Documentation](docs/README.md) · [Optional environments](docs/ENVIRONMENT.md)
 
-Version 1.9.0-beta.1 improves resegmentation, cancellable manuscript matching and bulk review actions. It refines waveform markers and error reports, and improves local LLM compatibility, multichannel waveforms, runtime handling and ASR errors. MSW retains its multitrack editing, script workflow, ASS styles and 800ms default pause threshold. See the [changelog](CHANGELOG.md#190-beta1---2026-11-18).
+Version 1.9.0-beta.1 improves resegmentation, cancellable manuscript matching and bulk review actions. It refines waveform markers and error reports, and improves local LLM compatibility, multichannel waveforms, runtime handling and ASR errors. MSW retains its multitrack editing, script workflow, ASS styles and 800ms default pause threshold. See the [changelog](CHANGELOG.md#190-beta1---2026-11-19).
 
-The current source version is **1.9.0-beta.1**, in release preparation. Published prerelease packages remain on the [v1.8.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.8.0-beta.1); [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0) remains the stable version. Packages cover Windows x64 and macOS arm64 standard/lite editions, plus Linux x86_64 AppImage. MSW is independently maintained; equal version numbers do not imply identical features or project formats.
+The current source version is **1.9.0-beta.1**. Prerelease packages are available on the [v1.9.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.1); [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0) remains the stable version. Packages cover Windows x64 and macOS arm64 standard/lite editions, plus Linux x86_64 AppImage. MSW is independently maintained; equal version numbers do not imply identical features or project formats.
 
 ![MSWE with bilingual subtitles, voiceover clips and the asset library](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 
