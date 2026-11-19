@@ -37,3 +37,6 @@
 - 候选 `830782a48e135d2e6bb0b7aacb15c896c99d2460` 已推送 `origin/my-feature`；[预演 44472243307](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/44472243307) 通过分支 `workflow_dispatch` 启动，公开发布步骤不满足触发条件。
 - 完整编辑器、处理流程、预览／烧录与平台包验收结果待 CI 完成后记录。
 - 首轮 macOS Python 2503 项、115 条件跳过，有 2 条测试失败：`/var` 与 `/private/var` 为同一路径的系统别名，媒体启动参数和导出身份测试仍比较原始字符串。改为同时检查绝对路径与解析后原文件身份，不改变产品代码或放宽媒体保护。首轮不作为已验收候选，修订后重新执行三平台预演。
+- 首轮 Windows 同样 2503 项、108 条件跳过，失败的也是上述两条，表现为临时目录的 8.3 短路径与长路径别名；同一修订覆盖。首轮余下任务主动取消，保留诊断记录。修订定向 29/29 通过，候选 `eb8469d7cf09806df266613542d25990073fb926` 已推送，启动[第二轮预演 44473135879](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/44473135879)。
+- 第二轮 macOS／Linux 构建成功，均有 Python 2503 项（115 跳过）、随包 FFmpeg 专项 94 项（2 跳过）及打包契约 26 项通过，冻结入口与原生 QPK1 生成通过。Windows Python、Node、媒体专项和 73+2 条首组浏览器通过，但新增 beta.2 浏览器组 45/47 通过：两条下载断言用 Node `path.resolve`，未展开 Windows 短路径别名。补成绝对路径检查与 `realpathSync.native` 原文件身份比较；保留相对磁盘保存、下载正文及不改变实时工程的断言。第二轮不作为完整验收候选。
+- GitHub 查询曾遇到短暂 DNS／连接超时后恢复；下载 macOS 诊断产物遇到存储端读取超时，不将未完成下载记为产物通过。

@@ -1,6 +1,6 @@
 import {test, expect} from '@playwright/test';
-import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
-import {join, resolve} from 'node:path';
+import {mkdirSync, readFileSync, realpathSync, writeFileSync} from 'node:fs';
+import {isAbsolute, join, resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {disableOnboarding, findFreePort, generateWav, makeTempDir, startServer} from './helpers.mjs';
 
@@ -122,7 +122,8 @@ test('bound save stays relative; download uses original absolute path without ch
   const saved=JSON.parse(readFileSync(projectPath,'utf8'));
   expect(saved.media).toBe('../original #1 & 2.wav');
   const exported=await download(page,()=>page.evaluate(()=>MSWE.resolve('persistence-host').downloadLocal()));
-  expect(resolve(exported.media)).toBe(resolve(media));
+  expect(isAbsolute(exported.media)).toBe(true);
+  expect(realpathSync.native(exported.media)).toBe(realpathSync.native(media));
   expect(await page.evaluate(()=>DATA.media)).toBe(saved.media);
   expect(exported.schema).toBe('msw.project.v4');
 });
@@ -150,5 +151,6 @@ test('disconnected save offers a usable file with current text and original medi
   page.on('dialog',dialog=>dialog.accept());
   await page.evaluate(()=>{DATA.language='zh';window.showSaveFilePicker=undefined;});
   const exported=await download(page,()=>page.evaluate(()=>saveProjectToServer()));
-  expect(exported.language).toBe('zh');expect(resolve(exported.media)).toBe(resolve(media));
+  expect(exported.language).toBe('zh');expect(isAbsolute(exported.media)).toBe(true);
+  expect(realpathSync.native(exported.media)).toBe(realpathSync.native(media));
 });
