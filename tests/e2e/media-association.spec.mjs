@@ -1,7 +1,7 @@
 import {test, expect} from '@playwright/test';
 import {mkdirSync, readFileSync, realpathSync, writeFileSync} from 'node:fs';
 import {isAbsolute, join, resolve} from 'node:path';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {disableOnboarding, findFreePort, generateWav, makeTempDir, startServer} from './helpers.mjs';
 
 let dir, media, projectPath, server;
@@ -128,6 +128,23 @@ test('bound save stays relative; download uses original absolute path without ch
   expect(exported.schema).toBe('msw.project.v4');
 });
 
+test('timeline file exports resolve the original media while preserving relative project data',async({page})=>{
+  await editor(page);
+  await page.waitForFunction(()=>player.readyState>=1);
+  const result=await page.evaluate(()=>{
+    setGapRemoveData({gaps:[{start:1000,end:1500,removed:true}]});
+    const otio=JSON.parse(buildGapRemovedOtio());
+    return {target:otio.tracks.children[0].children[0].media_references.DEFAULT_MEDIA.target_url,
+      regions:JSON.parse(buildGapRemovedRegionsJson()),concat:buildGapRemovedFfconcat(),reference:DATA.media};
+  });
+  expect(realpathSync.native(fileURLToPath(result.target))).toBe(realpathSync.native(media));
+  expect(new URL(result.target).hash).toBe('');
+  expect(isAbsolute(result.regions.media)).toBe(true);
+  expect(realpathSync.native(result.regions.media)).toBe(realpathSync.native(media));
+  expect(result.concat).toContain(result.regions.media.replaceAll('\\','/'));
+  expect(result.reference).toBe('../original #1 & 2.wav');
+});
+
 test('switching projects clears old media identity; recovery restores its own export path',async({page})=>{
   await editor(page);
   await page.evaluate(()=>{
@@ -136,6 +153,7 @@ test('switching projects clears old media identity; recovery restores its own ex
   });
   const unrelated=await download(page,()=>page.evaluate(()=>MSWE.resolve('persistence-host').downloadLocal()));
   expect(unrelated.media).toBe('../original #1 & 2.wav');
+  expect(await page.evaluate(()=>mediaTargetUrl())).toBe('');
   await page.evaluate(()=>{
     const project=MSWE.resolve('persistence-host').snapshot();
     MSWE.resolve('persistence-host').restore({project,filename:'recovered.mosp',
@@ -143,6 +161,7 @@ test('switching projects clears old media identity; recovery restores its own ex
   });
   const recovered=await download(page,()=>page.evaluate(()=>MSWE.resolve('persistence-host').downloadLocal()));
   expect(recovered.media).toBe('D:/Synthetic/recovered.wav');
+  expect(await page.evaluate(()=>mediaTargetUrl())).toBe('file:///D:/Synthetic/recovered.wav');
 });
 
 test('disconnected save offers a usable file with current text and original media',async({page})=>{

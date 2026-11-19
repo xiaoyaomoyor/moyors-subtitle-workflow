@@ -2200,10 +2200,12 @@ test('server media loads from the resolved project path and OTIO keeps its absol
   await page.goto(server.url);
   const state = await page.evaluate(() => ({
     media: DATA.media,
+    target: mediaTargetUrl(),
     currentSrc: document.getElementById('player').currentSrc,
   }));
   expect(state.media).toMatch(/synthetic\.wav$/);
-  expect(state.media).toMatch(/^(?:[A-Za-z]:[\\/]|\/)/);
+  expect(state.target).toMatch(/^file:\/\/\//);
+  expect(decodeURI(state.target)).toContain('synthetic.wav');
   expect(state.currentSrc).toBe(`${server.url}media`);
 
   await page.evaluate(() => {

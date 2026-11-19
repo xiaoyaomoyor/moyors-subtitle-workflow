@@ -45,11 +45,19 @@ function setFileExportMediaIdentity(identity) {
   fileExportMediaIdentity = identity?.path && identity.reference === DATA.media
     ? {...identity, generation:mswProjectGeneration, projectId:DATA.msw?.project_id} : null;
 }
-// A download has no known destination directory. Keep its media reference
-// absolute only when it belongs to the current document and current source.
-function fileExportProjectJson(json) {
+function currentFileExportMediaIdentity() {
   const identity = fileExportMediaIdentity;
-  if (!identity || identity.generation !== mswProjectGeneration || identity.reference !== DATA.media) return json;
+  return identity && identity.generation === mswProjectGeneration
+    && identity.reference === DATA.media && identity.projectId === DATA.msw?.project_id ? identity : null;
+}
+// File exports have no known destination directory. Use a trusted original
+// source only while it belongs to this document, never a playback proxy.
+function fileExportMediaReference() {
+  return String(currentFileExportMediaIdentity()?.path || DATA.media || '').trim();
+}
+function fileExportProjectJson(json) {
+  const identity = currentFileExportMediaIdentity();
+  if (!identity) return json;
   const project = JSON.parse(json);
   if (project.media !== identity.reference || project.msw?.project_id !== identity.projectId) return json;
   project.media = identity.path;
@@ -16258,7 +16266,7 @@ function buildDynamicCaptionExportData(segments, gapRemoved) {
 }
 
 function gapRemovedMediaReference() {
-  return String(DATA.media || '').trim();
+  return fileExportMediaReference();
 }
 
 function buildGapRemovedFfconcat() {
@@ -16559,7 +16567,7 @@ function buildResolveJson() {
     schema: 'moy.asr_subtitle_editor.resolve.v1',
     source: 'moys-asr-workflow',
     filename_base: FILENAME_BASE,
-    media: DATA.media || '',
+    media: fileExportMediaReference(),
     sticker_root: STICKER_ROOT || '',
     color_palette: COLOR_PALETTE,
     segments,
@@ -16661,9 +16669,10 @@ function stickerTargetUrl(absPath) {
 }
 
 function mediaTargetUrl() {
-  const media = String(DATA.media || '').trim();
-  if (/^file:\/\//i.test(media) || /^[A-Za-z]:[\\/]/.test(media) || media.startsWith('/')) {
-    return stickerTargetUrl(media);
+  const media = fileExportMediaReference();
+  if (/^file:\/\//i.test(media)) return media;
+  if (/^[A-Za-z]:[\\/]/.test(media) || media.startsWith('/') || /^\\\\/.test(media)) {
+    return window.AsrEditorUtils.exportPathToFileUrl(media).replace(/^file:\/\/localhost\//i, 'file:///');
   }
   const current = String(player?.currentSrc || '').trim();
   if (/^file:\/\//i.test(current)) return current;
