@@ -32,6 +32,19 @@ test('split closes nested styles and merge folds only proven adjacent pairs',()=
   }
 });
 
+test('explicit style clearing preserves literals and escapes and requires the project switch',()=>{
+  const styled='**甲//乙//** %%弱%% __线__ ~~删~~ ++大++ --小--';
+  assert.equal(markup.clearStyles(styled,true),'甲乙 弱 线 删 大 小');
+  assert.equal(markup.clearStyles(styled,false),styled);
+  assert.equal(markup.clearStyles(styled),styled);
+  for(const text of ['https://example.test/a//b//c','C:/dir/**name**/a.txt','C:\\dir\\__name__\\a.txt',
+    '\\\\server\\**name**\\a','./**name**/a','../__name__/a','/tmp/**name**/a','\\**literal\\**','*literal*','**orphan','***three***']) {
+    assert.equal(markup.clearStyles(text,true),text,text);
+  }
+  assert.equal(markup.clearStyles('**https://example.test/a**',true),'https://example.test/a');
+  assert.equal(markup.clearStyles('**C:/dir/**name**/a.txt**',true),'**C:/dir/**name**/a.txt**');
+});
+
 test('flat transactions preserve paired bodies and word times, disabled mode stays literal',()=>{
   let p=flat.migrate({segments:[{id:'a',start:0,end:2000,text:'**甲乙**',items:[{text:'**甲',start:0,end:1000},{text:'乙**',start:1000,end:2000}]}]});
   p.preview={inline_markup:true};const id=p.subtitles.cues[0].id;let n=0;

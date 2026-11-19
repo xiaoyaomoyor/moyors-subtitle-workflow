@@ -2642,6 +2642,18 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
                 # Browser media elements commonly cancel an old Range request while seeking.
                 return
 
+    def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
+        path = urlsplit(self.path).path
+        polling = path in {
+            '/api/waveform', '/api/msw/jobs', '/api/msw/audio-exports',
+            '/api/msw/media-analysis', '/api/msw/asr-local-models', '/api/msw/yukkuri-runtime',
+        } or (path.startswith('/api/msw/qwen-voice-jobs/') and path.count('/') == 4)
+        # Only routine successful reads are quiet. Submissions, results,
+        # failures and unknown endpoints retain their normal access records.
+        if self.command == 'GET' and polling and str(code) in {'200', '204', '304'}:
+            return
+        super().log_request(code, size)
+
     def log_message(self, format: str, *args: object) -> None:
         print(f"[http] {self.address_string()} - {format % args}")
 

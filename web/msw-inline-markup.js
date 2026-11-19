@@ -38,6 +38,19 @@
     return {text:runs.map(r=>r.text).join(''),runs,units,pairs};
   }
   const plain=(text,on=true)=>on?parse(text).text:String(text??'');
+  function clearStyles(value,on=false) {
+    const text=String(value??'');if(!on)return text;
+    // Preserve literal addresses and paths, and keep escapes verbatim. Plain
+    // export intentionally unescapes text; editing must not do that implicitly.
+    const literals=[...text.matchAll(/(?:[a-z][a-z\d+.-]*:\/\/|[a-z]:[\\/]|\\\\|\.{1,2}[\\/]|(?<![\w/])\/(?!\/))[^\s<>"']+/giu)];
+    const removed=new Set();
+    for(const pair of parse(text).pairs) {
+      if(literals.some(m=>pair.start>=m.index&&pair.start<m.index+m[0].length
+        ||pair.end-2>=m.index&&pair.end<m.index+m[0].length))continue;
+      for(const i of [pair.start,pair.start+1,pair.end-2,pair.end-1])removed.add(i);
+    }
+    return Array.from({length:text.length},(_,i)=>removed.has(i)?'':text[i]).join('');
+  }
   function appearance(base,marks) {
     const style={...base};let scale=1;
     for(const mark of marks) {
@@ -127,6 +140,6 @@
     Object.assign(node.style,{fontSize:style.fontSize+'px',fontWeight:style.bold?'bold':'normal',fontStyle:style.italic?'italic':'normal',
       textDecoration:[style.underline?'underline':'',style.strikeOut?'line-through':''].filter(Boolean).join(' ')||'none',color:style.primaryColor});
   }
-  const api={markers,enabled,parse,plain,appearance,split,join,retargetItems,display,applyCss};
+  const api={markers,enabled,parse,plain,clearStyles,appearance,split,join,retargetItems,display,applyCss};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else global.MSWInlineMarkup=api;
 })(typeof window!=='undefined'?window:globalThis);

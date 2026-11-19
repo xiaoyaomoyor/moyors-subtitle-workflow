@@ -20,6 +20,13 @@ test('all, selected IDs and multiple tracks are independent and empty scope stay
  assert.equal(e.search({query:'alpha',scope:'selected',selected:[]}).count,0);
  assert.equal(e.search({query:'alpha',scope:'tracks',tracks:[]}).count,0);
 });
+
+test('draft highlights use current body offsets while filtering keeps committed results',()=>{
+ const e=make(),r=e.search({query:'alpha',drafts:{a:'X alpha alpha',b:'removed'}});
+ assert.equal(r.count,4);assert.deepEqual(r.rows.map(x=>x.key),['b','a']);
+ assert.deepEqual(r.rows.find(x=>x.key==='a').displayMatches,[[2,7],[8,13]]);
+ assert.deepEqual(r.rows.find(x=>x.key==='b').displayMatches,[]);
+});
 test('incremental update/removal tracks text and identities without mutating inputs',()=>{
  const e=make(),before=JSON.stringify(rows);e.update({rows:[{...rows[0],text:'Beta',start:0}],removed:['b']});
  assert.equal(e.search({query:'alpha'}).count,0);assert.equal(e.search({query:'Beta'}).rows[0].key,'a');assert.equal(JSON.stringify(rows),before);

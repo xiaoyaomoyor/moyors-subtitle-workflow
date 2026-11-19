@@ -17665,6 +17665,8 @@ function configureServerSaveControls() {
 let autoSaveTimer = null;
 let autoSaveFlushTimer = null;
 let projectSaveInFlight = false;
+// Presentation of the existing save feedback, never a second dirty baseline.
+let projectSaveIndicatorFeedback = null;
 const EDIT_SAVE_DEBOUNCE_MS = 1600;
 
 function scheduleAutoSave() {
@@ -17718,6 +17720,23 @@ function hasUnsavedProjectChanges() {
     || DATA.segments.some((segment) => segment._dirty)
     || multiDirty || overlayDirty;
 }
+
+function refreshProjectSaveIndicator() {
+  const node=document.getElementById('project-save-indicator');if(!node)return;
+  const feedback=projectSaveIndicatorFeedback?.generation===mswProjectGeneration?projectSaveIndicatorFeedback.state:null;
+  const state=feedback|| (hasUnsavedProjectChanges()?'dirty':'saved');
+  const label=({saving:'正在保存',failed:'保存失败，请重试',dirty:'有未保存的修改',saved:'工程已保存'})[state];
+  const translated=window.MSWE_I18N?.translateText(label)||label;
+  if(node.dataset.state===state&&node.title===translated)return;
+  node.dataset.state=state;node.hidden=state==='saved';node.title=translated;node.setAttribute('aria-label',translated);
+  node.textContent=state==='saving'?'◌':state==='failed'?'!':'●';
+}
+document.addEventListener('input',()=>requestAnimationFrame(refreshProjectSaveIndicator));
+document.addEventListener('mawe:languagechange',refreshProjectSaveIndicator);
+window.addEventListener('msw:subtitles-changed',refreshProjectSaveIndicator);
+window.addEventListener('msw:project-changed',refreshProjectSaveIndicator);
+// Also reflect edits from existing tools that do not dispatch a text event.
+setInterval(()=>{if(!document.hidden)refreshProjectSaveIndicator();},1000);
 
 // 文字编辑先写入页面内存，避免每个按键都请求服务器；失焦后短暂防抖保存，
 // 这样点击其它字幕或刷新页面时不会因为 30 秒定时保存尚未到点而丢失刚完成的修改。
@@ -18417,7 +18436,7 @@ async function saveProjectToServer({ silent = false } = {}) {
     return true;
   } catch (error) {
     const detail = error?.message || error;
-    feedback.cancel();
+    feedback.fail();
     showProjectSaveError(detail);
     // A stale browser tab can outlive the localhost process (the browser reports
     // ERR_CONNECTION_REFUSED). Offer a real file save so Ctrl+S never strands
@@ -18467,7 +18486,7 @@ async function saveProjectToHandle({ silent = false } = {}) {
     feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
     return true;
   } catch (error) {
-    feedback.finish(`保存失败：${error?.message || error}`, 'warning');
+    feedback.finish(`保存失败：${error?.message || error}`, 'warning', true);
     if (silent) flashHint(`保存失败：${error?.message || error}`, 'warning');
     return false;
   } finally {
@@ -18534,6 +18553,7 @@ async function saveProjectAsToFile() {
     warnReferences();
   } catch (error) {
     if (error && error.name === 'AbortError') return;  // 用户取消保存对话框
+    feedback?.fail();
     flashHint(`保存失败：${error?.message || error}`, 'warning');
   } finally { feedback?.cancel();projectSaveInFlight = false; }
 }
@@ -22072,6 +22092,9 @@ function flashHint(msg, type = 'default', options = {}) {
 }
 
 function beginProjectSaveFeedback({silent = false} = {}) {
+  const indicator={generation:mswProjectGeneration,state:'saving'};
+  projectSaveIndicatorFeedback=indicator;refreshProjectSaveIndicator();
+  const indicatorFinish=state=>{if(projectSaveIndicatorFeedback===indicator){indicator.state=state;refreshProjectSaveIndicator();}};
   const translate = text => window.MSWE_I18N?.translateText(text) || text;
   const card = silent ? null : flashHint('', 'default', {durationMs:0,contentBuilder:node=>{
     node.dataset.saveProgress = 'true'; node.setAttribute('role','status'); node.setAttribute('aria-live','polite');
@@ -22085,12 +22108,13 @@ function beginProjectSaveFeedback({silent = false} = {}) {
       const fallback=setTimeout(resolve,100);
       requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(fallback);resolve();}));
     }),
-    finish(label='保存成功',type='success') {
-      if (!pending) return;pending=false;if (!card) return;
+    finish(label='保存成功',type='success',failed=false) {
+      if (!pending) return;pending=false;indicatorFinish(failed?'failed':null);if (!card) return;
       delete card.dataset.saveProgress;card.dataset.persistent='false';card.className=`hint-card hint-${type}`;card.textContent=translate(label);
       setTimeout(()=>dismissHintCard(card),HINT_DURATION_MS);
     },
-    cancel() {if(pending){pending=false;if(card){delete card.dataset.saveProgress;dismissHintCard(card);}}},
+    fail() {pending=false;indicatorFinish('failed');if(card){delete card.dataset.saveProgress;dismissHintCard(card);}},
+    cancel() {if(pending){pending=false;indicatorFinish(null);if(card){delete card.dataset.saveProgress;dismissHintCard(card);}}},
   };
 }
 

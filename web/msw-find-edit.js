@@ -10,8 +10,15 @@
   let records=new Map(),references=new Map(),cuesById=new Map(),tracks=[],trackSignature='',speakerSignature='';
   let trackIds=new Set(),speakerIds=new Set(),selected=[],excluded=new Set(),drafts=new Map(),invalidGroups=new Map();
   let result={rows:[],count:0},matchMap=new Map(),units=[],changes=[],ready=false,activeKey=null,activeMatch=0;
+  let bodyMatches=new Map();
   let queryVersion=0,worker=null,workerBusy=false,timeout,queryTimer,syncTimer,renderFrame,rowHeight=156;
   let plainEngine=core.createEngine(),notice='',recoverDrafts=false;
+  const viewKey='msw.find-edit.view.v1';
+  function restoreView(){
+    let saved;try{saved=(global.MSWConfig?.storage||localStorage).getItem(viewKey);}catch(_){}
+    el('group').value=[...el('group').options].some(o=>o.value===saved&&!o.disabled)?saved:'rows';
+  }
+  restoreView();
   const floating=host.createFloatingPanel({panel,dragHandle:el('drag'),anchorButton:document.querySelector('[data-menubar-item="subtitle"] > button'),positionKey:'msw.findEdit.position.v1',onClose});
   function sources() { return layerCore.tracks(DATA); }
   function readIndex() {
@@ -98,7 +105,7 @@
     ready=false;el('apply').disabled=true;viewport.setAttribute('aria-busy','true');clearTimeout(queryTimer);++queryVersion;
     if(workerBusy)stopWorker();
     if(resetScroll){viewport.scrollTop=0;activeKey=null;notice='';recoverDrafts=false;}
-    matchMap.clear();paintWaveform();queryTimer=setTimeout(runQuery,160);
+    matchMap.clear();bodyMatches.clear();paintWaveform();renderRows();queryTimer=setTimeout(runQuery,160);
   }
   function changed(){if(!floating.isOpen())return;ready=false;el('apply').disabled=true;clearTimeout(syncTimer);
     syncTimer=setTimeout(()=>{readIndex();scheduleQuery({resetScroll:false});},180);}
@@ -200,7 +207,11 @@
     const patch = { label, view: snapshotEditorSelection(), cues: plan.edits.map(change => {
       const cue = references.get(change.key).cue;
       const mapped = change.after ? AsrEditorUtils.applyTimedTextEdit([cue], [change.after])?.[0] : null;
-      return { id: cue.id, fields: { text: change.after, items: mapped?.items || [], _dirty: true } };
+      // A dense style-only removal can exceed the general text mapper's edit
+      // budget. Proven marker removal keeps every remaining word's own timing.
+      const cleared=MSWInlineMarkup.enabled(DATA)&&change.after===MSWInlineMarkup.clearStyles(cue.text,true);
+      const timed=cleared&&cue.items?.map(i=>i.text).join('')===cue.text?MSWInlineMarkup.retargetItems(cue.items,change.after):null;
+      return { id: cue.id, fields: { text: change.after, items: timed?.map(i=>i.text).join('')===change.after?timed:mapped?.items || [], _dirty: true } };
     }) };
     editorHistory.push(capture(patch)); restore(patch); return plan;
   }
@@ -212,6 +223,7 @@
       for(const group of invalidGroups.values())for(const row of group.rows)if(!present.has(row.key)){next.rows.push({key:row.key,matches:[]});present.add(row.key);}
     }
     result=next;ready=!next.error&&!next.limited;viewport.setAttribute('aria-busy','false');
+    bodyMatches=new Map(next.rows.map(hit=>[hit.key,hit.displayMatches||hit.matches]));
     matchMap=new Map(next.rows.filter(r=>r.matches.length).map(r=>[records.get(r.key)?.id,r]));
     const errors={'invalid-regex':'正则表达式无效','worker-unavailable':'此环境无法安全运行正则，请使用普通文字查找','timeout':'查询耗时过长，请简化正则表达式','replacement-too-large':'替换结果过大，请缩小范围'};
     notice=errors[next.error]||(next.limited?'匹配过多，请缩小范围':notice);
@@ -236,7 +248,7 @@
     notice='';for(const {key,text} of edits){const d=draftFor(key);if(!d)continue;d.after=text;if(d.after===d.before)drafts.delete(key);}
     updatePlan();if(!composing)scheduleQuery({resetScroll:false});
   }
-  function clearRows(){for(const node of canvas.children)node.scriptEditor?.destroy();canvas.replaceChildren();}
+  function clearRows(){for(const node of canvas.children){node.scriptEditor?.destroy();node.textView?.destroy();}canvas.replaceChildren();}
   function exchangeSnapshot(){
     readIndex();const invalid=new Set([...invalidGroups.values()].flatMap(g=>g.rows.map(r=>r.key)));
     return {generation:mswProjectGeneration,projectId:DATA.msw?.project_id||'',name:FILENAME_BASE,rows:[...records.values()].map(row=>{
@@ -277,14 +289,18 @@
     for(const edit of edits){const draft=draftFor(edit.key);draft.after=edit.text;if(draft.before===draft.after)drafts.delete(edit.key);excluded.delete(edit.key);}
     selected=edits.map(e=>live.get(e.key).id);el('only-selected').checked=true;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;
     el('query').value='';el('replace-enabled').checked=false;el('replacement').disabled=true;
-    for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;
+    for(const id of ['trim','capitalize','markdown','inline','prefix','suffix'])tidy(id).checked=false;tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;
     el('group').value='script';clearRows();scheduleQuery();notice=`已导入 ${edits.length} 条草稿，请检查后应用编辑`;return edits.length;
   }
   function updatePlan(){
     const opts=processOptions();
+    const inlineEnabled=MSWInlineMarkup.enabled(DATA);tidy('inline').disabled=!inlineEnabled;
+    if(!inlineEnabled)tidy('inline').checked=false;
     changes=result.rows.filter(hit=>!excluded.has(hit.key)).map(hit=>{
       const draft=drafts.get(hit.key),row=records.get(hit.key)||draft?.row;
-      return {key:hit.key,before:draft?.before??row?.text??'',after:AsrEditorUtils.applyTextProcessing(hit.after??draft?.after??row?.text??'',opts)};
+      let text=hit.after??draft?.after??row?.text??'';
+      if(tidy('inline').checked)text=MSWInlineMarkup.clearStyles(text,inlineEnabled);
+      return {key:hit.key,before:draft?.before??row?.text??'',after:AsrEditorUtils.applyTextProcessing(text,opts)};
     });
     const changeKeys=new Set(changes.map(c=>c.key));
     const plan=core.planChanges(changes,records),invalid=[...invalidGroups.values()].find(g=>g.rows.some(r=>changeKeys.has(r.key)));
@@ -315,7 +331,7 @@
         header.append(check,button,state,reset);
         let input;
         if(script){node.scriptEditor=MSWFindScriptEditor.create({onChange:scriptChanged,onNotice:scriptNotice,onLocate:navigate});input=node.scriptEditor.element;}
-        else{input=document.createElement('textarea');input.dataset.unit=unit.id;input.spellcheck=false;}
+        else{const textarea=document.createElement('textarea');textarea.dataset.unit=unit.id;textarea.spellcheck=false;node.textView=MSWFindScriptEditor.textView(textarea);input=node.textView.element;}
         const preview=document.createElement('div');preview.className='find-result-after';preview.dataset.preview='';
         node.append(header,input,preview);canvas.append(node);
       }
@@ -328,20 +344,31 @@
       if(script)node.scriptEditor.refresh(unit.rows,inputText,scriptFields,unit.rows.some(r=>r.locked||!records.has(r.key)));
       else{const value=unitText(unit);if(input.value!==value&&document.activeElement!==input)input.value=value;}
       input.ariaLabel=unit.title;input.readOnly=unit.rows.some(r=>r.locked||!records.has(r.key));input.style.height=el('group').value==='rows'?'74px':script?`${rowHeight-78}px`:'214px';
+      if(script)node.scriptEditor.highlight(ready?bodyMatches:new Map(),activeKey,activeMatch);
+      else{
+        const ranges=[];let offset=0,current=-1;
+        if(ready&&!invalidGroups.has(unit.draftKey))for(const row of unit.rows){
+          if(el('group').value!=='rows')offset+=`⟦${row.trackName}_${row.number}⟧\n`.length;
+          if(row.key===activeKey)current=ranges.length+activeMatch;
+          ranges.push(...(bodyMatches.get(row.key)||[]).map(([start,end])=>[start+offset,end+offset]));
+          offset+=inputText(row).length+2;
+        }
+        node.textView.refresh(ranges,current);
+      }
       const dirty=unit.rows.some(r=>drafts.has(r.key)&&drafts.get(r.key).after!==drafts.get(r.key).before)||invalidGroups.has(unit.draftKey);
       node.querySelector('.find-result-status').textContent=t(unit.rows.some(r=>!records.has(r.key))?'来源已删除':input.readOnly?'已锁定':dirty?'未应用':unit.rows.every(r=>r.disabled)?'已禁用':'');node.querySelector('[data-reset]').hidden=!dirty;
       const modified=unit.rows.filter(r=>changesByKey.has(r.key)&&changesByKey.get(r.key).after!==inputText(r));
       const preview=node.querySelector('[data-preview]');preview.textContent=modified.length?t('应用后：')+(unit.rows.length===1?changesByKey.get(unit.rows[0].key).after:t(modified.length+' 条字幕将更新')):'';
       preview.title=preview.textContent;
     }
-    for(const [id,node] of existing)if(!keep.has(id)&&!node.contains(document.activeElement)){node.scriptEditor?.destroy();node.remove();}
+    for(const [id,node] of existing)if(!keep.has(id)&&!node.contains(document.activeElement)){node.scriptEditor?.destroy();node.textView?.destroy();node.remove();}
   }
   function apply(){
     if(el('apply').disabled)return;
     try{const plan=commit(changes,'查找并编辑');for(const c of plan.edits)drafts.delete(c.key);
       notice=`已修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`;
       // A single application consumes the operation recipe, avoiding accidental double prefixes.
-      for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;
+      for(const id of ['trim','capitalize','markdown','inline','prefix','suffix'])tidy(id).checked=false;
       tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;el('replace-enabled').checked=false;el('replacement').disabled=true;
       readIndex();scheduleQuery({resetScroll:false});
     }catch(error){notice=error.message;el('message').textContent=t(notice);el('apply').disabled=true;}
@@ -356,7 +383,10 @@
     if(id==='only-selected'&&el(id).checked)selected=batchSelectedIds();
     el('tracks').hidden=el('all-tracks').checked;el('speakers').hidden=el('all-speakers').checked;scheduleQuery();
   });
-  el('group').addEventListener('change',()=>{viewport.scrollTop=0;clearRows();buildUnits();updatePlan();renderRows();});
+  el('group').addEventListener('change',()=>{
+    try{(global.MSWConfig?.storage||localStorage).setItem(viewKey,el('group').value);}catch(_){}
+    viewport.scrollTop=0;clearRows();buildUnits();updatePlan();renderRows();
+  });
   for(const key of MSWFindTextTools.scriptFields){
     const check=el('script-'+key);check.checked=scriptFields[key]!==false;
     check.addEventListener('change',()=>{scriptFields[key]=check.checked;try{localStorage.setItem('msw.find-script.info.v1',JSON.stringify(scriptFields));}catch(_){}renderRows();});
@@ -382,7 +412,7 @@
     el(id).addEventListener('input',event=>{notice='';if(!event.isComposing)scheduleQuery({resetScroll:id==='query'});});
     el(id).addEventListener('compositionend',()=>scheduleQuery({resetScroll:id==='query'}));
   }
-  for(const id of ['trim','capitalize','markdown','prefix','suffix','prefix-text','suffix-text'])tidy(id).addEventListener(id.endsWith('-text')?'input':'change',()=>{
+  for(const id of ['trim','capitalize','markdown','inline','prefix','suffix','prefix-text','suffix-text'])tidy(id).addEventListener(id.endsWith('-text')?'input':'change',()=>{
     notice='';tidy('prefix-text').hidden=!tidy('prefix').checked;tidy('suffix-text').hidden=!tidy('suffix').checked;updatePlan();renderRows();
   });
   canvas.addEventListener('change',event=>{const id=event.target.dataset.check;if(!id)return;const unit=units.find(u=>u.id===id);for(const r of unit.rows)event.target.checked?excluded.delete(r.key):excluded.add(r.key);updatePlan();renderRows();});
@@ -425,8 +455,8 @@
     clearRows();
     stopWorker();++queryVersion;clearTimeout(queryTimer);clearTimeout(syncTimer);records.clear();references.clear();plainEngine=core.createEngine();trackSignature=speakerSignature='';activeKey=null;
     selected=[];recoverDrafts=false;excluded.clear();drafts.clear();invalidGroups.clear();el('only-selected').checked=false;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;
-    el('query').value=el('replacement').value='';el('replace-enabled').checked=false;el('replacement').disabled=true;el('group').value='rows';notice='';
-    for(const id of ['trim','capitalize','markdown','prefix','suffix'])tidy(id).checked=false;tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;
+    el('query').value=el('replacement').value='';el('replace-enabled').checked=false;el('replacement').disabled=true;restoreView();notice='';
+    for(const id of ['trim','capitalize','markdown','inline','prefix','suffix'])tidy(id).checked=false;tidy('prefix-text').hidden=tidy('suffix-text').hidden=true;
     if(floating.isOpen()){readIndex();scheduleQuery();}
   });
   global.MSWFindEdit=Object.freeze({open,close:()=>floating.close(),changed,decorateBlock,keepVisible,capture,restore,hasDraft,exchangeSnapshot,stageScriptImport,exportRecords,exportScript});

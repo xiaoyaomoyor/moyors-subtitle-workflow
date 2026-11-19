@@ -4,12 +4,41 @@
   'use strict';
   const core=global.MSWFindTextTools;
   const graphemes=new Intl.Segmenter(undefined,{granularity:'grapheme'});
+  function paintText(node,text,matches=[],current=-1){
+    const signature=JSON.stringify([text,matches,current]);if(node.paintSignature===signature)return;
+    node.paintSignature=signature;const fragment=document.createDocumentFragment();let cursor=0;
+    matches.forEach(([start,end],i)=>{
+      if(start<cursor||end>text.length||end<=start)return;
+      fragment.append(document.createTextNode(text.slice(cursor,start)));
+      const mark=document.createElement('mark');mark.className='find-search-match';mark.classList.toggle('current',i===current);
+      mark.textContent=text.slice(start,end);fragment.append(mark);cursor=end;
+    });fragment.append(document.createTextNode(text.slice(cursor)));node.replaceChildren(fragment);
+  }
+  // Keep offsets in the text layer; highlights never enter textarea contents.
+  function caretAt(node,offset){
+    const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);let text,last;
+    while((text=walker.nextNode())){last=text;if(offset<=text.length){const range=document.createRange();range.setStart(text,offset);range.collapse(true);return range;}offset-=text.length;}
+    const range=document.createRange();range.setStart(last||node,last?.length||0);range.collapse(true);return range;
+  }
+  function textView(input){
+    const element=document.createElement('div');element.className='find-script-editor';
+    const mirror=document.createElement('div');mirror.className='find-script-mirror';mirror.ariaHidden='true';
+    const ink=document.createElement('pre');ink.className='find-script-ink';mirror.append(ink);element.append(input,mirror);
+    let composing=false;
+    const scroll=()=>{ink.style.width=input.clientWidth+'px';ink.style.transform=`translate(${-input.scrollLeft}px,${-input.scrollTop}px)`;};
+    const plain=()=>{paintText(ink,input.value);scroll();};
+    input.addEventListener('input',plain);input.addEventListener('scroll',scroll);
+    input.addEventListener('compositionstart',()=>{composing=true;plain();});input.addEventListener('compositionend',()=>{composing=false;plain();});
+    const resize=new ResizeObserver(scroll);resize.observe(input);
+    return {element,refresh(matches,current){paintText(ink,input.value,composing?[]:matches,current);scroll();},destroy(){resize.disconnect();}};
+  }
   function create({onChange,onNotice,onLocate}){
     const element=document.createElement('div');element.className='find-script-editor';
     const input=document.createElement('textarea');input.spellcheck=false;input.wrap='soft';
     const mirror=document.createElement('div');mirror.className='find-script-mirror';mirror.setAttribute('aria-hidden','true');
     const ink=document.createElement('pre');ink.className='find-script-ink';mirror.append(ink);element.append(input,mirror);
     let rows=[],fields={},values=new Map(),doc={text:'',ranges:[]},composing=false,compositionStart=0,before=null,undo=[],redo=[],painted=[];
+    let hits=new Map(),activeKey=null,activeMatch=-1;
     const text=row=>values.get(row.key)??row.text;
     const bookmark=()=>[input.selectionStart,input.selectionEnd].map(offset=>{
       const range=doc.ranges.find(r=>offset>=r.from&&offset<=r.end)||doc.ranges.at(-1);
@@ -24,12 +53,12 @@
     function paint(){
       if(painted.length!==doc.ranges.length){
         const fragment=document.createDocumentFragment();painted=doc.ranges.map(()=>{
-          const meta=document.createElement('span');meta.className='find-script-info';const body=document.createTextNode('');fragment.append(meta,body);return {meta,body};
+          const meta=document.createElement('span');meta.className='find-script-info';const body=document.createElement('span');fragment.append(meta,body);return {meta,body};
         });ink.replaceChildren(fragment);
       }
       doc.ranges.forEach((range,i)=>{
         if(painted[i].meta.textContent!==range.prefix)painted[i].meta.textContent=range.prefix;
-        if(painted[i].body.data!==range.text)painted[i].body.data=range.text;
+        paintText(painted[i].body,range.text,composing?[]:hits.get(range.key)||[],range.key===activeKey?activeMatch:-1);
       });scroll();
     }
     function project(marks){
@@ -44,7 +73,7 @@
     function write(patches,{record=true,marks=null,previous=null}={}){
       const edits=patches.filter(p=>values.has(p.key)&&values.get(p.key)!==p.text).map(p=>({...p,before:values.get(p.key)}));
       if(!edits.length)return;
-      const saved=previous||bookmark();for(const p of edits)values.set(p.key,p.text);
+      const saved=previous||bookmark();for(const p of edits){values.set(p.key,p.text);hits.delete(p.key);}
       project(marks);
       if(record){undo.push({edits,before:saved,after:bookmark()});if(undo.length>100)undo.shift();redo=[];}
       onChange(edits.map(({key,text})=>({key,text})),composing);
@@ -63,8 +92,7 @@
         {previous,marks:[{key:range.key,offset:offset+value.length},{key:range.key,offset:offset+value.length}]});
       // Programmatic value updates avoid Chromium's costly native replacement
       // near the end of long textareas; reveal the caret using the aligned mirror.
-      const index=doc.ranges.findIndex(r=>r.key===range.key),caret=document.createRange();
-      caret.setStart(painted[index].body,Math.min(offset+value.length,painted[index].body.length));caret.collapse(true);
+      const index=doc.ranges.findIndex(r=>r.key===range.key),caret=caretAt(painted[index].body,Math.min(offset+value.length,values.get(range.key).length));
       const rect=caret.getBoundingClientRect(),box=input.getBoundingClientRect();
       if(rect.height&&rect.bottom>box.bottom-8)input.scrollTop+=rect.bottom-box.bottom+8;
       else if(rect.height&&rect.top<box.top+8)input.scrollTop-=box.top+8-rect.top;
@@ -101,7 +129,7 @@
       }catch(error){reject(error.message);}
       before=null;
     });
-    input.addEventListener('compositionstart',()=>{composing=true;compositionStart=undo.length;});
+    input.addEventListener('compositionstart',()=>{composing=true;compositionStart=undo.length;paint();});
     input.addEventListener('compositionend',()=>{
       composing=false;
       const steps=undo.splice(compositionStart),edits=new Map();
@@ -144,6 +172,7 @@
     input.addEventListener('scroll',scroll);
     const resize=new ResizeObserver(scroll);resize.observe(input);
     return {element,input,
+      highlight(next,key,match){hits=new Map(next);activeKey=key;activeMatch=match;paint();},
       refresh(nextRows,readText,nextFields,readOnly){
         if(composing)return;
         const marks=bookmark(),nextValues=new Map(nextRows.map(row=>[row.key,readText(row)]));
@@ -155,5 +184,5 @@
       destroy(){resize.disconnect();}
     };
   }
-  global.MSWFindScriptEditor={create};
+  global.MSWFindScriptEditor={create,textView};
 })(window);

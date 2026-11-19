@@ -92,6 +92,7 @@
 | `mawe.language` | language | text | `browser / mawe.language` |
 | `msw.subtitle-proof.v1` | preview | json | `browser / msw.subtitle-proof.v1` |
 | `msw.translation.call.v1` | processing | json | `browser / msw.translation.call.v1` |
+| `msw.find-edit.view.v1` | panels | text | `browser / msw.find-edit.view.v1`；查找编辑视图偏好，跨工程保留，未知／不可用值回退逐条 |
 | `maw.launcher.llm.prompts` | processing | json | `browser / maw.launcher.llm.prompts` |
 | `maw.launcher.alignment.gap_remove` | processing | json | `browser / maw.launcher.alignment.gap_remove` |
 | `msw.assets.columns` | editor | text | `browser / msw.assets.columns` |

@@ -1,6 +1,26 @@
 import {test,expect} from '@playwright/test';
 import {setup,snap,inputs,count,apply} from './find-unified-fixture.mjs';
 setup();
+test('clear inline styles obeys the switch, selection and locks and preserves timings with undo',async({page})=>{
+ await expect(page.locator('#find-tidy-inline')).toBeDisabled();
+ const project=await snap(page);project.preview.inline_markup=true;
+ for(const cue of project.subtitles.cues)cue.content.text='//保留//';
+ const main=project.subtitles.cues[0];main.content.text='**甲//乙//**';
+ main.content.items=[{text:'**甲',start:1000,end:1500},{text:'//乙//**',start:1500,end:2000}];
+ await page.evaluate(project=>{applyCanonicalProject(project,'styles.mosp');fixedUpdateTrack('third',{locked:true});},project);
+ await count(page,6);const before=await snap(page),history=await page.evaluate(()=>editorHistory.undoLength());
+ await page.locator('#find-edit-rows input').nth(1).uncheck();
+ await page.locator('#find-tidy-inline').check();await expect(page.locator('#find-edit-message')).toContainText('跳过 2 条');
+ await apply(page);const after=await snap(page);
+ const cleared=after.subtitles.cues.find(c=>c.id===main.id);
+ expect(cleared.content.text).toBe('甲乙');
+ expect(cleared.content.items.map(i=>[i.start,i.end])).toEqual([[1000,1500],[1500,2000]]);
+ expect(after.subtitles.cues.filter(c=>c.content.text==='//保留//')).toHaveLength(3);
+ expect(after.subtitles.bindings).toEqual(before.subtitles.bindings);
+ expect(await page.evaluate(()=>editorHistory.undoLength())).toBe(history+1);
+ await page.evaluate(()=>performUndo());expect((await snap(page)).subtitles).toEqual(before.subtitles);
+ await page.evaluate(()=>performRedo());expect((await snap(page)).subtitles).toEqual(after.subtitles);
+});
 test('manual edit, replacement and cleanup form one transaction and respect exclusions',async({page})=>{
  const before=await snap(page),history=await page.evaluate(()=>editorHistory.undoLength());await page.locator('#find-edit-query').fill('Alpha');await count(page,4);
  await inputs(page).first().fill('  Alpha changed\nline  ');await page.locator('#find-edit-rows input').last().uncheck();

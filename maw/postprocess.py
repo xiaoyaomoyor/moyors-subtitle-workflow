@@ -412,23 +412,37 @@ def process_llm_snapshot(
         else:
             try:
                 response = complete(system_prompt, batch)
-            except RuntimeError as error:
+            except (RuntimeError, ValueError) as error:
                 first_id = batch[0]["id"] if batch else "?"
                 last_id = batch[-1]["id"] if batch else "?"
+                if item_aware_resegment:
+                    message = _resegment_context(project, batch, '模型调用', index, len(batches)) + f'：{error}'
+                    if isinstance(error, ValueError):
+                        raise ValueError(message) from error
+                else:
+                    if isinstance(error, ValueError):
+                        raise
+                    message = f"第 {index}/{len(batches)} 批（{first_id}–{last_id}）处理失败：{error}"
                 raise _postprocess_step_error(
-                    f"第 {index}/{len(batches)} 批（{first_id}–{last_id}）处理失败：{error}",
+                    message,
                     error,
                 ) from error
-            if item_aware_resegment:
-                from maw.resegment_boundaries import cue_response_as_atoms
-                response = cue_response_as_atoms(response, batch)
-            clean_response, batch_skipped, batch_warnings, response_mode = _sanitize_llm_response(
-                response,
-                batch,
-                batch_number=index,
-                strict_translation=False,
-                item_aware_resegment=item_aware_resegment,
-            )
+            try:
+                if item_aware_resegment:
+                    from maw.resegment_boundaries import cue_response_as_atoms
+                    if not isinstance(response, Mapping):
+                        raise ValueError('模型返回格式无效，未写出产物')
+                    response = cue_response_as_atoms(response, batch)
+                clean_response, batch_skipped, batch_warnings, response_mode = _sanitize_llm_response(
+                    response, batch, batch_number=index, strict_translation=False,
+                    item_aware_resegment=item_aware_resegment,
+                )
+                if item_aware_resegment and batch_skipped:
+                    raise ValueError('；'.join(batch_warnings[:3]) + '；未写出产物')
+            except ValueError as error:
+                if not item_aware_resegment:
+                    raise
+                raise ValueError(_resegment_context(project, batch, '结果校验', index, len(batches)) + f'：{error}') from error
         responses.append(clean_response)
         response_modes.append(response_mode)
         skipped_source_ids.update(batch_skipped)
@@ -447,12 +461,13 @@ def process_llm_snapshot(
     _notify_status(on_status, "toolbox_status_reorganizing")
     response = _combine_llm_responses(responses)
     if item_aware_resegment and all(mode == "atoms" for mode in response_modes):
-        processed, warnings = _apply_llm_atom_groups_with_warnings(
-            project,
-            response,
-            skipped_source_ids=skipped_source_ids,
-            maximum=maximum, split_punctuation=request.split_punctuation,
-        )
+        try:
+            processed, warnings = _apply_llm_atom_groups_with_warnings(
+                project, response, skipped_source_ids=skipped_source_ids,
+                maximum=maximum, split_punctuation=request.split_punctuation,
+            )
+        except ValueError as error:
+            raise ValueError(_resegment_context(project, cues, '重建字幕') + f'：{error}') from error
     elif item_aware_resegment:
         raise ValueError("LLM 分批返回了不一致的字词边界协议，未写出输出产物。")
     else:
@@ -637,6 +652,26 @@ def embed_translated_project(source_project: JsonDict, translated_project: JsonD
 def _notify_status(on_status: LlmStatus | None, key: str, **details: int) -> None:
     if on_status is not None:
         on_status(key, details)
+
+
+def _resegment_context(project, cues, stage, batch_number=None, total=None):
+    """Bounded source locations, with no subtitle body or model response dump."""
+    segments = _segments(project)
+    indexes = [int(str(c['id'])[1:])-1 for c in cues]
+    if not indexes:
+        return f'重新断句「{stage}」失败'
+    first, last = indexes[0], indexes[-1]
+    def identity(index):
+        value = str(segments[index].get('id', ''))
+        return re.sub(r'[\x00-\x1f\x7f]', ' ', value)[:80]
+    def clock(ms):
+        seconds, millis = divmod(int(ms), 1000)
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        return f'{hours:02}:{minutes:02}:{seconds:02}.{millis:03}'
+    span = f"{clock(segments[first]['start'])}–{clock(segments[last]['end'])}"
+    batch = f'第 {batch_number}/{total} 批；' if batch_number is not None else ''
+    return f'重新断句「{stage}」失败（{batch}处理范围第 {first+1}–{last+1} 条；{span}；ID {identity(first)}–{identity(last)}）'
 
 
 def _postprocess_step_error(message: str, error: BaseException) -> PostprocessStepError:
@@ -1285,7 +1320,7 @@ def _reject_atom_batch(
 ) -> tuple[JsonDict, frozenset[str], tuple[str, ...], str]:
     skipped = tuple(str(cue["id"]) for cue in batch)
     details = tuple(
-        _format_skip_detail(cue, batch_number=batch_number, group_index=None, reason=reason)
+        f"第 {_cue_number(str(cue['id']))} 条（{cue['id']}，第 {batch_number} 批）：{reason}"
         for cue in batch
     )
     return {"groups": []}, frozenset(skipped), details, "atoms"

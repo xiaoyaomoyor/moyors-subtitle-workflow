@@ -349,6 +349,7 @@ __WAVEFORM_CSS__
 
   <div class="menubar-project" id="menubar-project">
     <span class="menubar-project-name __JSON_NAME_CLASS__" id="json-name" title="点击打开工程所在文件夹；悬浮查看工程详情">__JSON_DISPLAY__</span>
+    <span id="project-save-indicator" class="project-save-indicator" role="status" aria-live="polite" hidden></span>
     <div class="menubar-project-card" id="project-detail-card" role="dialog" aria-label="工程详情" hidden>
       <div class="menubar-project-card-row">
         <span class="menubar-project-card-label">工程</span>
@@ -2682,6 +2683,7 @@ __WAVEFORM_CSS__
         <label class="media-preview-toggle"><input id="find-tidy-trim" type="checkbox">修剪前后空白</label>
         <label class="media-preview-toggle"><input id="find-tidy-capitalize" type="checkbox">首字母大写</label>
         <label class="media-preview-toggle"><input id="find-tidy-markdown" type="checkbox">去除 Markdown 标记</label>
+        <label class="media-preview-toggle" title="仅清除已识别的成对句内样式，保留转义、网址、路径和未配对符号；需先启用工程的 Markdown 句内样式。"><input id="find-tidy-inline" type="checkbox">清除句内样式</label>
         <label class="media-preview-toggle"><input id="find-tidy-prefix" type="checkbox">添加前缀</label>
         <label class="media-preview-toggle"><input id="find-tidy-suffix" type="checkbox">添加后缀</label>
       </div>

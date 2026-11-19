@@ -76,7 +76,7 @@
         const edits = edited.search({query,caseSensitive,regex,limit,replacement});
         if (edits.error || edits.limited) return {...edits,rows:[]};
         const byKey = new Map(edits.rows.map(r=>[r.key,r]));
-        for (const hit of rows) if (Object.hasOwn(drafts,hit.key)) Object.assign(hit,{before:records.get(hit.key).text,after:byKey.get(hit.key)?.after ?? drafts[hit.key]});
+        for (const hit of rows) if (Object.hasOwn(drafts,hit.key)) Object.assign(hit,{before:records.get(hit.key).text,after:byKey.get(hit.key)?.after ?? drafts[hit.key],displayMatches:byKey.get(hit.key)?.matches||[]});
       }
       return { rows, count, limited, zeroWidth };
     }

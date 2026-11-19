@@ -118,7 +118,7 @@
       void host.refreshRecentProjects();
       status(result.assets, '工程已保存', result.recoveryWarning); finish(true);
     } catch (error) {
-      feedback.finish(`${t('保存失败')}：${error.message}`,'warning');
+      feedback.finish(`${t('保存失败')}：${error.message}`,'warning',true);
       target = null; el('project-save-message').textContent = error.message;
       el('project-save-local').hidden = false;
     } finally { feedback.cancel();if (!active) host.setSaving(false); busy(false); }
