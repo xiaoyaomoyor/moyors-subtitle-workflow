@@ -293,6 +293,14 @@ jobs:
           npx playwright test tests/e2e/launcher-interactions.spec.mjs --grep 'error reports' --project=chromium --max-failures=1 --output=test-results/error-reports
           exit $LASTEXITCODE
 
+      - name: Check media association and single-row waveform reuse in Chromium
+        id: beta2-browser
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          npx playwright test tests/e2e/media-association.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-editing-save.spec.mjs tests/e2e/waveform-basic-reuse.spec.mjs tests/e2e/audio-gaps.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/beta2
+          exit $LASTEXITCODE
+
       - name: Check English UI and real video exports in Chromium
         id: export-browser
         timeout-minutes: 15
@@ -318,7 +326,7 @@ jobs:
           exit $LASTEXITCODE
 
       - name: Keep failed browser diagnostics
-        if: ${{ failure() && (steps.editor-browser.outcome == 'failure' || steps.upgrade-browser.outcome == 'failure' || steps.export-browser.outcome == 'failure' || steps.selected-upstream-browser.outcome == 'failure') }}
+        if: ${{ failure() && (steps.editor-browser.outcome == 'failure' || steps.upgrade-browser.outcome == 'failure' || steps.export-browser.outcome == 'failure' || steps.selected-upstream-browser.outcome == 'failure' || steps.beta2-browser.outcome == 'failure') }}
         uses: actions/upload-artifact@v6
         with:
           name: editor-test-diagnostics-${{ github.run_attempt }}

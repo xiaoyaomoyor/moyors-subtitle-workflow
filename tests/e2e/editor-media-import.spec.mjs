@@ -8,7 +8,9 @@ import { disableOnboarding, findFreePort, makeTempDir, startTtsServer, clickMenu
 let root, video, saved, server, errors;
 test.beforeEach(async ({ page }, testInfo) => {
   root = realpathSync.native(makeTempDir('editor-media')); video = join(root, 'source.mp4'); saved = join(root, 'saved.mosp');
-  const ffmpeg = process.env.FFMPEG_PATH;
+  // CI's application setting may name the FFmpeg directory. The browser
+  // fixture needs the executable path supplied alongside it for media tools.
+  const ffmpeg = process.env.MSW_E2E_FFMPEG || process.env.FFMPEG_PATH;
   test.skip(!ffmpeg, 'Explicit FFmpeg executable required');
   const conflict = testInfo.tags.includes('@track-conflict');
   execFileSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=25',
@@ -82,7 +84,7 @@ test('cancelling a staged upload retains the previously committed media and igno
 
 test('background peaks preserve edits and playhead, and multi audio playback uses a separate proxy', async ({ page, request }) => {
   const multi = join(root, 'multi.mp4');
-  execFileSync(process.env.FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-i', video,
+  execFileSync(process.env.MSW_E2E_FFMPEG || process.env.FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-i', video,
     '-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono', '-map', '0:v', '-map', '0:a', '-map', '1:a',
     '-t', '3', '-c:v', 'copy', '-c:a', 'aac', multi], {windowsHide: true});
   await page.locator('#load-media-file').setInputFiles(multi);

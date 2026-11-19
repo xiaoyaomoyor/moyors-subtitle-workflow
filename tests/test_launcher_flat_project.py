@@ -259,7 +259,8 @@ class LauncherFlatProjectTests(unittest.TestCase):
         self.assertEqual(saved_asset['source_ref'], asset['source_ref'])
         self.assertIsNotNone(SubtitleIndex(saved).resolve_source(saved_asset['source_ref']))
         self.assertGreater(saved['waveform']['duration_ms'], 0)
-        self.assertEqual(saved['media'], str(media))
+        self.assertEqual((saved_path.parent / saved['media']).resolve(), media.resolve())
+        self.assertFalse(Path(saved['media']).is_absolute())
         self.assertEqual(self.path.read_bytes(), before)
         self.assertEqual(result['warnings'], [])
 

@@ -4659,17 +4659,30 @@
       const maxStart = Math.max(0, this.durationMs - windowMs);
       this.basicWindowStartMs = clamp(this.basicWindowStartMs, 0, maxStart);
       const endMs = Math.min(this.durationMs, this.basicWindowStartMs + windowMs);
-      this.content.replaceChildren();
+      // Read viewport geometry before changing the row/overlays. Ordinary pan,
+      // zoom and playback follow retain the canvas and its event-owning row.
       const scrollStyle = getComputedStyle(this.scroll);
       const availableHeight = this.scroll.clientHeight - (parseFloat(scrollStyle.paddingTop) || 0) - (parseFloat(scrollStyle.paddingBottom) || 0);
       this.content.style.height = this.subtitleLayersEnabled() ? `${Math.max(availableHeight, this.effectiveRowHeight)}px` : '100%';
-      const row = this.createRow(this.basicWindowStartMs, endMs, -1, true);
-      this.content.appendChild(row);
+      let row = this.renderedRows.length === 1 ? this.renderedRows[0] : null;
+      if (row?.parentElement === this.content && row.dataset.basic === 'true') {
+        if (Number(row.dataset.startMs) !== this.basicWindowStartMs || Number(row.dataset.endMs) !== endMs) {
+          // A pending hover preview belongs to the old time window. The row now
+          // stays connected, so isConnected alone can no longer reject it.
+          this.cancelHoverSeekPreview();
+          if (!this.drag) this.clearCueEdgeHover();
+          row.querySelector('.waveform-split-flash').hidden = true;
+        }
+        this.refreshRowContents(row, this.basicWindowStartMs, endMs);
+      } else {
+        row = this.createRow(this.basicWindowStartMs, endMs, -1, true);
+        this.content.replaceChildren(row);
+      }
       this.renderedRows = [row];
       this.syncTrackHeads();
       this.drawRow(row);
       this.updatePlayback(false);
-      this.refreshBoundaryDragPointerLine();
+      this.refreshPointerLine();
     }
 
     renderMulti() {
@@ -4794,14 +4807,7 @@
       splitFlash.hidden = true;
       row.appendChild(splitFlash);
 
-      const mainMuted = this.options.subtitleTrackMuted?.('main') === true;
-      const extMuted = this.options.subtitleTrackMuted?.('extension') === true;
-      row.classList.toggle('v-track-muted-main', mainMuted);
-      row.classList.toggle('v-track-muted-ext', extMuted);
-      this.appendGapBlocks(row, startMs, endMs);
-      this.appendCueBlocks(row, startMs, endMs);
-      this.audioLayer?.renderRow(row, startMs, endMs);
-      window.MSWE?.resolve('reviews')?.renderRow(row, startMs, endMs);
+      this.refreshRowContents(row, startMs, endMs);
 
       row.addEventListener('pointerdown', (event) => {
         // 每次按下时读取最新模式；设置切换会重绘空隙块，但不会重建仍在
@@ -4924,6 +4930,23 @@
         this.options.showBlankWaveformMenu?.(time, event.clientX, event.clientY, track);
       });
       return row;
+    }
+
+    refreshRowContents(row, startMs, endMs) {
+      row.dataset.startMs = String(startMs);
+      row.dataset.endMs = String(endMs);
+      row.querySelector('.waveform-row-time').textContent = `${formatCompact(startMs)} → ${formatCompact(endMs)}`;
+      row.classList.toggle('multi-subtitle-row', this.options.multiSubtitleVisible?.() === true);
+      row.classList.toggle('v-track-muted-main', this.options.subtitleTrackMuted?.('main') === true);
+      row.classList.toggle('v-track-muted-ext', this.options.subtitleTrackMuted?.('extension') === true);
+      row.querySelectorAll('.waveform-gap-block, .waveform-cue-block').forEach(element => element.remove());
+      this.appendGapBlocks(row, startMs, endMs);
+      this.appendCueBlocks(row, startMs, endMs);
+      // These modules own their containers and remove obsolete children. Keep
+      // their cleanup rules rather than deleting all non-canvas row children.
+      this.audioLayer?.renderRow(row, startMs, endMs);
+      window.MSWE?.resolve('reviews')?.renderRow(row, startMs, endMs);
+      this.positionSplitPreview(row);
     }
 
     appendGapBlocks(row, startMs, endMs) {

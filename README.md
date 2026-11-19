@@ -12,11 +12,11 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
 
-当前源码版本为 **1.9.0-beta.1** ，预发行包见 [v1.9.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.1)，稳定版仍为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
+当前源码为 **1.9.0-beta.2 发布候选** ，安装包正在验证，尚未公开发布。已发布预发行包见 [v1.9.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.1)，稳定版仍为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
 
 发行流程覆盖 Windows x64 标准／lite、macOS arm64 标准／lite 和 Linux x86_64 AppImage，共五种安装包。
 
-1.9.0-beta.1 完善重新断句、文稿匹配取消与复核列表批量操作，优化波形标记和错误反馈，补齐本机 LLM、多声道波形、运行环境与识别错误处理。保留 MSW 多轨、剧本、ASS 样式与 800ms 默认停顿切句。见 [本次更新](CHANGELOG.md#190-beta1---2026-11-19)。
+1.9.0-beta.2 完善工程媒体关联、另存为与恢复，补齐 Windows 后台媒体处理的隐藏窗口设置，并在单行波形滚动时复用画布。保留 MSW 多轨、剧本、ASS 样式与 800ms 默认停顿切句。见 [本次更新](CHANGELOG.md#190-beta2---2026-11-19)。
 
 旧工程打开时在内存迁移，首次保存升级为 v4 并保留原文件备份；升级后的工程请使用新版编辑。移动项目时保留原媒体及音频素材。
 
