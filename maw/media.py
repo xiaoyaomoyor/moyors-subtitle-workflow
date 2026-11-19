@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from maw.ffmpeg import resolve_ffmpeg_tool
+from maw.gui_platform import creationflags, startupinfo
 from maw.output_naming import MEDIA_SUFFIX_NAMES, OPERATION_NAMES, TRANSLATION_MARKER_NAMES, TRANSLATION_TARGET_NAMES, maw_root, maw_root_candidates
 
 
@@ -155,6 +156,7 @@ def probe_video_fps(
             errors="replace",
             check=True,
             timeout=10,
+            startupinfo=startupinfo(), creationflags=creationflags(),
         )
         payload = json.loads(result.stdout or "")
     except (OSError, subprocess.SubprocessError, TypeError, ValueError):
@@ -232,6 +234,7 @@ def probe_audio_tracks(
             errors="replace",
             check=True,
             timeout=10,
+            startupinfo=startupinfo(), creationflags=creationflags(),
         )
         payload = json.loads(result.stdout or "")
     except (OSError, subprocess.SubprocessError, TypeError, ValueError):
@@ -435,6 +438,7 @@ def convert_media_for_browser(
         try:
             result = subprocess.run(
                 command, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                startupinfo=startupinfo(), creationflags=creationflags(),
             )
         except OSError as error:
             temporary.unlink(missing_ok=True)
@@ -470,7 +474,51 @@ def _path_from_value(value: str, base_dir: Path, *, cwd_relative: bool = False) 
     path = Path(value).expanduser()
     if path.is_absolute():
         return path.resolve()
-    return (Path.cwd() if cwd_relative else base_dir / path).resolve()
+    return ((Path.cwd() if cwd_relative else base_dir) / path).resolve()
+
+
+def project_media_reference(project_path: Path | str, media_path: Path | str) -> str:
+    """Anchor native media to its save directory; keep cross-drive paths absolute."""
+    source = Path(media_path).expanduser().resolve()
+    directory = Path(project_path).expanduser().resolve().parent
+    try:
+        return Path(os.path.relpath(source, directory)).as_posix()
+    except ValueError:
+        return source.as_posix()
+
+
+def media_reference_matches(reference: object, media_path: Path | str | None, project_path: Path | str | None = None) -> bool:
+    """Compare a document reference with an already trusted native source."""
+    if not media_path or not isinstance(reference, str) or not reference or '://' in reference:
+        return False
+    try:
+        candidate = Path(reference).expanduser()
+        if not candidate.is_absolute():
+            if not project_path:
+                return False
+            candidate = Path(project_path).resolve().parent / candidate
+        return candidate.resolve() == Path(media_path).resolve()
+    except (OSError, ValueError):
+        return False
+
+
+def rebase_project_media(
+    project: Mapping[str, Any], target: Path | str, *,
+    media_path: Path | str | None = None, source_project_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """Copy only the media reference, never cue/asset data or the caller's object.
+
+    Explicit media paths belong to cwd; existing references belong to the source
+    project (or target for an in-place save). URLs are not native file paths.
+    """
+    result = dict(project)
+    source = media_path
+    raw = result.get('media')
+    if source is None and isinstance(raw, str) and raw.strip() and '://' not in raw:
+        source = _path_from_value(raw.strip(), Path(source_project_path or target).expanduser().resolve().parent)
+    if source is not None:
+        result['media'] = project_media_reference(target, source)
+    return result
 
 
 # ASR 引擎输出的命名后缀（小写、带前导与尾随点，用于文件名中段的标记）。
@@ -569,7 +617,7 @@ def _same_name_candidates(project_path: Path, expected_stem: str) -> tuple[Path,
     if not expected_stem:
         return ()
     try:
-        entries = project_path.parent.iterdir()
+        entries = tuple(project_path.parent.iterdir())
     except OSError:
         return ()
     candidates = [
@@ -637,6 +685,15 @@ def resolve_project_media(
         if requested.is_file():
             paired = _paired_mp4(requested)
             return _classify_existing(project_path, paired or requested, requested_path=requested)
+
+    # Old generators wrote just a basename inside a managed output directory.
+    # Prefer that exact original over a same-stem playback cache in this folder.
+    if (base_dir.name.casefold().endswith(('_msw', '_maw'))
+            and isinstance(raw_media, str) and raw_media.strip()):
+        name = _portable_path_name(raw_media.strip())
+        candidate = base_dir.parent / name
+        if candidate.suffix.lower() in MEDIA_EXTENSIONS and candidate.is_file():
+            return _classify_existing(project_path, _paired_mp4(candidate) or candidate, requested_path=candidate)
 
     candidate_stems: list[str] = []
     if isinstance(raw_media, str) and raw_media.strip():

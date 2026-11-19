@@ -39,6 +39,22 @@ if (window.MSWFlatTrialRequested && SERVER_CONFIG) {
 }
 let mswProjectGeneration = 0;
 window.MSWProject.ensure(DATA, SERVER_CONFIG?.processingContext?.projectId);
+let fileExportMediaIdentity = null;
+setFileExportMediaIdentity(SERVER_CONFIG?.fileExportMediaIdentity);
+function setFileExportMediaIdentity(identity) {
+  fileExportMediaIdentity = identity?.path && identity.reference === DATA.media
+    ? {...identity, generation:mswProjectGeneration, projectId:DATA.msw?.project_id} : null;
+}
+// A download has no known destination directory. Keep its media reference
+// absolute only when it belongs to the current document and current source.
+function fileExportProjectJson(json) {
+  const identity = fileExportMediaIdentity;
+  if (!identity || identity.generation !== mswProjectGeneration || identity.reference !== DATA.media) return json;
+  const project = JSON.parse(json);
+  if (project.media !== identity.reference || project.msw?.project_id !== identity.projectId) return json;
+  project.media = identity.path;
+  return JSON.stringify(project, null, 2);
+}
 const NINJA_SFX_BASE_URL = __NINJA_SFX_BASE_URL_JSON__;
 // 关闭/删除叉号的统一字形：几何居中的 SVG（文字 × 的字形在字身框内偏上，视觉不居中）。
 const X_GLYPH_SVG = '<svg class="x-glyph" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
@@ -18341,12 +18357,13 @@ async function saveProjectToServer({ silent = false } = {}) {
   const savedGeneration = mswProjectGeneration;
   projectSaveInFlight = true;
   const feedback = beginProjectSaveFeedback({silent});
-  let projectJson, savedFingerprint;
+  let projectJson, savedFingerprint, savedMedia;
   try {
     await feedback.ready;
     if (savedGeneration !== mswProjectGeneration) return false;
     flushInlineEditsForSave();
     projectJson = buildSavedProjectJson();
+    savedMedia = DATA.media;
     savedFingerprint = window.MSWE?.resolve('persistence-host')?.draftFingerprint();
     const processingContext = SERVER_CONFIG.processingContext;
     const saveUrl = new URL(SERVER_CONFIG.processingUrl ? `${SERVER_CONFIG.processingUrl}/project` : SERVER_CONFIG.saveUrl, window.location.href);
@@ -18375,6 +18392,8 @@ async function saveProjectToServer({ silent = false } = {}) {
     if (SERVER_CONFIG.processingUrl) SERVER_CONFIG.processingContext = { ...processingContext, ...result };
     const unchanged = !inlineEditHasUncommittedText() && (savedFingerprint !== undefined
       ? window.MSWE.resolve('persistence-host').draftFingerprint() === savedFingerprint : buildJson({compact:true}) === projectJson);
+    if (DATA.media === savedMedia && Object.hasOwn(result, 'fileExportMediaIdentity'))
+      setFileExportMediaIdentity(result.fileExportMediaIdentity);
     window.MSWE?.resolve('project-persistence')?.status(result.assets,
       unchanged ? '工程已保存' : '保存完成；保存期间的新修改仍未保存', result.recoveryWarning);
     if (unchanged) {
@@ -18394,9 +18413,10 @@ async function saveProjectToServer({ silent = false } = {}) {
     // A stale browser tab can outlive the localhost process (the browser reports
     // ERR_CONNECTION_REFUSED). Offer a real file save so Ctrl+S never strands
     // completed edits, while making clear that the bound JSON was not overwritten.
-    if (projectJson && error instanceof TypeError
+    if (projectJson && savedGeneration === mswProjectGeneration && error instanceof TypeError
         && confirm('无法连接本地编辑器服务器。是否改为导出工程文件，以免丢失改动？')) {
-      const saved = await downloadFile(projectJson, `${FILENAME_BASE}.mosp`, 'application/json', {
+      flushInlineEditsForSave();
+      const saved = await downloadFile(fileExportProjectJson(buildSavedProjectJson()), `${FILENAME_BASE}.mosp`, 'application/json', {
         desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
       });
       if (saved) flashHint('服务器未连接；工程已导出为 .mosp，请重新打开该文件后继续', 'success');
@@ -18421,11 +18441,12 @@ async function saveProjectToHandle({ silent = false } = {}) {
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
     flushInlineEditsForSave();
     const projectJson = buildSavedProjectJson();
+    const exportJson = fileExportProjectJson(projectJson);
     const savedFingerprint = window.MSWE?.resolve('persistence-host')?.draftFingerprint();
     await layerProtectHandle(savedHandle, projectJson, silent);
     if (savedGeneration !== mswProjectGeneration) return false;
     const writable = await savedHandle.createWritable();
-    await writable.write(new Blob([projectJson], { type: 'application/json;charset=utf-8' }));
+    await writable.write(new Blob([exportJson], { type: 'application/json;charset=utf-8' }));
     await writable.close();
     if (savedGeneration !== mswProjectGeneration || savedHandle !== projectFileHandle) return false;
     const unchanged = !inlineEditHasUncommittedText() && (savedFingerprint !== undefined
@@ -18467,13 +18488,14 @@ async function saveProjectAsToFile() {
   commitCuePanelEdit();
   const suggested = `${FILENAME_BASE}.mosp`;
   const snapshot = buildSavedProjectJson();
+  const exportSnapshot = fileExportProjectJson(snapshot);
   const generation = mswProjectGeneration;
   const warnReferences = () => {
     if (DATA.msw?.assets?.length) flashHint('仅保存工程内容；音频素材仍需保留原 .assets 文件夹', 'warning');
   };
   // 无原生保存对话框的浏览器：退化为普通下载（文件名不可考，标题保持不变）。
   if (!window.showSaveFilePicker) {
-    await downloadFile(snapshot, suggested, 'application/json', {
+    await downloadFile(exportSnapshot, suggested, 'application/json', {
       desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
     });
     warnReferences();
@@ -18490,7 +18512,7 @@ async function saveProjectAsToFile() {
     await layerProtectHandle(handle, snapshot);
     if (generation !== mswProjectGeneration) return false;
     const writable = await handle.createWritable();
-    await writable.write(new Blob([snapshot], { type: 'application/json;charset=utf-8' }));
+    await writable.write(new Blob([exportSnapshot], { type: 'application/json;charset=utf-8' }));
     await writable.close();
     if (generation !== mswProjectGeneration) return false;
     projectFileHandle = handle;
@@ -19206,6 +19228,7 @@ function waveformWorkspaceForProject(project) {
 }
 
 function applyCanonicalProject(data, filename) {
+  fileExportMediaIdentity = null;
   closeLinkedSplitModal();
   data = prepareLayerProject(data);
   fixedReset(); fixedTrackFilter = new Set(); fixedActiveTrackId = null;
@@ -20210,6 +20233,7 @@ async function loadMediaFile(file, { localOnly = false, previewOnly = false, pre
   if (currentMediaBlobUrl && !preservePrevious) URL.revokeObjectURL(currentMediaBlobUrl);
   currentMediaBlobUrl = url;
   if (previewOnly) { waveformEditor?.setPayload(null); return true; }
+  fileExportMediaIdentity = null;
   window.dispatchEvent(new CustomEvent('msw:player-changed', { detail: { reset: true } }));
 
   deferredReapeaksEpoch += 1;
@@ -24230,7 +24254,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     }
     commitProcessingEdits();
     const content = project ? JSON.stringify(window.AsrEditorUtils.stripInlineCaches(window.MSWProductionProject.isView(project)?window.MSWProductionProject.toProject(project):project), null, 2) : buildSavedProjectJson();
-    await downloadFile(content, name || `${FILENAME_BASE}.mosp`, 'application/json', {
+    await downloadFile(fileExportProjectJson(content), name || `${FILENAME_BASE}.mosp`, 'application/json', {
       desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json', '.mosp-bak'] },
     }, { usePicker: false });
     flashHint('仅保存工程内容；音频素材仍需保留原 .assets 文件夹', 'warning');
@@ -24262,6 +24286,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     commitProcessingEdits();
     applyCanonicalProject(result.project, result.filename);
     detachServerProjectSaving();
+    setFileExportMediaIdentity(result.fileExportMediaIdentity);
     projectImportDirty = true;
     flashHint('恢复内容已载入，请另存为工程；原媒体可在保存后重新打开', 'success');
   },
@@ -24286,6 +24311,7 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     Object.assign(SERVER_CONFIG, { canSave: true, canPortableStickerExport: true, canLottieExport: true, canOgrafExport: true, processingContext: {
       projectId: result.projectId, binding: result.binding, saveRevision: result.saveRevision,
     } });
+    setFileExportMediaIdentity(result.fileExportMediaIdentity);
     projectCheckpointed = true;
     PROJECT_NAME = result.filename.replace(/\.(json|mosp|mosp-bak)$/i, '');
     FILENAME_BASE = PROJECT_NAME;
@@ -24350,6 +24376,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   },
   suspendSourcePlayback: () => { player.pause(); resetLoadedMedia(); },
   mediaSnapshot: () => ({ media: DATA.media, metadata: window.MSWProject.clone(DATA.media_metadata),
+    fileExportMediaIdentity,
     waveform: DATA.waveform, spectral: DATA.spectral, reapeaks: DATA.waveform_reapeaks, loudness: DATA.loudness,
     url: player.currentSrc || player.querySelector('source')?.src || '',
     name: document.getElementById('media-name')?.textContent || '', type: player.tagName === 'VIDEO' ? 'video/mp4' : 'audio/wav' }),
@@ -24358,6 +24385,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     if (state.url) await loadMediaFile({ name: state.name, type: state.type, url: state.url }, { localOnly: true, previewOnly: true });
     else resetLoadedMedia();
     DATA.media = state.media;
+    setFileExportMediaIdentity(state.fileExportMediaIdentity);
     DATA.media_metadata = state.metadata;
     waveformEditor?.setPayload(state.waveform);
     waveformEditor?.setSpectralPayload(state.spectral);
@@ -24368,6 +24396,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
     if (!playable) resetLoadedMedia();
     if (previous.url?.startsWith('blob:') && previous.url !== currentMediaBlobUrl) URL.revokeObjectURL(previous.url);
     DATA.media = media.reference;
+    setFileExportMediaIdentity({reference:media.reference, path:media.nativePath});
     DATA.media_metadata = normalizeMediaMetadata({ ...media.metadata, selected_audio_track: media.audio_index });
     window.MSWProject.ensure(DATA).source_audio_index = media.audio_index;
     DATA.media_time_reference = media.time_reference;

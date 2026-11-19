@@ -419,7 +419,7 @@ class PostprocessTests(unittest.TestCase):
 
         if result.project_path is None:
             self.fail("JSON output mode must create a project")
-        self.assertEqual(read_project(result.project_path)["media"], str(self.media.resolve()))
+        self.assertEqual((result.project_path.parent / read_project(result.project_path)['media']).resolve(), self.media.resolve())
 
     def test_media_path_fallback_does_not_override_existing_project_media(self) -> None:
         other_media = self.root / "other.mp4"
@@ -439,7 +439,7 @@ class PostprocessTests(unittest.TestCase):
 
         if result.project_path is None:
             self.fail("JSON output mode must create a project")
-        self.assertEqual(read_project(result.project_path)["media"], str(self.media.resolve()))
+        self.assertEqual((result.project_path.parent / read_project(result.project_path)['media']).resolve(), self.media.resolve())
     def test_llm_groups_can_redistribute_text_but_not_timing(self) -> None:
         project = sample_project(self.media)
         groups: JsonDict = {

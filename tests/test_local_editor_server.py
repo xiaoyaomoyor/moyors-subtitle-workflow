@@ -559,7 +559,9 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('"otiozStickerExportUrl": "/api/exports/sticker-otioz", ', page)
         self.assertIn('"canPortableStickerExport": true, "canOtozStickerExport": true, ', page)
         self.assertIn('"canOtozTimelineExport": true, "initialStickerCount": 1, ', page)
-        self.assertIn('"autoLoadedMediaName": "clip.mp3", "recentProjectsUrl": "/api/recent-projects/open", ', page)
+        self.assertIn('"autoLoadedMediaName": "clip.mp3"', page)
+        self.assertIn('"recentProjectsUrl": "/api/recent-projects/open"', page)
+        self.assertIn('"fileExportMediaIdentity": {"reference":', page)
         self.assertIn('"attachUrl": "/api/project/attach", "settingsUrl": "/api/settings", ', page)
         self.assertIn('"assStylesUrl": "/api/ass-styles", "recentProjects": [{"path": "', page)
         # H06：最近工程记录带 openedAt（成功打开时间），位于 name 与后续字段之间。
@@ -1455,7 +1457,7 @@ class LocalEditorServerTests(unittest.TestCase):
         convert.assert_called_once_with(source.resolve(), ffmpeg_path=mock.ANY)
         self.assertEqual(project.media_path, converted)
         self.assertEqual(project.source_media_path, source.resolve())
-        self.assertEqual(project.data["media"], str(source.resolve()))
+        self.assertEqual((project_path.parent / project.data['media']).resolve(), source.resolve())
 
     def test_flv_conversion_loads_source_reapeaks(self) -> None:
         """只有 flv（走转换）：.ReaPeaks 在 flv 旁，应按原始请求路径加载。"""
@@ -1983,7 +1985,7 @@ class LocalEditorServerTests(unittest.TestCase):
                 }
                 normalized_saved_project = {
                     "schema": "moy.asr.project.v1",
-                    "media": str(self.media),
+                    "media": self.media.name,
                     "media_metadata": {"selected_audio_track": 0},
                     "segments": [{"id": "main-001", "start": 0, "end": 1000, "text": "保存后的字幕"}],
                 }
@@ -2180,7 +2182,7 @@ class LocalEditorServerTests(unittest.TestCase):
                     json.loads(self.project_path.read_text(encoding="utf-8")),
                     {
                         "schema": "moy.asr.project.v1",
-                        "media": str(self.media.resolve()),
+                        "media": self.media.name,
                         "segments": [{"id": "main-001", "start": 0, "end": 1000, "text": "接管后保存"}],
                         "media_metadata": {"selected_audio_track": 0},
                     },

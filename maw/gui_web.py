@@ -99,7 +99,7 @@ from maw.local_models import (
     prepare_local_model as prepare_model,
 )
 from maw.media_cache import MediaCacheCancelled, embed_media_caches
-from maw.media import resolve_project_media, resolve_default_audio_track
+from maw.media import MEDIA_EXTENSIONS, resolve_project_media, resolve_default_audio_track
 from maw.postprocess import PROMPTS, FixedProcessRequest, LlmPostprocessRequest, OutputMode, PostprocessStepError, Replacement, run_fixed_process as process_fixed_process, run_llm_postprocess as process_llm_postprocess
 from maw.postprocess_io import PostprocessFileError, read_project, read_srt
 from maw.project_io import write_mosp
@@ -2282,11 +2282,20 @@ class LauncherApi:
         url = f"http://127.0.0.1:{port}/"
         launch_url = f"{url}?lang={_gui_lang(payload)}"
 
+        media_text = str(payload.get('mediaPath') or '').strip() if intent == 'project' else ''
+        media_path = Path(media_text).expanduser().resolve() if media_text else None
+        if media_path is not None and (not media_path.is_file() or media_path.suffix.lower() not in MEDIA_EXTENSIONS):
+            return _error_result('serverMediaPath', 'server_media_missing', media_text)
+        remember_media = bool(media_path) and payload.get('rememberMedia') is True
+
         existing = _probe_existing_server(url)
         if existing is not None and not restart and not independent:
             existing_project = existing.get("projectPath") or ""
             owned_server_running = self._owned_session_running(port)
-            if intent == "project" and json_text and _same_existing_project(existing_project, json_text):
+            same_media = media_path is None or _same_existing_project(
+                existing.get('sourceMediaPath') or existing.get('mediaPath') or '', str(media_path))
+            association_saved = not remember_media or _saved_media_matches(json_text, media_path)
+            if intent == "project" and json_text and _same_existing_project(existing_project, json_text) and same_media and association_saved:
                 return {"ok": True, "url": launch_url, "serverAlreadyRunning": True, "sameProject": True, "port": port, "sessionId": port}
             # F03：无工程路径不等于空白——已加载/接管过内容的会话不能被 blank 复用；
             # 旧服务器没有 hasContent 字段时退回 projectPath 判断。
@@ -2306,6 +2315,7 @@ class LauncherApi:
                     "mediaPath": existing.get("mediaPath") or "",
                     "unsaved": existing.get("unsaved") is True,
                     "owned": owned_server_running,
+                    "mediaConflict": not same_media or not association_saved,
                 },
             }
 
@@ -2317,11 +2327,7 @@ class LauncherApi:
             json_path = Path(json_text).expanduser()
             if not json_path.exists():
                 return _error_result("jsonPath", "json_not_found", str(json_path))
-            media_text = str(payload.get("mediaPath") or "").strip()
-            media_path = Path(media_text).expanduser() if media_text else None
-            if media_path is not None and not media_path.exists():
-                media_path = None
-            command = build_serve_command(json_path, media_path, port)
+            command = build_serve_command(json_path, media_path, port, remember_media=remember_media)
         else:
             # 无工程：由服务器按「自动打开上次工程」设置恢复最近工程或回落为空白编辑器
             command = build_serve_command(None, None, port)
@@ -5275,9 +5281,24 @@ def _probe_existing_server(url: str) -> dict[str, object] | None:
     return {
         "projectPath": str(payload.get("projectPath") or ""),
         "mediaPath": str(payload.get("mediaPath") or ""),
+        "sourceMediaPath": str(payload.get("sourceMediaPath") or ""),
         "unsaved": payload.get("unsaved") is True,
         "hasContent": payload.get("hasContent") is True,
     }
+
+
+def _saved_media_matches(project_path: str, media_path: Path) -> bool:
+    """An active temporary association is not proof that the disk link was saved."""
+    try:
+        path = Path(project_path).expanduser().resolve()
+        raw = json.loads(path.read_text(encoding='utf-8-sig'))
+        reference = raw.get('media')
+        if not isinstance(reference, str) or not reference.strip():
+            return False
+        candidate = Path(reference).expanduser()
+        return _same_existing_project(str(candidate if candidate.is_absolute() else path.parent / candidate), str(media_path))
+    except (OSError, ValueError, AttributeError):
+        return False
 
 
 def _same_existing_project(existing: str, target: str) -> bool:

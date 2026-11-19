@@ -425,6 +425,10 @@ uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.mosp"
 uv run python server-editor\serve.py "D:\Projects\subtitle.mosp" -m "E:\Media\moved-video.mp4"
 ```
 
+启动器首页选中工程后点击底栏「关联媒体」，或右键工程选择同名菜单，选择新的媒体位置。默认勾选「记住此媒体关联」，加载成功后只更新关联并保留原文件 `.bak`；取消勾选则仅本次使用，之后主动保存工程仍会保存当前关联。若该工程已有不同媒体的编辑器会话，按提示返回现有会话或另开独立会话。命令行如需加载后立即记住，可在上述命令末尾添加 `--remember-media`。
+
+已知保存位置时，同盘媒体优先记录相对工程目录的路径，跨盘保留绝对路径。浏览器下载副本或服务器失联时导出的工程，使用当前工程已确认的原媒体绝对路径，避免下载目录改变后失联；没有原生路径的浏览器媒体不会借用旧关联。下载不收集素材，需要整套移动时使用「另存为」并勾选收集原媒体。
+
 如果关联媒体是 FLV，服务器会先复用媒体旁边的同名 MP4（例如 `clip.flv` 对应 `clip.mp4`）；不存在时再调用用户配置的 `FFMPEG_PATH`，或 PATH 中的 `ffmpeg`，把转换结果原子写回媒体旁边。Desktop 版使用随应用提供的 FFmpeg sidecar。工程仍保存可继续使用的媒体路径。
 
 首次启动空白编辑器：

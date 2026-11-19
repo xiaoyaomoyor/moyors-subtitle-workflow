@@ -185,6 +185,14 @@
       recent_time_hours: "{n} 小时前",
       recent_time_days: "{n} 天前",
       server_conflict_blank: "（空白会话）",
+      media_relink: "关联媒体",
+      media_relink_path: "媒体路径",
+      media_relink_choose: "选择媒体",
+      media_relink_remember: "记住此媒体关联",
+      media_relink_hint: "成功加载后更新工程并保留备份；取消勾选则仅本次使用。",
+      media_relink_cancel: "取消",
+      media_relink_open: "打开工程",
+      media_relink_conflict: "当前会话的媒体关联与本次选择不同，或关联尚未保存。",
       server_conflict_return: "编辑器正在打开「{name}」。返回现有会话吗？",
       server_conflict_independent: "改用独立端口启动目标工程？（不影响当前会话）",
       server_conflict_restart: "停止受管编辑器服务并重启到目标工程？（未保存内容会丢失）",
@@ -519,6 +527,14 @@
       recent_time_hours: "{n} h ago",
       recent_time_days: "{n} d ago",
       server_conflict_blank: "(blank session)",
+      media_relink: "Link media",
+      media_relink_path: "Media path",
+      media_relink_choose: "Choose media",
+      media_relink_remember: "Remember this media link",
+      media_relink_hint: "Update the project and keep a backup after loading. Uncheck to use only for this session.",
+      media_relink_cancel: "Cancel",
+      media_relink_open: "Open project",
+      media_relink_conflict: "The running session uses a different media link, or the link has not been saved.",
       server_conflict_return: "The editor is currently open on “{name}”. Return to that session?",
       server_conflict_independent: "Start the target project on an independent port instead? (current session stays)",
       server_conflict_restart: "Stop the managed editor service and restart on the target project? (unsaved work is lost)",
@@ -2659,6 +2675,7 @@
     link.href = url || '#';
     $('homeBlank').disabled = busy;
     const open = $('homeOpenSelected'); open.dataset.busy = String(busy); open.disabled = busy || !$('jsonPath').value.trim();
+    $('homeRelinkMedia').disabled = open.disabled;
   }
   let checkingShownSession = false;
   setInterval(async () => {
@@ -3269,7 +3286,7 @@
     }
     return setDroppedPath("serverMediaPath", value);
   }
-  function setJsonPath(path) { $("jsonPath").value = path; setError("jsonPath", ""); refreshServerMedia(); window.MSWLauncher?.onProjectPathChanged?.(); }
+  function setJsonPath(path) { if ($('jsonPath').value !== path) $('serverMediaPath').value = ''; $("jsonPath").value = path; setError("jsonPath", ""); refreshServerMedia(); window.MSWLauncher?.onProjectPathChanged?.(); }
   function applyErrorResult(result, logDetail = true) { const detail = [result.detail || result.error || "", result.diagnostics ? JSON.stringify(result.diagnostics, null, 2) : ""].filter(Boolean).join("\n"); const message = errText(result.code, result.detail || result.error || ""); const fieldMessage = result.code === "server_start_failed" ? t("server_start_failed_hint") : (result.code === "server_no_response" ? t("server_no_response_hint") : message); if (result.field) setError(result.field, fieldMessage); if (["apiKey", "openaiBaseUrl", "workspaceId"].includes(result.field)) { renderAsrConnection(provider().id); openSettings("asrSettingsSection", result.field); } if (result.postprocessStep) window.MSWLauncher?.openAutoPostprocessStep?.(result.postprocessStep, result.field); else if (result.field === "autoPostprocessEnabled") $("autoPostprocessCard")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" }); setStatus(message); if (logDetail && detail) appendLog(`[detail] ${detail}`); showErrorNotice(message, result.code || "", detail); }
   function validateSegmentation(data) { for (const [field, minimum] of [["maxLen", 1], ["minLen", 1], ["maxWords", 1], ["minWords", 1], ["gapSplit", 0]]) { const value = data[field]; if (!value) continue; if (!/^\d+$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum) return fail(field, errText("segmentation_invalid", "")); } if (data.maxLen && data.minLen && Number(data.maxLen) < Number(data.minLen)) return fail("maxLen", errText("segmentation_invalid", "")); if (data.maxWords && data.minWords && Number(data.maxWords) < Number(data.minWords)) return fail("maxWords", errText("segmentation_invalid", "")); return true; }
   function validateLocal(overrides = {}) { clearErrors(); const data = { ...formPayload(), ...overrides }; if (!data.mediaPath) return fail("mediaPath", errText("media_not_found", "")); if (!data.srtPath) return fail("srtPath", errText("output_missing", "")); if (!validateSegmentation(data)) return false; if (isLocalProvider()) { const runtime = state.config.localRuntime || {}; const status = localStatus(); if (state.localRuntimeInstalling || runtime.status === "installing") return fail("model", t("local_runtime_installing")); if (state.localPreparing) return fail("model", t("local_prepare_running")); if (runtime.status === "checking") return fail("model", t("local_runtime_checking")); if (!runtime.ready && runtime.status !== "ready") return fail("model", errText("local_runtime_missing", "")); if (!status.status || status.status === "checking") return fail("model", t("local_checking")); if (status.status === "runtime_missing") return fail("model", errText("local_runtime_missing", "")); if (status.status === "path_invalid") return fail("localModelPath", errText("local_model_path_invalid", "")); if (status.status === "path_mismatch") return fail("localModelPath", errText("local_model_path_mismatch", "")); if (status.status === "missing") return fail("model", errText("local_model_missing", "")); if (status.status === "partial") return fail("model", errText("local_model_incomplete", "")); return true; } if (provider().requiresApiKey !== false && !data.apiKey && !provider().apiKey && !provider().hasApiKey) return fail("apiKey", errText("api_key_missing", "")); if (provider().id === "openai" && !data.openaiBaseUrl) return fail("openaiBaseUrl", errText("custom_asr_base_url_missing", "")); if (isCustomOpenAiModel() && !data.openaiModel) return fail("openaiModel", errText("custom_asr_model_missing", "")); if (provider().regions.length > 0 && data.region === "singapore" && !data.workspaceId) return fail("workspaceId", errText("workspace_missing", "")); if (provider().id === "qwen" && selectedModel().supportsContext && Array.from(data.qwenAudioContext).length > 400) return fail("qwenAudioContext", errText("context_too_long", "")); if (provider().id === "soniox" && selectedModel().supportsContext && Array.from([data.sonioxContextGeneral, data.sonioxContextText, data.sonioxContextTerms, data.sonioxContextTranslationTerms].join("\n")).length > 10000) return fail("sonioxContextText", errText("soniox_context_too_long", "")); if (provider().id === "qwen" && selectedModel().supportsHotwords && data.qwenAudioHotwordsMode === "file" && ext(data.qwenAudioHotwordsFile) !== ".txt") return fail("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); return true; }
@@ -3483,10 +3500,11 @@
   async function openServerEditor(options = {}) {
     clearErrors();
     if (state.serverStarting) return;
-    const projectPath = $("jsonPath").value.trim();
+    const projectPath = options.projectPath || $("jsonPath").value.trim();
+    options = {...options, projectPath};
     // R0/F02：优先使用后端返回过的实际会话 URL（含独立端口），不再回退到端口输入框猜测。
     const currentUrl = state.detectedServerUrl || state.activeSessionUrl || `http://127.0.0.1:${$("port").value || "8250"}/?lang=${state.lang}`;
-    if (!options.force && ((state.serverRunning && projectPath === state.serverProjectPath) || (state.detectedServerUrl && !projectPath))) { if (options.openBrowser !== false) await bridge("open_url", { url: currentUrl }); return; }
+    if (!options.force && !options.mediaPath && !$('serverMediaPath').value && ((state.serverRunning && projectPath === state.serverProjectPath) || (state.detectedServerUrl && !projectPath))) { if (options.openBrowser !== false) await bridge("open_url", { url: currentUrl }); return; }
     serverStatusRequest += 1;
     state.serverStarting = true;
     let conflict = null;
@@ -3497,7 +3515,8 @@
         // 缺媒体不再阻断启动：后端允许打开，编辑器加载时提示手动指定媒体（C 阶段）。
         void refreshServerMedia();
       }
-      const result = await bridge("start_server", serverPayload({ intent, restart: Boolean(options.restart), independentPort: Boolean(options.independentPort) }));
+      const result = await bridge("start_server", serverPayload({ jsonPath:projectPath, intent, restart: Boolean(options.restart), independentPort: Boolean(options.independentPort),
+        ...(options.mediaPath ? {mediaPath:options.mediaPath,rememberMedia:options.rememberMedia === true} : {}) }));
       if (result.ok) {
         state.activeSessionUrl = result.url || state.activeSessionUrl;
         state.serverRunning = !result.serverAlreadyRunning;
@@ -3529,7 +3548,7 @@
     const conflict = result.conflict || {};
     const runningName = conflict.projectPath ? conflict.projectPath.split(/[\/]/).pop() : t("server_conflict_blank");
     const unsavedWarning = conflict.unsaved ? `\n${t("server_conflict_unsaved_warning")}` : "";
-    const back = await window.MSWLauncher.confirm(t("server_conflict_return").replace("{name}", runningName) + unsavedWarning);
+    const back = await window.MSWLauncher.confirm((conflict.mediaConflict ? t('media_relink_conflict')+'\n' : '') + t("server_conflict_return").replace("{name}", runningName) + unsavedWarning);
     if (back) {
       await bridge("open_url", { url: conflict.url || result.detail || "" });
       return;
@@ -3546,6 +3565,53 @@
     }
     setStatus(t("server_conflict_kept"));
   }
+
+  let mediaRelink = null;
+  function closeMediaRelink() {
+    const opener = mediaRelink?.opener;
+    mediaRelink = null; $('mediaRelinkModal').classList.add('hidden'); opener?.focus();
+  }
+  function openMediaRelink(path = $('jsonPath').value.trim()) {
+    if (!path || state.serverStarting) return;
+    mediaRelink = {path, opener:document.activeElement};
+    $('mediaRelinkProject').textContent = path;
+    $('mediaRelinkPath').value = ''; $('mediaRelinkRemember').checked = true;
+    $('mediaRelinkMessage').textContent = ''; $('mediaRelinkOpen').disabled = true;
+    $('mediaRelinkChoose').disabled = false;
+    $('mediaRelinkModal').classList.remove('hidden'); $('mediaRelinkChoose').focus();
+  }
+  $('homeRelinkMedia').addEventListener('click', () => openMediaRelink());
+  $('mediaRelinkCancel').addEventListener('click', closeMediaRelink);
+  $('mediaRelinkModal').querySelector('.modal-backdrop').addEventListener('click', closeMediaRelink);
+  $('mediaRelinkModal').addEventListener('keydown', event => {
+    if(event.key === 'Escape') {event.preventDefault();event.stopPropagation();closeMediaRelink();}
+    if(event.key === 'Tab') {
+      const controls=[...$('mediaRelinkModal').querySelectorAll('button,input')].filter(node=>!node.disabled);
+      const first=controls[0],last=controls.at(-1);
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+    }
+  });
+  $('mediaRelinkChoose').addEventListener('click', async () => {
+    const action = mediaRelink; if(!action)return;
+    $('mediaRelinkChoose').disabled = true;
+    try {
+      const result = await bridge('choose_file',{kind:'media'});
+      if(mediaRelink !== action || result?.cancelled)return;
+      if(!result?.ok) { $('mediaRelinkMessage').textContent=errText(result?.code||'',result?.detail||'');return; }
+      if(!MEDIA_EXTS.has(ext(result.path))) {$('mediaRelinkMessage').textContent=mediaDropError();return;}
+      action.mediaPath=result.path;$('mediaRelinkPath').value=result.path;$('mediaRelinkOpen').disabled=false;
+      $('mediaRelinkMessage').textContent='';
+    } catch (error) {
+      if(mediaRelink===action)$('mediaRelinkMessage').textContent=String(error?.message||error);
+    } finally {if(mediaRelink===action)$('mediaRelinkChoose').disabled=false;}
+  });
+  $('mediaRelinkOpen').addEventListener('click', async () => {
+    const action=mediaRelink;if(!action?.mediaPath)return;
+    const rememberMedia=$('mediaRelinkRemember').checked;
+    closeMediaRelink();setJsonPath(action.path);
+    await openServerEditor({force:true,mediaPath:action.mediaPath,rememberMedia});
+  });
 
   async function startBlankEditor() {
     // 显式空白启动：不读取上次工程替代目标（serve.py --blank）。
@@ -3792,7 +3858,7 @@
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
   window.addEventListener('msw:config-notice', event => notify(event.detail.message, {error:true}));
-  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, notify, translate: t, errorText: errText, llmProviderLabel, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
+  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, notify, translate: t, errorText: errText, llmProviderLabel, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, openMediaRelink, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
 
   window.MSWLauncher.validateQueueRecognition = mediaPath => validateLocal({ mediaPath, srtPath: 'queue.srt' });
   window.MSWLauncher.setQueueProgress = message => setStatus(message);

@@ -145,6 +145,7 @@
           <a id="homeServerAddress" class="status-link hidden" href="#"></a>
         </div>
         <span class="footer-spacer"></span>
+        <button id="homeRelinkMedia" class="ghost" type="button" data-i18n="media_relink" disabled>关联媒体</button>
         <button id="homeBlank" class="ghost" type="button" data-i18n="home_blank_launch">启动空白编辑器</button>
         <button id="homeOpenSelected" class="primary" type="button" data-i18n="home_open_selected" disabled>打开所选工程</button>
       </footer>
@@ -1400,6 +1401,19 @@
 
 
 
+
+  <div id="mediaRelinkModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="mediaRelinkTitle">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card batch-confirm-card media-relink-card">
+      <header class="modal-header"><h2 id="mediaRelinkTitle" data-i18n="media_relink">关联媒体</h2></header>
+      <p id="mediaRelinkProject" class="hint"></p>
+      <div class="media-relink-path"><input id="mediaRelinkPath" type="text" readonly aria-label="媒体路径" data-i18n-aria-label="media_relink_path"><button id="mediaRelinkChoose" type="button" class="ghost" data-i18n="media_relink_choose">选择媒体</button></div>
+      <label class="media-relink-remember"><input id="mediaRelinkRemember" type="checkbox" checked><span data-i18n="media_relink_remember">记住此媒体关联</span></label>
+      <p class="hint" data-i18n="media_relink_hint">成功加载后更新工程并保留备份；取消勾选则仅本次使用。</p>
+      <p id="mediaRelinkMessage" class="hint" role="status"></p>
+      <div class="modal-actions"><button id="mediaRelinkCancel" class="ghost" type="button" data-i18n="media_relink_cancel">取消</button><button id="mediaRelinkOpen" class="primary" type="button" data-i18n="media_relink_open" disabled>打开工程</button></div>
+    </section>
+  </div>
 
   <div id="batchConfirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="batchConfirmTitle">
     <div class="modal-backdrop"></div>

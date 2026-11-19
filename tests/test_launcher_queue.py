@@ -224,7 +224,7 @@ class QueueTests(unittest.TestCase):
         result = self.execute(tasks[0])
         saved = queue.read_project(Path(result['projectPath']))
         self.assertEqual(saved['subtitles'], imported['subtitles'])
-        self.assertEqual(saved['media'], str(self.media))
+        self.assertEqual((Path(result['projectPath']).parent / saved['media']).resolve(), self.media.resolve())
         self.assertEqual(self.srt.read_bytes(), original)
         self.assertEqual(len(queue.read_input(Path(result['srtPath']))['subtitles']['cues']), 4)
 

@@ -16,6 +16,7 @@ from maw.msw.project_codec import valid_id
 from maw.msw.recovery import RecoveryStore
 from maw.project import normalize_project
 from maw.project_io import strip_inline_caches
+from maw.media import rebase_project_media, media_reference_matches
 
 
 def fingerprint(path):
@@ -89,7 +90,8 @@ class ProjectPersistence:
             same = project_id == context["projectId"] and payload.get("recovery") is not True
             recovered = self.recovered.get(project_id, {}) if not same else {}
             origin = bound.json_path if same else recovered.get("origin")
-            media = ((bound.source_media_path or bound.media_path) if same and project.get("media") == bound.data.get("media")
+            media = ((bound.source_media_path or bound.media_path) if same and (project.get("media") == bound.data.get("media")
+                     or media_reference_matches(project.get('media'), bound.source_media_path or bound.media_path, bound.json_path))
                      else recovered.get("media") if project.get("media") == recovered.get("project", {}).get("media") else None)
             registered = self.api._media.active(project_id, project.get('media')) if getattr(self.api, '_media', None) else None
             if registered:
@@ -108,7 +110,11 @@ class ProjectPersistence:
             self.recovered[extension["project_id"]] = record
             while len(self.recovered) > 16:
                 self.recovered.pop(next(iter(self.recovered)))
-        return {"project": project, "filename": record["name"]}
+        media = record.get('media')
+        if not media and record.get('origin') and project.get('media') and '://' not in project['media']:
+            media = Path(record['origin']).parent / project['media']
+        return {"project": project, "filename": record["name"],
+                "fileExportMediaIdentity": {"reference": project.get('media'), "path": str(Path(media).resolve())} if media else None}
 
     def choose_target(self, payload):
         context = self.api.context()
@@ -195,29 +201,31 @@ class ProjectPersistence:
             if registered:
                 media_source = Path(registered['path'])
                 media_owner = {'media': registered['reference']}
+            source_matches = original_reference == media_owner.get('media') or media_reference_matches(original_reference, media_source, origin_path)
             if collect:
-                if not media_source or original_reference != media_owner.get("media"):
+                if not media_source or not source_matches:
                     raise ValueError("当前原媒体尚未由服务器接管，请从本机服务器重新打开含媒体的工程")
                 directory = asset_relative_path(new_id, "unused").split("/audio/")[0] + "/media"
                 project["media"] = collect_media(media_source, target.parent, directory)
-            elif isinstance(original_reference, str) and original_reference and origin_path:
-                candidate = Path(original_reference)
-                if not candidate.is_absolute():
-                    project["media"] = str((origin_path.parent / candidate).resolve())
+            elif original_reference and (origin_path or media_source):
+                project = rebase_project_media(project, target, source_project_path=origin_path,
+                    media_path=media_source if source_matches else None)
             normalized = normalize_project(project)
             self.api.assets.adopt(new_id, extension.get("assets", []), source_id)
-            saved_media = (target.parent / normalized["media"]) if collect else (media_source if original_reference == media_owner.get("media") else None)
+            saved_media = (target.parent / normalized["media"]) if collect else (media_source if source_matches else None)
             backup = write_project(target, normalized, media_source=saved_media)
-            same_media = not recovering and bound_source and original_reference == old.data.get("media")
+            same_media = not recovering and bound_source and media_source is not None and media_reference_matches(
+                str(media_source), old.source_media_path or old.media_path)
             from maw.project_io import persist_audio_track, restore_runtime_caches, selected_audio_track_from_project
             normalized = persist_audio_track(normalized)
             runtime = restore_runtime_caches(normalized, {**old.data, 'media': normalized.get('media')}, saved_media) if same_media else normalized
             server.project = replace(old, data=runtime, json_path=target, audio_track=selected_audio_track_from_project(normalized),
                                      media_path=old.media_path if same_media and original_reference else saved_media,
-                                     source_media_path=(target.parent / normalized["media"]) if collect else (media_source if original_reference == media_owner.get("media") else None))
+                                     source_media_path=saved_media)
             self.api.invalidate_binding()
             server.remember_project(target)
             return {"project": normalized, "filename": target.name,
+                    "fileExportMediaIdentity": {"reference": normalized.get('media'), "path": str(Path(saved_media).resolve())} if saved_media else None,
                     "backup": backup.name if backup else None,
                     "assets": report, "recoveryWarning": self.recovery_warning, **self.api.context()}
         finally:

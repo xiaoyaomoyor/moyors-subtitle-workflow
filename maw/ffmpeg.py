@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from maw.gui_platform import creationflags, startupinfo
+
 
 FFMPEG_PATH_ENV: Final = "FFMPEG_PATH"
 MACOS_FFMPEG_CANDIDATE_DIRECTORIES: Final[tuple[str, ...]] = (
@@ -315,6 +317,7 @@ def media_duration_seconds(
         ]
         result = subprocess.run(  # noqa: S603 - 固定参数的媒体探测
             cmd, check=True, capture_output=True, text=True, timeout=30,
+            startupinfo=startupinfo(), creationflags=creationflags(),
         )
         duration = float(result.stdout.strip())
         return duration if math.isfinite(duration) and duration > 0 else None

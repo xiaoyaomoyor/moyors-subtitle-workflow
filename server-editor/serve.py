@@ -454,20 +454,9 @@ def _loaded_media_reference(
     resolution: MediaResolution,
     explicit_media: str | None,
 ) -> str:
-    """保留有效的便携引用，并修复已经触发同目录兜底的引用。"""
-
-    if explicit_media is not None:
-        return str(source_media_path)
-    if (
-        isinstance(media_value, str)
-        and media_value.strip()
-        and resolution.requested_path is not None
-        and resolution.requested_path.is_file()
-    ):
-        return media_value.strip()
-    if source_media_path.parent == json_path.parent:
-        return source_media_path.name
-    return str(source_media_path)
+    """Persist the original media identity, not the browser's paired cache."""
+    from maw.media import project_media_reference
+    return project_media_reference(json_path, source_media_path)
 
 
 def load_project(
@@ -479,6 +468,7 @@ def load_project(
     load_reapeaks: bool = True,
     peaks_per_second: int,
     progress: ProjectLoadProgressCallback | None = None,
+    remember_media: bool = False,
 ) -> ServerProject:
     def report(stage: str, progress_value: int) -> None:
         if progress is not None:
@@ -488,7 +478,8 @@ def load_project(
     report("reading_project", 5)
     if not json_path.exists():
         raise FileNotFoundError(f"JSON 文件不存在 - {json_path}")
-    raw_data = json.loads(json_path.read_text(encoding="utf-8"))
+    original_bytes = json_path.read_bytes()
+    raw_data = json.loads(original_bytes.decode('utf-8-sig'))
     # 兜底：上游（或旧版工具）可能写入 0 长/倒挂的段、词时间码，
     # 加载时先拉齐到至少 100ms，避免编辑器里出现看不见的字幕块、保存被校验拒绝。
     repaired_count = repair_project_timing_ranges(raw_data)
@@ -534,8 +525,9 @@ def load_project(
     if not resolution.loadable:
         raise MediaResolutionError(resolution)
     assert resolution.resolved_path is not None
-    source_media_path = resolution.resolved_path
-    media_path = source_media_path
+    media_path = resolution.resolved_path
+    source_media_path = (resolution.requested_path if resolution.requested_path is not None
+                         and resolution.requested_path.is_file() else media_path)
     configured_ffmpeg = os.environ.get("FFMPEG_PATH") or load_env(DEFAULT_ENV_PATH).get("FFMPEG_PATH", "")
     ffmpeg_tools = resolve_ffmpeg_tools(
         configured_path=configured_ffmpeg or None,
@@ -548,7 +540,7 @@ def load_project(
         except MediaConversionError as error:
             raise MediaConversionError(f"{error}（源文件：{source_media_path}）") from error
         print(f"[media] 已为浏览器准备播放缓存: {media_path}")
-    # 同目录工程保留相对引用以便整套移动；显式 -m 覆盖和目录外媒体仍记录绝对路径。
+    # Every persisted reference belongs to the project directory.
     data["media"] = _loaded_media_reference(
         json_path,
         media_value,
@@ -639,6 +631,8 @@ def load_project(
                 )
 
     report("finalizing", 95)
+    if remember_media and explicit_media is not None:
+        remember_project_media(json_path, data['media'], original_bytes)
     return ServerProject(
         data,
         json_path,
@@ -788,6 +782,7 @@ def build_server_page(
             "canLottieExport": project.json_path is not None,
             "canOgrafExport": project.json_path is not None,
             "autoLoadedMediaName": (project.source_media_path or project.media_path).name if project.media_path else None,
+            "fileExportMediaIdentity": {"reference": project.data.get('media'), "path": str(project.source_media_path or project.media_path)} if project.media_path else None,
             "recentProjectsUrl": "/api/recent-projects/open",
             "recentProjectsListUrl": "/api/recent-projects",
             "attachUrl": "/api/project/attach",
@@ -919,6 +914,7 @@ class EditorServer(ThreadingHTTPServer):
                 "error": self.startup_error,
                 "projectPath": str(project_path) if project_path is not None else "",
                 "mediaPath": str(media_path) if media_path is not None else "",
+                "sourceMediaPath": str(project.source_media_path or media_path) if media_path is not None else "",
                 "unsaved": unsaved,
                 "hasContent": has_content,
             }
@@ -1324,6 +1320,7 @@ class EditorServer(ThreadingHTTPServer):
         return project
 
     def write_project(self, target, project_data, *, media_source=..., _normalized=False):
+        from maw.media import media_reference_matches
         # Recovery failure must never turn a successful primary write into a
         # reported save failure. The adjacent .bak remains independently useful.
         persistence = self.processing_api.persistence
@@ -1340,7 +1337,8 @@ class EditorServer(ThreadingHTTPServer):
                 put_history = persistence.recovery._put_normalized if validated_original else persistence.recovery.put
                 put_history(previous, kind="history", name=target.name, origin=target,
                                          media=(self.project.source_media_path or self.project.media_path)
-                                         if target == self.project.json_path and previous.get("media") == self.project.data.get("media") else None)
+                                         if target == self.project.json_path and (previous.get("media") == self.project.data.get("media")
+                                         or media_reference_matches(previous.get('media'), self.project.source_media_path or self.project.media_path, target)) else None)
         except Exception:
             persistence.recovery_warning = "历史备份暂不可用；请检查本机存储空间"
         backup = write_project_json(target, project_data, _normalized=_normalized,
@@ -1374,9 +1372,14 @@ class EditorServer(ThreadingHTTPServer):
             if (self.project.data.get('msw') or {}).get('assets'):
                 return {'resendProject': True}
             return {'filename': cached[1].name, 'backup': None, 'assets': cached[3],
+                    'fileExportMediaIdentity': self.file_export_media_identity(),
                     'recoveryWarning': cached[4], **self.processing_api.context()}
         finally:
             self.save_lock.release()
+
+    def file_export_media_identity(self):
+        source = self.project.source_media_path or self.project.media_path
+        return {'reference': self.project.data.get('media'), 'path': str(source)} if source else None
 
     def save_project(self, project_data: dict, filename: str | None = None, *,
                      expected_binding: str | None = None, expected_revision: str | None = None,
@@ -1396,6 +1399,7 @@ class EditorServer(ThreadingHTTPServer):
                     self.processing_api.check_save(expected_binding, expected_revision)
                 if self.project.json_path == cached[1] and cached[1].read_bytes() == cached[2] and not (project_data.get('msw') or {}).get('assets'):
                     context = {**self.processing_api.context(), 'assets': cached[3],
+                               'fileExportMediaIdentity': self.file_export_media_identity(),
                                'recoveryWarning': cached[4]} if include_context else None
                     return (cached[1], None, context) if include_context else (cached[1], None)
             finally:
@@ -1423,16 +1427,33 @@ class EditorServer(ThreadingHTTPServer):
                 raise SaveProjectError("当前服务器没有绑定工程文件")
             if filename is not None:
                 target = safe_project_filename(target.parent, filename)
+            from maw.media import rebase_project_media, media_reference_matches
+            same_media = normalized_project.get('media') == self.project.data.get('media')
+            original_source = self.project.source_media_path or self.project.media_path
+            reference = normalized_project.get('media')
+            same_media = same_media or media_reference_matches(reference, original_source, self.project.json_path)
+            media_source = (self.project.source_media_path or self.project.media_path) if same_media else None
+            normalized_project = rebase_project_media(normalized_project, target,
+                media_path=media_source, source_project_path=self.project.json_path)
             asset_report = {"total": 0, "available": 0, "copied": 0, "missing": []}
             if (normalized_project.get("msw") or {}).get("assets"):
                 asset_report = self.processing_api.assets.persist_project(normalized_project, target, self.project.json_path)
-            backup = self.write_project(target, normalized_project, _normalized=True)
-            runtime = restore_runtime_caches(persist_audio_track(normalized_project), self.project.data,
+            backup = self.write_project(target, normalized_project, media_source=media_source, _normalized=True)
+            runtime = restore_runtime_caches(persist_audio_track(normalized_project),
+                                             {**self.project.data, 'media': normalized_project.get('media')} if same_media else self.project.data,
                                              self.project.source_media_path or self.project.media_path)
+            # Disk references belong to the save directory. Keep the live
+            # registration stable so autosave cannot invalidate in-flight
+            # waveform/proxy/ASR work that captured the current reference.
+            if reference is not None:
+                runtime['media'] = reference
             self.project = replace(self.project, data=runtime, json_path=target,
+                                   media_path=self.project.media_path if same_media else None,
+                                   source_media_path=media_source,
                                    audio_track=selected_audio_track_from_project(runtime))
             self.remember_project(target)
             context = {**self.processing_api.context(), "assets": asset_report,
+                       "fileExportMediaIdentity": self.file_export_media_identity(),
                        "recoveryWarning": self.processing_api.persistence.recovery_warning} if include_context else None
             self._saved_request = (request_key, target, target.read_bytes(), asset_report,
                                    self.processing_api.persistence.recovery_warning)
@@ -1871,6 +1892,28 @@ def export_ograf(project: ServerProject, graphic: dict) -> tuple[bytes, str]:
         archive.writestr(manifest_filename, manifest_body)
         archive.writestr(main_filename, main_body)
     return buffer.getvalue(), f"{project.json_path.stem}_dynamic-caption.ograf.zip"
+
+
+def remember_project_media(target: Path, reference: str, original: bytes) -> None:
+    """Change only an explicitly chosen link, with original bytes and writer guard."""
+    from maw.msw.subtitle_tracks_io import TrackDocument, _writer_lock, _check_current
+    from maw.file_io import atomic_output_path
+    raw = json.loads(original.decode('utf-8-sig'))
+    if raw.get('media') == reference:
+        return
+    document = TrackDocument(target.resolve(), original, raw)
+    raw['media'] = reference
+    with _writer_lock(target):
+        _check_current(document, None)
+        backup = target.with_suffix(target.suffix + '.bak')
+        with atomic_output_path(backup) as pending:
+            with pending.open('wb') as handle:
+                handle.write(original); handle.flush(); os.fsync(handle.fileno())
+        with atomic_output_path(target) as pending:
+            with pending.open('w', encoding='utf-8', newline='\n') as handle:
+                json.dump(raw, handle, ensure_ascii=False, indent=2)
+                handle.write('\n'); handle.flush(); os.fsync(handle.fileno())
+            _check_current(document, None)
 
 
 def write_project_json(target: Path, project_data: dict, *, _normalized=False, _original=None, _validated_original=False) -> Path | None:
@@ -2684,6 +2727,7 @@ def main() -> int:
     )
     parser.add_argument("json_path", nargs="?", help="字幕工程 JSON；省略时默认尝试恢复上次打开的工程")
     parser.add_argument("-m", "--media", help="媒体文件路径（默认按 JSON.media / 同目录探测）")
+    parser.add_argument('--remember-media', action='store_true', help='加载成功后记住显式媒体关联，并保留原工程备份')
     parser.add_argument("-s", "--stickers", help="表情包目录（默认读取 .env 的 STICKER_DIR）")
     parser.add_argument("--blank", action="store_true", help="启动空白编辑器，之后在页面中选择 JSON 与媒体")
     parser.add_argument(
@@ -2699,6 +2743,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.blank and args.json_path:
         parser.error("--blank 不能与 json_path 同时使用")
+    if args.remember_media and (not args.json_path or not args.media):
+        parser.error('--remember-media 需要工程路径和 --media')
 
     settings_path = default_settings_path()
     settings = load_default_server_settings()
@@ -2715,6 +2761,7 @@ def main() -> int:
                 load_reapeaks=not defer_reapeaks,
                 peaks_per_second=args.waveform_peaks_per_second,
                 progress=progress,
+                remember_media=args.remember_media,
             )
 
         project_loader = load_requested_project

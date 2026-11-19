@@ -308,6 +308,9 @@ class ProjectRegistryTests(unittest.TestCase):
         self.settings = _write_json(self.root / "server-editor-settings.json", {"recent_projects": []})
         self.metadata = self.root / "launcher-recent.json"
         self.registry = self.root / "launcher-project-registry.json"
+        registry_patch = mock.patch.object(launcher_projects, 'project_registry_path', return_value=self.registry)
+        registry_patch.start()
+        self.addCleanup(registry_patch.stop)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()

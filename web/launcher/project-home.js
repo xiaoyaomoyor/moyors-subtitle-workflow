@@ -585,6 +585,7 @@
   function renderLaunchArea() {
     var button = el("homeOpenSelected");
     if (button) button.disabled = !browsedTargetPath() || button.dataset.busy === 'true';
+    if (el('homeRelinkMedia')) el('homeRelinkMedia').disabled = !browsedTargetPath() || button?.dataset.busy === 'true';
   }
 
   function persistSelection() {
@@ -1034,6 +1035,7 @@
     var batchLabel = function (key) { return t(key).replace("{n}", String(batchEntries.length)); };
     var actions = [];
     actions.push({ key: "recent_open_project", run: function () { openProject(entry.path); } });
+    if(entry.exists && !batchEntries.length) actions.push({key:'media_relink',run:function(){window.MSWLauncher.openMediaRelink(entry.path);}});
     if (batchEntries.length) {
       actions.push({ key: allPinned ? "batch_unpin" : "batch_pin", label: batchLabel(allPinned ? "batch_unpin" : "batch_pin"), run: async function () {
         for (var item of batchEntries) await bridge("set_recent_project_pinned", { path: item.path, pinned: !allPinned });

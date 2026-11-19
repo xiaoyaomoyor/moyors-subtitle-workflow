@@ -203,13 +203,13 @@ def write_derived_project(project: JsonDict, target: Path, source: Path) -> tupl
     normalized = normalize_project(project)
     media = normalized.get("media")
     if isinstance(media, str) and media.strip():
-        from maw.media import resolve_project_media
+        from maw.media import resolve_project_media, rebase_project_media
 
-        resolved = resolve_project_media(source, normalized).resolved_path
-        if resolved is not None:
-            normalized["media"] = str(resolved)
-        elif not Path(media).is_absolute() and "://" not in media:
-            normalized["media"] = str((source.parent / media).resolve(strict=False))
+        resolution = resolve_project_media(source, normalized)
+        resolved = resolution.requested_path
+        if resolved is None or not resolved.is_file():
+            resolved = resolution.resolved_path
+        normalized = rebase_project_media(normalized, target, media_path=resolved, source_project_path=source)
     warnings: tuple[str, ...] = ()
     if (normalized.get("msw") or {}).get("assets"):
         from maw.app_paths import default_app_data_root

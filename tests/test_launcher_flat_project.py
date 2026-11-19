@@ -126,7 +126,7 @@ class LauncherFlatProjectTests(unittest.TestCase):
         saved = queue.read_project(Path(result['projectPath']))
         self.assertEqual(saved['subtitles'], self.project['subtitles'])
         self.assertEqual(saved['custom_extension'], self.project['custom_extension'])
-        self.assertEqual(Path(saved['media']).resolve(), media.resolve())
+        self.assertEqual((Path(result['projectPath']).parent / saved['media']).resolve(), media.resolve())
         self.assertIn('waveform', saved)
         self.assertEqual(self.path.read_bytes(), before)
 

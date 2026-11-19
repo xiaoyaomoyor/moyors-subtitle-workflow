@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from maw.file_io import FileSaveError, atomic_write_text, ensure_output_directory
-from maw.media import probe_audio_tracks, probe_video_fps
+from maw.media import probe_audio_tracks, probe_video_fps, rebase_project_media
 from maw.project import PROJECT_SCHEMA, ProjectValidationError, ProjectValidationFailed, project_schema_errors
 from maw.msw.project_codec import validate_extension
 
@@ -195,9 +195,15 @@ def write_mosp(
 
     target = Path(path).expanduser()
     ensure_output_directory(target.parent)
+    portable = rebase_project_media(project, target, media_path=media_path)
+    probe_media = media_path
+    if probe_media is None and isinstance(project.get('media'), str) and project['media'].strip():
+        probe_media = Path(project['media']).expanduser()
+        if not probe_media.is_absolute():
+            probe_media = target.resolve().parent / probe_media
     content = serialize_mosp(
-        project,
-        media_path=media_path,
+        portable,
+        media_path=probe_media,
         ffprobe_path=ffprobe_path,
         selected_audio_track=selected_audio_track,
     )

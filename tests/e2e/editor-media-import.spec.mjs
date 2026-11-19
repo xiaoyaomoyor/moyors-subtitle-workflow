@@ -52,7 +52,7 @@ test('direct browser video import registers the same playable source and can sav
   await expect(page.locator('#project-save-as-modal')).toHaveClass(/show/);
   await page.locator('#project-save-choose').click(); await page.locator('#project-save-confirm').click();
   await expect(page.locator('#project-save-as-modal')).not.toHaveClass(/show/);
-  const project = JSON.parse(readFileSync(saved)); expect(project.segments).toEqual([]);
+  const project = JSON.parse(readFileSync(saved)); expect(project.subtitles.cues).toEqual([]);
   expect(project.media).not.toMatch(/^blob:/); expect(project.media_metadata.duration_ms).toBeGreaterThanOrEqual(3000);
   await page.reload();
   await expect.poll(() => page.evaluate(() => player.duration)).toBeGreaterThanOrEqual(3);
@@ -158,7 +158,7 @@ test('media tools are in global environment settings and honor a startup-control
   expect(field.width/controls.width).toBeGreaterThan(.95);
   await expect(page.locator('#msw-tools-status')).toContainText('启动环境');
   await expect(page.locator('#msw-tools-path')).toBeDisabled();await expect(page.locator('#msw-tools-save')).toBeDisabled();
-  await expect(page.locator('#editor-settings-nav .settings-nav-subitem').filter({hasText:/^媒体工具$/})).toBeVisible();
+  await expect(page.locator('#media-tools-environment-section > .settings-subsection-title')).toHaveText('媒体工具');
   await expect(page.locator('#msw-tools-dialog')).toHaveCount(0);
   await page.screenshot({path:join(root,'media-tools-environment.png'),fullPage:true});
 });

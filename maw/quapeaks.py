@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from maw.gui_platform import creationflags, startupinfo
+
 from maw import waveform as waveform_module
 from maw.ffmpeg import resolve_ffmpeg_tool
 from maw.output_naming import (
@@ -1073,6 +1075,7 @@ def generate_reapeaks_stream_bytes(
             ],
             stdout=subprocess.PIPE,
             stderr=stderr_file,
+            startupinfo=startupinfo(), creationflags=creationflags(),
         )
     except OSError as exc:
         stderr_file.close()

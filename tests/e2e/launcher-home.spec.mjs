@@ -199,15 +199,16 @@ test('context menu exposes open, pin, folder, cover refresh, and remove actions'
   const menu = page.locator('#recentContextMenu');
   await expect(menu).toBeVisible();
   const items = menu.locator('button[role="menuitem"]');
-  await expect(items).toHaveCount(5);
+  await expect(items).toHaveCount(6);
   await expect(items.nth(0)).toHaveText('打开工程');
-  await expect(items.nth(1)).toHaveText('取消顶置');
-  await expect(items.nth(2)).toHaveText('打开所在文件夹');
-  await expect(items.nth(3)).toHaveText('刷新封面');
-  await expect(items.nth(4)).toHaveText('从最近记录移除');
+  await expect(items.nth(1)).toHaveText('关联媒体');
+  await expect(items.nth(2)).toHaveText('取消顶置');
+  await expect(items.nth(3)).toHaveText('打开所在文件夹');
+  await expect(items.nth(4)).toHaveText('刷新封面');
+  await expect(items.nth(5)).toHaveText('从最近记录移除');
 
   // H01：刷新封面绕过缓存重新提取（mock 记录 refresh: 前缀）。
-  await items.nth(3).click();
+  await items.nth(4).click();
   await expect(menu).toBeHidden();
   await page.waitForFunction(() => (window.__thumbRequests || []).some((item) => item.startsWith('refresh:')));
 });
@@ -482,7 +483,7 @@ test('delete project file flow confirms scope, recycles, and reports; registry r
   const menu = page.locator('#recentContextMenu');
   const items = menu.locator('button[role="menuitem"]');
   const labels = await items.evaluateAll((nodes) => nodes.map((node) => node.textContent));
-  expect(labels).toEqual(['打开工程', '顶置项目', '打开所在文件夹', '刷新封面', '从全部工程记录移除', '删除工程文件…']);
+  expect(labels).toEqual(['打开工程', '关联媒体', '顶置项目', '打开所在文件夹', '刷新封面', '从全部工程记录移除', '删除工程文件…']);
   const danger = menu.locator('button.danger');
   await expect(danger).toHaveCount(1);
   expect(await danger.locator('svg').count()).toBe(1);
@@ -849,7 +850,7 @@ test('home badges and footer remain compact in light and dark themes', async ({ 
     await expect(page.locator('.recent-pin svg').first()).toHaveAttribute('fill', 'currentColor');
     const layout = await page.evaluate(() => ({overflow:document.documentElement.scrollWidth > innerWidth,buttons:[...document.querySelectorAll('.home-launch > button')].map(n=>n.textContent)}));
     expect(layout.overflow).toBe(false);
-    expect(layout.buttons).toEqual(['启动空白编辑器','打开所选工程']);
+    expect(layout.buttons).toEqual(['关联媒体','启动空白编辑器','打开所选工程']);
     const badges = await page.locator('#allGrid .recent-card.has-new').evaluate(card => {
       const styles = [getComputedStyle(card, '::after'), getComputedStyle(card.querySelector('.recent-pin')), getComputedStyle(card.querySelector('.recent-new'))];
       return styles.map(s => [s.width,s.height,s.top,s.borderRadius,s.backgroundColor]);

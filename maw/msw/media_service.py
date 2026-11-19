@@ -115,6 +115,7 @@ class MediaService:
                 ('id', 'project_id', 'name', 'reference', 'metadata', 'video', 'audio_index', 'stamp', 'time_reference')} | {
                     'url': f"/api/msw/media-source?project_id={record['project_id']}&media_id={record['id']}",
                     'managed': record.get('managed', False),
+                    'nativePath': str(record['path']),
                     'track_conflict': record.get('track_conflict', False),
                     'revision': hashlib.sha256(json.dumps([record['path'], record['stamp'], record['audio_index']]).encode()).hexdigest()}
 

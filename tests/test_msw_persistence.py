@@ -30,6 +30,30 @@ def wav_data():
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_save_rebases_reference_without_losing_original_or_alias_identity(self):
+        absolute = copy.deepcopy(self.server.project.data)
+        _, _, result = self.server.save_project(absolute, include_context=True)
+        self.assertEqual(json.loads(self.path.read_text(encoding='utf-8'))['media'], self.media.name)
+        self.assertEqual(self.server.project.data['media'], absolute['media'])
+        self.assertEqual(result['fileExportMediaIdentity']['reference'], absolute['media'])
+        self.assertEqual(Path(result['fileExportMediaIdentity']['path']), self.media.resolve())
+        absolute['language'] = 'fr'
+        _, _, again = self.server.save_project(absolute, include_context=True)
+        self.assertEqual(again['fileExportMediaIdentity']['reference'], absolute['media'])
+        self.assertEqual(self.server.project.source_media_path, self.media)
+
+    def test_changed_unregistered_media_does_not_borrow_old_path_on_repeated_save(self):
+        changed = copy.deepcopy(self.server.project.data)
+        changed['media'] = 'different.wav'
+        _, _, result = self.server.save_project(changed, include_context=True)
+        self.assertIsNone(result['fileExportMediaIdentity'])
+        self.assertIsNone(self.server.project.source_media_path)
+        context = self.api.context()
+        again = self.server.confirm_saved_project(context['binding'], context['saveRevision'])
+        self.assertIsNone(again['fileExportMediaIdentity'])
+        with self.assertRaisesRegex(ValueError, '尚未由服务器接管'):
+            self.save_as(collectMedia=True)
+
     def test_deferred_waveform_waits_for_save_and_preserves_current_content(self):
         project=self.server.project;loaded=threading.Event()
         def spectral(*args,**kwargs):
@@ -223,7 +247,9 @@ class PersistenceTests(unittest.TestCase):
     def test_optional_media_collection_and_relative_reference_relocation(self):
         self.server.project.data["media"] = self.media.name
         result = self.save_as()
-        self.assertEqual(result["project"]["media"], str(self.media.resolve()))
+        self.assertFalse(Path(result['project']['media']).is_absolute())
+        self.assertEqual((self.destination.parent / result['project']['media']).resolve(), self.media.resolve())
+        self.assertEqual(Path(result['fileExportMediaIdentity']['path']), self.media.resolve())
         self.assertFalse(any(self.destination.parent.glob("*.assets/media/*")))
 
     def test_unbound_project_does_not_borrow_media_from_the_bound_project(self):

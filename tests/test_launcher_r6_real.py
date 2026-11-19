@@ -184,7 +184,7 @@ class RealMediaAcceptanceTests(unittest.TestCase):
             self.assertTrue(reapeaks, completed[0])
             self.assertTrue(Path(reapeaks).is_file())
             media_only_check = json.loads(project_path.read_text(encoding="utf-8"))
-            self.assertEqual(media_only_check.get("media"), str(self.root / "media" / "landscape.mp4"))
+            self.assertEqual((project_path.parent / media_only_check['media']).resolve(), (self.root / 'media' / 'landscape.mp4').resolve())
 
             events.clear()
             media_only = api.start_waveform_project({

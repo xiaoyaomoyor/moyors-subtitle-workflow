@@ -3158,6 +3158,15 @@ textarea::placeholder {
   width: min(480px, calc(100vw - 32px));
 }
 
+.media-relink-card { gap: 10px; }
+.media-relink-card p { margin: 0; overflow-wrap: anywhere; }
+.media-relink-path { display: flex; gap: 8px; }
+.media-relink-path input { min-width: 0; flex: 1; }
+.media-relink-path button { flex-shrink: 0; }
+.media-relink-remember { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.media-relink-remember input { width: 14px; height: 14px; min-height: 0; flex: 0 0 14px; margin: 0; }
+.media-relink-remember span { white-space: nowrap; }
+
 .batch-confirm-message {
   margin: 0 0 18px;
   color: var(--text-primary);
