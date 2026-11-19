@@ -313,7 +313,7 @@
         { id: "proofread", enabled: false, providerId: "deepseek", customPrompt: "" },
         { id: "resegment", enabled: false, providerId: "deepseek", customPrompt: "" },
         { id: "ocr", enabled: false, videoPath: "", videoPathMode: "", regionMode: "full", regionX1: 0, regionY1: 0, regionX2: 100, regionY2: 100, threshold: 0.5, report: false },
-        { id: "translate", enabled: false, providerId: "deepseek", target: "zh", mergeBilingual: false, embedTranslations: false, bilingualLineOrder: "", customPrompt: "" },
+        { id: "translate", enabled: false, providerId: "deepseek", target: "zh", skipTargetLanguage: true, mergeBilingual: false, embedTranslations: false, bilingualLineOrder: "", customPrompt: "" },
       ],
     };
   }
@@ -981,7 +981,7 @@
         { id: "proofread", enabled: stepEnabled("proofread"), providerId: $("proofreadProvider").value, ...stepModelOverrides.proofread, customPrompt: getLlmPrompt("proofread") },
         { id: "resegment", enabled: stepEnabled("resegment"), providerId: $("resegmentProvider").value, ...stepModelOverrides.resegment, maxChars: $("resegmentMaxChars").value, customPrompt: getLlmPrompt("resegment") },
         { id: "ocr", enabled: stepEnabled("ocr"), modelId: $("ocrModel").value, videoPath: ocrVideoManual ? $("ocrVideoPath").value.trim() : "", videoPathMode: ocrVideoManual ? "manual" : "auto", ...ocr, threshold: Number($("ocrThreshold").value), report: Boolean($("ocrReport").checked) },
-        { id: "translate", enabled: stepEnabled("translate"), providerId: $("translateProvider").value, ...stepModelOverrides.translate, target: $("autoTranslateTarget").value || "zh", mergeBilingual: ($("translationWriteMode").value === "bilingual"), embedTranslations: ($("translationWriteMode").value === "backfill"), bilingualLineOrder: $("autoTranslateBilingualOrder")?.value || "", customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
+        { id: "translate", enabled: stepEnabled("translate"), providerId: $("translateProvider").value, ...stepModelOverrides.translate, target: $("autoTranslateTarget").value || "zh", skipTargetLanguage: $("autoTranslateSkipTargetLanguage").checked, mergeBilingual: ($("translationWriteMode").value === "bilingual"), embedTranslations: ($("translationWriteMode").value === "backfill"), bilingualLineOrder: $("autoTranslateBilingualOrder")?.value || "", customPrompt: getLlmPrompt(autoLlmOperation("translate")) },
       ];
     return {
       version: 1, outputSemantics: 'separate-v2',
@@ -1185,6 +1185,7 @@
     $("ocrReport").checked = Boolean(ocr.report);
     const translate = byId.get("translate") || {};
     $("autoTranslateTarget").value = String(translate.target || "zh");
+    $("autoTranslateSkipTargetLanguage").checked = translate.skipTargetLanguage !== false;
     $("translationWriteMode").value = translate.mergeBilingual ? 'bilingual' : translate.embedTranslations ? 'backfill' : 'secondary';
     $("autoTranslateBilingualOrder").value = ["translation_first", "original_first"].includes(translate.bilingualLineOrder) ? translate.bilingualLineOrder : "";
     const translatePrompt = byId.get("translate")?.customPrompt;
@@ -1661,6 +1662,7 @@
   $("translationWriteMode").addEventListener('change', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
   for (const id of ['proofread', 'resegment', 'translate']) $(id + 'Provider').addEventListener('change', () => { stepModelOverrides[id] = {model: '', reasoningMode: ''}; closeStepModels(id); renderAutoPostprocessState(); persistAutoPlanSoon(); });
   $("autoTranslateBilingualOrder").addEventListener("change", persistAutoPlanSoon);
+  $("autoTranslateSkipTargetLanguage").addEventListener("change", persistAutoPlanSoon);
   document.addEventListener('mswmodules', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
   document.addEventListener('mswqueuechange', () => { renderAutoPostprocessState(); void refreshSplitPreview(); });
   ["jsonPath", "srtPath", "mediaPath"].forEach((id) => $(id).addEventListener("input", () => {

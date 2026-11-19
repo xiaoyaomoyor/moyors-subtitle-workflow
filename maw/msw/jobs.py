@@ -82,6 +82,17 @@ def validate_snapshot(raw: object) -> dict:
         result["project_schema"] = schema
     if "output_mode" in raw:
         result["output_mode"] = output_mode
+    if "skip_target_language" in raw:
+        if type(raw['skip_target_language']) is not bool:
+            raise ValueError('跳过目标语言选项无效')
+        result['skip_target_language'] = raw['skip_target_language']
+    if "source_language" in raw:
+        context = raw['source_language']
+        if (not isinstance(context, dict) or not isinstance(context.get('language'), str)
+                or len(context['language']) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in context['language'])
+                or context.get('language_source') not in ('detected', 'hint', 'inferred', 'unknown')):
+            raise ValueError('翻译来源语言无效')
+        result['source_language'] = {k: context[k] for k in ('language', 'language_source')}
     return result
 
 
@@ -104,8 +115,23 @@ def translate_snapshot(snapshot: dict, language: str, prompt: str, settings: Llm
         check()
         progress(stage, dict(details))
 
-    request = LlmPostprocessRequest(None, None, OutputMode.JSON, f"translate_{language}", prompt, strip_tail_punct=strip_tail_punct)
+    request = LlmPostprocessRequest(None, None, OutputMode.JSON, f"translate_{language}", prompt,
+                                   strip_tail_punct=strip_tail_punct,
+                                   skip_target_language=snapshot.get('skip_target_language', True))
     project = {"segments": [entry["source"] for entry in snapshot["entries"]]}
+    if snapshot.get('project_schema') == 'msw.project.v4':
+        from maw.language import normalize_language_code
+        model = snapshot['flat_model']
+        wanted = {entry['source']['id'] for entry in snapshot['entries']}
+        owners = {c['track_id'] for c in model['cues'] if c['id'] in wanted}
+        contexts = [t for t in model['tracks'] if t['id'] in owners]
+        # All selected tracks must independently confirm Chinese. Never borrow
+        # the media/project language for a Japanese or unknown subtitle track.
+        if contexts and all(normalize_language_code(t.get('language')) == 'zh'
+                            and t.get('language_source') in ('detected', 'hint') for t in contexts):
+            project.update(language='Chinese', language_source='hint')
+    else:
+        project.update(snapshot.get('source_language', {}))
     if snapshot.get('project_schema') in ('msw.project.v2', 'msw.project.v3', 'msw.project.v4'):
         from maw.msw.subtitle_layers import migrate_project
         project = migrate_project(project)

@@ -635,6 +635,7 @@
           </div>
           <div class="field hidden" id="translationOrderField"><label for="autoTranslateBilingualOrder" data-i18n="auto_bilingual_order">双语行序</label><select id="autoTranslateBilingualOrder"><option value="" data-i18n="auto_bilingual_default">跟随目标语言</option><option value="translation_first" data-i18n="auto_translation_first">译文在上</option><option value="original_first" data-i18n="auto_original_first">原文在上</option></select></div>
           <p class="hint" id="translationImpact" aria-live="polite"></p>
+          <label class="check-field" data-i18n-title="translation_skip_target_hint" title="仅在语言来源可信时跳过；来源不明或混合日文、韩文的内容仍会翻译。"><input id="autoTranslateSkipTargetLanguage" type="checkbox" checked><span data-i18n="translation_skip_target">跳过已是目标语言的文本</span></label>
           <div class="field">
             <label for="postprocessPromptTranslate" data-i18n="toolbox_prompt_translate">翻译提示词（追加）</label>
             <textarea id="postprocessPromptTranslate" rows="3" autocomplete="off" data-i18n-placeholder="toolbox_prompt_placeholder"></textarea>

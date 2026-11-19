@@ -69,6 +69,7 @@ class LlmPostprocessRequest:
     proofread_progress_path: Path | None = None
     resegment_max_chars: int = 0
     split_punctuation: tuple[str, ...] | None = None
+    skip_target_language: bool = True
 
 
 class PostprocessStepError(RuntimeError):
@@ -128,8 +129,8 @@ BILINGUAL_ARTIFACT_PATTERN: Final[re.Pattern[str]] = re.compile(
 )
 TIMING_FIELDS: Final = ("start", "end", "text", "items")
 ONE_TO_ONE_TRANSLATION_OPERATIONS: Final = frozenset({"translate_en", "translate_zh"})
-# 目标语言预过滤阈值：一条字幕的中文字符（不含假名/谚文等）占「中文 + 拉丁字母」
-# 的比例达到该值时，视为已是中文，翻译到中文时不再发送给模型。
+# Only after trusted source-language and batch checks, this ratio selects
+# Chinese cues within the batch. Han characters alone do not establish language.
 CJK_TARGET_RATIO_THRESHOLD: Final[float] = 0.7
 _CJK_CHAR_PATTERN: Final[re.Pattern[str]] = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 _LATIN_CHAR_PATTERN: Final[re.Pattern[str]] = re.compile(r"[A-Za-z]")
@@ -333,11 +334,13 @@ def process_llm_snapshot(
         return LlmSnapshotResult(project, ("没有需要校对的非空字幕，已保留原文。",), request.operation,
                                  tuple(sorted(preserved_blank_source_ids)), source_id_map)
     if strict_translation:
-        if cues:
+        if cues and request.skip_target_language:
+            can_skip_chinese = _can_prefilter_chinese(project, cues)
             preserved_target_source_ids = {
                 str(cue["id"])
                 for cue in cues
-                if _is_already_target_language(str(cue.get("text") or ""), request.operation)
+                if _is_already_target_language(str(cue.get("text") or ""), request.operation,
+                                               can_skip_chinese=can_skip_chinese)
             }
             if preserved_target_source_ids:
                 cues = [cue for cue in cues if str(cue["id"]) not in preserved_target_source_ids]
@@ -355,7 +358,10 @@ def process_llm_snapshot(
     batches = _llm_batches(cues)
     from maw.translation_progress import TranslationProgress
     progress = TranslationProgress(request.translation_progress_path if strict_translation else request.proofread_progress_path if strict_proofreading else None,
-        [system_prompt, request.translation_provider_fingerprint, source_id_map, cues])
+        [system_prompt, request.translation_provider_fingerprint, source_id_map, cues] + ([
+         {"translation_prefilter": 2, "enabled": request.skip_target_language,
+          "language": project.get("language"), "language_source": project.get("language_source")}
+         ] if strict_translation else []))
     _notify_status(on_status, "toolbox_status_preparing_llm")
     responses: list[Mapping[str, JsonValue]] = []
     skipped_source_ids: set[str] = set()
@@ -974,12 +980,22 @@ def _validate_proofread_response(
     return {"groups": clean}
 
 
-def _is_already_target_language(text: str, operation: str) -> bool:
+def _can_prefilter_chinese(project: Mapping, cues: Sequence[Mapping]) -> bool:
+    """Han alone is not proof of Chinese; inferred/unknown labels never opt in."""
+    from maw.language import normalize_language_code
+    if (normalize_language_code(project.get("language")) != "zh"
+            or project.get("language_source") not in {"detected", "hint"}):
+        return False
+    # A Chinese hint cannot override evidence of Japanese/Korean in this batch.
+    return not any(re.search(r"[\u3040-\u30ff\u31f0-\u31ff\uff66-\uff9f\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]",
+                             str(cue.get("text") or "")) for cue in cues)
+
+
+def _is_already_target_language(text: str, operation: str, *, can_skip_chinese: bool = False) -> bool:
     """判断一条字幕是否已是翻译目标语言（或不含可翻译文字），无需发送给模型。
 
-    纯字符脚本启发式只可靠地识别中文；没有可识别中文或出现其他文字（假名、
-    谚文、西里尔字母、拉丁文字等）时一律交给模型处理，避免把西语、法语等
-    拉丁文字误认为英文。
+    中文必须先由可信语言及整批内容允许跳过。拉丁字母不证明是英文；数字及
+    无字母的符号仍可原样保留。关闭跳过开关时调用方不会使用此启发式。
     """
     letters = len(_ANY_LETTER_PATTERN.findall(text))
     cjk = len(_CJK_CHAR_PATTERN.findall(text))
@@ -990,7 +1006,7 @@ def _is_already_target_language(text: str, operation: str) -> bool:
         return cjk == 0 and latin == 0
     if cjk == 0:
         return latin == 0
-    return cjk / (cjk + latin) >= CJK_TARGET_RATIO_THRESHOLD
+    return can_skip_chinese and cjk / (cjk + latin) >= CJK_TARGET_RATIO_THRESHOLD
 
 
 def _reject_recursive_translation_input(

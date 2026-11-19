@@ -6,6 +6,10 @@
 
 适用版本：对应 `edit.py` / `generate_subtitle_qwen_api.py` 当前实现。
 
+v4 轨道可选 `subtitles.tracks[*].language_source` 为 `detected`／`hint`／`inferred`／`unknown`，对应轨道 `language` 的来源；省略视为未知。自动跳过中文翻译只信任 `detected`／`hint`，不把汉字占比或工程顶层语言当作任意轨道的语言证明；批次出现日文假名或韩文时仍翻译。旧格式迁移仅在继承原语言声明时保留其来源，旧 v4 缺省字段不自动升级为可信。新识别／翻译覆盖整个轨道时可记录新来源，部分覆盖或混合来源退为 `unknown`。语言来源随工程、撤销及任务快照保存，不影响轨道样式或绑定。
+
+翻译任务快照新增可选布尔 `skip_target_language`（缺省 `true`）；关闭时非空文本全部进入翻译。v4 快照使用 `flat_model` 中所选轨道的语言及来源；旧快照可带 `source_language:{language,language_source}`，不带时按未知处理。开关和来源参与任务指纹及处理链续传校验，重试不读取后来修改的界面设置。
+
 版本范围：下文基础字段以 v1 描述；当前普通编辑器默认使用[平级字幕 v4](docs/FLAT_SUBTITLE_MODEL.md)。无版本／v1／v2／v3 工程在内存升级，首次写回保留原文件备份；迁移保留内容、绑定偏移、轨道样式和位置。[统一多层字幕 v2](#统一多层字幕-v2) 和[固定轨道 v3](#固定字幕轨道-v3第二阶段数据接口) 继续作为兼容输入。
 
 v4 单条定位使用可选 `subtitles.cues[*].content.subtitle_position:{x,y,alignment}`：x/y 为相对视频内容（不含黑边）的 0–1 有限数字，alignment 为 ASS 九宫格锚点整数 1–9。锚点坐标在自动排布之后覆盖本条字幕，不扩大到绑定伙伴；未选中的伙伴保持原有排布槽位，移除覆盖即恢复继承。旧 `{x,y}` 位置继续采用字幕组中心／顶部语义；从旧覆盖转换时，新对象可携带 `base:{x,y}` 保存旧组的排布依据，避免未选中的伙伴跳位，base 不允许再嵌套。轨道 `position` 仍仅接受 `{x,y}`；不得给轨道写入 alignment/base。详见平级字幕契约中的定位说明。

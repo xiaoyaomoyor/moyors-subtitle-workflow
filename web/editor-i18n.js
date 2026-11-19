@@ -971,6 +971,8 @@
     '翻译': 'Translation ',
     '当前批次：': 'Current batch: ',
     '保存翻译设置': 'Save translation settings',
+    '跳过已是目标语言的文本': 'Skip text already in the target language',
+    '仅在语言来源可信时跳过；来源不明或混合日文、韩文的内容仍会翻译。': 'Skip only with reliable language information. Unknown sources or mixed Japanese/Korean text are still translated.',
     '原文保留': 'Original retained',
     '翻译设置已保存': 'Translation settings saved',
     '显示更多结果': 'Show more results',

@@ -94,7 +94,7 @@ def default_postprocess_plan() -> dict[str, object]:
             {"id": "proofread", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "customPrompt": ""},
             {"id": "resegment", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "customPrompt": "", "maxChars": 0},
             {"id": "ocr", "enabled": False, "modelId": OCR_MODEL_ID, "videoPath": "", "videoPathMode": "", "regionMode": "full", "regionX1": 0, "regionY1": 0, "regionX2": 100, "regionY2": 100, "threshold": 0.5, "report": False},
-            {"id": "translate", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "target": "zh", "mergeBilingual": False, "embedTranslations": False, "bilingualLineOrder": "", "customPrompt": ""},
+            {"id": "translate", "enabled": False, "providerId": "deepseek", "model": "", "reasoningMode": "", "target": "zh", "skipTargetLanguage": True, "mergeBilingual": False, "embedTranslations": False, "bilingualLineOrder": "", "customPrompt": ""},
         ],
     }
 
@@ -165,6 +165,8 @@ def normalize_plan(raw: object) -> dict[str, object]:
                 step[key] = bool(value)
             elif key == "embedTranslations":
                 step[key] = bool(value)
+            elif key == "skipTargetLanguage":
+                step[key] = value if type(value) is bool else True
             elif key == "bilingualLineOrder":
                 step[key] = str(value or "") if str(value or "") in BILINGUAL_LINE_ORDERS else ""
             elif key in {"regionX1", "regionY1", "regionX2", "regionY2", "threshold"}:
@@ -1124,6 +1126,7 @@ def _run_step(
         srt_path=srt_path,
         output_mode=output_mode,
         operation=operation,
+        skip_target_language=step.get('skipTargetLanguage', True),
         resegment_max_chars=step.get("maxChars", 0),
         split_punctuation=split_punctuation,
         custom_prompt=str(step.get("customPrompt") or "").strip(),

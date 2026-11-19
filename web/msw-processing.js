@@ -245,6 +245,7 @@
     const generation = host.generation;
     try {
       const snapshot = kind === 'translation' && !pendingSubmission ? host.capture('secondary',destination.value,sourceSelection()) : null;
+      if(snapshot)snapshot.skip_target_language=el('translation-skip-target').checked;
       requestInFlight = true; updateScope();
       if(kind === 'connection_test') report('正在验证连接…');
       const payload = pendingSubmission || { kind, project_id: projectId(), client_token: clientToken(),
@@ -288,8 +289,9 @@
   let savedCall={};try {savedCall=JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem(callKey)||'{}');}catch {}
   if(['en','zh'].includes(savedCall.language))el('translation-language').value=savedCall.language;
   if(typeof savedCall.prompt==='string')el('translation-prompt').value=savedCall.prompt;
+  el('translation-skip-target').checked=savedCall.skipTargetLanguage!==false;
   el('translation-save-call').onclick=()=>{
-    try {(globalThis.MSWConfig?.storage || localStorage).setItem(callKey,JSON.stringify({provider:el('translation-provider').value,language:el('translation-language').value,prompt:el('translation-prompt').value}));message('翻译设置已保存');}
+    try {(globalThis.MSWConfig?.storage || localStorage).setItem(callKey,JSON.stringify({provider:el('translation-provider').value,language:el('translation-language').value,prompt:el('translation-prompt').value,skipTargetLanguage:el('translation-skip-target').checked}));message('翻译设置已保存');}
     catch {message('无法保存翻译设置',true);}
   };
   el('translation-start').addEventListener('click', () => void submit('translation'));

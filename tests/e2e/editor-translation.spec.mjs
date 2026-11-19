@@ -108,6 +108,27 @@ async function panel(page, key = 'synthetic-test-key') {
 }
 const secondaryTexts = (page) => page.evaluate(() => DATA.multi_subtitle.tracks[0]?.segments.map(cue => cue.text) || []);
 
+test('translation skip switch persists and frozen submission translates every Chinese cue when off', async ({page},info)=>{
+  await open(page);await panel(page);
+  await page.evaluate(()=>{DATA.language='zh';DATA.language_source='hint';DATA.segments[0].text='大学生活';DATA.segments[1].text='你好世界';renderAll();selectRange(0,1);});
+  await page.locator('#translation-language').selectOption('zh');
+  await expect(page.locator('#translation-skip-target')).toBeChecked();
+  const checkbox=await page.locator('#translation-skip-target').boundingBox();
+  expect(checkbox.width).toBeLessThan(24);
+  await page.screenshot({path:info.outputPath('translation-skip-control.png')});
+  await page.locator('#translation-skip-target').uncheck();
+  await page.locator('#translation-save-call').click();
+  const submitted=page.waitForRequest(r=>r.url().endsWith('/api/msw/jobs')&&r.method()==='POST');
+  await page.locator('#translation-start').click();
+  const payload=(await submitted).postDataJSON();
+  expect(payload.snapshot.skip_target_language).toBe(false);
+  await expect.poll(()=>requests.length).toBe(1);
+  expect(requests[0].map(c=>c.text)).toEqual(['大学生活','你好世界']);
+  await page.locator('#subtitle-translation-close').click();
+  await page.reload();await openTranslationPanel(page);
+  await expect(page.locator('#translation-skip-target')).not.toBeChecked();
+});
+
 test('keyless local translation negotiates schema and remains applicable', async ({ page }) => {
   schemaOnly = true;
   await open(page); await panel(page, '');

@@ -12,6 +12,17 @@ async function expand(page, id) {
   await page.evaluate(id => { MSWModules.setEnabled(id,true); MSWWorkflow.setCollapsed(id,false); }, id);
 }
 
+test('translation skip policy is saved in the frozen launcher plan and localized', async ({page})=>{
+  await open(page);await expand(page,'translate');
+  const toggle=page.locator('#autoTranslateSkipTargetLanguage');
+  await expect(toggle).toBeChecked();await toggle.uncheck();
+  await expect.poll(()=>page.evaluate(()=>MSWLauncher.getAutoPostprocessPayload().steps.find(s=>s.id==='translate').skipTargetLanguage)).toBe(false);
+  await expect.poll(()=>page.evaluate(async()=>(await MSWLauncher.callBackend('get_config')).postprocessAutoPlan?.steps?.find(s=>s.id==='translate')?.skipTargetLanguage)).toBe(false);
+  await setLauncherLanguage(page,'en');
+  await expect(toggle.locator('..')).toContainText('Skip text already in the target language');
+  await expect(toggle).not.toBeChecked();
+});
+
 test('module providers are independent; saved model and preset are explicit', async ({ page }) => {
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await open(page);

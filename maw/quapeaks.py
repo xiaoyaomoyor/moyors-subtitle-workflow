@@ -1134,6 +1134,8 @@ def generate_reapeaks_stream_bytes(
                 break
             streamer.feed(chunk)
         retcode = proc.wait()
+        if cancel_event is not None and cancel_event.is_set():
+            return None
         stderr_file.seek(0)
         stderr = stderr_file.read().decode("utf-8", errors="replace").strip()
         if retcode != 0:
@@ -1143,12 +1145,12 @@ def generate_reapeaks_stream_bytes(
             )
             return None
         if stderr:
-            print(f"[reapeaks] 解码失败：{stderr}")
-            return None
+            print(f"[reapeaks] 解码警告：{stderr}")
         try:
-            return streamer.finish(
+            result = streamer.finish(
                 src_timestamp=src_timestamp, src_filesize=src_filesize
             )
+            return None if cancel_event is not None and cancel_event.is_set() else result
         except Exception as exc:  # noqa: BLE001
             print(f"[reapeaks] Rust 内核生成失败: {exc}")
             return None

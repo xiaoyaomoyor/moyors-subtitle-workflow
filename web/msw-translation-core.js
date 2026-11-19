@@ -74,7 +74,8 @@
       }
       return { ...(fixedIndex?{subtitle_track_id:fixedIndex.trackFor({role:'main',track_id:null,cue_id:source.id}).id}:{}), source: sourceCopy(source), target: target ? sourceCopy(target) : null, binding_id: binding?.id || null };
     });
-    return { project_id: project.msw.project_id, project_schema: project.schema, track_id: track?.id || null, entries, output_mode: outputMode };
+    return { project_id: project.msw.project_id, project_schema: project.schema, track_id: track?.id || null, entries, output_mode: outputMode,
+      source_language:{language:typeof project.language==='string'?project.language:'',language_source:project.language_source||'unknown'} };
   }
 
   function skippedRows(input,result) {

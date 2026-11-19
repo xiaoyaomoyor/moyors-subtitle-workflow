@@ -153,6 +153,8 @@ def validate(project):
         if "language" in track and (not isinstance(track['language'], str) or len(track['language']) > 64
                                     or any(ord(c) < 32 or ord(c) == 127 for c in track['language'])):
             _fail('轨道语言无效')
+        if 'language_source' in track and track['language_source'] not in ('detected', 'hint', 'inferred', 'unknown'):
+            _fail('轨道语言来源无效')
         style = {k: v for k, v in track["style"].items() if k not in ("slot", "base")}
         if not old._style_valid(style) or "position" in track and not old._position_valid(track["position"]):
             _fail("轨道样式或位置无效")
@@ -335,8 +337,12 @@ def migrate_project(source):
                 result["position"] = deepcopy(track["position"])
             if storage and storage.get("language"):
                 result["language"] = deepcopy(storage["language"])
+                result['language_source'] = storage.get('language_source', 'unknown')
             elif role == 'main' and (track.get('language') or project.get('language')):
                 result['language'] = track.get('language') or project['language']
+                # A track label without provenance must not inherit confidence
+                # from a different project-level language declaration.
+                result['language_source'] = (track if track.get('language') else project).get('language_source', 'unknown')
             split_mode = (multi.get("main_split_mode") or project.get("split_mode")) if role == "main" else storage.get("split_mode")
             if split_mode in ("word", "continuous"):
                 result["split_mode"] = split_mode

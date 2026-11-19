@@ -2499,6 +2499,7 @@ __WAVEFORM_CSS__
       <p id="translation-scope-issue" class="msw-processing-hint" role="status" hidden></p>
       <p id="translation-environment-notice" class="msw-processing-hint" hidden></p><div class="msw-processing-actions" id="translation-environment-reminder" hidden><button type="button" id="translation-environment-open">前往 LLM 环境配置</button></div>
 
+      <label class="msw-processing-check" title="仅在语言来源可信时跳过；来源不明或混合日文、韩文的内容仍会翻译。"><input type="checkbox" id="translation-skip-target" checked><span>跳过已是目标语言的文本</span></label>
       <label class="msw-processing-prompt">补充要求（可选）<textarea id="translation-prompt" rows="2" maxlength="8000" placeholder="例如：人名保持原文，使用自然口语"></textarea></label>
       <div class="msw-processing-actions"><button type="button" id="translation-save-call">保存翻译设置</button><button type="button" id="translation-start" class="primary">开始翻译</button></div>
     </div>

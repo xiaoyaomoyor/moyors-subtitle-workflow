@@ -1771,6 +1771,7 @@ class LauncherApi:
                     media_path=_optional_path(payload.get("mediaPath")),
                     merge_bilingual=bool(payload.get("mergeBilingual")),
                     embed_translations=bool(payload.get("embedTranslations")),
+                    skip_target_language=payload.get('skipTargetLanguage', True) is not False,
                     bilingual_line_order=str(payload.get("bilingualLineOrder") or ""),
                     strip_tail_punct=_transcribe_strip_tail_punct(self.paths.env_path),
                 ),

@@ -48,6 +48,8 @@ if sys.platform == "linux":
         print(f"Warning: libxcb-cursor collection failed: {exc}", file=sys.stderr)
 
 datas = [
+    (str(ROOT / "maw" / "subtitle_segmentation.py"), "local-runtime/maw"),
+    (str(ROOT / "maw" / "subtitle_segmentation.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "energy_valley.py"), "local-runtime/maw"),
     (str(ROOT / "maw" / "energy_valley.py"), "ocr-runtime/maw"),
     (str(ROOT / "maw" / "cache_management.py"), "local-runtime/maw"),

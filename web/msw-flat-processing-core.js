@@ -57,6 +57,13 @@
     if(p.msw.applied_results?.includes(job.id))throw Error('这批结果已经应用；可撤销后重新应用');core.validate(native(job.snapshot));}
   function unchanged(p,s,id){const before=edit.cue(native(s),id),now=edit.cue(p,id);if(!same(before,now)||!same(edit.relation(native(s),id),edit.relation(p,id)))throw Error('字幕内容、时间、轨道或对应关系已变化；请重新处理，未覆盖当前修改');return now;}
   function mark(p,job){p.msw.applied_results||=[];p.msw.applied_results.push(job.id);}
+  function updateLanguage(p,trackId,ids,language,provenance='unknown') {
+    if(!ids.length)return;
+    const owner=edit.track(p,trackId),locale=speaker.language(language),written=new Set(ids);
+    const complete=p.subtitles.cues.filter(c=>c.track_id===trackId).every(c=>written.has(c.id));
+    if(locale&&!owner.language)owner.language=locale;
+    owner.language_source=complete&&locale&&speaker.language(owner.language)===locale&&['detected','hint'].includes(provenance)?provenance:'unknown';
+  }
   function applyTranslation(p,job,makeId){checkBase(p,job);const s=job.snapshot;writable(p,s.subtitle_track_id);const n=copy(p),ids=[],skipped=new Set(job.result?.skipped_ids||[]);
     const output=job.result?.translations;if(!Array.isArray(output))throw Error('翻译结果格式无效');const seen=new Set();
     for(const row of output){if(seen.has(row.id)||typeof row.text!=='string'||!row.text.trim()||!s.entries.some(e=>e.source.id===row.id))throw Error('翻译结果包含无效或重复的来源');seen.add(row.id);}
@@ -69,8 +76,7 @@
       const head=edit.cue(p,c.content.color_ref?.cue_id);
       speaker.inherit(c.content,content,head?.content);
     }
-    const owner=edit.track(n,s.subtitle_track_id),locale=speaker.language(job.result?.language||job.language);
-    if(ids.length&&!owner.language&&locale)owner.language=locale;
+    updateLanguage(n,s.subtitle_track_id,ids,job.result?.language||job.language,'hint');
     mark(n,job);core.validate(n);return {project:n,ids};
   }
   function applyAsr(p,job,media,makeId){checkBase(p,job);const s=job.snapshot;writable(p,s.subtitle_track_id);
@@ -87,8 +93,7 @@
       if(content.start<s.range.start||content.end>s.range.end)throw Error('识别结果超出请求范围');
       for(const ref of ['color_ref','sticker_ref'])if(content[ref]){const head=content[ref].headIdx;if(!Number.isInteger(head)||!ids[head])throw Error('识别结果标记引用无效');content[ref]={...content[ref],cue_id:ids[head]};delete content[ref].headIdx;}
       edit.frame(n,content);n.subtitles.cues.push({id:ids[i],track_id:s.subtitle_track_id,content});});
-    const owner=edit.track(n,s.subtitle_track_id),locale=speaker.language(job.result?.language||job.language);
-    if(!owner.language&&locale)owner.language=locale;
+    updateLanguage(n,s.subtitle_track_id,ids,job.result?.language||job.language,job.result?.language_source);
     mark(n,job);core.validate(n);return {project:n,ids};
   }
   function applyTts(p,job){checkBase(p,job);const n=copy(p),items=job.result?.items||[],assets=items.filter(i=>i.status==='ready').map(i=>i.asset);
@@ -97,6 +102,6 @@
       if(global.MSWProject&&!global.MSWProject.validAsset(asset))throw Error('配音素材格式无效');}
     n.msw.assets||=[];for(const asset of assets)if(!n.msw.assets.some(a=>a.id===asset.id))n.msw.assets.push(copy(asset));mark(n,job);return {project:n,ids:[]};
   }
-  const api={capture,translation,tts,asr,applyTranslation,applyAsr,applyTts,same};
+  const api={capture,translation,tts,asr,applyTranslation,applyAsr,applyTts,same,updateLanguage};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;global.MSWFlatProcessing=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

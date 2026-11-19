@@ -96,6 +96,7 @@ class ProcessingTests(unittest.TestCase):
 
     def test_translation_preserved_ids_are_project_ids_even_when_they_look_internal(self):
         data = snapshot()
+        data['source_language'] = dict(language='zh', language_source='hint')
         data['entries'][0]['source'].update(id='c0002', text='你好，今天真好。')
         data['entries'][1]['source'].update(id='c0001', text='Hello, how are you?')
         def complete(settings, prompt, cues, **_kwargs):
@@ -112,6 +113,7 @@ class ProcessingTests(unittest.TestCase):
         # preserve the existing conservative detector rather than skip those.
         for language, text in [('zh', '你好，今天真好。'), ('en', '12345')]:
             data = snapshot()
+            data['source_language'] = dict(language='zh', language_source='detected')
             for entry in data['entries']:
                 entry['source']['text'] = text
             with patch('maw.msw.jobs.complete_subtitle_groups') as complete:

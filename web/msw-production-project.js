@@ -448,6 +448,8 @@
           const row=job.result.translations.find(r=>r.id===now.id);if(!row?.text?.trim())throw Error('翻译结果缺少字幕');
           now.content.text=row.text;delete now.content.items;now.content._dirty=true;
         }
+        const written=s.entries.map(e=>e.source.id);
+        for(const owner of new Set(written.map(id=>E.cue(p,id).track_id)))F.updateLanguage(p,owner,written,job.result.language||job.language,'hint');
         p.msw.applied_results.push(job.id);
       } else {
         if(job.kind==='translation'&&s.created_subtitle_track&&!E.track(p,s.subtitle_track_id))p=core.addTrack(p,clone(s.created_subtitle_track));

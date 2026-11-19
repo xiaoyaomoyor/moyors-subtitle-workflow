@@ -56,7 +56,9 @@ def processing_snapshot(project, track_id):
         content = {k: deepcopy(v) for k, v in cue['content'].items()
                    if k not in ('color_ref', 'sticker_ref', 'subtitle_position')}
         segments.append({**content, 'id': cue['id']})
-    return {'segments': segments, 'language': source_track(project, track_id).get('language', project.get('language', ''))}
+    track = source_track(project, track_id)
+    return {'segments': segments, 'language': track.get('language', ''),
+            'language_source': track.get('language_source', 'unknown')}
 
 
 def apply_processed(project, track_id, segments, *, replace_all=False):
@@ -158,6 +160,15 @@ def apply_translation(project, source_id, target_id, segments, *, language='zh')
                                                        start_offset_ms=0, end_offset_ms=0))
         head = index.cues.get((cue['content'].get('color_ref') or {}).get('cue_id'), {})
         inherit_speaker_color(cue['content'], content, head.get('content'))
+    # A partially translated track may contain another language outside this
+    # operation; don't turn its label into trusted evidence for a future skip.
+    selected_ids = {c['id'] for c in selected}
+    written = {b['target_id'] if b['source_id'] in selected_ids else b['source_id']
+               for b in result['subtitles']['bindings']
+               if b['source_id'] in selected_ids or b['target_id'] in selected_ids}
+    complete = all(c['id'] in written for c in result['subtitles']['cues'] if c['track_id'] == target['id'])
+    from maw.language import normalize_language_code
+    target['language_source'] = 'hint' if complete and normalize_language_code(target['language']) == normalize_language_code(language) else 'unknown'
     normalize_groups(result)
     validate(result)
     return result, target['id']
@@ -242,6 +253,7 @@ def run_track_step(step, *, scope, runner, **kwargs):
         else:
             processed = apply_processed(project, track_id, segments)
             if translation:
+                source_track(processed, track_id)['language_source'] = 'unknown'
                 translated = export_srt(processed, [track_id])
         output = kwargs['output_directory'] / artifact.project_path.name
         seed, suffix = output, 2

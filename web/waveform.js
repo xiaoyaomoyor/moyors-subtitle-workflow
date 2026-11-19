@@ -1959,10 +1959,7 @@
         this.focusWaveform();
       });
       this.secondsPerRowSelect?.addEventListener('change', () => {
-        this.settings.secondsPerRow = Number(this.secondsPerRowSelect.value);
-        saveSettings(this.settings);
-        this.multiRange = [-1, -1];
-        this.render();
+        this.setSecondsPerRow(Number(this.secondsPerRowSelect.value));
       });
       this.rowHeightSelect?.addEventListener('change', () => {
         this.setRowHeight(Number(this.rowHeightSelect.value));
@@ -2446,6 +2443,22 @@
       return ROW_HEIGHT_PRESETS[ROW_HEIGHT_PRESETS.length - 1];
     }
 
+    setSecondsPerRow(value) {
+      const next = Number(value);
+      if (!ROW_PRESETS.includes(next)) return false;
+      if (this.settings.secondsPerRow === next) return true;
+      const navigation = this.getNavigationSnapshot();
+      this.cancelHoverSeekPreview();
+      this.navigationRestoring = true;
+      this.settings.secondsPerRow = next;
+      if (this.secondsPerRowSelect) this.secondsPerRowSelect.value = String(next);
+      saveSettings(this.settings);
+      this.multiRange = [-1, -1];
+      this.render();
+      this.restoreNavigation(navigation);
+      return true;
+    }
+
     setRowHeight(value) {
       const next = Number(value);
       if (this.rowHeightDebounceTimer) {
@@ -2455,6 +2468,9 @@
       }
       if (!ROW_HEIGHT_PRESETS.includes(next)) return false;
       if (this.settings.rowHeight === next) return true;
+      const navigation = this.getNavigationSnapshot();
+      this.cancelHoverSeekPreview();
+      this.navigationRestoring = true;
       this.settings.rowHeight = next;
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(next);
       if (this.settings.waveformScaleAuto !== false) {
@@ -2464,6 +2480,7 @@
       if (this.isMultiMode()) this.updateMultiRowLayout();
       // New overlay lane geometry depends on row height.
       if (this.options?.getSegments?.('overlay')?.length || !this.isMultiMode()) this.render();
+      this.restoreNavigation(navigation);
       return true;
     }
 
@@ -6367,10 +6384,7 @@
         const current = ROW_PRESETS.indexOf(this.settings.secondsPerRow);
         const next = clamp(current + (scrollDelta > 0 ? 1 : -1), 0, ROW_PRESETS.length - 1);
         if (next !== current) {
-          this.settings.secondsPerRow = ROW_PRESETS[next];
-          this.secondsPerRowSelect.value = String(this.settings.secondsPerRow);
-          saveSettings(this.settings);
-          this.renderMulti();
+          this.setSecondsPerRow(ROW_PRESETS[next]);
         }
       }
     }

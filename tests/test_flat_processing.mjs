@@ -8,6 +8,33 @@ const base=()=>{let p=flat.migrate({segments:[{id:'a',start:0,end:1000,text:'hel
 const job=(snapshot,kind,result)=>({id:id('job'),project_id:'test',snapshot,kind,status:'succeeded',result});
 const media={id:'media-test',revision:'a'.repeat(64),reference:'test.wav',name:'test.wav',audio_index:0,metadata:{duration_ms:2000,audio_tracks:[{audio_index:0}]}};
 
+test('language provenance survives migration and immutable translation snapshots',()=>{
+  for(const provenance of ['hint','detected','inferred','unknown']) {
+    let p=flat.migrate({language:'Japanese',language_source:provenance,segments:[{start:0,end:900,text:'大学生活'}],msw:{schema:'msw.editor.v1',project_id:'test'}});
+    const track=p.subtitles.tracks[0];assert.equal(track.language_source,provenance);
+    p=flat.addTrack(p,{...track,id:'target',name:'译文'});
+    const s=processing.translation(p,[p.subtitles.cues[0].id],'target');
+    p.subtitles.tracks[0].language_source='unknown';
+    assert.equal(s.flat_model.tracks[0].language_source,provenance);
+    assert.throws(()=>flat.validate({...p,subtitles:{...p.subtitles,tracks:p.subtitles.tracks.map(t=>({...t,language_source:'guessed'}))}}),/语言来源/);
+  }
+});
+
+test('partial recognition or conflicting explicit language never becomes trusted Chinese',()=>{
+  const p=base(),track=p.subtitles.tracks[0];track.language='zh';track.language_source='hint';
+  const s=processing.asr(p,media,track.id,{start:0,end:1000});
+  const out=processing.applyAsr(p,job(s,'asr',{language:'zh',language_source:'detected',segments:[{start:0,end:900,text:'新文字'}]}),media,id).project;
+  assert.equal(edit.track(out,track.id).language_source,'unknown');
+  const empty=base(),whole=processing.asr(empty,media,'target');
+  const recognized=processing.applyAsr(empty,job(whole,'asr',{language:'ja',language_source:'detected',segments:[{start:0,end:900,text:'大学生活'}]}),media,id).project;
+  assert.equal(edit.track(recognized,'target').language,'ja');
+  assert.equal(edit.track(recognized,'target').language_source,'detected');
+  const target=edit.track(empty,'target');target.language='zh';target.language_source='hint';
+  const conflict=processing.applyAsr(empty,job(processing.asr(empty,media,'target'),'asr',{language:'ja',language_source:'detected',segments:[{start:0,end:900,text:'大学生活'}]}),media,id).project;
+  assert.equal(edit.track(conflict,'target').language,'zh');
+  assert.equal(edit.track(conflict,'target').language_source,'unknown');
+});
+
 test('ASR range snapshot excludes ten thousand unrelated cues without weakening apply conflicts',()=>{
   const p=base(),track=p.subtitles.tracks[0].id;
   p.subtitles.cues=Array.from({length:10000},(_,i)=>({id:`large-${i}`,track_id:track,content:{start:i*1000,end:i*1000+900,text:'unrelated '.repeat(50)}}));

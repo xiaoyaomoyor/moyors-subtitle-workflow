@@ -58,7 +58,8 @@ class SubtitlePunctuationTests(unittest.TestCase):
         self.assertEqual(cues, before)
 
     def test_translation_policy_preserves_source_ids_times_and_skipped_cues(self):
-        project = {'segments': [{'id': 'source-a', 'start': 0, 'end': 1000, 'text': 'Hello.'},
+        project = {'language': 'zh', 'language_source': 'hint',
+                   'segments': [{'id': 'source-a', 'start': 0, 'end': 1000, 'text': 'Hello.'},
                                 {'id': 'source-b', 'start': 1200, 'end': 2000, 'text': '已经是中文。'}]}
         before = copy.deepcopy(project)
         request = LlmPostprocessRequest(None, None, OutputMode.JSON, 'translate_zh', '',

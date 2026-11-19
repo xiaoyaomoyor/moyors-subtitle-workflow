@@ -1427,6 +1427,7 @@ class PostprocessTests(unittest.TestCase):
         # 混合语言工程翻译到中文：中文句不再发送给模型，逐字节保留（含逐词
         # 时间码）；英文句正常翻译。
         source = read_project(self.project_path)
+        source['language_source'] = 'detected'
         source["segments"][1]["text"] = "This line is English."
         self.project_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
         requested_cues: list[list[str]] = []
@@ -1496,6 +1497,9 @@ class PostprocessTests(unittest.TestCase):
         self.assertNotIn("已是英文的字幕", "\n".join(result.warnings))
 
     def test_llm_translation_errors_when_every_cue_is_already_target_language(self) -> None:
+        source = read_project(self.project_path)
+        source['language_source'] = 'hint'
+        self.project_path.write_text(json.dumps(source, ensure_ascii=False), encoding='utf-8')
         def complete(_prompt: str, _cues: list[dict[str, JsonValue]]) -> JsonDict:
             self.fail("no request should be sent when every cue is already in the target language")
 
@@ -1531,7 +1535,7 @@ class PostprocessTests(unittest.TestCase):
         )
         for text, operation, expected in cases:
             with self.subTest(text=text, operation=operation):
-                self.assertEqual(_is_already_target_language(text, operation), expected)
+                self.assertEqual(_is_already_target_language(text, operation, can_skip_chinese=True), expected)
 
     def test_llm_translation_can_merge_source_and_translation_into_one_subtitle(self) -> None:
         source = read_project(self.project_path)
@@ -1660,6 +1664,7 @@ class PostprocessTests(unittest.TestCase):
         # 回填模式：7中3英 → 翻译成中文 → 单条 10 句全中文（这里等价的最小
         # 用例：中文句逐字节保留并保留逐词时间码，英文句替换为译文）。
         source = read_project(self.project_path)
+        source['language_source'] = 'hint'
         source["segments"][1]["text"] = "This line is English."
         self.project_path.write_text(json.dumps(source, ensure_ascii=False), encoding="utf-8")
         result = run_llm_postprocess(

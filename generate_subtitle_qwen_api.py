@@ -48,6 +48,7 @@ from maw.language import (
     timestamp_granularity_for_items,
 )
 from maw.project_io import write_mosp
+from maw.subtitle_segmentation import protected_offsets, punctuation_item_ends, rebalance_short_groups, split_long_items
 from maw.media import resolve_default_audio_track
 
 from maw.media_cache import embed_media_caches, merge_media_caches
@@ -458,61 +459,8 @@ _split_by_silence = split_by_silence
 
 
 def _split_long_group(items: list[dict], max_len: int, weak_punct: set) -> list[list[dict]]:
-    text_total = "".join(it["text"] for it in items)
-    if len(text_total) <= max_len:
-        return [items]
-
-    # 优先按弱标点拆
-    cum_len = 0
-    punct_idx = None
-    for i, it in enumerate(items):
-        cum_len += len(it["text"])
-        if cum_len > max_len:
-            break
-        if any(c in weak_punct for c in it["text"]):
-            punct_idx = i + 1
-
-    if punct_idx is not None and punct_idx < len(items):
-        return _split_long_group(items[:punct_idx], max_len, weak_punct) + \
-               _split_long_group(items[punct_idx:], max_len, weak_punct)
-
-    # 用 jieba 分词找断点
-    try:
-        import jieba
-        words = list(jieba.cut(text_total))
-    except ImportError:
-        words = list(text_total)  # 无 jieba 则按字硬切
-    boundaries = []
-    pos = 0
-    for w in words:
-        pos += len(w)
-        boundaries.append(pos)
-
-    best_char_pos = None
-    for b in boundaries:
-        if 0 < b <= max_len:
-            if best_char_pos is None or abs(b - max_len) < abs(best_char_pos - max_len):
-                best_char_pos = b
-
-    if best_char_pos is not None and best_char_pos < len(text_total):
-        cum_len = 0
-        split_idx = None
-        for i, it in enumerate(items):
-            cum_len += len(it["text"])
-            if cum_len >= best_char_pos:
-                split_idx = i + 1
-                break
-        if split_idx is not None and 0 < split_idx < len(items):
-            return _split_long_group(items[:split_idx], max_len, weak_punct) + \
-                   _split_long_group(items[split_idx:], max_len, weak_punct)
-
-    # 兜底：按 max_len 字符硬切
-    cum_len = 0
-    for i, it in enumerate(items):
-        cum_len += len(it["text"])
-        if cum_len >= max_len:
-            return [items[:i + 1]] + _split_long_group(items[i + 1:], max_len, weak_punct)
-    return [items]
+    """Cut at legal timestamp boundaries, preserving protected expressions."""
+    return split_long_items(items, max_len, weak_punct)
 
 
 QWEN_AUDIO_NATURAL_TARGET_LEN = 13
@@ -558,6 +506,7 @@ def _split_cjk_group_naturally(
     for item in items:
         position += len(item.get("text", ""))
         item_ends.append(position)
+    protected = protected_offsets(text_total)
 
     by_end: dict[int, tuple[int, int, str, str]] = {}
     by_start: dict[int, tuple[int, int, str, str]] = {}
@@ -591,7 +540,7 @@ def _split_cjk_group_naturally(
         if end_index >= len(items):
             return True
         boundary = item_ends[end_index - 1]
-        return not any(start < boundary < end for start, end, _word, _flag in tokens)
+        return boundary not in protected and not any(start < boundary < end for start, end, _word, _flag in tokens)
 
     def boundary_score(end_index: int) -> float:
         boundary = item_ends[end_index - 1]
@@ -681,7 +630,7 @@ def _split_cjk_group_naturally(
         previous_length = sum(len(item.get("text", "")) for item in groups[-2])
         if tail_length < min_len and previous_length + tail_length <= max_len:
             groups[-2].extend(groups.pop())
-    return groups
+    return rebalance_short_groups(groups, max_len, weak_punctuation)
 
 
 def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
@@ -713,11 +662,12 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
     silence_groups = split_by_silence(items, gap_split_ms)
 
     for sg in silence_groups:
+        strong_ends = punctuation_item_ends(sg, STRONG_PUNCT)
         raw_groups: list[list[dict]] = []
         buf: list[dict] = []
-        for it in sg:
+        for index, it in enumerate(sg):
             buf.append(it)
-            if any(c in STRONG_PUNCT for c in it["text"]):
+            if index + 1 in strong_ends:
                 raw_groups.append(buf)
                 buf = []
         if buf:
@@ -751,7 +701,11 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
                     min_len=min_len,
                 ))
 
-    return [to_seg(g) for g in final if g]
+    segments = [to_seg(g) for g in final if g]
+    overlong = sum(len(segment['text']) > (natural_max_len or max_len) for segment in segments)
+    if overlong:
+        print(f"[断句] {overlong} 条字幕含不可拆的时间项、词语或数字单位，已保留完整内容，超过单句上限 {natural_max_len or max_len} 字。")
+    return segments
 
 
 # ===== 双轨切句：CJK 检测 + 空格语言（英文等）切句 =====
@@ -816,14 +770,17 @@ def _western_word_count(items: list[dict]) -> int:
 def _western_word_units(items: list[dict]) -> list[list[dict]]:
     """Keep provider fragments (you / ' / re) together without inventing timing."""
     units: list[list[dict]] = []
+    protected = protected_offsets(''.join(str(item.get('text', '')) for item in items))
+    offset = 0
     for item in items:
         text = str(item.get("text", ""))
         previous = str(units[-1][-1].get("text", "")) if units else ""
         continues = text and previous and not text[0].isspace() and not previous[-1].isspace()
-        if units and (continues or not any(c.isalnum() for c in text) or not _western_word_count(units[-1])):
+        if units and (offset in protected or continues or not any(c.isalnum() for c in text) or not _western_word_count(units[-1])):
             units[-1].append(item)
         else:
             units.append([item])
+        offset += len(text)
     return units
 
 
@@ -887,11 +844,12 @@ def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_
 
     final: list[list[dict]] = []
     for sg in split_by_silence(items, gap_split_ms):
+        strong_ends = punctuation_item_ends(sg, set(_western_strong_end()))
         raw_groups: list[list[dict]] = []
         buf: list[dict] = []
-        for it in sg:
+        for index, it in enumerate(sg):
             buf.append(it)
-            if _ends_with_punct(it["text"], _western_strong_end()):
+            if index + 1 in strong_ends and _ends_with_punct(it["text"], _western_strong_end()):
                 raw_groups.append(buf)
                 buf = []
         if buf:
