@@ -526,14 +526,21 @@
     } catch(error) {setFieldError('toolboxBurnSubtitlePath',error.message);}
   }
   $('toolboxBurnPreset')?.addEventListener('focus',()=>void refreshBurnPresets());
+  function syncToolPath(id, value) {
+    const input = $(id);
+    if (input.value === value) return;
+    input.value = value;
+    setFieldError(id, "");
+  }
+
   function syncPaths() {
-    if (!utilityMediaManual) $("toolboxUtilityMediaPath").value = $("mediaPath").value.trim();
+    if (!utilityMediaManual) syncToolPath("toolboxUtilityMediaPath", $("mediaPath").value.trim());
     if (!subtitleBurnManual) {
       const source = $("srtPath").value.trim();
-      $("toolboxBurnSubtitlePath").value = SUBTITLE_BURN_EXTS.has(extension(source)) ? source : "";
+      syncToolPath("toolboxBurnSubtitlePath", SUBTITLE_BURN_EXTS.has(extension(source)) ? source : "");
     }
     void refreshBurnPresets();
-    if (!alignmentProjectManual) $("toolboxAlignmentProjectPath").value = $("jsonPath").value.trim();
+    if (!alignmentProjectManual) syncToolPath("toolboxAlignmentProjectPath", $("jsonPath").value.trim());
     syncOcrVideo();
     syncUtilityMediaName();
     syncBurnSubtitleName();
@@ -1971,7 +1978,7 @@
     renderAutoPostprocessState();
   };
   window.MSWLauncher.onProjectPathChanged = () => {
-    if (!alignmentProjectManual) $("toolboxAlignmentProjectPath").value = $("jsonPath").value.trim();
+    if (!alignmentProjectManual) syncToolPath("toolboxAlignmentProjectPath", $("jsonPath").value.trim());
     syncAlignmentNames();
   };
   window.MSWLauncher.onMediaPathChanged = ({ refreshOcrVideo = false } = {}) => {

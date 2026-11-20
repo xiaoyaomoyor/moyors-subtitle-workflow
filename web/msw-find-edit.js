@@ -9,8 +9,9 @@
   try{const saved=JSON.parse(localStorage.getItem('msw.find-script.info.v1')||'{}');for(const key of MSWFindTextTools.scriptFields)scriptFields[key]=saved[key]!==false;}catch(_){}
   let records=new Map(),references=new Map(),cuesById=new Map(),tracks=[],trackSignature='',speakerSignature='';
   let trackIds=new Set(),speakerIds=new Set(),selected=[],excluded=new Set(),drafts=new Map(),invalidGroups=new Map();
-  let result={rows:[],count:0},matchMap=new Map(),units=[],changes=[],ready=false,activeKey=null,activeMatch=0;
-  let bodyMatches=new Map();
+  let result={rows:[],count:0},matchMap=new Map(),units=[],changes=new Map(),ready=false,activeKey=null,activeMatch=0;
+  let bodyMatches=new Map(), processingKey;
+  const processedRows = new Map();
   let queryVersion=0,worker=null,workerBusy=false,timeout,queryTimer,syncTimer,renderFrame,rowHeight=156;
   let plainEngine=core.createEngine(),notice='',recoverDrafts=false;
   const viewKey='msw.find-edit.view.v1';
@@ -54,6 +55,7 @@
       next.set(row.key, row);
     });
     const removed = [...records.keys()].filter(key => !next.has(key));
+    for (const key of removed) processedRows.delete(key);
     records = next; references = refs; cuesById = new Map([...refs.values()].map(ref => [ref.cue.id, ref.cue]));
     const patch = { rows: changed, removed };
     plainEngine.update(patch); worker?.postMessage({ type: 'update', patch });
@@ -296,28 +298,44 @@
     const opts=processOptions();
     const inlineEnabled=MSWInlineMarkup.enabled(DATA);tidy('inline').disabled=!inlineEnabled;
     if(!inlineEnabled)tidy('inline').checked=false;
-    changes=result.rows.filter(hit=>!excluded.has(hit.key)).map(hit=>{
-      const draft=drafts.get(hit.key),row=records.get(hit.key)||draft?.row;
-      let text=hit.after??draft?.after??row?.text??'';
-      if(tidy('inline').checked)text=MSWInlineMarkup.clearStyles(text,inlineEnabled);
-      return {key:hit.key,before:draft?.before??row?.text??'',after:AsrEditorUtils.applyTextProcessing(text,opts)};
-    });
-    const changeKeys=new Set(changes.map(c=>c.key));
-    const plan=core.planChanges(changes,records),invalid=[...invalidGroups.values()].find(g=>g.rows.some(r=>changeKeys.has(r.key)));
+    const clearInline = tidy('inline').checked;
+    const key = JSON.stringify([opts, clearInline]);
+    if (key !== processingKey) {
+      processedRows.clear();
+      processingKey = key;
+    }
+    const replacing = el('replace-enabled').checked;
+    const selectedChanges = new Map();
+    for (const hit of result.rows) {
+      if (excluded.has(hit.key)) continue;
+      const draft = drafts.get(hit.key);
+      const row = records.get(hit.key) || draft?.row;
+      const before = draft?.before ?? row?.text ?? '';
+      const text = (replacing ? hit.after : undefined) ?? draft?.after ?? row?.text ?? '';
+      let cached = processedRows.get(hit.key);
+      if (cached?.text !== text || cached.change.before !== before) {
+        const input = clearInline ? MSWInlineMarkup.clearStyles(text, inlineEnabled) : text;
+        cached = {text, change: {key: hit.key, before, after: AsrEditorUtils.applyTextProcessing(input, opts)}};
+        processedRows.set(hit.key, cached);
+      }
+      selectedChanges.set(hit.key, cached.change);
+    }
+    changes = selectedChanges;
+    const plan = core.planChanges(changes.values(), records);
+    const invalid = [...invalidGroups.values()].find(group => group.rows.some(row => changes.has(row.key)));
     el('apply').disabled=!ready||invalid||!!plan.conflicts.length||!plan.edits.length;
     el('message').textContent=t(invalid?(invalid.group==='script'?MSWFindTextTools.scriptError:'请保留字幕分隔行；增删字幕请使用切分或合并'):plan.conflicts.length?'目标字幕已改变，草稿已保留':notice||`修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`);
-    el('count').textContent=t(`${result.rows.length} 条 · 已选 ${changes.length}`);
+    el('count').textContent=t(`${result.rows.length} 条 · 已选 ${changes.size}`);
     const dirty=[...drafts.values()].filter(d=>d.before!==d.after).length+invalidGroups.size;
     el('drafts').hidden=!dirty;el('drafts').textContent=t(`${dirty} 条未应用`);
     el('select-all').disabled=!result.rows.length;
-    return new Map(changes.map(c=>[c.key,c]));
   }
   function renderRows(){
     if(!floating.isOpen()||!el('result-section').open)return;cancelAnimationFrame(renderFrame);
     const script=el('group').value==='script';
     if(script){rowHeight=Math.max(300,viewport.clientHeight);canvas.style.height=`${units.length*rowHeight}px`;}
     const first=Math.max(0,Math.floor(viewport.scrollTop/rowHeight)-2),last=Math.min(units.length,first+Math.ceil(viewport.clientHeight/rowHeight)+5);
-    const changesByKey=new Map(changes.map(c=>[c.key,c])),existing=new Map([...canvas.children].map(n=>[n.dataset.unit,n]));
+    const existing=new Map([...canvas.children].map(n=>[n.dataset.unit,n]));
     const keep=new Set();
     for(let i=first;i<last;i++){
       const unit=units[i];keep.add(unit.id);let node=existing.get(unit.id);
@@ -357,15 +375,15 @@
       }
       const dirty=unit.rows.some(r=>drafts.has(r.key)&&drafts.get(r.key).after!==drafts.get(r.key).before)||invalidGroups.has(unit.draftKey);
       node.querySelector('.find-result-status').textContent=t(unit.rows.some(r=>!records.has(r.key))?'来源已删除':input.readOnly?'已锁定':dirty?'未应用':unit.rows.every(r=>r.disabled)?'已禁用':'');node.querySelector('[data-reset]').hidden=!dirty;
-      const modified=unit.rows.filter(r=>changesByKey.has(r.key)&&changesByKey.get(r.key).after!==inputText(r));
-      const preview=node.querySelector('[data-preview]');preview.textContent=modified.length?t('应用后：')+(unit.rows.length===1?changesByKey.get(unit.rows[0].key).after:t(modified.length+' 条字幕将更新')):'';
+      const modified=unit.rows.filter(r=>changes.has(r.key)&&changes.get(r.key).after!==inputText(r));
+      const preview=node.querySelector('[data-preview]');preview.textContent=modified.length?t('应用后：')+(unit.rows.length===1?changes.get(unit.rows[0].key).after:t(modified.length+' 条字幕将更新')):'';
       preview.title=preview.textContent;
     }
     for(const [id,node] of existing)if(!keep.has(id)&&!node.contains(document.activeElement)){node.scriptEditor?.destroy();node.textView?.destroy();node.remove();}
   }
   function apply(){
     if(el('apply').disabled)return;
-    try{const plan=commit(changes,'查找并编辑');for(const c of plan.edits)drafts.delete(c.key);
+    try{const plan=commit(changes.values(),'查找并编辑');for(const c of plan.edits)drafts.delete(c.key);
       notice=`已修改 ${plan.edits.length} 条 · 跳过 ${plan.locked} 条锁定字幕`;
       // A single application consumes the operation recipe, avoiding accidental double prefixes.
       for(const id of ['trim','capitalize','markdown','inline','prefix','suffix'])tidy(id).checked=false;
@@ -453,6 +471,7 @@
   document.addEventListener('mawe:languagechange',changed);
   window.addEventListener('msw:project-changed',()=>{
     clearRows();
+    processedRows.clear(); changes.clear();
     stopWorker();++queryVersion;clearTimeout(queryTimer);clearTimeout(syncTimer);records.clear();references.clear();plainEngine=core.createEngine();trackSignature=speakerSignature='';activeKey=null;
     selected=[];recoverDrafts=false;excluded.clear();drafts.clear();invalidGroups.clear();el('only-selected').checked=false;el('all-tracks').checked=el('all-speakers').checked=true;el('tracks').hidden=el('speakers').hidden=true;
     el('query').value=el('replacement').value='';el('replace-enabled').checked=false;el('replacement').disabled=true;restoreView();notice='';

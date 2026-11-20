@@ -228,3 +228,31 @@ test('guide paths match the current UI and avoid implementation terms', async ({
   await page.locator('[data-goto-page="prefab"]').click();
   await expect(page.locator('#prefabOrderChip')).toBeVisible();
 });
+
+test('a new followed subtitle path clears the old validation error and preserves a manual path', async ({page}) => {
+  await openLauncher(page);
+  await page.evaluate(() => {
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'probe_audio_tracks') return {ok:true,tracks:[]};
+      if (method === 'get_subtitle_presets') return {ok:true,presets:[]};
+      return next(method,payload);
+    };
+    MSWNavigation.show('tools');
+    document.getElementById('mediaPath').value = 'C:/fixture/clip.mp4';
+    MSWLauncher.onMediaPathChanged();
+  });
+  await page.locator('[data-tools-select="burnSubtitle"]').click();
+  await page.locator('#runBurnSubtitle').click();
+  const path = page.locator('#toolboxBurnSubtitlePath');
+  await expect(path).toHaveClass(/invalid/);
+  const follow = value => page.evaluate(value => {
+    document.getElementById('srtPath').value = value;
+    MSWLauncher.onMediaPathChanged();
+  }, value);
+  await follow('C:/fixture/clip.srt');
+  await expect(path).toHaveValue('C:/fixture/clip.srt');
+  await expect(path).not.toHaveClass(/invalid/);
+  await path.fill('C:/fixture/manual.ass');
+  await follow('C:/fixture/other.srt');
+  await expect(path).toHaveValue('C:/fixture/manual.ass');
+});

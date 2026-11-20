@@ -42,6 +42,7 @@
     frame: () => host.refreshAudioPlayback(transport.currentTime()),
     beforePlay: () => host.assetLibrary?.querySelector('audio')?.pause(),
     skipAt: time => host.audioPlaybackSkip(time),
+    skipNative: time => host.skipNativePlaybackGap(time),
     load: async (asset, signal) => {
       if (!host.config?.processingUrl) throw Error('请通过本机编辑器服务打开音频素材');
       const projectId = extension().project_id;

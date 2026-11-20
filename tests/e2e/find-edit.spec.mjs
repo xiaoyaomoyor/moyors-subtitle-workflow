@@ -42,7 +42,16 @@ for(const width of [1280,400])for(const theme of ['dark','light'])test(`unified 
 });
 test('six thousand cues remain virtual and typing preserves focus, drafts, cancellation and undo',async({page})=>{
  await page.evaluate(()=>{applyCanonicalProject({segments:Array.from({length:6000},(_,i)=>({id:'long'+i,start:i*1000,end:i*1000+900,text:'Long subtitle '+i,items:[]}))},'long.mosp');});await count(page,6000);
- expect(await inputs(page).count()).toBeLessThan(20);await inputs(page).first().fill('Long draft');await page.waitForTimeout(250);await expect(inputs(page).first()).toBeFocused();
+ expect(await inputs(page).count()).toBeLessThan(20);
+ await page.evaluate(() => {
+   const applyText = AsrEditorUtils.applyTextProcessing;
+   window.processingCalls = 0;
+   AsrEditorUtils.applyTextProcessing = (...args) => { window.processingCalls++; return applyText(...args); };
+ });
+ await inputs(page).first().fill('Long draft');
+ await expect(page.locator('#find-edit-results')).toHaveAttribute('aria-busy','false');
+ await expect(inputs(page).first()).toBeFocused();
+ expect(await page.evaluate(() => window.processingCalls)).toBe(1);
  await page.locator('#find-edit-close').click();await page.keyboard.press('Control+f');await expect(inputs(page).first()).toHaveValue('Long draft');await apply(page);
  await page.evaluate(()=>performUndo());await expect(inputs(page).first()).toHaveValue('Long subtitle 0');
  await page.locator('#find-edit-query').fill('subtitle');await page.locator('#find-edit-query').fill('missing');await count(page,0);await expect(page.locator('.msw-search-hit')).toHaveCount(0);

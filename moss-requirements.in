@@ -12,6 +12,9 @@
 #   uv pip compile moss-requirements.in -p 3.11 --extra-index-url
 #       https://download.pytorch.org/whl/cu130 --index-strategy unsafe-best-match
 av>=14.0
+certifi>=2026.10.19
+hf-xet>=1.8.0
+urllib3>=2.8.0
 librosa>=0.11.0
 numba>=0.61.0
 modelscope>=1.39.0

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -47,7 +48,7 @@ def _fake_extract(_zip_path: Path, target_dir: Path) -> None:
 
 class MossRuntimeConstantTests(unittest.TestCase):
     def test_constant_values(self) -> None:
-        self.assertEqual(MOSS_RUNTIME_VERSION, "2")
+        self.assertEqual(MOSS_RUNTIME_VERSION, "3")
         self.assertEqual(MOSS_PYTHON_VERSION, "3.11")
         self.assertEqual(MOSS_RUNTIME_ROOT_NAME, "local-runtime-moss")
 
@@ -112,7 +113,7 @@ class MossRuntimeStatusTests(unittest.TestCase):
             for name in MOSS_PACKAGE_DIRS:
                 (site_packages / name).mkdir(parents=True, exist_ok=True)
             (root / "runtime.json").write_text(
-                '{"status": "ready", "runtimeVersion": "2"}\n',
+                json.dumps({"status": "ready", "runtimeVersion": MOSS_RUNTIME_VERSION}) + "\n",
                 encoding="utf-8",
                 newline="\n",
             )

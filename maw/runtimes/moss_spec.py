@@ -14,7 +14,7 @@ from __future__ import annotations
 from maw.runtimes.base import RuntimeCancelled, RuntimeSpec
 from maw.runtimes.local_spec import LocalRuntimeError
 
-MOSS_RUNTIME_VERSION = "2"
+MOSS_RUNTIME_VERSION = "3"
 MOSS_PYTHON_VERSION = "3.11"
 PYTORCH_INDEX = "https://download.pytorch.org/whl/cu130"
 

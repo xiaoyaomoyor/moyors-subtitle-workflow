@@ -10,7 +10,7 @@ import math
 import re
 
 from maw.msw.subtitle_tracks import TrackIndex, key, placement, style_kind
-from maw.msw.subtitle_fonts import family_metrics, installed_fonts, text_font, styled_text
+from maw.msw.subtitle_fonts import family_metrics, installed_fonts, resolve_style_fonts, text_font, styled_text
 from maw.project_subtitle_style import normalize_project_style, builtin_presets
 from maw.subtitle_wrapping import wrap_text, _characters
 from maw.msw import cue_style
@@ -276,6 +276,7 @@ def layout(project, width=1920):
             row['prefix']=prefix
             if inline_markup.enabled(project):
                 row['style']['_inlineMarkup'] = True
+            row['style'] = resolve_style_fonts(row['style'])
             row['size'] = measured_text(cue.get('text', ''), row['style'], width, prefix=prefix)
         members[0]['localY'] = 0
         if len(members)==2:

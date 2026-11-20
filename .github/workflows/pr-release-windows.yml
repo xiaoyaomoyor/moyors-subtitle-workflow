@@ -32,10 +32,11 @@ jobs:
           python-version: '3.11'
       - uses: astral-sh/setup-uv@v7
         with:
+          version: '0.13.6'
           enable-cache: true
       - uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.22.1'
           cache: npm
       - name: Prepare isolated browser checks
         shell: pwsh
@@ -90,6 +91,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
+          version: '0.13.6'
           enable-cache: true
 
       - name: Verify Launcher version

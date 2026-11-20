@@ -167,7 +167,7 @@ class OcrRuntimeTests(unittest.TestCase):
         for package in ("numpy", "onnxruntime", "PIL", "rapidocr"):
             (site_packages / package).mkdir(parents=True, exist_ok=True)
         (self.root / "runtime.json").write_text(
-            json.dumps({"status": "ready", "runtimeVersion": "3"}),
+            json.dumps({"status": "ready", "runtimeVersion": OCR.spec.runtime_version}),
             encoding="utf-8",
         )
 

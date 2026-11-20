@@ -19,6 +19,9 @@ SCRIPT_SAMPLES = {
 }
 
 
+MACOS_FONT_ASSETS = Path('/System/Library/AssetsV2')
+
+
 def font_roots() -> tuple[Path, ...]:
     roots: list[Path] = []
     if sys.platform == "win32":
@@ -30,6 +33,7 @@ def font_roots() -> tuple[Path, ...]:
             roots.append(Path(local_app_data) / "Microsoft" / "Windows" / "Fonts")
     elif sys.platform == "darwin":
         roots.extend((Path("/System/Library/Fonts"), Path("/Library/Fonts"), Path.home() / "Library" / "Fonts"))
+        roots.extend(sorted(path for path in MACOS_FONT_ASSETS.glob("com_apple_MobileAsset_Font*") if path.is_dir()))
     else:
         roots.extend((Path("/usr/share/fonts"), Path("/usr/local/share/fonts"), Path.home() / ".fonts"))
     return tuple(dict.fromkeys(root for root in roots if root.exists()))
@@ -114,6 +118,35 @@ def font_catalog():
     return [dict(entry, aliases=sorted(entry['aliases']), scripts=sorted(entry['scripts'])) for entry in sorted(families.values(), key=lambda e: e['family'].casefold())]
 
 
+@lru_cache(maxsize=1)
+def _font_aliases():
+    candidates = {}
+    for entry in font_catalog():
+        family = entry['family']
+        # Never introduce ASS control characters from a system name table.
+        if re.search(r'[\\{},\x00-\x1f]', family):
+            continue
+        for alias in entry['aliases']:
+            candidates.setdefault(alias.casefold(), set()).add(family)
+    # Some full names are shared by otherwise unrelated collections.
+    return {name: next(iter(families)) for name, families in candidates.items() if len(families) == 1}
+
+
+@lru_cache(maxsize=256)
+def resolve_font_family(name):
+    """Resolve a stored full or PostScript name for rendering without rewriting the project."""
+    if not name or name.casefold() in installed_fonts():
+        return name
+    return _font_aliases().get(name.casefold(), name)
+
+
+def resolve_style_fonts(style):
+    return {
+        **style,
+        **{key: resolve_font_family(style[key]) for key in ('fontName', *SCRIPT_FONTS) if style.get(key)},
+    }
+
+
 def text_font(char, style):
     """Choose by script; shared Han characters use the fallback face."""
     return style.get(script_key(char) + 'FontName') or style.get('fontName', '')
@@ -150,6 +183,7 @@ def family_metrics(family, bold=False, italic=False):
     libass sizes TrueType fonts by OS/2 Win ascent + descent, rather than em.
     Keep only numbers in the cache, and close every font file after reading.
     """
+    family = resolve_font_family(family)
     paths = installed_fonts().get(family.casefold(), ())
     if not paths:
         return {}

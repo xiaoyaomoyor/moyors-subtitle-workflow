@@ -116,8 +116,8 @@ class RuntimeInstallCommandTests(unittest.TestCase):
                                 with mock.patch("maw.runtimes.base._run_process", side_effect=fake_run):
                                     status = LOCAL.install(runtime_root=root)
 
-            install_command = calls[1]
-            verify_command = calls[2]
+            bootstrap_command, install_command, verify_command = calls
+            self.assertIn('pip-26.2.2-py3-none-any.whl#sha256=', bootstrap_command[-1])
             self.assertTrue(status.ready)
             self.assertEqual(status.status, "ready")
             self.assertIn("-r", install_command)
@@ -531,9 +531,9 @@ class VenvRuntimeInstallTests(unittest.TestCase):
                                     with mock.patch("maw.runtimes.base._run_process", side_effect=fake_run):
                                         status = LOCAL.install(runtime_root=root)
 
-            create_command = calls[0]
-            install_command = calls[1]
-            verify_command = calls[2]
+            create_command, bootstrap_command, install_command, verify_command = calls
+            self.assertIn('--no-deps', bootstrap_command)
+            self.assertIn('pip-26.2.2-py3-none-any.whl#sha256=', bootstrap_command[-1])
             self.assertTrue(status.ready)
             # venv 创建：宿主 python3 -m venv <root>（root 不存在，无 --clear）
             self.assertEqual(create_command[:3], ["python3", "-m", "venv"])
@@ -594,7 +594,7 @@ class VenvRuntimeInstallTests(unittest.TestCase):
                                 with mock.patch("maw.runtimes.base._run_process", side_effect=fake_run):
                                     status = LOCAL.install(runtime_root=root)
 
-            install_command = calls[1]
+            install_command = calls[2]
             self.assertTrue(status.ready)
             # venv 下同样走 CPU 清单前置：-r requirements-local-cpu.txt、无 cu130 extra index
             self.assertTrue(any(str(cpu_txt) in str(arg) for arg in install_command))

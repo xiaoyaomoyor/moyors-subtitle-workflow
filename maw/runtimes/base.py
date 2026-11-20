@@ -55,6 +55,13 @@ from maw.runtime_mirror_picker import pick_fastest_mirror, probe_index_reachable
 from maw.runtimes import freezer
 
 GET_PIP_SCRIPT: Final = "get-pip.py"
+# Use the same verified pip in the embedded bootstrap and the host venv.
+PIP_BOOTSTRAP_REQUIREMENT: Final = (
+    "pip @ https://files.pythonhosted.org/packages/3f/06/"
+    "3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/"
+    "pip-26.2.2-py3-none-any.whl"
+    "#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+)
 
 # 源码模式对开发环境的硬性要求（uv 用于托管依赖冻结与 --target 安装）。
 UV_MISSING_WARNING: Final = (
@@ -669,6 +676,13 @@ class ManagedRuntime:
             cancel=cancel,
             on_line=_bootstrap_line(emit, 10),
         )
+        _may_cancel(cancel, spec)
+        self.run(
+            [str(python), "-m", "pip", "install", "--upgrade", "--no-deps", "--disable-pip-version-check", PIP_BOOTSTRAP_REQUIREMENT],
+            env=self.environment(root, model_cache_root),
+            cancel=cancel,
+            on_line=_bootstrap_line(emit, 15),
+        )
 
     def _ensure_frozen_requirements(
         self,
@@ -877,7 +891,10 @@ def _extract_embed_python(zip_path: Path, target_dir: Path) -> None:
 
 def _get_pip_command(python_exe: Path, get_pip_path: Path) -> list[str]:
     """Build the command to bootstrap pip into an embedded Python."""
-    return [str(python_exe), str(get_pip_path)]
+    return [
+        str(python_exe), str(get_pip_path), "--no-deps", "--no-setuptools", "--no-wheel",
+        "--disable-pip-version-check", PIP_BOOTSTRAP_REQUIREMENT,
+    ]
 
 
 def _uv_install_command(

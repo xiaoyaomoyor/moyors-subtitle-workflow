@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from maw.runtimes.base import ManagedRuntimeError, RuntimeCancelled, RuntimeSpec
 
-RUNTIME_VERSION = "8"
+RUNTIME_VERSION = "9"
 PYTHON_VERSION = "3.11"
 PYTORCH_INDEX = "https://download.pytorch.org/whl/cu130"
 EMBED_PYTHON_ZIP = "python-3.11.9-embed-amd64.zip"

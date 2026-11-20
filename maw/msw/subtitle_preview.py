@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import threading
 
-from maw.msw.subtitle_fonts import installed_fonts
+from maw.msw.subtitle_fonts import installed_fonts, resolve_font_family
 from maw.project import normalize_project
 from maw.msw.subtitle_style import styled_ass
 
@@ -69,10 +69,12 @@ def font_manifest(families):
     registry=installed_fonts()
     fallback=next((name for name in ('microsoft yahei','pingfang sc','noto sans cjk sc','arial','dejavu sans') if name in registry),None)
     requested=list(dict.fromkeys(families))
-    missing=[name for name in requested if name.casefold() not in registry]
-    paths=set()
-    for name in requested + ([fallback] if fallback else []):
-        paths.update(registry.get(name.casefold(),set()))
+    families={name: name if name.casefold() in registry else resolve_font_family(name) for name in requested}
+    if fallback:
+        families.setdefault(fallback, fallback)
+    paths_by_family={name: registry.get(family.casefold(), set()) for name,family in families.items()}
+    missing=[name for name in requested if families[name].casefold() not in registry]
+    paths={path for matches in paths_by_family.values() for path in matches}
     fonts=[]
     omitted={}
     total=0
@@ -91,9 +93,8 @@ def font_manifest(families):
         with _lock:
             _files[key]=path
         fonts.append({'id':key,'bytes':info.st_size})
-    unavailable=[{'family':name,'reason':'、'.join(sorted({omitted[p] for p in registry.get(name.casefold(),set()) if p in omitted}))}
-                 for name in requested+([fallback] if fallback and fallback not in requested else [])
-                 if any(p in omitted for p in registry.get(name.casefold(),set()))]
+    unavailable=[{'family':name,'reason':'、'.join(sorted({omitted[p] for p in matches if p in omitted}))}
+                 for name,matches in paths_by_family.items() if any(p in omitted for p in matches)]
     return {'fonts':fonts,'missing':missing,'unavailable':unavailable,'fallback':fallback or 'sans-serif'}
 
 

@@ -2629,6 +2629,7 @@ const subtitleExtendBackwardInput = document.getElementById('subtitle-extend-bac
 ].forEach(bindFloatingSurfaceActivation);
 
 let gapPreviewRange = null;
+let lastNativeGapSkip = null;
 let gapRemovePanelDrag = null;
 let currentCuePanelIdx = -1;
 let cueListPlaybackKey = null;
@@ -10115,8 +10116,8 @@ function commitMainWaveformSplit(
     index: mainIndex,
     track: 'main',
     splitMs,
-    feedbackPoint: null,
-    listFeedback: false,
+    feedbackPoint: state.feedbackPoint,
+    listFeedback: state.ninjaFromList && !EDITOR_SETTINGS.ninjaMode,
   });
 
   // 确认区提交的刀光位置由唤起来源决定：列表唤起留在列表，其余落在波形最终切点。
@@ -10215,8 +10216,8 @@ function commitExtensionSplit(
     index: extensionIndex,
     track: 'extension',
     splitMs,
-    feedbackPoint: null,
-    listFeedback: false,
+    feedbackPoint: state.feedbackPoint,
+    listFeedback: state.ninjaFromList && !EDITOR_SETTINGS.ninjaMode,
   });
   // 确认区提交的刀光位置由唤起来源决定：列表唤起留在列表，其余落在波形最终切点。
   triggerNinjaSplitFeedback(ninjaModalSplitPoint(state, splitMs, 'extension'));
@@ -10294,8 +10295,8 @@ function commitOverlaySplit(
     index: overlayIndex,
     track: 'overlay',
     splitMs,
-    feedbackPoint: null,
-    listFeedback: false,
+    feedbackPoint: state.feedbackPoint,
+    listFeedback: state.ninjaFromList && !EDITOR_SETTINGS.ninjaMode,
   });
   triggerNinjaSplitFeedback(ninjaModalSplitPoint(state, splitMs, 'overlay'));
   return true;
@@ -10426,15 +10427,15 @@ function confirmLinkedSplit({ duplicateText = false } = {}) {
     index: mainIndex,
     track: 'main',
     splitMs: sharedCutMs,
-    feedbackPoint: null,
-    listFeedback: false,
+    feedbackPoint: state.feedbackPoint,
+    listFeedback: state.ninjaFromList && state.origin?.kind === 'main' && !EDITOR_SETTINGS.ninjaMode,
   });
   flashSplitFeedback({
     index: extensionIndex,
     track: 'extension',
     splitMs: sharedCutMs,
-    feedbackPoint: null,
-    listFeedback: false,
+    feedbackPoint: state.feedbackPoint,
+    listFeedback: state.ninjaFromList && state.origin?.kind === 'extension' && !EDITOR_SETTINGS.ninjaMode,
   });
   // 联动拆分刀光位置由唤起来源决定：列表唤起留在列表，其余落在主轨波形切点。
   triggerNinjaSplitFeedback(ninjaModalSplitPoint(state, sharedCutMs, 'main'));
@@ -10459,13 +10460,11 @@ function splitAtCursor(feedbackPoint = null, { listFeedback = true, cueListAncho
 
 function flashCueSplitAt(idx, clientX, track = 'main') {
   if (!Number.isFinite(clientX)) return false;
-  const cue = track === 'extension'
-    ? container.querySelector(
-      `.multi-cue-column.extension[data-ext-idx="${idx}"], .cue[data-ext-idx="${idx}"]`,
-    )
-    : container.querySelector(
-      `.multi-cue-column.main[data-main-idx="${idx}"], .cue[data-idx="${idx}"]`,
-    );
+  const selector = track === 'extension'
+    ? `.multi-cue-column.extension[data-ext-idx="${idx}"], .cue[data-ext-idx="${idx}"]`
+    : track === 'overlay' ? `.cue[data-overlay-idx="${idx}"]`
+      : `.multi-cue-column.main[data-main-idx="${idx}"], .cue[data-idx="${idx}"]`;
+  const cue = container.querySelector(selector);
   if (!cue) return false;
   const rect = cue.getBoundingClientRect();
   const marker = document.createElement('span');
@@ -12684,7 +12683,10 @@ function bindPlayerEvents(mediaElement) {
     update();
     waveformEditor?.updatePlayback();
   });
-  mediaElement.addEventListener('emptied', () => stopPlaybackRefresh(mediaElement));
+  mediaElement.addEventListener('emptied', () => {
+    if (player === mediaElement) lastNativeGapSkip = null;
+    stopPlaybackRefresh(mediaElement);
+  });
   for (const name of ['ended','emptied','abort','error']) mediaElement.addEventListener(name, () => {
     if (spacePlaybackPress?.media === mediaElement) finishSpacePlayback({resume:false});
   });
@@ -15060,25 +15062,35 @@ function updateCueListPlayback(tMs = window.MSWE?.resolve('audio-timeline')?.cur
   }
 }
 
-function updatePlaybackFrame() {
-  const tMs = player.currentTime * 1000;
+function playbackGapAt(tMs, isPlaying) {
   if (gapPreviewRange && (tMs < gapPreviewRange.start || tMs >= gapPreviewRange.end)) {
     gapPreviewRange = null;
   }
-  const gapState = getGapRemoveData(false);
-  const skippedGap = window.AsrGapRemoveCore.getGapPlaybackSkip(
-    getRemovedGapRanges(),
-    tMs,
-    {
-      skipPlayback: gapState?.skip_playback === true,
-      isPlaying: !player.paused,
-      previewRange: gapPreviewRange,
-    },
-  );
-  if (skippedGap) {
-    player.currentTime = skippedGap.end / 1000;
-    return;
+  if (!isPlaying || getGapRemoveData(false)?.skip_playback !== true) return null;
+  return window.AsrGapRemoveCore.getGapPlaybackSkip(getRemovedGapRanges(), tMs, {
+    skipPlayback: true, isPlaying: true, previewRange: gapPreviewRange,
+  });
+}
+
+function skipNativePlaybackGap(tMs) {
+  const gap = playbackGapAt(tMs, !player.paused && !player.ended);
+  // A previous seek can still report a time inside the gap. Both playback
+  // updates and the audio scheduler share this guard for the native clock.
+  if (player.seeking && !player.paused) return false;
+  if (!gap) {
+    lastNativeGapSkip = null;
+    return false;
   }
+  if (lastNativeGapSkip?.player === player && lastNativeGapSkip.project === DATA
+      && lastNativeGapSkip.start === gap.start && lastNativeGapSkip.end === gap.end) return false;
+  lastNativeGapSkip = {player, project: DATA, start: gap.start, end: gap.end};
+  seekFromWaveform(gap.end / 1000, {gapSkip: true});
+  return true;
+}
+
+function updatePlaybackFrame() {
+  const tMs = player.currentTime * 1000;
+  if (skipNativePlaybackGap(tMs)) return;
   const nowLabel = fmtPlayheadTime(tMs);
   if (nowEl.textContent !== nowLabel) nowEl.textContent = nowLabel;
   const idx = findActive(tMs);
@@ -15699,25 +15711,9 @@ function refreshSubtitlePreview(tMs = player.currentTime * 1000, idx = findActiv
 }
 
 function update() {
-  const audio = window.MSWE?.resolve('audio-timeline');
-  const tMs = audio?.currentTimeMs() ?? player.currentTime * 1000;
-  if (gapPreviewRange && (tMs < gapPreviewRange.start || tMs >= gapPreviewRange.end)) {
-    gapPreviewRange = null;
-  }
-  const gapState = getGapRemoveData(false);
-  const skippedGap = window.AsrGapRemoveCore.getGapPlaybackSkip(
-    getRemovedGapRanges(),
-    tMs,
-    {
-      skipPlayback: gapState?.skip_playback === true,
-      isPlaying: audio?.virtualPlaying() ?? !player.paused,
-      previewRange: gapPreviewRange,
-    },
-  );
-  if (skippedGap) {
-    seekFromWaveform(skippedGap.end / 1000);
-    return;
-  }
+  const virtualTime = window.MSWE?.resolve('audio-timeline')?.currentTimeMs();
+  const tMs = virtualTime ?? player.currentTime * 1000;
+  if (virtualTime == null && skipNativePlaybackGap(tMs)) return;
   nowEl.textContent = fmtPlayheadTime(tMs);
   const idx = findActive(tMs);
   updateCueListPlayback(tMs, true);
@@ -15786,8 +15782,8 @@ function rebuildStickerIntervals() {
       if (head !== seg && head.disabled) return;
       const source = seg.sticker || head.sticker;
       if (!source) return;
-      const start = Number(source.start ?? head.start);
-      const end = Number(source.end ?? head.end);
+      const start = Number(seg.sticker?.start ?? seg.start);
+      const end = Number(seg.sticker?.end ?? seg.end);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return;
       intervals.push({ start, end, source, key: source.filename || source.name, track });
       boundaries.add(start);
@@ -20623,9 +20619,8 @@ function assignSticker(sticker) {
     const headIdx = sorted[0];
     // 每条字幕都是一个独立的时间实例；head 只负责保存素材，不能把多条字幕
     // 的时间范围合并成一条，否则 XML/OTIO 会把中间的引用压成连续长片段。
-    segments[headIdx].sticker = {
-      ...sticker, start: segments[headIdx].start, end: segments[headIdx].end,
-    };
+    const {start: _start, end: _end, ...sharedSticker} = sticker;
+    segments[headIdx].sticker = sharedSticker;
     segments[headIdx].sticker_ref = null;
     // 后续条：sticker_ref 标记，便于显示和导航
     for (let i = 1; i < sorted.length; i++) {
@@ -22218,6 +22213,8 @@ function syncTimelineGroupRanges(changedIds=null) {
     segments.forEach((segment, headIdx) => {
       const head = segment[headField];
       if (!head || changedIds&&!changedIds.has(segment.id)) return;
+      // A sticker without explicit bounds follows each cue, including its refs.
+      if (headField === 'sticker' && head.start == null && head.end == null) return;
       const end = Math.max(segment.end,ends.get(headIdx)||0);
       head.start = segment.start;
       head.end = end;
@@ -22234,7 +22231,8 @@ function syncTimelineGroupRanges(changedIds=null) {
   }
 }
 
-function seekFromWaveform(timeSec, { dragPreview = false, mouseClick = false, pauseAfterSeek = false } = {}) {
+function seekFromWaveform(timeSec, { dragPreview = false, mouseClick = false, pauseAfterSeek = false, gapSkip = false } = {}) {
+  if (!gapSkip) lastNativeGapSkip = null;
   // A deliberate navigation wins over a saved location still waiting on media.
   pendingProjectPlayhead = null;
   const shouldPause = pauseAfterSeek || (mouseClick && !dragPreview && EDITOR_SETTINGS.pauseOnMouseClick && isPlaybackActive());
@@ -22257,7 +22255,7 @@ function seekFromWaveform(timeSec, { dragPreview = false, mouseClick = false, pa
   try {
     player.currentTime = Math.max(0, timeSec);
     if (shouldPause) pauseTimelinePlayback();
-    if (!dragPreview) {
+    if (!dragPreview && !gapSkip) {
       update();
       // currentTime 的 seeked/timeupdate 事件是异步触发的；先同步刷新波形，
       // 避免字幕已选中但红色播放头要等下一拍才移动。
@@ -24597,8 +24595,8 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   applyASR: applyAsrJob,
   get assetLibrary() { return waveformEditor?.assetLibrary; },
   get player() { return player; },
-  audioPlaybackSkip: timeMs => window.AsrGapRemoveCore.getGapPlaybackSkip(getRemovedGapRanges(), timeMs,
-    { skipPlayback: getGapRemoveData(false)?.skip_playback === true, isPlaying: true, previewRange: gapPreviewRange }),
+  audioPlaybackSkip: timeMs => playbackGapAt(timeMs, true),
+  skipNativePlaybackGap,
   refreshAudioPlayback: (timeMs) => {
     if (Number.isFinite(timeMs)) {
       const index = findActive(timeMs);

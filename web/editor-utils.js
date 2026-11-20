@@ -621,6 +621,37 @@
     };
   }
 
+  function alignTimedTextSeparators(items, targetTokens) {
+    // Only presentation separators may differ. Keep interior punctuation
+    // between digits (versions, decimals and times) and spoken symbols.
+    const contentIndexes = tokens => {
+      const indexes = [];
+      tokens.forEach((token, index) => {
+        if (isTimedTextWhitespace(token)) return;
+        const betweenDigits = /\p{N}/u.test(tokens[index - 1] || '')
+          && /\p{N}/u.test(tokens[index + 1] || '');
+        if (!betweenDigits && /[,.!?;:，。！？；：、…“”‘’「」『』]/u.test(token)) return;
+        indexes.push(index);
+      });
+      return indexes;
+    };
+    const targetIndexes = contentIndexes(targetTokens);
+    let offset = 0;
+    const ends = [];
+    for (const item of items) {
+      const tokens = timedTextTokens(item.text);
+      const indexes = contentIndexes(tokens);
+      if (!indexes.length || indexes.some((index, i) => tokens[index] !== targetTokens[targetIndexes[offset + i]])) return null;
+      offset += indexes.length;
+      ends.push(targetIndexes[offset] ?? targetTokens.length);
+    }
+    if (offset !== targetIndexes.length) return null;
+    return ends.map((end, index) => {
+      const start = ends[index - 1] ?? 0;
+      return {start, end};
+    });
+  }
+
   function timedTextItemLayout(originalText, rawItems) {
     if (!Array.isArray(rawItems) || !rawItems.length) return null;
     const items = cloneJsonValue(rawItems);
@@ -640,6 +671,16 @@
       spans.push({ start: itemStart, end: itemEnd });
       previousStart = start;
       previousEnd = end;
+    }
+    if (items.map(item => item.text).join('') !== sourceTokens.join('')) {
+      const aligned = alignTimedTextSeparators(items, sourceTokens);
+      if (aligned) {
+        items.forEach((item, index) => {
+          const {start, end} = aligned[index];
+          item.text = sourceTokens.slice(start, end).join('');
+        });
+        return {items, spans: aligned, repaired: true};
+      }
     }
     if (spans[spans.length - 1].end !== sourceTokens.length) return null;
     return { items, spans };
@@ -1563,6 +1604,14 @@
 
     const originalTokens = timedTextTokens(originalText);
     const newTokens = timedTextTokens(newText);
+    const separatorSpans = layout.repaired ? alignTimedTextSeparators(items, newTokens) : null;
+    if (separatorSpans) {
+      items.forEach((item, index) => {
+        const {start, end} = separatorSpans[index];
+        item.text = newTokens.slice(start, end).join('');
+      });
+      return {status: 'partial', items, preservedItems: items.length, affectedItems: 0};
+    }
     const neutralItems = timedTextNeutralInsertionItems(originalText, layout, newText);
     if (neutralItems) {
       return {
@@ -1574,7 +1623,7 @@
     }
     // 等长改字是最可靠的错别字修正场景：按原 item 的字符长度重新分配文字，
     // 直接保留每个 item 的时间范围。
-    if (originalTokens.length === newTokens.length) {
+    if (!layout.repaired && originalTokens.length === newTokens.length) {
       let offset = 0;
       items.forEach((item, index) => {
         const length = spans[index].end - spans[index].start;

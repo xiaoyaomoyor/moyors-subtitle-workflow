@@ -1,21 +1,77 @@
 import copy
 import json
+import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
 
+from fontTools.fontBuilder import FontBuilder
+from fontTools.pens.ttGlyphPen import TTGlyphPen
+
 import test_selected_position as position_tests
 from maw.ass_styles import _normalize_style, DEFAULT_ASS_STYLE
 from maw.msw import cue_style, subtitle_animation, subtitle_gradient
-from maw.msw.subtitle_fonts import font_catalog, styled_text, text_font
+from maw.msw.subtitle_fonts import _font_aliases, font_catalog, font_roots, resolve_font_family, styled_text, text_font
 from maw.font_scripts import SCRIPT_FONTS
 from maw.msw.track_presentation import measured_text
-from maw.msw.subtitle_preview import preview_ass
+from maw.msw.subtitle_preview import font_manifest, preview_ass
 from maw.msw.subtitle_style import styled_ass
 from maw.project_subtitle_style import builtin_presets, normalize_project_style
 
 
 class MixedFontTests(unittest.TestCase):
+
+    def test_aliases_resolve_in_ass_and_preview_manifest_without_changing_source_style(self):
+        project = position_tests.SelectedPositionTests().pair()
+        cue = project['subtitles']['cues'][0]['content']
+        cue['text'] = 'English'
+        cue['subtitle_style'] = dict(fontName='FixtureMT', latinFontName='Fixture Full')
+        before = copy.deepcopy(project)
+        video = dict(width=1920, height=1080)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'fixture.ttf'
+            builder = FontBuilder(1000)
+            builder.setupGlyphOrder(['.notdef', 'A'])
+            builder.setupCharacterMap({ord('A'): 'A'})
+            builder.setupGlyf({name: TTGlyphPen(None).glyph() for name in ('.notdef', 'A')})
+            builder.setupHorizontalMetrics({'.notdef': (500, 0), 'A': (600, 0)})
+            builder.setupHorizontalHeader(ascent=800, descent=-200)
+            builder.setupNameTable({'familyName':'Fixture Family', 'styleName':'Regular'})
+            builder.setupOS2()
+            builder.setupPost()
+            builder.save(path)
+            registry = {'fixture family': {path}, 'exact family': {path}}
+            catalog = [{'family': 'Fixture Family', 'aliases': ['FixtureMT', 'Fixture Full', 'Exact Family', 'Ambiguous']},
+                       {'family': 'Other Family', 'aliases': ['Ambiguous']}]
+            _font_aliases.cache_clear()
+            resolve_font_family.cache_clear()
+            self.addCleanup(_font_aliases.cache_clear)
+            self.addCleanup(resolve_font_family.cache_clear)
+            with patch('maw.msw.subtitle_fonts.installed_fonts', return_value=registry), \
+                 patch('maw.msw.subtitle_preview.installed_fonts', return_value=registry), \
+                 patch('maw.msw.subtitle_fonts.font_catalog', return_value=catalog):
+                self.assertEqual(resolve_font_family('Exact Family'), 'Exact Family')
+                self.assertEqual(resolve_font_family('Ambiguous'), 'Ambiguous')
+                manifest = font_manifest(['FixtureMT','Fixture Full','Unknown'])
+                self.assertEqual(manifest['missing'], ['Unknown'])
+                self.assertEqual(len(manifest['fonts']), 1)
+                ass = preview_ass(dict(project=project, video=video))['ass']
+                self.assertIn(',Fixture Family,', ass)
+                self.assertNotIn('FixtureMT', ass)
+                self.assertNotIn('Fixture Full', ass)
+        self.assertEqual(project, before)
+
+    def test_macos_only_reads_designated_mobile_asset_font_roots(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            fonts = root / 'com_apple_MobileAsset_Font7'
+            others = root / 'com_apple_MobileAsset_Example'
+            fonts.mkdir()
+            others.mkdir()
+            with patch('maw.msw.subtitle_fonts.sys.platform', 'darwin'), \
+                 patch('maw.msw.subtitle_fonts.MACOS_FONT_ASSETS', root):
+                self.assertIn(fonts, font_roots())
+                self.assertNotIn(others, font_roots())
     def test_script_fonts_roundtrip_and_ass_keep_all_categories(self):
         samples = ['éA', 'かな', '한글', 'Жя', 'Ωα', 'سلام', 'שלום', 'नमस्ते', 'ไทย']
         style = dict(fontName='Han', **{key:key for key in SCRIPT_FONTS})

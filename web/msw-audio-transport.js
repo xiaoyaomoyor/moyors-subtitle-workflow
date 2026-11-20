@@ -1,7 +1,7 @@
 // Bounded Web Audio cache and cancellable scheduling on the source timeline.
 (function (global) {
   'use strict';
-  function create({ player, getState, load, changed, hint, frame, beforePlay = () => {}, skipAt = () => null }) {
+  function create({ player, getState, load, changed, hint, frame, beforePlay = () => {}, skipAt = () => null, skipNative = () => false }) {
     let context, epoch = 0, timer, anchor, virtual = null, busy = 0, buffering = null, internalPause = false;
     let mediaNode = null, mediaGain = null, sourceGainDb = 0, sourceRevision = 0, gainRequest = 0;
     let playbackRevision = 0;
@@ -137,11 +137,17 @@
       if (virtual && now >= state.end) {
         virtual = { time: state.end, stamp: clock(), playing: false }; reset(); frame(); return;
       }
-      const skipped = skipAt(now);
-      if (skipped) {
+      if (virtual) {
+        const skipped = skipAt(now);
+        if (skipped) {
+          reset();
+          virtual = { time: skipped.end, stamp: clock(), playing: true };
+          frame();
+          timer = setTimeout(tick, 0);
+          return;
+        }
+      } else if (skipNative(now)) {
         reset();
-        if (virtual) { virtual = { time: skipped.end, stamp: clock(), playing: true }; frame(); timer = setTimeout(tick, 0); }
-        else player.currentTime = skipped.end / 1000;
         return;
       }
       const required = state.audible.filter(c => {

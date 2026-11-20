@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from maw.runtimes.base import ManagedRuntimeError, RuntimeCancelled, RuntimeSpec
 
-OCR_RUNTIME_VERSION = "3"
+OCR_RUNTIME_VERSION = "4"
 OCR_PYTHON_VERSION = "3.11"
 OCR_MODEL_ID = "pp-ocrv6-tiny"
 OCR_MODEL_LABEL = "PP-OCRv6 tiny（CPU）"

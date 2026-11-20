@@ -225,8 +225,8 @@ class PackagingContractTests(unittest.TestCase):
                 self.assertIn('--only-group test --no-emit-project', line)
         self.assertIn('uv pip install --python .venv/Scripts/python.exe --require-hashes -r test-requirements.txt', release)
 
-        self.assertIn('RUNTIME_VERSION = "8"', local_spec)
-        self.assertIn('OCR_RUNTIME_VERSION = "3"', ocr_spec)
+        self.assertIn('RUNTIME_VERSION = "9"', local_spec)
+        self.assertIn('OCR_RUNTIME_VERSION = "4"', ocr_spec)
 
         self.assertIn("_has_cuda", runtimes_base)
         self.assertIn("requirements_in", runtimes_base)
@@ -316,6 +316,8 @@ class PackagingContractTests(unittest.TestCase):
         self.assertEqual(
             ocr_dependencies,
             {
+                "certifi>=2026.10.19",
+                "urllib3>=2.8.0",
                 "numpy>=2.2,<2.5",
                 "onnxruntime>=1.18",
                 "pillow>=10.0.0",

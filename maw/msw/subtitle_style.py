@@ -77,7 +77,10 @@ def styled_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fra
     project = apply_project_style(project)
     if (project.get('preview') or {}).get('ass_library_exports') is True:
         return library_ass(project, plan, target, video, start_ms=start_ms, end_ms=end_ms, frame_at=frame_at)
+    from maw.msw.subtitle_fonts import resolve_font_family
     styles=normalize_styles((project.get('preview') or {}).get('burn_subtitles'))
+    for style in styles.values():
+        style['font_family'] = resolve_font_family(style['font_family'])
     if (project.get('overlay_track') or {}).get('enabled') is True:
         styles['overlay'] = dict(styles['main'])
         anchor = styles['secondary'] if (project.get('multi_subtitle') or {}).get('enabled') is True else styles['main']
@@ -143,7 +146,10 @@ def library_ass(project, plan, target, video, *, start_ms=0, end_ms=math.inf, fr
     anchor = secondary if len(groups) > 1 and groups[1][1] else main
     overlay = dict(main, alignment=anchor['alignment'], marginL=anchor['marginL'], marginR=anchor['marginR'],
                    marginV=anchor['marginV'] + round(1.2 * anchor['fontSize']))
-    styles = {'main': main, 'secondary': secondary, 'overlay': overlay}
+    from maw.msw.subtitle_fonts import resolve_style_fonts
+    styles = {name: resolve_style_fonts(style) for name, style in (
+        ('main', main), ('secondary', secondary), ('overlay', overlay),
+    )}
     selected = [(i, name) for i, name in enumerate(('main', 'secondary')) if target in {name, 'both'}]
     if (project.get('overlay_track') or {}).get('enabled') is True and target != 'none':
         selected.append((len(groups)-1, 'overlay'))

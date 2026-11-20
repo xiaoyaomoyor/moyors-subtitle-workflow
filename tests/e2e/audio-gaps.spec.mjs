@@ -302,3 +302,71 @@ for (const theme of ['alice','default']) test(`middle-button marking label follo
     await page.mouse.up({button:'middle'});await page.keyboard.up('Alt');
     expect(await page.evaluate(()=>getGapRemoveGaps().some(g=>g.retained))).toBe(true);
 });
+
+test('automatic native gap jumps are shared by the frame, event and audio updates', async ({page}) => {
+  const seeks = await page.evaluate(() => {
+    let time = 1.5, seeking = false;
+    const requests = [];
+    Object.defineProperties(player, {
+      currentTime: { get: () => time, set: target => { requests.push(target); seeking = true; } },
+      paused: { get: () => false },
+      seeking: { get: () => seeking },
+      readyState: { get: () => 4 },
+      seekable: { get: () => ({length: 1, end: () => 10}) },
+    });
+    DATA.gap_remove = {schema:'moy.asr.gap_remove.v1',detector:'audio_gate',skip_playback:true,
+      gaps:[{start:1000,end:2000,removed:true}]};
+    updatePlaybackFrame();
+    update();
+    skipNativePlaybackGap(1500);
+    seeking = false;
+    update(); // A decoder which still reports the previous time must be allowed to advance.
+    time = 2.1;
+    update();
+    time = 1.5;
+    previewGapAt(0, 1500);
+    updatePlaybackFrame();
+    seekFromWaveform(1.5);
+    seeking = false;
+    gapPreviewRange = null;
+    update();
+    return requests;
+  });
+  expect(seeks).toEqual([2, 1.5, 2]);
+});
+
+test('linked sticker preview follows each cue and respects an explicit continuous interval', async ({page}) => {
+  const counts = await page.evaluate(() => {
+    const sticker = {name:'sample', filename:'sample.png'};
+    DATA.segments = [
+      {id:'head', start:1000, end:2000, sticker},
+      {id:'next', start:3000, end:4000, sticker_ref:{name:'sample',headIdx:0}},
+    ];
+    syncTimelineGroupRanges();
+    stickerOverlayDataVersion++;
+    const sample = () => [1500, 2500, 3500].map(time => activeStickersAt(time).length);
+    const independent = sample();
+    DATA.segments[0].sticker = {...sticker, start:1000, end:4000};
+    stickerOverlayDataVersion++;
+    return [independent, sample()];
+  });
+  expect(counts).toEqual([[1, 0, 1], [1, 1, 1]]);
+});
+
+test('playing a WAV crosses a removed gap without a second seek or a restart', async ({page}) => {
+  await page.waitForFunction(() => player.readyState >= 2);
+  await page.evaluate(async () => {
+    seekFromWaveform(0.6);
+    await new Promise(resolve => player.addEventListener('seeked', resolve, {once:true}));
+    DATA.gap_remove = {schema:'moy.asr.gap_remove.v1',detector:'audio_gate',skip_playback:true,
+      gaps:[{start:1000,end:2300,removed:true}]};
+    window.mediaSeekEvents = [];
+    player.addEventListener('seeking', () => window.mediaSeekEvents.push(player.currentTime));
+    await player.play();
+  });
+  await expect.poll(() => page.evaluate(() => player.currentTime)).toBeGreaterThan(2.45);
+  expect(await page.evaluate(() => {
+    player.pause();
+    return window.mediaSeekEvents;
+  })).toEqual([2.3]);
+});

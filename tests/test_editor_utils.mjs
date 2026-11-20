@@ -5863,3 +5863,16 @@ test('split confirmation settings migrate old preferences and preserve explicit 
   assert.equal(chosen.cueEditorSplitAutoClose, false);
   assert.equal(chosen.cueEditorCancelOnEscape, true);
 });
+
+test('reuses drifted word timestamps only when spoken text still matches', () => {
+  const source = [{
+    start: 0, end: 1000, text: 'Hello, world!',
+    items: [{id:'a',start:100,end:500,text:'Hello'}, {id:'b',start:650,end:940,text:'world'}],
+  }];
+  const after = helpers.applyTimedTextEdit(source, ['Hello world.'])[0];
+  assert.equal(after.items.map(item => item.text).join(''), 'Hello world.');
+  assert.deepEqual(JSON.parse(JSON.stringify(after.items.map(({id,start,end}) => [id,start,end]))),
+    [['a',100,500],['b',650,940]]);
+  assert.equal(source[0].items[0].text,'Hello');
+  assert.equal(helpers.applyTimedTextEdit(source, ['Completely different.'])[0].items, undefined);
+});
