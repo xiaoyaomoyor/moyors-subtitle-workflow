@@ -38,6 +38,8 @@ if (window.MSWFlatTrialRequested && SERVER_CONFIG) {
   for (const key of ['processingUrl', 'processingContext', 'saveUrl', 'projectPersistence', 'autoOpenLastProject']) SERVER_CONFIG[key] = null;
 }
 let mswProjectGeneration = 0;
+let projectSwitchSequence = 0;
+const projectSwitchPage = window.MSWProject.id('switch-page');
 window.MSWProject.ensure(DATA, SERVER_CONFIG?.processingContext?.projectId);
 let fileExportMediaIdentity = null;
 setFileExportMediaIdentity(SERVER_CONFIG?.fileExportMediaIdentity);
@@ -16153,11 +16155,12 @@ function buildGapRemovedSrt() {
     return null;
   }
   const { segments, overlaySet, overlaySegments } = mergedExportSegments();
+  const keptSegments = window.AsrEditorUtils.filterSrtCuesOutsideRemovedGaps(segments, removed);
   const firstEnabledIndex = window.AsrEditorUtils.getSrtExportFirstIndex(
-    segments,
+    keptSegments,
     EDITOR_SETTINGS.exportStartAtZero,
   );
-  return window.AsrEditorUtils.buildSrtPayload(segments, {
+  return window.AsrEditorUtils.buildSrtPayload(keptSegments, {
     textTransform:text=>window.MSWInlineMarkup.plain(text,window.MSWInlineMarkup.enabled(DATA)),
     alignFirstStart: EDITOR_SETTINGS.exportStartAtZero,
     firstEnabledIndex,
@@ -17230,6 +17233,8 @@ async function exportStickerOtoz(kind, buildTimeline, filename, description) {
 // Build both files synchronously before the first picker/request can yield.
 // Later edits, project switches and language changes cannot mix two snapshots.
 async function exportSourceTimeline({ gapRemoved = false, archive = false } = {}) {
+  const generation = mswProjectGeneration;
+  const isCurrent = () => generation === mswProjectGeneration;
   if (editingState) finishEdit(true);
   const payload = gapRemoved ? buildGapRemovedOtio() : buildSourceOtio();
   if (!payload) return false;
@@ -17263,14 +17268,14 @@ async function exportSourceTimeline({ gapRemoved = false, archive = false } = {}
   const extension = archive ? '.otioz' : '.otio';
   const mime = archive ? 'application/zip' : 'application/vnd.opentimelineio+json';
   const result = await downloadFile(content, basename + extension, mime,
-    { desc: archive ? 'OTIOZ' : 'OTIO', types: { [mime]: [extension] } }, { detailed: true });
+    { desc: archive ? 'OTIOZ' : 'OTIO', types: { [mime]: [extension] } }, { detailed: true, isCurrent });
   if (!['saved', 'dispatched'].includes(result.status)) {
     if (result.status === 'failed') flashHint(tr('源媒体时间线保存失败，请检查目标文件权限后重试。'), 'warning');
     return false;
   }
-  if (srt !== null) {
+  if (srt && isCurrent()) {
     const subtitleResult = await downloadFile(srt, basename + '.srt', 'text/plain',
-      { desc: 'SRT', types: { 'text/plain': ['.srt'] } }, { detailed: true });
+      { desc: 'SRT', types: { 'text/plain': ['.srt'] } }, { detailed: true, isCurrent });
     if (!['saved', 'dispatched'].includes(subtitleResult.status)) {
       flashHint(tr(subtitleResult.status === 'cancelled'
         ? '时间线已导出；已取消附带 SRT 的保存。'
@@ -17333,7 +17338,10 @@ function stickerExportBlocked(id) {
   return false;
 }
 
-async function downloadFile(content, filename, mime, accept, { usePicker = true, detailed = false } = {}) {
+async function downloadFile(content, filename, mime, accept,
+  { usePicker = true, detailed = false, isCurrent = () => true } = {}) {
+  const cancelled = detailed ? { status: 'cancelled' } : false;
+  if (!isCurrent()) return cancelled;
   const isSrt = filename.toLowerCase().endsWith('.srt');
   const fileContent = isSrt
     ? new Uint8Array([0xEF, 0xBB, 0xBF, ...new TextEncoder().encode(String(content))])
@@ -17345,19 +17353,30 @@ async function downloadFile(content, filename, mime, accept, { usePicker = true,
         suggestedName: filename,
         types: accept ? [{ description: accept.desc, accept: accept.types }] : undefined,
       });
+      if (!isCurrent()) return cancelled;
       if (/\.(mosp|json)$/i.test(filename)) await layerProtectHandle(handle, content);
+      if (!isCurrent()) return cancelled;
       const w = await handle.createWritable();
+      if (!isCurrent()) {
+        await w.abort?.();
+        return cancelled;
+      }
       await w.write(new Blob([fileContent], { type: mime + ';charset=utf-8' }));
+      if (!isCurrent()) {
+        await w.abort?.();
+        return cancelled;
+      }
       await w.close();
       return detailed ? { status: 'saved' } : true;
     } catch (e) {
       // 用户取消保存对话框 — 静默退出，不回退
-      if (e && e.name === 'AbortError') return detailed ? { status: 'cancelled' } : false;
+      if (!isCurrent() || e?.name === 'AbortError') return cancelled;
       if (detailed) return { status: 'failed' };
       // 其他错误（如安全限制、unsupported 文件类型）：回退到 anchor 下载
     }
   }
   // 兜底：传统 anchor 下载（不弹路径选择）
+  if (!isCurrent()) return cancelled;
   const blob = new Blob([fileContent], { type: mime + ';charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -17782,13 +17801,18 @@ async function openRecentProject(project) {
       && !confirm('当前有未保存的改动，是否确定打开最近工程？将丢失未保存内容。')) {
     return;
   }
+  const action = beginProjectSwitch();
   try {
+    const ticket = await action.ready;
+    if (!isCurrentProjectSwitch(action)) return;
+    if (ticket === null) throw Error('无法连接本机编辑器服务');
     const response = await fetch(SERVER_CONFIG.recentProjectsUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-MSW-Token': SERVER_CONFIG.requestToken },
-      body: JSON.stringify({ path: project.path }),
+      body: JSON.stringify({ path: project.path, switch: ticket }),
     });
     const result = await response.json().catch(() => ({}));
+    if (!isCurrentProjectSwitch(action)) return;
     if (!response.ok || !result.ok) {
       const error = new Error(result.error || `服务器返回 ${response.status}`);
       error.missing = result.missing === true;
@@ -17796,6 +17820,7 @@ async function openRecentProject(project) {
     }
     window.location.reload();
   } catch (error) {
+    if (!isCurrentProjectSwitch(action)) return;
     if (error?.missing) {
       project.exists = false;
       markRecentProjectMissing(project);
@@ -17808,15 +17833,17 @@ async function openRecentProject(project) {
 // 把工程名与内容交给服务器，由它定位同目录同名工程并接管：
 // 成功后整页刷新，由服务器渲染出自动加载媒体且可直接保存的状态。
 // 任何失败都静默回退为「手动选择媒体」的便携流程。
-async function attachProjectToServer(fileName, projectData) {
+async function attachProjectToServer(fileName, projectData, action, ticket) {
   try {
     const response = await fetch(SERVER_CONFIG.attachUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileName, project: projectData }),
+      headers: { 'Content-Type': 'application/json', 'X-MSW-Token': SERVER_CONFIG.requestToken },
+      body: JSON.stringify({ fileName, project: projectData, switch: ticket }),
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.ok) return false;
+    if (response.status === 409) action.superseded = true;
+    if (!isCurrentProjectSwitch(action) || !response.ok || !result.ok) return false;
+    action.reloading = true;
     window.location.reload();
     return true;
   } catch {
@@ -19207,6 +19234,26 @@ function sourceGainMediaKey() {
   return JSON.stringify([mswProjectGeneration, DATA.media, window.MSWE?.resolve('media')?.current?.audio_index ?? 0]);
 }
 let mediaLoadSequence = 0;
+
+function beginProjectSwitch() {
+  const action = { sequence: ++projectSwitchSequence, generation: mswProjectGeneration };
+  const processingUrl = SERVER_CONFIG?.processingUrl;
+  action.ready = processingUrl ? fetch(`${processingUrl}/project-switch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-MSW-Token': SERVER_CONFIG.requestToken },
+    body: JSON.stringify({ page: projectSwitchPage, sequence: action.sequence }),
+  }).then(async response => {
+    const result = await response.json();
+    if (response.ok && result.ok && Number.isSafeInteger(result.switch)) return result.switch;
+    return null;
+  }).catch(() => null) : Promise.resolve(null);
+  return action;
+}
+
+function isCurrentProjectSwitch(action) {
+  return !action.superseded && action.sequence === projectSwitchSequence && action.generation === mswProjectGeneration;
+}
+
 function resetLoadedMedia() {
   mediaLoadSequence += 1;
   if (currentMediaBlobUrl) URL.revokeObjectURL(currentMediaBlobUrl);
@@ -19259,6 +19306,8 @@ function waveformWorkspaceForProject(project) {
 function applyCanonicalProject(data, filename) {
   fileExportMediaIdentity = null;
   closeLinkedSplitModal();
+  closeMultiSubtitleImportModal();
+  pendingProjectMediaSelection = null;
   data = prepareLayerProject(data);
   fixedReset(); fixedTrackFilter = new Set(); fixedActiveTrackId = null;
   if (data.subtitle_tracks) DATA.subtitle_tracks = structuredClone(data.subtitle_tracks);
@@ -19364,6 +19413,7 @@ async function createProjectCheckpoint(project, suggestedName) {
     flashHint('工程正在保存，请稍候再试', 'warning');
     return false;
   }
+  const action = beginProjectSwitch();
   projectCheckpointInFlight = true;
   let feedback;
   try {
@@ -19378,11 +19428,18 @@ async function createProjectCheckpoint(project, suggestedName) {
       suggestedName,
       types: [{ description: '新工程保存位置', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
+    if (!isCurrentProjectSwitch(action)) return false;
     feedback = beginProjectSaveFeedback();await feedback.ready;
     await layerProtectHandle(handle, project);
+    if (!isCurrentProjectSwitch(action)) return false;
     const writable = await handle.createWritable();
+    if (!isCurrentProjectSwitch(action)) {
+      await writable.abort?.();
+      return false;
+    }
     await writable.write(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json;charset=utf-8' }));
     await writable.close();
+    if (!isCurrentProjectSwitch(action)) return false;
     applyCanonicalProject(project, handle.name);
     projectFileHandle = handle;
     // detachServerProjectSaving 内部会刷新保存控件并重启自动保存。
@@ -19390,6 +19447,7 @@ async function createProjectCheckpoint(project, suggestedName) {
     feedback.finish();
     return true;
   } catch (error) {
+    if (!isCurrentProjectSwitch(action)) return false;
     if (error && error.name === 'AbortError') return false;  // 用户取消保存对话框
     if (error && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
       try {
@@ -19400,7 +19458,7 @@ async function createProjectCheckpoint(project, suggestedName) {
           { desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json', '.mosp-bak'] } },
           { usePicker: false },
         );
-        if (saved) {
+        if (saved && isCurrentProjectSwitch(action)) {
           applyCanonicalProject(project, suggestedName);
           detachServerProjectSaving();
           return true;
@@ -19954,10 +20012,12 @@ async function openSrtFile(file) {
 }
 
 async function openProjectFile(file, options = {}) {
+  const action = options.action || beginProjectSwitch();
   const suppressMediaPrompt = options.suppressMediaPrompt === true;
   const finishLoading = beginEditorLoading(`正在读取工程 ${file.name}…`, 5);
   try {
     const text = await readFileTextWithProgress(file);
+    if (!isCurrentProjectSwitch(action)) return false;
     updateEditorLoading(60, `正在解析工程 ${file.name}…`);
     const data = prepareLayerProject(JSON.parse(text));
     try {
@@ -19980,23 +20040,26 @@ async function openProjectFile(file, options = {}) {
       flashHint('打开了错误的文件，请使用 MSW 生成的工程文件。', 'warning');
       return false;
     }
-    applyCanonicalProject(data, file.name);
-    // 工程可能携带新 sticker_root；刷新表情包导出按钮的互斥灰显状态
-    updateStickerExportButtons();
-    projectLoadedFromSrt = false;
-    const expectedName = window.AsrEditorUtils.fileBasename(DATA.media);
+    const expectedName = window.AsrEditorUtils.fileBasename(data.media);
+    const ticket = await action.ready;
+    if (!isCurrentProjectSwitch(action)) return false;
     // 服务器版：浏览器拿不到工程真实路径，但工程记录的媒体是绝对路径。
     // 先让服务器按它定位同目录同名工程并接管（自动加载媒体、允许 Ctrl(Cmd)+S 保存）；
     // 接管失败（媒体已移动 / 同名工程缺失 / 内容不一致）再回退为手动选择媒体。
-    if (expectedName && SERVER_CONFIG?.attachUrl) {
+    if (expectedName && ticket !== null && SERVER_CONFIG?.attachUrl) {
       updateEditorLoading(85, '正在连接本地编辑器服务器…');
       // Compare the imported file itself. Browser-only defaults (split modes,
       // optional track metadata and preview state) are not disk content changes.
-      if (await attachProjectToServer(file.name, JSON.parse(text))) return true;
+      if (await attachProjectToServer(file.name, JSON.parse(text), action, ticket)) return true;
+      if (!isCurrentProjectSwitch(action)) return false;
     }
     // 工程未被服务器接管（无媒体可定位 / 接管失败）：服务器仍绑定旧工程，
     // 当前内容不能再写回它；后续保存退化为「导出工程」，直到重新经服务器打开。
     if (SERVER_CONFIG?.saveUrl) detachServerProjectSaving();
+    applyCanonicalProject(data, file.name);
+    action.generation = mswProjectGeneration;
+    updateStickerExportButtons();
+    projectLoadedFromSrt = false;
     if (expectedName && !suppressMediaPrompt) {
       pendingProjectMediaSelection = { projectReady: true };
       showProjectMediaModal();
@@ -20006,6 +20069,7 @@ async function openProjectFile(file, options = {}) {
       : `已加载工程：${file.name}（${DATA.segments.length} 条字幕）`);
     return true;
   } catch (error) {
+    if (!isCurrentProjectSwitch(action)) return false;
     pendingProjectMediaSelection = null;
     flashHint(error instanceof SyntaxError
       ? '打开了错误的文件，请使用 MSW 生成的工程文件。'
@@ -20014,6 +20078,13 @@ async function openProjectFile(file, options = {}) {
     return false;
   } finally {
     finishLoading();
+  }
+}
+
+async function openProjectWithMedia(file, media, action = beginProjectSwitch()) {
+  const opened = await openProjectFile(file, { action, suppressMediaPrompt: Boolean(media) });
+  if (opened && media && !action.reloading && isCurrentProjectSwitch(action)) {
+    await loadMediaFile(media);
   }
 }
 
@@ -20107,8 +20178,7 @@ multiSubtitleImportResultConfirm?.addEventListener('click', async () => {
   if (pending.choice === 'open-project') {
     const { projectFile, projectMediaFile } = pending;
     closeMultiSubtitleImportModal();
-    const opened = await openProjectFile(projectFile, { suppressMediaPrompt: Boolean(projectMediaFile) });
-    if (opened && projectMediaFile) await loadMediaFile(projectMediaFile);
+    await openProjectWithMedia(projectFile, projectMediaFile);
     return;
   }
   if (pending.choice === 'replace-main') {
@@ -20252,6 +20322,10 @@ async function loadMediaFile(file, { localOnly = false, previewOnly = false, pre
   } catch (_) {
     // BWF metadata is optional; an unreadable header must not block playback.
   }
+  if (loadSequence !== mediaLoadSequence) {
+    if (!file.url) URL.revokeObjectURL(url);
+    return false;
+  }
 
   if (waveformEditor) waveformEditor.attachPlayer(player);
   syncPlayerPlaceholder();
@@ -20295,9 +20369,10 @@ async function loadMediaFile(file, { localOnly = false, previewOnly = false, pre
       updateEditorLoading(75, `正在生成波形 ${file.name}…`);
       await waveformEditor.processFile(file);
     } catch (error) {
-      flashHint(error.message || String(error), 'warning');
+      if (loadSequence === mediaLoadSequence) flashHint(error.message || String(error), 'warning');
     }
   }
+  if (loadSequence !== mediaLoadSequence) return false;
   updateEditorLoading(100, `媒体加载完成：${file.name}`);
   updateGapRemoveUi();
   return true;
@@ -22746,20 +22821,22 @@ async function handleDroppedFiles(files) {
     if (existingSubtitleCount > 0) {
       if (hasUnsavedProjectChanges()
           && !confirm('当前有未保存的改动，是否继续处理此工程文件？选择“打开工程”仍会替换当前工程。')) return;
+      const action = beginProjectSwitch();
       try {
         const segments = await parseSubtitleImportFile(jsonFile);
+        if (!isCurrentProjectSwitch(action)) return;
         await showMultiSubtitleImportChoice(jsonFile, segments, {
           projectFile: jsonFile,
           projectMediaFile: mediaFile,
         });
       } catch (error) {
+        if (!isCurrentProjectSwitch(action)) return;
         flashHint(`导入工程字幕失败：${error.message || error}`, 'warning');
       }
       return;
     }
     // 工程与媒体一起拖入时，媒体随工程自动加载，不再弹窗要求重选。
-    const opened = await openProjectFile(jsonFile, { suppressMediaPrompt: Boolean(mediaFile) });
-    if (opened && mediaFile) await loadMediaFile(mediaFile);
+    await openProjectWithMedia(jsonFile, mediaFile);
     return;
   }
   if (reapeaksFile && !mediaFile && !srtFile) {
@@ -24314,6 +24391,8 @@ window.MSWE?.register('persistence-host', () => Object.freeze({
     }
     return snapshot;
   },
+  beginSwitch: beginProjectSwitch,
+  isCurrentSwitch: isCurrentProjectSwitch,
   restore: result => {
     validateProjectForLoad(result.project);
     commitProcessingEdits();

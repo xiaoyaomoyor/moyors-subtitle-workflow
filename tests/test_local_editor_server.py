@@ -1911,6 +1911,52 @@ class LocalEditorServerTests(unittest.TestCase):
                 server.shutdown()
                 thread.join(timeout=2)
 
+    def test_delayed_recent_project_cannot_replace_newer_binding(self) -> None:
+        first, second = self.project_path, self.other_project_path
+        load = server_editor.load_project
+        project = load(first, None, str(self.stickers), no_waveform=True, peaks_per_second=100)
+        settings = replace(server_editor.ServerSettings(), recent_projects=[
+            server_editor.RecentProject(path=path, name=path.name) for path in (first, second)
+        ])
+        started, resume = threading.Event(), threading.Event()
+        errors = []
+
+        def read_delayed(path, *args, **kwargs):
+            if path == first:
+                started.set()
+                if not resume.wait(10):
+                    raise TimeoutError("test did not release delayed read")
+            return load(path, *args, **kwargs)
+
+        with server_editor.EditorServer(("127.0.0.1", 0), project, settings=settings,
+                                       settings_path=self.root / "switch-settings.json",
+                                       no_waveform=True) as server:
+            def read_first():
+                try:
+                    server.open_recent_project(str(first), switch=first_ticket)
+                except Exception as error:
+                    errors.append(error)
+
+            first_ticket = server.begin_project_switch("editor-page", 1)
+            with mock.patch.object(server_editor, "load_project", side_effect=read_delayed):
+                thread = threading.Thread(target=read_first)
+                thread.start()
+                try:
+                    self.assertTrue(started.wait(10))
+                    second_ticket = server.begin_project_switch("editor-page", 3)
+                    with self.assertRaises(server_editor.ProjectSwitchSupersededError):
+                        server.begin_project_switch("editor-page", 2)
+                    server.open_recent_project(str(second), switch=second_ticket)
+                    binding = server.processing_api.context()["binding"]
+                finally:
+                    resume.set()
+                    thread.join(10)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(len(errors), 1)
+            self.assertIsInstance(errors[0], server_editor.ProjectSwitchSupersededError)
+            self.assertEqual(server.project.json_path, second)
+            self.assertEqual(server.processing_api.context()["binding"], binding)
+
     def test_open_recent_project_does_not_hold_settings_lock(self) -> None:
         project = server_editor.load_project(
             self.project_path, None, str(self.stickers), no_waveform=True, peaks_per_second=100,

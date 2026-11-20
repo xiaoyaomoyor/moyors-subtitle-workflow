@@ -640,6 +640,7 @@ class RegistryCleanupTests(unittest.TestCase):
         self.temp_dir = TemporaryDirectory()
         self.root = Path(self.temp_dir.name).resolve()
         self.registry = self.root / "launcher-project-registry.json"
+        self.recent = {"settings_path": self.root / "settings.json", "metadata_path": self.root / "meta.json"}
         # 三类样本：临时目录已缺失（候选）/ 正常存在（保留）/ 非临时目录缺失（同样清理记录，不删文件）。
         real = self.root / "real.mosp"
         real.write_text("{}", encoding="utf-8")
@@ -659,7 +660,7 @@ class RegistryCleanupTests(unittest.TestCase):
 
     def test_preview_is_readonly_and_targets_missing_in_any_directory(self) -> None:
         before = self.registry.read_bytes()
-        result = launcher_projects.registry_cleanup_preview(registry_path=self.registry)
+        result = launcher_projects.registry_cleanup_preview(registry_path=self.registry, **self.recent)
         self.assertTrue(result["ok"])
         self.assertEqual(result["candidateCount"], 2)  # 所有已缺失文件，不限临时目录
         self.assertEqual(result["missing"], 2)  # 两条文件缺失（临时+非临时）
@@ -667,17 +668,17 @@ class RegistryCleanupTests(unittest.TestCase):
         self.assertEqual(self.registry.read_bytes(), before)  # 预览只读
 
     def test_apply_backs_up_then_removes_and_restore_rolls_back(self) -> None:
-        applied = launcher_projects.apply_registry_cleanup(registry_path=self.registry)
+        applied = launcher_projects.apply_registry_cleanup(registry_path=self.registry, **self.recent)
         self.assertTrue(applied["ok"])
         self.assertEqual(applied["removed"], 2)
         self.assertTrue(applied["backup"])
-        kept = launcher_projects.all_projects_payload(registry_path=self.registry)
+        kept = launcher_projects.all_projects_payload(registry_path=self.registry, **self.recent)
         self.assertEqual(kept["total"], 1)
 
         restored = launcher_projects.restore_registry_backup(Path(applied["backup"]), registry_path=self.registry)
         self.assertTrue(restored["ok"])
         self.assertEqual(restored["restored"], 3)
-        after = launcher_projects.all_projects_payload(registry_path=self.registry)
+        after = launcher_projects.all_projects_payload(registry_path=self.registry, **self.recent)
         self.assertEqual(after["total"], 3)
 
     def test_cleanup_does_not_resurrect_from_pinned_or_older_recent_and_explicit_open_recovers(self):
@@ -701,11 +702,11 @@ class RegistryCleanupTests(unittest.TestCase):
         self.assertEqual(launcher_projects._read_registry(self.registry)[launcher_projects._canonical_identity(stale[0])[0]]["source"], "opened")
 
     def test_cleanup_rechecks_recreated_files_and_preserves_new_records_on_restore(self):
-        preview = launcher_projects.registry_cleanup_preview(self.registry)
+        preview = launcher_projects.registry_cleanup_preview(self.registry, **self.recent)
         restored_path = Path(preview["candidates"][0]["path"])
         restored_path.write_text("{}", encoding="utf-8")
         try:
-            result = launcher_projects.apply_registry_cleanup(self.registry)
+            result = launcher_projects.apply_registry_cleanup(self.registry, **self.recent)
             self.assertEqual(result["removed"], 1)
             self.assertTrue(restored_path.is_file())
             new = self.root / "new.mosp"

@@ -74,15 +74,20 @@
   }
   function textFiles(project,{format,mode,removeGaps}) {
     if(global.MSWInlineMarkup.enabled(project))for(const t of layerCore.tracks(project))for(const c of t.segments)c.text=global.MSWInlineMarkup.plain(c.text);
-    const sources=layerCore.tracks(project),rows=sources.flatMap(t=>t.segments).sort((a,b)=>a.start-b.start||a.end-b.end);
+    const sources=layerCore.tracks(project);
     const speaker=speakerExportOptions(),removed=removeGaps?getRemovedGapRanges():[];
+    const rows=U.filterSrtCuesOutsideRemovedGaps(
+      sources.flatMap(t=>t.segments).sort((a,b)=>a.start-b.start||a.end-b.end),removed);
     const options={...speaker,alignFirstStart:EDITOR_SETTINGS.exportStartAtZero,formatTime:fmtSrtTime,
       mapTime:removed.length?ms=>U.mapGapRemovedTime(ms,removed):undefined,ensurePositiveDuration:removed.length>0};
     // Resolve names against original track/language identities before merging.
     if(format==='txt')return [{suffix:'',text:rows.map(c=>speaker.speakerLabelsEnabled?speaker.speakerTextResolver(c,rows):c.text).join('\n')}];
     if(mode==='merged') {
       if(speaker.speakerLabelsEnabled)for(const t of sources)for(const c of t.segments)c.text=speaker.speakerTextResolver(c,t.segments);
-      return [{suffix:'',text:U.buildSrtPayload(global.MSWSubtitlePresentation.mergedSrtRows(project),{...options,speakerLabelsEnabled:false,speakerLabels:null})}];
+      const kept=new Set(rows);
+      const merged=global.MSWSubtitlePresentation.mergedSrtRows(project,'both',cue=>kept.has(cue));
+      const retained=U.filterSrtCuesOutsideRemovedGaps(merged,removed);
+      return [{suffix:'',text:U.buildSrtPayload(retained,{...options,speakerLabelsEnabled:false,speakerLabels:null})}];
     }
     if(mode==='speaker') {
       const colors=[...new Set(rows.map(c=>c.color?.name||'default'))];
@@ -133,7 +138,8 @@
         if(generation!==host.generation)return;
         const result=await downloadFile(file.text,`${filename}${file.suffix}.${extension}`,mime,
           {desc:'字幕文件',types:{[mime]:['.'+(format==='ograf'?'zip':format)]}},
-          {usePicker:!(format==='srt'&&mode==='speaker'&&unified),detailed:true});
+          {usePicker:!(format==='srt'&&mode==='speaker'&&unified),detailed:true,isCurrent:()=>generation===host.generation});
+        if(generation!==host.generation)return;
         if(result.status==='cancelled'){message(saved?`已导出 ${saved} 份，剩余已取消`:'已取消导出');return;}
         if(result.status==='failed')throw Error('文件保存失败，请检查保存位置后重试');
         saved++;

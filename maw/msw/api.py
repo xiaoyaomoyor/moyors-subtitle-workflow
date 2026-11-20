@@ -432,6 +432,8 @@ class ProcessingAPI:
                 result = self.persistence.versions.restore(payload)
             elif route == 'version-directory' and post:
                 result = self.persistence.versions.open_directory(payload)
+            elif route == "project-switch" and post:
+                result = {"switch": self.server.begin_project_switch(payload.get("page") or "", payload.get("sequence"))}
             elif route == "save-target" and post:
                 result = self.persistence.choose_target(payload)
             elif route == "save-as" and post:

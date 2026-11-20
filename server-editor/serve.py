@@ -225,6 +225,10 @@ class ProjectMutationInProgressError(ValueError):
     """Another project create/save operation currently owns the mutation lock."""
 
 
+class ProjectSwitchSupersededError(ValueError):
+    """A later open request owns the editor session."""
+
+
 class StickerExportInProgressError(RuntimeError):
     """Another portable sticker export currently owns the sticker lock."""
 
@@ -832,6 +836,8 @@ class EditorServer(ThreadingHTTPServer):
         self.peaks_per_second = peaks_per_second
         self.request_token = secrets.token_urlsafe(32)
         self.save_lock = threading.Lock()
+        self.project_switch_ticket = 0
+        self.project_switch_pages: dict[str, int] = {}
         self.sticker_lock = threading.Lock()
         self.timeline_otioz_lock = threading.Lock()
         self.lottie_lock = threading.Lock()
@@ -1228,11 +1234,30 @@ class EditorServer(ThreadingHTTPServer):
                 self.settings = replace(self.settings, preset_workspaces=workspaces)
             self.persist_settings()
 
-    def open_recent_project(self, project_path: str) -> ServerProject:
+    def begin_project_switch(self, page: str | None = None, sequence: int | None = None) -> int:
+        with self.save_lock:
+            if page is not None or sequence is not None:
+                if not isinstance(page, str) or not 1 <= len(page) <= 128 or type(sequence) is not int or sequence <= 0:
+                    raise ValueError("工程切换请求无效")
+                if sequence <= self.project_switch_pages.get(page, 0):
+                    raise ProjectSwitchSupersededError("已有更新的工程切换操作")
+                self.project_switch_pages[page] = sequence
+            self.project_switch_ticket += 1
+            return self.project_switch_ticket
+
+    def check_project_switch(self, ticket: int) -> None:
+        """Check while holding save_lock, immediately before binding the result."""
+        if type(ticket) is not int or ticket != self.project_switch_ticket:
+            raise ProjectSwitchSupersededError("已有更新的工程切换操作")
+
+    def open_recent_project(self, project_path: str, *, switch: int | None = None) -> ServerProject:
         candidate = Path(project_path).expanduser().resolve()
         known = next((item for item in self.recent_projects_payload()["projects"] if Path(item["path"]) == candidate), None)
         if not known:
             raise RecentProjectError("该工程不在本机最近打开记录中")
+        ticket = self.begin_project_switch() if switch is None else switch
+        with self.save_lock:
+            self.check_project_switch(ticket)
         project = load_project(
             candidate,
             None,
@@ -1244,6 +1269,7 @@ class EditorServer(ThreadingHTTPServer):
         if self.defer_reapeaks:
             project = without_deferred_reapeaks(project)
         with self.save_lock, self.settings_lock:
+            self.check_project_switch(ticket)
             self.project = project
             self.processing_api.invalidate_binding()
             self.settings = remember_project(self.settings, project.json_path)
@@ -1255,7 +1281,7 @@ class EditorServer(ThreadingHTTPServer):
         self.start_deferred_reapeaks_load()
         return project
 
-    def attach_project(self, file_name: str, browser_project: dict) -> ServerProject:
+    def attach_project(self, file_name: str, browser_project: dict, *, switch: int | None = None) -> ServerProject:
         """Bind a project opened through the browser to its on-disk file.
 
         Browser file pickers never reveal real paths, but a MSW project records
@@ -1271,6 +1297,9 @@ class EditorServer(ThreadingHTTPServer):
             or file_name in {".", ".."}
         ):
             raise AttachProjectError("工程文件名不正确")
+        ticket = self.begin_project_switch() if switch is None else switch
+        with self.save_lock:
+            self.check_project_switch(ticket)
         media_value = browser_project.get("media")
         if not isinstance(media_value, str) or not media_value.strip():
             raise AttachProjectError("工程没有记录媒体路径，无法由服务器接管")
@@ -1307,6 +1336,7 @@ class EditorServer(ThreadingHTTPServer):
         if not _attach_subtitles_match(project.data, normalized_browser):
             raise AttachProjectError("媒体同目录的同名工程与打开的副本内容不一致，未接管")
         with self.save_lock, self.settings_lock:
+            self.check_project_switch(ticket)
             self.project = project
             self.processing_api.invalidate_binding()
             self.settings = remember_project(self.settings, project.json_path)
@@ -2288,7 +2318,10 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             project_path = request.get("path")
             if not isinstance(project_path, str) or not project_path:
                 raise RecentProjectError("工程路径格式不正确")
-            project = self.editor_server.open_recent_project(project_path)
+            project = self.editor_server.open_recent_project(project_path, switch=request.get("switch"))
+        except ProjectSwitchSupersededError as error:
+            self.send_json(HTTPStatus.CONFLICT, {"ok": False, "error": str(error)})
+            return
         except PermissionError as error:
             self.send_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": str(error)})
             return
@@ -2339,7 +2372,16 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             project_data = request.get("project")
             if not isinstance(project_data, dict):
                 raise AttachProjectError("工程内容必须是对象")
-            project = self.editor_server.attach_project(file_name, project_data)
+            switch = request.get("switch")
+            if switch is not None:
+                self.editor_server.processing_api.authorize(self)
+            project = self.editor_server.attach_project(file_name, project_data, switch=switch)
+        except ProjectSwitchSupersededError as error:
+            self.send_json(HTTPStatus.CONFLICT, {"ok": False, "error": str(error)})
+            return
+        except PermissionError as error:
+            self.send_json(HTTPStatus.FORBIDDEN, {"ok": False, "error": str(error)})
+            return
         except (UnicodeDecodeError, json.JSONDecodeError, FileNotFoundError, ValueError) as error:
             self.send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(error)})
             return

@@ -117,6 +117,10 @@ class ProjectPersistence:
                 "fileExportMediaIdentity": {"reference": project.get('media'), "path": str(Path(media).resolve())} if media else None}
 
     def choose_target(self, payload):
+        switch = payload.get("switch")
+        if switch is not None:
+            with self.api.server.save_lock:
+                self.api.server.check_project_switch(switch)
         context = self.api.context()
         if payload.get("binding") != context["binding"]:
             raise ValueError("工程已切换，请重新选择保存位置")
@@ -132,13 +136,16 @@ class ProjectPersistence:
                 raise ValueError("请选择现存目录中的 .mosp 或 .json 工程文件")
             if self.api.context()["binding"] != context["binding"]:
                 raise ValueError("选择位置时工程已切换，请重试")
+            if switch is not None:
+                with self.api.server.save_lock:
+                    self.api.server.check_project_switch(switch)
             token = secrets.token_urlsafe(32)
             now = time.monotonic()
             self.targets = {key: value for key, value in self.targets.items() if value["expires"] > now}
             if len(self.targets) >= 16:
                 raise ValueError("待保存目标过多，请完成现有保存")
             self.targets[token] = {"path": path, "revision": fingerprint(path),
-                                   "binding": context["binding"], "expires": now + 600}
+                                   "binding": context["binding"], "expires": now + 600, "switch": switch}
             return {"target": token, "filename": path.name, "directory": str(path.parent), "cancelled": False}
         finally:
             self.target_lock.release()
@@ -168,6 +175,8 @@ class ProjectPersistence:
         if not server.save_lock.acquire(blocking=False):
             raise ValueError("另一个工程保存正在进行")
         try:
+            if target_info.get("switch") is not None:
+                server.check_project_switch(target_info["switch"])
             if self.api.context()["binding"] != target_info["binding"]:
                 raise ValueError("工程已切换，未写入新文件")
             target = target_info["path"]

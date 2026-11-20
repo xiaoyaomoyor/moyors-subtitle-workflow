@@ -1,14 +1,14 @@
 # 安装与升级
 
-当前源码为 **v1.9.0-beta.2 发布候选** ，本轮回归和五包验收已完成，尚未公开发布；详情见[发布准备记录](TEST_FEEDBACK_RELEASE_190_BETA2_PREP_20261119.md)。已发布预发行包见 [MSW v1.9.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.1)，稳定版仍为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。下表列出本轮候选包名称，正式发布后按系统选择；请解压到新目录并保留工程及素材备份。
+当前稳定版为 **v1.9.0** 。按系统从 [MSW v1.9.0 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0) 下载下表中的安装包。升级时请解压到新目录，并保留工程及素材备份。
 
 | 文件 | 系统 | 内置 FFmpeg |
 | --- | --- | --- |
-| `MSW-Windows-x64-v1.9.0-beta.2.zip` | Windows x64 | 是 |
-| `MSW-lite-Windows-x64-v1.9.0-beta.2.zip` | Windows x64 | 否 |
-| `MSW-macOS-arm64-v1.9.0-beta.2.zip` | macOS Apple Silicon | 是 |
-| `MSW-lite-macOS-arm64-v1.9.0-beta.2.zip` | macOS Apple Silicon | 否 |
-| `MSW-Linux-x86_64-v1.9.0-beta.2.AppImage` | Linux x86_64 | 是 |
+| `MSW-Windows-x64-v1.9.0.zip` | Windows x64 | 是 |
+| `MSW-lite-Windows-x64-v1.9.0.zip` | Windows x64 | 否 |
+| `MSW-macOS-arm64-v1.9.0.zip` | macOS Apple Silicon | 是 |
+| `MSW-lite-macOS-arm64-v1.9.0.zip` | macOS Apple Silicon | 否 |
+| `MSW-Linux-x86_64-v1.9.0.AppImage` | Linux x86_64 | 是 |
 
 GitHub 另提供 **Source code (zip)** 和 **Source code (tar.gz)**，包含标签对应的源码，不是可直接启动的应用包。macOS Intel、Windows ARM64、Linux ARM64 暂无本轮官方构建产物。
 
@@ -16,7 +16,7 @@ GitHub 另提供 **Source code (zip)** 和 **Source code (tar.gz)**，包含标�
 
 - Windows：完整解压 ZIP，进入目录运行 `MSW.exe`。不要从压缩软件中直接运行，也不要只复制 EXE；`_internal` 与旁边的资源目录必须保留。下载标记造成 DLL 加载失败时见[FAQ](FAQ.md)。
 - macOS：解压后打开 `MSW.app` 或 `MSW-lite.app`。当前流程进行 ad-hoc 签名，不包含 Apple 公证；只在确认下载来源后按系统提示允许打开，不建议关闭系统整体安全保护。
-- Linux：对下载的 AppImage 执行 `chmod +x MSW-Linux-x86_64-v1.9.0-beta.2.AppImage`，再运行它。目标为 x86_64 图形桌面，构建基于 Ubuntu 22.04；若系统不支持 FUSE，可尝试 `./MSW-Linux-x86_64-v1.9.0-beta.2.AppImage --appimage-extract-and-run`，使用其他版本时替换为实际文件名。
+- Linux：对下载的 AppImage 执行 `chmod +x MSW-Linux-x86_64-v1.9.0.AppImage`，再运行它。目标为 x86_64 图形桌面，构建基于 Ubuntu 22.04；若系统不支持 FUSE，可尝试 `./MSW-Linux-x86_64-v1.9.0.AppImage --appimage-extract-and-run`，使用其他版本时替换为实际文件名。
 
 标准版包含媒体处理用的 `ffmpeg` / `ffprobe`；lite 需要配置现有 FFmpeg。两者都不自带云端额度或 API Key，也不捆绑大型 ASR / TTS 模型。普通用户无需安装开发用的 Python、Node、Rust 或 npm。
 

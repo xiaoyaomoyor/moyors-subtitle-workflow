@@ -4130,6 +4130,15 @@
     return { wasSelected, nextAnchor };
   }
 
+  function filterSrtCuesOutsideRemovedGaps(segments, removedRanges) {
+    if (!removedRanges.length) return segments;
+    // Use the effective, merged cuts after dubbing protection. A crossing cue
+    // still has media and remains exportable.
+    return segments.filter(cue => cue && !removedRanges.some(
+      gap => cue.start >= gap.start && cue.end <= gap.end
+    ));
+  }
+
   function buildSrtPayload(segments, options = {}) {
     const source = Array.isArray(segments) ? segments : [];
     const colorName = typeof options.colorName === 'string' ? options.colorName : null;
@@ -7005,6 +7014,7 @@ export default MawDynamicCaptions;
     repairGroupReferenceIndices,
     shiftSelectionAfterRemoval,
     buildSrtPayload,
+    filterSrtCuesOutsideRemovedGaps,
     normalizeAssFontFamily,
     normalizeAssFontSize,
     resolveAssFontSize,

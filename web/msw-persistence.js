@@ -68,7 +68,7 @@
     el('project-save-collect-media').disabled = newProject || !collectable;
     modal.classList.add('show');
     return new Promise(resolve => {
-      active = { project, name, newProject, resolve, generation: host.generation };
+      active = { project, name, newProject, resolve, transition: host.beginSwitch() };
       void captureDraft();
     });
   }
@@ -76,13 +76,18 @@
     if (!active || working) return;
     const action = active; busy(true);
     try {
-      const result = await request('save-target', { filename: action.name, newProject:action.newProject, binding: host.config.processingContext?.binding });
-      if (action !== active || action.generation !== host.generation) return finish(false);
+      const ticket = await action.transition.ready;
+      if (action !== active || !host.isCurrentSwitch(action.transition)) return finish(false);
+      if (ticket === null) throw Error(t('无法连接本机编辑器服务'));
+      const result = await request('save-target', { filename: action.name, newProject:action.newProject,
+        binding: host.config.processingContext?.binding, switch: ticket });
+      if (action !== active || !host.isCurrentSwitch(action.transition)) return finish(false);
       if (!result.cancelled) {
         target = result.target;
         el('project-save-path').textContent = `${result.directory} / ${result.filename}`;
       }
     } catch (error) {
+      if (action !== active || !host.isCurrentSwitch(action.transition)) return finish(false);
       el('project-save-message').textContent = error.message;
       el('project-save-local').hidden = false;
     }
@@ -92,32 +97,34 @@
   el('project-save-local').addEventListener('click', async () => {
     if (!active || working) return;
     const action = active; finish(false);
+    if (!host.isCurrentSwitch(action.transition)) return;
     try { await host.downloadLocal(action.project, action.name); }
     catch (error) { host.hint(error.message); }
   });
   el('project-save-confirm').addEventListener('click', async () => {
     if (!active || !target || working) return;
     const action = active;
-    if (action.generation !== host.generation) return finish(false);
+    if (!host.isCurrentSwitch(action.transition)) return finish(false);
     busy(true); host.setSaving(true);
     const feedback = host.beginSaveFeedback();
     el('project-save-message').textContent = t('正在收集素材并保存工程…');
     try {
       await feedback.ready;
-      if (action.generation !== host.generation) return finish(false);
+      if (!host.isCurrentSwitch(action.transition)) return finish(false);
       host.commitEdits();
       const project = action.project || host.snapshot();
       const source = JSON.stringify(project);
       const result = await request('save-as', { target, project,
         recovery: recovering && !action.newProject,
         collectMedia: el('project-save-collect-media').checked, binding: host.config.processingContext?.binding });
-      if (action.generation !== host.generation) return finish(false);
+      if (!host.isCurrentSwitch(action.transition)) return finish(false);
       const unchanged = host.adopt(result, { source, newProject: action.newProject });
       feedback.finish(unchanged?'保存成功':'保存完成；保存期间的新修改仍未保存',unchanged?'success':'warning');
       recovering = false;
       void host.refreshRecentProjects();
       status(result.assets, '工程已保存', result.recoveryWarning); finish(true);
     } catch (error) {
+      if (!host.isCurrentSwitch(action.transition)) return finish(false);
       feedback.finish(`${t('保存失败')}：${error.message}`,'warning',true);
       target = null; el('project-save-message').textContent = error.message;
       el('project-save-local').hidden = false;
@@ -196,18 +203,23 @@
         const button = document.createElement('button'); button.type = 'button'; button.textContent = t('载入副本');
         button.addEventListener('click', async () => {
           if (working || host.saving() || generation !== host.generation) return;
+          const transition = host.beginSwitch();
           working = true; el('project-recovery-close').disabled = true;
           try {
             // Fetch before preserving current edits: loading our own draft may
             // otherwise replace its contents before the user can restore it.
             const result = await request(disk?'version-load':'recovery-load', disk?{name:record.id,binding:host.config.processingContext?.binding}:{id:record.id});
+            await transition.ready;
+            if (!host.isCurrentSwitch(transition)) return;
             if (!await captureDraft({ force: true })) throw Error(t('当前草稿未能保存，未切换恢复内容'));
-            if (generation !== host.generation) return;
+            if (!host.isCurrentSwitch(transition)) return;
             host.restore(result); recovering = true; lastDraft = null;
             session = global.MSWProject.id('session');
             recoveryModal.classList.remove('show');
             status(null, '恢复内容尚未另存为工程', null, true);
-          } catch (error) { el('project-recovery-message').textContent = error.message; }
+          } catch (error) {
+            if (host.isCurrentSwitch(transition)) el('project-recovery-message').textContent = error.message;
+          }
           finally { working = false; el('project-recovery-close').disabled = false; }
         });
         row.append(label, button); el('project-recovery-list').append(row);

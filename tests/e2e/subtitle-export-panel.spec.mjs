@@ -70,6 +70,65 @@ test('skip gaps remaps SRT time while retaining source times and preferences on 
   await page.locator('#subtitle-export-close').click();await clickMenubarItem(page,'文件','subtitle-export-btn');
   await expect(page.locator('#export-start-at-zero')).toBeChecked();await expect(page.locator('#subtitle-export-remove-gaps')).toBeChecked();
 });
+
+test('deleted-picture subtitles disappear in all SRT modes and the timeline sidecar', async ({page}) => {
+  await page.evaluate(() => {
+    const project = JSON.parse(buildJson());
+    const cues = [
+      ['inside-main','one',100,200,'Discard main'],
+      ['inside-secondary','two',250,400,'Discard secondary'],
+      ['kept','one',450,600,'Retained range'],
+    ];
+    for (const [id,track_id,start,end,text] of cues) {
+      project.subtitles.cues.push({id,track_id,content:{start,end,text}});
+    }
+    project.gap_remove = {detector:'audio_gate', gaps:[
+      {start:0,end:400,removed:true}, {start:700,end:1200,removed:true}
+    ], retention_mode:'locked', retained_ranges:[{start:100,end:200}]};
+    applyCanonicalProject(project,'trimmed.mosp');
+    MSWSubtitleExport.open('srt');
+  });
+  const before = await page.evaluate(() => buildJson());
+  await page.locator('#subtitle-export-remove-gaps').check();
+  await page.locator('#subtitle-export-more summary').click();
+  await page.locator('#export-start-at-zero').check();
+  for (const mode of ['original','merged','speaker']) {
+    await page.locator('#subtitle-export-mode').selectOption(mode);
+    const result = await save(page);
+    expect(result.text).not.toContain('Discard');
+    expect(result.text).toContain('00:00:00,000 --> 00:00:00,200\nRetained range');
+    expect(result.text).toContain('00:00:00,300 --> 00:00:01,100');
+    expect(result.text).toContain('Hello world');
+    expect(result.text).toContain('你好世界');
+  }
+  const sidecar = await page.evaluate(() => buildGapRemovedSrt());
+  expect(sidecar).not.toContain('Discard');
+  expect(sidecar).toContain('Retained range');
+  expect(sidecar).toContain('00:00:00,300 --> 00:00:01,100');
+
+  await page.locator('#subtitle-export-mode').selectOption('original');
+  await page.locator('#subtitle-export-remove-gaps').uncheck();
+  expect((await save(page)).text).toContain('Discard main');
+  expect(await page.evaluate(() => buildJson())).toBe(before);
+});
+
+test('a switch while choosing the SRT destination cancels the old export', async ({page}) => {
+  await page.evaluate(() => {
+    window.showSaveFilePicker = () => new Promise(resolve => { window.finishPicker = resolve; });
+    window.oldExportOpenedWriter = false;
+  });
+  await page.locator('#subtitle-export-start').click();
+  await page.waitForFunction(() => typeof window.finishPicker === 'function');
+  await page.evaluate(() => openProjectFile(new File([
+    JSON.stringify({segments:[{start:0,end:1000,text:'New project'}]})
+  ],'new.mosp')));
+  await page.evaluate(() => window.finishPicker({createWritable:async () => {
+    window.oldExportOpenedWriter = true;
+    return {write:async()=>{},close:async()=>{}};
+  }}));
+  await expect(page.locator('#subtitle-export-start')).toHaveText('开始导出');
+  expect(await page.evaluate(() => window.oldExportOpenedWriter)).toBe(false);
+});
 test('dynamic format uses one chosen physical track and shared dimensions, reports packaging errors',async({page})=>{
   await page.locator('#subtitle-export-format').selectOption('lottie');await page.locator('#subtitle-export-single-track').selectOption('two');
   await expect(page.locator('#subtitle-export-scope')).not.toBeVisible();await expect(page.locator('#subtitle-export-dynamic')).toBeVisible();

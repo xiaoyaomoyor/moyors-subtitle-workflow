@@ -12,11 +12,11 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
 
-当前版本为 **1.9.0-beta.3** ，发布状态与安装包见 [v1.9.0-beta.3 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.3)，验证记录见[本轮发布记录](docs/TEST_FEEDBACK_RELEASE_190_BETA3_20261120.md)。稳定版仍为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
+当前稳定版为 **v1.9.0** 。安装包见 [v1.9.0 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0)，测试与产物检查见[正式版验证记录](docs/TEST_FEEDBACK_RELEASE_190.md)。
 
 发行流程覆盖 Windows x64 标准／lite、macOS arm64 标准／lite 和 Linux x86_64 AppImage，共五种安装包。
 
-1.9.0-beta.3 改善翻译预筛选、自然断句与波形稳定性，增加安全清除句内样式、正文查找高亮、编辑视图记忆、保存状态提示和单条字幕缩放手柄；同时包含 beta.2 的媒体关联、后台窗口与单行波形优化。见 [本次更新](CHANGELOG.md#190-beta3---2026-11-20)。
+1.9.0 汇总了单条字幕缩放、句内样式、波形复核标记、完整断句配置、媒体关联和翻译预筛选等改进，并修复旧请求覆盖当前工程及去空隙 SRT 的瞬时字幕。见[本次更新](CHANGELOG.md#190---2026-11-20)。
 
 旧工程打开时在内存迁移，首次保存升级为 v4 并保留原文件备份；升级后的工程请使用新版编辑。移动项目时保留原媒体及音频素材。
 

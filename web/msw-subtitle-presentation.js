@@ -104,8 +104,10 @@
     }
     return {entries:entries.filter(e=>target==='both'||target===e.role),offsets,groups:ordered};
   }
-  function mergedSrtRows(project,target='both') {
-    const entries=rows(project,target), starts=new Map(), ends=new Map(), active=new Set(), result=[];
+  function mergedSrtRows(project,target='both',includeCue=null) {
+    const visibleRows=rows(project,target);
+    const entries=includeCue?visibleRows.filter(row=>includeCue(row.cue)):visibleRows;
+    const starts=new Map(), ends=new Map(), active=new Set(), result=[];
     const byMain=new Map();for(const b of project.multi_subtitle?.bindings||[]) for(const id of b.extension_segment_ids||[])byMain.set(id,b.main_segment_ids?.[0]);
     const order=new Map((project.segments||[]).map((c,i)=>[c.id,i]));
     const sorted=[...entries].sort((a,b)=>(order.get(a.role==='main'?a.cue.id:byMain.get(a.cue.id))??1e9)-(order.get(b.role==='main'?b.cue.id:byMain.get(b.cue.id))??1e9)||(a.role==='main'?0:1)-(b.role==='main'?0:1)||a.cue.start-b.cue.start);
