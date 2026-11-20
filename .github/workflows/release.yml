@@ -310,6 +310,13 @@ jobs:
           npx playwright test tests/e2e/media-association.spec.mjs tests/e2e/editor-media-import.spec.mjs tests/e2e/editor-editing-save.spec.mjs tests/e2e/waveform-basic-reuse.spec.mjs tests/e2e/audio-gaps.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/beta2
           exit $LASTEXITCODE
 
+      - name: Check current playback, search and Launcher corrections in Chromium
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          npx playwright test tests/e2e/find-edit.spec.mjs tests/e2e/launcher-shell.spec.mjs tests/e2e/click-behavior.spec.mjs tests/e2e/split-desynced-items.spec.mjs tests/e2e/ass-preview-efficiency.spec.mjs --project=chromium --max-failures=3 --output=test-results/beta-1100
+          exit $LASTEXITCODE
+
       - name: Check English UI and real video exports in Chromium
         id: export-browser
         timeout-minutes: 15

@@ -1759,7 +1759,7 @@
         perVideoSubfolder: saved.perVideoSubfolder,
         attachModelName: saved.attachModelName,
         notifyOnComplete: saved.notifyOnComplete === true,
-        appVersion: "1.10.0-beta.1",
+        appVersion: "1.10.0-beta.2",
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [...postprocessProviders.keys()].map(postprocessStatus),
         postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: true, steps: [] },

@@ -5,6 +5,10 @@
 | Component | Purpose | License / terms |
 |---|---|---|
 | [requests](https://requests.readthedocs.io/) | HTTP requests to the ASR API | Apache-2.0 |
+| [certifi](https://pypi.org/project/certifi/) | TLS trust store for HTTP requests | MPL-2.0 |
+| [urllib3](https://github.com/urllib3/urllib3) | HTTP transport | MIT |
+| [pip](https://github.com/pypa/pip) | Installed by the optional runtime bootstrap using a SHA-256-pinned wheel | MIT |
+| [hf-xet](https://github.com/huggingface/xet-core) | Optional Hugging Face model downloads | Apache-2.0 |
 | [jieba](https://github.com/fxsjy/jieba) | Chinese subtitle segmentation | MIT |
 | [fontTools](https://github.com/fonttools/fonttools) | Measure installed subtitle font advances and convert font outlines into font-independent Lottie vector glyphs | MIT |
 | [opencc-python-reimplemented](https://github.com/yichen0831/opencc-python) / [OpenCC](https://github.com/BYVoid/OpenCC) | Local Simplified/Traditional Chinese conversion in the post-processing toolbox | Apache-2.0 |

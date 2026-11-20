@@ -18,7 +18,7 @@ Version 1.9.0 brings together per-cue scaling, inline styles, waveform review ma
 
 The current stable version is **v1.9.0** . Packages cover Windows x64 and macOS arm64 standard and lite editions, plus Linux x86_64 AppImage. See the [release page](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0) and the [validation record](docs/TEST_FEEDBACK_RELEASE_190.md).
 
-See the [v1.10.0-beta.1 candidate notes](CHANGELOG.md#1100-beta1---2026-11-20) for changes in the upcoming preview.
+See the [v1.10.0-beta.2 candidate notes](CHANGELOG.md#1100-beta2---2026-11-20) for changes in the upcoming preview.
 
 ![MSWE with bilingual subtitles, voiceover clips and the asset library](docs/assets/msw-1.6.0-beta.1/editor-overview.jpg)
 

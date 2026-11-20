@@ -1,6 +1,6 @@
 # 构建与发布 MSW
 
-当前目标为 MSW `1.9.0-beta.2` 发布候选，按[筛选报告](UPSTREAM_190_BETA2_ASSESSMENT_20261119.md)选择性适配 MAW v1.9.0-beta.2（固定提交 `01b2fdc0d7ceb5f442b01e0a676485f8643c6aa1`）的媒体关联、后台窗口修复及单行波形复用；保留 MSW 独立的编辑与工程体系。本轮只完成回归和发布准备，尚未创建标签或公开 Release。之后获得维护者发布确认时，MSW 标签应指向 `my-feature` 上经过验证的提交，不能指向跟踪上游的 `main`；按预发行版公开，不改变 v1.7.0 稳定版 latest。
+当前候选为 MSW `1.10.0-beta.2`，按 [筛选报告](UPSTREAM_1100_BETA2_ASSESSMENT_20261120.md) 吸收依赖安全、播放与工具、正文时序与性能、字体兼容四组改动。发布标签指向经过验证的 `my-feature` 候选提交。beta 版按预发行版公开，稳定下载继续指向 v1.9.0。
 
 ## 发布清单
 
@@ -43,8 +43,8 @@ GUI 分发资源采用明确清单；不携带仓库历史截图、开发反馈�
 
 1. 核对候选包的提交 SHA；分别在目标平台启动 Launcher、打开 Server 编辑器、加载工程并保存，至少完成一次对应环境可用的配音与导出。CI 的启动检查不能代替真实用户环境验收。
 2. 检查 `CHANGELOG.md` 的 MSW 版本条目。旧上游版本说明和开发明细放在 `archived/`，避免发行说明只列上游更新而漏掉 MSW 配音功能。
-3. 运行 `python scripts/prepare_release_notes.py --tag v1.9.0-beta.2 --output <临时目录>/release-notes.md`，审阅实际正文。文档链接固定到该标签，预发布版本不会自动成为 GitHub 的 latest 正式版。
-4. 维护者确认公开发布后，在已验证的 `my-feature` 提交上创建并推送 `v1.9.0-beta.2` 标签。标签 push 会重新构建并验证五个包，随后先建立草稿并上传五包，上传成功才公开为 Release；beta 标签标记为预发行版。
+3. 运行 `python scripts/prepare_release_notes.py --tag v1.10.0-beta.2 --output <临时目录>/release-notes.md`，审阅实际正文。文档链接固定到该标签，预发布版本不会自动成为 GitHub 的 latest 正式版。
+4. 维护者确认公开发布后，在已验证的 `my-feature` 提交上创建并推送 `v1.10.0-beta.2` 标签。标签 push 会重新构建并验证五个包，随后先建立草稿并上传五包，上传成功才公开为 Release；beta 标签标记为预发行版。
 5. 若同名 Release 已有附件，先核查附件来源与状态；失败运行不能视为发布完成。完成后复查七项下载、版本、SHA-256 与文档链接。
 
-本文件说明发行流程，当前检查及候选包结果见 [v1.9.0-beta.2 发布准备账本](TEST_FEEDBACK_RELEASE_190_BETA2_PREP_20261119.md)。历史版本的验收不能代替当前提交的安装包检查；准备完成也不表示已公开发布。
+本文件说明发行流程，当前检查及候选包结果见 [v1.10.0-beta.2 发布准备账本](TEST_FEEDBACK_RELEASE_1100_BETA2_PREP_20261120.md)。历史版本的验收不能代替当前提交的安装包检查；准备完成也不表示已公开发布。

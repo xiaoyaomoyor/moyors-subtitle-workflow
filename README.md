@@ -14,7 +14,7 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 当前稳定版为 **v1.9.0** 。安装包见 [v1.9.0 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0)，测试与产物检查见[正式版验证记录](docs/TEST_FEEDBACK_RELEASE_190.md)。
 
-v1.10.0-beta.1 的改动见[候选版本说明](CHANGELOG.md#1100-beta1---2026-11-20)。
+v1.10.0-beta.2 的改动见[候选版本说明](CHANGELOG.md#1100-beta2---2026-11-20)。
 
 发行流程覆盖 Windows x64 标准／lite、macOS arm64 标准／lite 和 Linux x86_64 AppImage，共五种安装包。
 
