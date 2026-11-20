@@ -68,4 +68,3 @@ test('scale gesture cancels on selection changes and stays within existing style
   await page.evaluate(()=>{selectOnly(0);MSWSubtitleStyle.open('cue');});await expect(box).toBeVisible();
   await page.evaluate(()=>player.play());await expect(box).toBeHidden();
 });
-
