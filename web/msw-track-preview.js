@@ -159,15 +159,17 @@ function fixedPreviewLayout(rect=fixedVideoRect()) {
   return fixedPreviewCache;
 }
 function fixedHidePreview() {
+  fixedEndScale(false);document.getElementById('cue-scale-box')?.setAttribute('hidden','');
   const root=document.getElementById('fixed-subtitle-preview');if(root)root.hidden=true;
   playerStage.classList.remove('fixed-presentation');
 }
 function fixedRefreshSubtitlePreview(tMs) {
+  fixedRefreshScaleHandles(tMs);
   // libass owns the picture. Rebuilding the hidden CSS fallback for every
   // marker edit measured every cue in long projects for no visible benefit.
   // Position mode still needs those hit targets; renderer failure falls back
   // through the normal path on the next update.
-  if(window.MSWSubtitleRenderer?.status==='libass'&&!fixedPositionEditing&&!fixedPositionDrag&&!fixedPositionSession) {
+  if(window.MSWSubtitleRenderer?.status==='libass'&&!fixedPositionEditing&&!fixedPositionDrag&&!fixedPositionSession&&!fixedScaleDrag) {
     playerStage.classList.add('fixed-presentation');
     for(const id of ['fixed-subtitle-preview','msw-layer-preview']){const root=document.getElementById(id);if(root)root.hidden=true;}
     fixedApplyPositionOffsets({entries:[]});renderStickerOverlay(tMs);return;
@@ -248,6 +250,12 @@ function fixedRefreshSubtitlePreview(tMs) {
     if(!motion&&profile.animations.move?.enabled){dx=(animation.moveX||0)-profile.animations.move.x1;dy=(animation.moveY||0)-profile.animations.move.y1;}
     if(fixedPositionDragAffects(entry)){const offset=fixedPositionDrag||fixedPositionSession;dx+=offset.dx;dy+=offset.dy;}
     Object.assign(element.style,{left:entry.x+dx+'px',top:entry.y+dy+'px',width:entry.width+'px',height:entry.height+'px'});
+    const scaling=fixedScaleDrag?.id===entry.cue_id?fixedScaleDrag:null;
+    // Fit the temporary CSS glyphs to the exact renderer's measured box before
+    // scaling, so font fallback metrics cannot make text escape the handles.
+    const sx=entry.width/Math.max(1,size.width),sy=entry.height/Math.max(1,size.height);
+    element.style.transform=scaling?`translate(${(entry.x-scaling.anchor.x)*(scaling.ratio-1)}px,${(entry.y-scaling.anchor.y)*(scaling.ratio-1)}px) scale(${scaling.ratio*sx},${scaling.ratio*sy})`:'';
+    element.style.transformOrigin=scaling?'0 0':'';
     const selected=fixedPositionScope==='track'?(productionFlatMode()?entry.subtitle_track_id:entry.group.trackId)===fixedStyleTrackId:productionFlatMode()?(fixedPositionSession?.ids||fixedPositionSelectedIds()).has(entry.cue_id):entry.group.rows.some(r=>fixedTrackCore.key(r)===fixedTrackCore.key(fixedPositionRef||{}));
     element.classList.toggle('selected-position',fixedPositionEditing&&selected);
     element.classList.toggle('annotation',entry.group.kind==='annotation');
@@ -336,6 +344,7 @@ function fixedSchedulePositionSelectionSync() {
       if(ids.size!==original.size||[...ids].some(id=>!original.has(id)))fixedStopPositioning(false);
     }
     window.MSWSubtitleStyle?.syncSelection();
+    fixedRefreshScaleHandles();
     if(fixedPositionEditing)refreshSubtitlePreview();
   });
 }
@@ -492,5 +501,79 @@ window.addEventListener('keydown',event=>{
 document.addEventListener('input',event=>{if(event.target.matches('textarea,[contenteditable="true"]'))fixedPreviewInvalidate();},true);
 window.addEventListener('msw:project-changed',()=>{fixedStyleTrackId='';fixedPositionRef=null;fixedPositionEditing=false;fixedPositionSession=null;fixedPositionDrag=null;fixedPositionHold=null;fixedPositionOffsetsKey='';fixedPositionNotice='';fixedTextMeasures.clear();fixedPreviewInvalidate();});
 window.addEventListener('msw:burn-style',fixedPreviewInvalidate);
+
+// A transient gesture over the existing effective style; only pointer-up
+// commits a normal per-cue appearance patch. No parallel scale state is saved.
+let fixedScaleDrag=null;
+function fixedScaleTarget(tMs=player.currentTime*1000) {
+  if(!productionFlatMode()||fixedPositionEditing||!player.paused||pendingLinkedSplit
+    ||!window.MSWSubtitleStyle?.propertiesVisible()||document.getElementById('style-edit-scope')?.value!=='cue'
+    ||window.MSWSubtitleStyle.currentPreview().scope!=='project')return null;
+  const rows=fixedSelectedRows();if(rows.length!==1)return null;
+  const row=rows[0],track=fixedTrack(row.cue,row.role,row.track_id);
+  if(track?.locked||row.cue.disabled||!(row.cue.start<=tMs&&tMs<row.cue.end)
+    ||!(row.role==='main'?overlayToggle:extensionOverlayToggle)?.checked||subtitleTrackMuted(row.role))return null;
+  const entry=fixedPreviewLayout().layout.entries.find(e=>e.cue_id===row.cue_id);
+  return entry&&entry.width>0&&entry.height>0&&entry.style.scaleX>0&&entry.style.scaleY>0?entry:null;
+}
+function fixedEndScale(commit) {
+  const drag=fixedScaleDrag;if(!drag)return;
+  fixedScaleDrag=null;playerStage.classList.remove('fixed-scale-drag');
+  const box=document.getElementById('cue-scale-box');
+  if(box?.hasPointerCapture(drag.pointerId))box.releasePointerCapture(drag.pointerId);
+  if(commit&&drag.generation===mswProjectGeneration&&Math.abs(drag.ratio-1)>.001) {
+    const entry=fixedScaleTarget();
+    if(entry?.cue_id===drag.id&&JSON.stringify(entry.cue.subtitle_style)===drag.before)try {
+      const patch=Object.fromEntries(['scaleX','scaleY'].map(k=>[k,Math.round(drag.style[k]*drag.ratio*100)/100]));
+      fixedCommitAppearance({cues:[{id:drag.id,fields:MSWFlatEditing.appearanceFields(entry.cue,patch)}]},'缩放单条字幕');
+    }catch(error){fixedStatus(error.message);}
+  }
+}
+function fixedRefreshScaleHandles(tMs=player.currentTime*1000) {
+  let box=document.getElementById('cue-scale-box');
+  const entry=fixedScaleTarget(tMs);
+  if(!entry){fixedEndScale(false);if(box)box.hidden=true;return;}
+  const rect=fixedVideoRect();
+  if(fixedScaleDrag&&(!entry||entry.cue_id!==fixedScaleDrag.id||fixedScaleDrag.generation!==mswProjectGeneration
+    ||Math.abs(rect.width-fixedScaleDrag.rect.width)>1||Math.abs(rect.height-fixedScaleDrag.rect.height)>1))fixedEndScale(false);
+  if(!entry||!rect.width){if(box)box.hidden=true;return;}
+  if(!box){
+    box=document.createElement('div');box.id='cue-scale-box';playerStage.append(box);
+    for(const corner of ['nw','ne','sw','se']){
+      const handle=document.createElement('button');handle.type='button';handle.dataset.corner=corner;
+      const label=window.MSWE_I18N?.translateText('拖动等比缩放；Esc 取消')||'拖动等比缩放；Esc 取消';
+      handle.title=label;handle.ariaLabel=label;box.append(handle);
+    }
+    box.onpointerdown=event=>{
+      if(event.button!==0||!event.target.dataset.corner)return;
+      const target=fixedScaleTarget();if(!target)return;
+      event.preventDefault();event.stopPropagation();document.activeElement?.blur();
+      const video=fixedVideoRect(),p=MSWTrackPresentation.positionOf(target,video.referenceWidth);
+      const anchor={x:p.x*video.referenceWidth,y:p.y*1080},scale=video.height/1080;
+      const x=(event.clientX-video.clientLeft)/scale-anchor.x,y=(event.clientY-video.clientTop)/scale-anchor.y;
+      if(x*x+y*y<1)return;
+      fixedScaleDrag={id:target.cue_id,generation:mswProjectGeneration,pointerId:event.pointerId,rect:video,anchor,x,y,ratio:1,
+        style:{scaleX:target.style.scaleX,scaleY:target.style.scaleY},before:JSON.stringify(target.cue.subtitle_style)};
+      box.setPointerCapture(event.pointerId);playerStage.classList.add('fixed-scale-drag');refreshSubtitlePreview();
+    };
+    box.onpointermove=event=>{
+      const d=fixedScaleDrag;if(!d||event.pointerId!==d.pointerId)return;
+      const scale=d.rect.height/1080,x=(event.clientX-d.rect.clientLeft)/scale-d.anchor.x,y=(event.clientY-d.rect.clientTop)/scale-d.anchor.y;
+      const min=.01/Math.min(d.style.scaleX,d.style.scaleY),max=1000/Math.max(d.style.scaleX,d.style.scaleY);
+      d.ratio=Math.max(min,Math.min(max,(x*d.x+y*d.y)/(d.x*d.x+d.y*d.y)));refreshSubtitlePreview();
+    };
+    const end=(event,commit)=>{if(fixedScaleDrag?.pointerId!==event.pointerId)return;fixedEndScale(commit);refreshSubtitlePreview();};
+    box.onpointerup=e=>end(e,true);box.onpointercancel=e=>end(e,false);box.onlostpointercapture=e=>end(e,false);
+    box.onclick=e=>{e.preventDefault();e.stopPropagation();};
+  }
+  const d=fixedScaleDrag,k=d?.ratio||1,scale=rect.height/1080;
+  box.hidden=false;box.dataset.cueId=entry.cue_id;
+  Object.assign(box.style,{left:rect.left+(d?d.anchor.x+(entry.x-d.anchor.x)*k:entry.x)*scale+'px',
+    top:rect.top+(d?d.anchor.y+(entry.y-d.anchor.y)*k:entry.y)*scale+'px',width:entry.width*k*scale+'px',height:entry.height*k*scale+'px'});
+}
+window.addEventListener('keydown',event=>{if(fixedScaleDrag&&event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();fixedEndScale(false);refreshSubtitlePreview();}},true);
+window.addEventListener('blur',()=>{if(fixedScaleDrag){fixedEndScale(false);refreshSubtitlePreview();}});
+window.addEventListener('msw:burn-style',()=>{if(fixedScaleDrag){fixedEndScale(false);refreshSubtitlePreview();}});
+window.addEventListener('msw:project-changed',()=>{fixedEndScale(false);document.getElementById('cue-scale-box')?.setAttribute('hidden','');});
 document.fonts?.addEventListener('loadingdone',()=>{fixedTextMeasures.clear();fixedPreviewInvalidate();if(fixedPresentationMode())refreshSubtitlePreview();});
 document.addEventListener('DOMContentLoaded',()=>{new ResizeObserver(()=>{if(fixedPresentationMode())refreshSubtitlePreview();}).observe(playerStage);});

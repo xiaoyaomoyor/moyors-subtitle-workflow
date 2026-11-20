@@ -12,11 +12,11 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
 
-当前源码为 **1.9.0-beta.2 发布候选** ，已完成本轮回归和五包验收，尚未公开发布；结果与验证边界见[发布准备记录](docs/TEST_FEEDBACK_RELEASE_190_BETA2_PREP_20261119.md)。已发布预发行包见 [v1.9.0-beta.1 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.1)，稳定版仍为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
+当前版本为 **1.9.0-beta.3** ，发布状态与安装包见 [v1.9.0-beta.3 Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.9.0-beta.3)，验证记录见[本轮发布记录](docs/TEST_FEEDBACK_RELEASE_190_BETA3_20261120.md)。稳定版仍为 [v1.7.0](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.7.0)。MSW 基于 MAW 独立维护，版本号不代表两个项目的功能或工程格式完全一致。
 
 发行流程覆盖 Windows x64 标准／lite、macOS arm64 标准／lite 和 Linux x86_64 AppImage，共五种安装包。
 
-1.9.0-beta.2 完善工程媒体关联、另存为与恢复，补齐 Windows 后台媒体处理的隐藏窗口设置，并在单行波形滚动时复用画布。保留 MSW 多轨、剧本、ASS 样式与 800ms 默认停顿切句。见 [本次更新](CHANGELOG.md#190-beta2---2026-11-19)。
+1.9.0-beta.3 改善翻译预筛选、自然断句与波形稳定性，增加安全清除句内样式、正文查找高亮、编辑视图记忆、保存状态提示和单条字幕缩放手柄；同时包含 beta.2 的媒体关联、后台窗口与单行波形优化。见 [本次更新](CHANGELOG.md#190-beta3---2026-11-20)。
 
 旧工程打开时在内存迁移，首次保存升级为 v4 并保留原文件备份；升级后的工程请使用新版编辑。移动项目时保留原媒体及音频素材。
 

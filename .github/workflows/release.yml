@@ -325,8 +325,16 @@ jobs:
           npx playwright test tests/e2e/flat-production.spec.mjs tests/e2e/bound-move.spec.mjs tests/e2e/bound-paste.spec.mjs tests/e2e/edit-transactions.spec.mjs tests/e2e/incremental-ui.spec.mjs tests/e2e/save-background-efficiency.spec.mjs tests/e2e/settings-windows.spec.mjs tests/e2e/settings-actions.spec.mjs tests/e2e/settings-final.spec.mjs tests/e2e/speaker-follow.spec.mjs tests/e2e/subtitle-properties.spec.mjs tests/e2e/subtitle-animation.spec.mjs tests/e2e/project-subtitle-style.spec.mjs tests/e2e/fcp7-export.spec.mjs tests/e2e/find-edit-save.spec.mjs tests/e2e/waveform-history.spec.mjs tests/e2e/upstream-models.spec.mjs tests/e2e/speaker-rows.spec.mjs tests/e2e/find-script.spec.mjs tests/e2e/script-exchange.spec.mjs tests/e2e/find-script-save.spec.mjs tests/e2e/editor-time-range.spec.mjs tests/e2e/keyboard-timing.spec.mjs --project=chromium --max-failures=3 --grep-invert portable --output=test-results/editor
           exit $LASTEXITCODE
 
+      - name: Check beta.3 editing and cue scaling in Chromium
+        id: beta3-browser
+        timeout-minutes: 20
+        shell: pwsh
+        run: |
+          npx playwright test tests/e2e/cue-scale.spec.mjs tests/e2e/selected-subtitle-position.spec.mjs tests/e2e/waveform-navigation-settings.spec.mjs tests/e2e/find-body-highlights.spec.mjs tests/e2e/find-view-preference.spec.mjs tests/e2e/find-text-tools.spec.mjs tests/e2e/project-save-indicator.spec.mjs --project=chromium --workers=1 --max-failures=3 --output=test-results/beta3
+          exit $LASTEXITCODE
+
       - name: Keep failed browser diagnostics
-        if: ${{ failure() && (steps.editor-browser.outcome == 'failure' || steps.upgrade-browser.outcome == 'failure' || steps.export-browser.outcome == 'failure' || steps.selected-upstream-browser.outcome == 'failure' || steps.beta2-browser.outcome == 'failure') }}
+        if: ${{ failure() && (steps.editor-browser.outcome == 'failure' || steps.upgrade-browser.outcome == 'failure' || steps.export-browser.outcome == 'failure' || steps.selected-upstream-browser.outcome == 'failure' || steps.beta2-browser.outcome == 'failure' || steps.beta3-browser.outcome == 'failure') }}
         uses: actions/upload-artifact@v6
         with:
           name: editor-test-diagnostics-${{ github.run_attempt }}

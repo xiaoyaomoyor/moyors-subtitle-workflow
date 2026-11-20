@@ -357,6 +357,7 @@
     '仅展示前 100 条变化；应用将处理全部范围': 'Showing the first 100 changes; Apply processes the entire scope',
     '添加后缀': 'Add suffix', '去除 Markdown 标记': 'Remove Markdown markup',
     '清除句内样式': 'Clear inline styles',
+    '拖动等比缩放；Esc 取消': 'Drag to scale proportionally; Esc to cancel',
     '有未保存的修改': 'Unsaved changes',
     '保存失败，请重试': 'Save failed; please retry',
     '仅清除已识别的成对句内样式，保留转义、网址、路径和未配对符号；需先启用工程的 Markdown 句内样式。': 'Remove only recognized paired inline styles, preserving escapes, URLs, paths and unmatched markers. Enable Markdown inline styles for this project first.',
