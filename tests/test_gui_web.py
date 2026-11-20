@@ -783,6 +783,56 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(events, [("tested", False)])
         self.assertIn("MAW_POSTPROCESS_CUSTOM_API_KEY=sk-tested", self.env_path.read_text(encoding="utf-8"))
 
+    def test_prepared_postprocess_connection_saves_exact_tested_local_settings_once(self) -> None:
+        payload = {
+            "providerId": "custom",
+            "baseUrl": "http://127.0.0.1:1234/v1",
+            "model": "verified-model",
+            "displayName": "Local",
+            "prepareSave": True,
+        }
+        with mock.patch("maw.gui_web.test_llm_connection") as check_connection:
+            prepared = self.api.test_postprocess_connection(payload)
+        self.assertTrue(prepared["ok"])
+        self.assertEqual(check_connection.call_args.args[0].api_key, "")
+        self.assertFalse(self.env_path.exists())
+        token = prepared["verificationToken"]
+        self.assertEqual(self.api.save_postprocess_settings({
+            "providerId": "deepseek", "verificationToken": token,
+        })["code"], "postprocess_connection_stale")
+        saved = self.api.save_postprocess_settings({
+            "providerId": "custom", "verificationToken": token, "model": "unverified-model",
+        })
+        self.assertTrue(saved["verified"])
+        self.assertFalse(saved["requiresApiKey"])
+        self.assertEqual(saved["model"], "verified-model")
+        self.assertEqual(self.api.get_postprocess_settings({"providerId": "custom"})["model"], "verified-model")
+        self.assertEqual(self.api.save_postprocess_settings({
+            "providerId": "custom", "verificationToken": token,
+        })["code"], "postprocess_connection_stale")
+
+    def test_older_postprocess_check_cannot_overwrite_newer_settings(self) -> None:
+        payload = {"providerId": "custom", "baseUrl": "http://localhost:1234/v1", "prepareSave": True}
+        newer = {}
+
+        def check(settings):
+            if settings.model == "old":
+                newer.update(self.api.test_postprocess_connection({**payload, "model": "newer"}))
+
+        with mock.patch("maw.gui_web.test_llm_connection", side_effect=check):
+            old = self.api.test_postprocess_connection({**payload, "model": "old"})
+        self.assertEqual(old["code"], "postprocess_connection_stale")
+        self.assertTrue(newer["ok"])
+        self.assertFalse(self.env_path.exists())
+
+        saved = self.api.save_postprocess_settings({**payload, "model": "manual-newer"})
+        self.assertTrue(saved["ok"])
+        stale = self.api.save_postprocess_settings({
+            "providerId": "custom", "verificationToken": newer["verificationToken"],
+        })
+        self.assertEqual(stale["code"], "postprocess_connection_stale")
+        self.assertEqual(self.api.get_postprocess_settings({"providerId": "custom"})["model"], "manual-newer")
+
     def test_postprocess_connection_does_not_save_when_check_fails(self) -> None:
         with mock.patch(
             "maw.gui_web.test_llm_connection",
@@ -4323,11 +4373,11 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('postprocessApiKey: "llmApiKey"', script)
         self.assertIn('context?.httpStatus', launcher_script)
         self.assertIn('Compare the provider, API URL, and the issuer of the API key', launcher_script)
-        self.assertIn('save: true,', script)
-        self.assertIn('setSettingsSaveStatus(result.saved ? t("llm_connection_saved") : t("llm_connection_success"), "success");', script)
+        self.assertIn('prepareSave: true', script)
+        self.assertIn('setSettingsSaveStatus(t("llm_connection_saved"), "success");', script)
         self.assertNotIn("autoTest", script)
         self.assertIn('$("saveLlmSettings").addEventListener("click", () => { void saveSettings(); });', script)
-        pending_step = script[script.index("function maybeEnablePendingAutoStep()"):script.index("function applyAutoPostprocessPlan")]
+        pending_step = script[script.index("function maybeEnablePendingAutoStep("):script.index("function applyAutoPostprocessPlan")]
         self.assertNotIn("closeSettings", pending_step)
         self.assertNotIn("setOpen(true)", pending_step)
         self.assertIn("font-size: 14px;", stylesheet)

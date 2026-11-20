@@ -239,7 +239,17 @@ def resolve_ffmpeg_tools(
             lookup_path = ""
     path_by_tool: dict[str, Path] = {}
     # An empty PATH must not make ``shutil.which`` search the current folder.
-    if lookup_path:
+    if lookup_path and os.name == "nt":
+        # Use exact filenames without PATHEXT expansion. In source runs the
+        # current directory can contain maw/ffmpeg.py.
+        directories = lookup_path.split(os.pathsep)
+        if os.curdir not in directories:
+            directories.insert(0, os.curdir)
+        candidates.extend(
+            (Path(directory) / _tool_filename("ffmpeg"), Path(directory) / _tool_filename("ffprobe"))
+            for directory in directories if directory
+        )
+    elif lookup_path:
         path_by_tool = {
             tool: Path(found).expanduser()
             for tool in FFMPEG_TOOL_NAMES

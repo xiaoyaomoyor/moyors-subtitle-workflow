@@ -1234,6 +1234,7 @@
     llm_http_model_list_operation: "获取模型",
     llm_quick_actions: "快捷功能",
     llm_connection_testing: "正在测试连接……",
+    llm_connection_stale: "连接配置已变化，请重新测试。",
     llm_test_read_timeout: "等待模型回复超时（90 秒）。模型列表和网页可用不代表 API 生成正常，请检查 API 的代理线路或服务状态。未自动重试。",
     llm_test_headers_timeout: "90 秒内未收到生成接口的响应头，尚不能确定是线路还是服务等待。请核对代理是否接管 API 域名；可临时切换全局模式对比。未自动重试。",
     llm_test_body_timeout: "已收到生成接口响应，但读取首段回复文字超时（90 秒）。请检查代理线路或服务状态。未自动重试。",
@@ -1309,6 +1310,7 @@
     llm_http_model_list_operation: "model lookup",
     llm_quick_actions: "Quick actions",
     llm_connection_testing: "Testing connection…",
+    llm_connection_stale: "The connection settings changed. Test the connection again.",
     llm_test_read_timeout: "Timed out waiting for a model reply (90 seconds). Model-list and website access do not verify API generation. Check the API proxy route or service status. No automatic retry was sent.",
     llm_test_headers_timeout: "No generation response headers within 90 seconds. This does not distinguish a route issue from a service delay. Check the API domain's proxy route; temporarily compare with global proxy mode. No automatic retry was sent.",
     llm_test_body_timeout: "The generation API responded, but reading its first reply text timed out (90 seconds). Check the proxy route or service status. No automatic retry was sent.",
@@ -1683,7 +1685,38 @@
   let activeSettingsTab = readStoredSettingsTab();
 
   function mockApi() {
-    let saved = { apiKey: "", region: "beijing", language: "", workspaceId: "", guiLang: "", customDisplayName: "", openaiBaseUrl: "https://api.openai.com/v1", openaiModel: "whisper-1", postprocessApiKeys: {}, theme: null, outputSubfolder: true, perVideoSubfolder: false, attachModelName: false, notifyOnComplete: false };
+    let saved = { apiKey: "", region: "beijing", language: "", workspaceId: "", guiLang: "", openaiBaseUrl: "https://api.openai.com/v1", openaiModel: "whisper-1", theme: null, outputSubfolder: true, perVideoSubfolder: false, attachModelName: false, notifyOnComplete: false };
+    const postprocessProviders = new Map([
+      ["deepseek", { label: "DeepSeek", baseUrl: "https://api.deepseek.com", model: "deepseek-flash" }],
+      ["zhipu", { label: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4", model: "glm-5.2" }],
+      ["qwen", { label: "阿里云 Qwen", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" }],
+      ["custom", { label: "Custom (OpenAI-compatible)", baseUrl: "", model: "" }],
+    ]);
+    const postprocessChecks = new Map();
+    let selectedPostprocessProvider = "deepseek";
+    function postprocessStatus(id) {
+      const { apiKey, ...item } = postprocessProviders.get(id);
+      const requiresApiKey = id !== "custom" || !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?=[:/]|$)/i.test(item.baseUrl);
+      return {
+        ...item, id, providerId: id, defaultLabel: item.label, label: item.displayName || item.label,
+        displayName: item.displayName || "", reasoningMode: item.reasoningMode || "off",
+        verified: Boolean(item.verified), selected: selectedPostprocessProvider === id,
+        hasApiKey: Boolean(apiKey), maskedApiKey: apiKey ? "sk-…mock" : "", requiresApiKey,
+        hasBaseUrl: Boolean(item.baseUrl), hasModel: Boolean(item.model),
+      };
+    }
+    function saveMockPostprocessSettings(payload, verified = false) {
+      const { providerId, apiKey, baseUrl, model, displayName, reasoningMode } = payload;
+      const item = postprocessProviders.get(providerId);
+      postprocessChecks.delete(providerId);
+      Object.assign(item, {
+        apiKey: apiKey || item.apiKey, baseUrl: baseUrl || item.baseUrl, model: model || item.model,
+        displayName: providerId === "custom" ? displayName : "", reasoningMode: reasoningMode || item.reasoningMode,
+        verified,
+      });
+      selectedPostprocessProvider = providerId;
+      return { ok: true, saved: true, ...postprocessStatus(providerId) };
+    }
     const chainedPath = (path, operation, fallback) => path
       ? path.replace(/(\.[^.\\/]+)$/u, `.${operation}$1`)
       : fallback;
@@ -1712,12 +1745,7 @@
         notifyOnComplete: saved.notifyOnComplete === true,
         appVersion: "1.9.0",
         stickerDir: saved.stickerDir || "",
-        postprocessProviders: [
-          { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com", model: "deepseek-flash", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: true },
-          { id: "zhipu", label: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4", model: "glm-5.2", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: false },
-          { id: "qwen", label: "阿里云 Qwen", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: true, hasModel: true, selected: false },
-          { id: "custom", label: saved.customDisplayName || "Custom (OpenAI-compatible)", defaultLabel: "Custom (OpenAI-compatible)", displayName: saved.customDisplayName || "", baseUrl: "", model: "", reasoningMode: "off", maskedApiKey: "", verified: false, hasApiKey: false, hasBaseUrl: false, hasModel: false, selected: false }
-        ],
+        postprocessProviders: [...postprocessProviders.keys()].map(postprocessStatus),
         postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: true, steps: [] },
         prefabModules: saved.prefabModules || null,
         asrSegmentation: saved.asrSegmentation || {},
@@ -1872,9 +1900,24 @@
       save_ffmpeg_path: async ({ path }) => ({ ok: Boolean(path), found: Boolean(path), directory: path || "", ffmpeg: path || "", ffprobe: path || "" }),
       choose_folder: async ({ kind } = {}) => ({ ok: true, path: kind === "model-cache" ? "D:\\Models\\MSW" : (kind === "ocr-runtime" ? "D:\\Models\\MSW\\ocr-runtime" : (kind === "runtime" ? "D:\\Users\\Demo\\AppData\\Local\\MSW\\local-runtime" : "D:\\Stickers")) }),
       save_sticker_dir: async ({ path }) => { saved.stickerDir = path || ""; return { ok: Boolean(path), stickerDir: saved.stickerDir, field: path ? "" : "stickerDir", error: path ? "" : "missing" }; },
-      get_postprocess_settings: async ({ providerId }) => { const apiKey = saved.postprocessApiKeys[providerId] || ""; return { ok: true, providerId, apiKey, maskedApiKey: apiKey ? "sk-…mock" : "" }; },
-      save_postprocess_settings: async ({ providerId, apiKey, displayName, reasoningMode }) => { if (providerId === "custom") saved.customDisplayName = displayName || ""; if (apiKey) saved.postprocessApiKeys[providerId] = apiKey; return { ok: true, providerId, label: providerId === "custom" ? (displayName || "Custom (OpenAI-compatible)") : (providerId === "deepseek" ? "DeepSeek" : (providerId === "zhipu" ? "智谱 GLM" : "阿里云 Qwen")), displayName: providerId === "custom" ? (displayName || "") : "", maskedApiKey: saved.postprocessApiKeys[providerId] ? "sk-…mock" : "", reasoningMode: reasoningMode || "off", verified: false }; },
-      test_postprocess_connection: async ({ providerId, apiKey, save }) => { if (save && apiKey) saved.postprocessApiKeys[providerId] = apiKey; return { ok: true, providerId, verified: true, saved: Boolean(save), maskedApiKey: saved.postprocessApiKeys[providerId] ? "sk-…mock" : "" }; },
+      get_postprocess_settings: async ({ providerId }) => ({ ok: true, ...postprocessStatus(providerId), apiKey: postprocessProviders.get(providerId).apiKey || "" }),
+      save_postprocess_settings: async (payload) => {
+        const { providerId, verificationToken } = payload;
+        if (verificationToken === undefined) return saveMockPostprocessSettings(payload);
+        const check = postprocessChecks.get(providerId);
+        if (!check || check.token !== verificationToken) return { ok: false, code: "postprocess_connection_stale" };
+        return saveMockPostprocessSettings(check.payload, true);
+      },
+      test_postprocess_connection: async (payload) => {
+        const { providerId, prepareSave, save } = payload;
+        if (prepareSave) {
+          const token = crypto.randomUUID();
+          postprocessChecks.set(providerId, { token, payload });
+          return { ok: true, providerId, verificationToken: token };
+        }
+        if (save) return saveMockPostprocessSettings(payload, true);
+        return { ok: true, ...postprocessStatus(providerId) };
+      },
       save_postprocess_plan: async ({ plan }) => { saved.postprocessAutoPlan = plan; return { ok: true, plan }; },
       validate_postprocess_plan: async ({ plan }) => ({ ok: true, plan, errors: [] }),
       get_postprocess_models: async ({ providerId }) => ({ ok: true, providerId, models: providerId === "qwen" ? ["qwen-plus", "qwen3-max"] : (providerId === "zhipu" ? ["glm-5.2", "glm-4.5"] : (providerId === "custom" ? ["local-model"] : ["deepseek-flash", "deepseek-v4-pro"])) }),
@@ -2265,6 +2308,7 @@
       : message;
   }
   function errText(code, detail, context = {}) {
+    if (code === "postprocess_connection_stale") return t("llm_connection_stale");
     if (["subtitle_invalid", "script_invalid", "match_invalid", "match_too_low"].includes(code)) return t(code);
     if (code === 'postprocess_connection_failed') {
       const key = {read_timeout:'llm_test_read_timeout', response_headers_timeout:'llm_test_headers_timeout', response_body_timeout:'llm_test_body_timeout', tls_eof:'llm_test_tls_eof', tls_error:'llm_test_tls_error', connect_timeout:'llm_test_connect_timeout', empty_response:'llm_test_empty_response', protocol:'llm_test_protocol'}[context?.errorCategory];

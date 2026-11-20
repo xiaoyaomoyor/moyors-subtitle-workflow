@@ -20,10 +20,15 @@
   });
   const CUSTOM_DEFAULT_LABEL = "Custom (OpenAI-compatible)";
   const AUTO_STEP_ORDER = ["match", "replace", "proofread", "resegment", "ocr", "translate"];
+  const LLM_AUTO_STEPS = ["proofread", "resegment", "translate"];
+  const LLM_SETTINGS_BUTTONS = ["saveLlmSettings", "testLlmConnection", "getLlmModels"];
   const stepEnabled = id => Boolean(window.MSWModules?.isEnabled(id));
   const AUTO_LLM_OPERATIONS = { proofread: "proofread", resegment: "resegment" };
   let autoPlanSaveTimer = 0;
   let pendingAutoStep = "";
+  let settingsRequest = null;
+  let settingsRequestRevision = 0;
+  const providerSaveRevisions = new Map();
   let busy = false;
   let utilityMediaManual = false;
   let subtitleBurnManual = false;
@@ -410,6 +415,7 @@
       option.addEventListener("mousedown", (event) => event.preventDefault());
       option.addEventListener("click", () => {
         $("llmModel").value = model;
+        cancelSettingsRequest();
         syncGeminiReasoning();
         setFieldError("llmModel", "");
         setModelChoicesOpen(false);
@@ -591,6 +597,10 @@
 
   function renderProvider(providerId = $("llmProvider").value) {
     const item = provider(providerId);
+    cancelSettingsRequest();
+    if (LLM_AUTO_STEPS.includes(pendingAutoStep) && $(pendingAutoStep + "Provider").value !== item.id) {
+      cancelPendingLlmStep();
+    }
     syncProviderOptionLabels();
     $("llmProvider").value = item.id;
     $("llmBaseUrl").value = item.baseUrl || "";
@@ -700,6 +710,7 @@
     ["saveLlmSettings", "testLlmConnection", "getLlmModels", "toolboxUtilityMediaPath", "pickToolboxUtilityMedia", "toolboxBurnSubtitlePath", "pickToolboxBurnSubtitle", "toolboxAudioTrack", "toolboxAlignmentProjectPath", "pickToolboxAlignmentProject", "toolboxAlignmentScriptPath", "pickToolboxAlignmentScript", "toolboxAlignmentGapMinimum", "toolboxAlignmentGapThreshold", "toolboxAlignmentGapLeadIn", "toolboxAlignmentGapLeadOut", "llmProvider", "llmApiKey", "llmBaseUrl", "llmModel", "llmModelChoicesToggle", "llmReasoningMode", "llmCustomDisplayName", "ocrModel", "openOcrSettings", "ocrVideoPath", "pickOcrVideo", "ocrRegionMode", "ocrRegionX1", "ocrRegionY1", "ocrRegionX2", "ocrRegionY2", "ocrThreshold", "ocrReport", "postprocessConversion"].forEach((id) => {
       $(id).disabled = busy;
     });
+    syncSettingsButtons();
     renderOcrModel();
     renderAlignmentAction();
     renderMediaToolAction();
@@ -1015,7 +1026,7 @@
       return Boolean(path && SCRIPT_EXTS.has(extension(path)));
     }
     if (stepId === "replace") return parseReplacements().length > 0 || $("postprocessConversion").value !== "off";
-    if (["proofread", "resegment", "translate"].includes(stepId)) return autoLlmReady($(stepId + "Provider").value);
+    if (LLM_AUTO_STEPS.includes(stepId)) return autoLlmReady($(stepId + "Provider").value);
     if (stepId === "ocr") {
       const config = window.MSWLauncher.config || {};
       const ocrModel = (Array.isArray(config.ocrModels) ? config.ocrModels : [])
@@ -1096,8 +1107,9 @@
   }
 
   function openAutoStep(stepId, invalidField = "", { highlightConnection = false } = {}) {
+    cancelSettingsRequest();
     pendingAutoStep = stepId;
-    const llmStep = ["proofread", "resegment", "translate"].includes(stepId);
+    const llmStep = LLM_AUTO_STEPS.includes(stepId);
     if (llmStep && !autoLlmReady($(stepId + "Provider").value)) {
       renderProvider($(stepId + "Provider").value);
       const item = provider($(stepId + "Provider").value);
@@ -1115,9 +1127,22 @@
     focusAutoField(fieldId);
   }
 
-  function maybeEnablePendingAutoStep() {
+  function cancelPendingLlmStep() {
+    if (LLM_AUTO_STEPS.includes(pendingAutoStep)) pendingAutoStep = "";
+    setTestConnectionAttention(false);
+  }
+
+  function leaveLlmSettings() {
+    cancelSettingsRequest();
+    cancelPendingLlmStep();
+    ++postprocessApiKeyRequest;
+  }
+
+  function maybeEnablePendingAutoStep(verifiedProviderId = "") {
     const stepId = pendingAutoStep;
     if (!stepId || !autoStepReady(stepId)) return false;
+    const expectedProvider = LLM_AUTO_STEPS.includes(stepId) ? $(stepId + "Provider").value : "";
+    if (expectedProvider !== verifiedProviderId) return false;
     window.MSWModules?.setEnabled(stepId, true);
     pendingAutoStep = "";
     renderAutoPostprocessState();
@@ -1217,106 +1242,135 @@
     };
   }
 
-  async function saveSettings() {
-    const item = provider();
-    const result = await bridge("save_postprocess_settings", {
-      providerId: item.id,
+  function connectionDraft() {
+    const providerId = $("llmProvider").value;
+    return {
+      providerId,
       apiKey: $("llmApiKey").value.trim(),
       baseUrl: $("llmBaseUrl").value.trim(),
       model: $("llmModel").value.trim(),
       reasoningMode: $("llmReasoningMode").value,
-      displayName: item.id === "custom" ? $("llmCustomDisplayName").value.trim() : "",
-    });
-    if (!result.ok) {
-      const message = renderSettingsError(result);
-      setResult(message, "error");
-      return result;
-    }
-    clearSettingsErrors();
-    item.baseUrl = $("llmBaseUrl").value.trim();
-    item.model = $("llmModel").value.trim();
-    item.hasApiKey = Boolean(result.maskedApiKey || item.maskedApiKey || $("llmApiKey").value.trim());
+      displayName: providerId === "custom" ? $("llmCustomDisplayName").value.trim() : "",
+    };
+  }
+
+  function syncSettingsButtons() {
+    for (const id of LLM_SETTINGS_BUTTONS) $(id).disabled = busy || Boolean(settingsRequest);
+  }
+
+  function startSettingsRequest(status = "") {
+    const request = { draft: connectionDraft(), revision: ++settingsRequestRevision };
+    settingsRequest = request;
+    syncSettingsButtons();
+    setSettingsSaveStatus(status, "", 0);
+    return request;
+  }
+
+  function finishSettingsRequest(request) {
+    if (settingsRequest !== request) return;
+    settingsRequest = null;
+    syncSettingsButtons();
+  }
+
+  function cancelSettingsRequest() {
+    if (!settingsRequest) return;
+    finishSettingsRequest(settingsRequest);
+    setSettingsSaveStatus("");
+  }
+
+  function settingsRequestIsCurrent(request) {
+    if (settingsRequest !== request) return false;
+    const current = connectionDraft();
+    return Object.keys(current).every(key => current[key] === request.draft[key]);
+  }
+
+  function applySavedConnection(request, result) {
+    const { draft, revision } = request;
+    if ((providerSaveRevisions.get(draft.providerId) || 0) > revision) return;
+    providerSaveRevisions.set(draft.providerId, revision);
+    const item = provider(draft.providerId);
+    item.baseUrl = result.baseUrl ?? (draft.baseUrl || item.baseUrl);
+    item.model = result.model ?? (draft.model || item.model);
     item.hasBaseUrl = Boolean(item.baseUrl);
     item.hasModel = Boolean(item.model);
-    item.reasoningMode = result.reasoningMode || $("llmReasoningMode").value || "off";
-    item.displayName = item.id === "custom" ? $("llmCustomDisplayName").value.trim() : "";
+    item.reasoningMode = result.reasoningMode || draft.reasoningMode || "off";
+    item.displayName = result.displayName ?? draft.displayName;
     item.label = result.label || providerLabel(item);
-    item.maskedApiKey = result.maskedApiKey || item.maskedApiKey;
+    item.maskedApiKey = result.maskedApiKey ?? item.maskedApiKey;
+    item.hasApiKey = Boolean(item.maskedApiKey || draft.apiKey);
     item.verified = Boolean(result.verified);
     item.requiresApiKey = result.requiresApiKey !== false;
-    $("llmApiKey").value = "";
+    if ($("llmProvider").value === item.id) {
+      ++postprocessApiKeyRequest;
+      renderProviderKeyStatus(item);
+    }
     syncProviderOptionLabels();
-    renderProviderKeyStatus(item);
     renderAutoPostprocessState();
-    setSettingsSaveStatus(t("toolbox_saved"), "success");
-    return result;
+  }
+
+  async function saveSettings() {
+    const request = startSettingsRequest();
+    try {
+      const result = await bridge("save_postprocess_settings", request.draft);
+      if (result.ok) applySavedConnection(request, result);
+      if (!settingsRequestIsCurrent(request)) return;
+      if (!result.ok) {
+        const message = renderSettingsError(result);
+        setResult(message, "error");
+        return;
+      }
+      clearSettingsErrors();
+      $("llmApiKey").value = "";
+      setSettingsSaveStatus(t("toolbox_saved"), "success");
+    } catch (error) {
+      if (settingsRequestIsCurrent(request)) setSettingsSaveStatus(String(error?.message || error || t("failed")), "error", 0);
+    } finally {
+      finishSettingsRequest(request);
+    }
   }
 
   async function testConnection() {
-    setSettingsSaveStatus(t("llm_connection_testing"), "", 0);
-    $("testLlmConnection").disabled = true;
-    $("getLlmModels").disabled = true;
+    const request = startSettingsRequest(t("llm_connection_testing"));
+    const { draft } = request;
     try {
-      const item = provider();
-      const submitted = {
-        providerId: item.id,
-        apiKey: $("llmApiKey").value.trim(),
-        baseUrl: $("llmBaseUrl").value.trim(),
-        model: $("llmModel").value.trim(),
-        reasoningMode: $("llmReasoningMode").value,
-        displayName: item.id === "custom" ? $("llmCustomDisplayName").value.trim() : "",
-        save: true,
-      };
-      const result = await bridge("test_postprocess_connection", submitted);
-      if (result.ok) {
-        clearSettingsErrors();
-        if (result.saved) {
-          // The backend saves the tested values. Keep the module summaries and
-          // reopening the settings page in sync with that same snapshot.
-          item.baseUrl = submitted.baseUrl || item.baseUrl;
-          item.model = submitted.model || item.model;
-          item.reasoningMode = result.reasoningMode || submitted.reasoningMode;
-          item.displayName = submitted.displayName;
-          item.label = result.label || providerLabel(item);
-          item.hasBaseUrl = Boolean(item.baseUrl);
-          item.hasModel = Boolean(item.model);
-        }
-        item.verified = Boolean(result.verified);
-        item.requiresApiKey = result.requiresApiKey !== false;
-        item.maskedApiKey = result.maskedApiKey || item.maskedApiKey;
-        item.hasApiKey = Boolean(result.maskedApiKey || $("llmApiKey").value.trim() || item.hasApiKey);
-        if (result.saved) $("llmApiKey").value = "";
-        syncProviderOptionLabels();
-        renderProviderKeyStatus(item);
-        setSettingsSaveStatus(result.saved ? t("llm_connection_saved") : t("llm_connection_success"), "success");
-        renderAutoPostprocessState();
-        maybeEnablePendingAutoStep();
-      }
-      else {
+      const result = await bridge("test_postprocess_connection", { ...draft, prepareSave: true });
+      if (!settingsRequestIsCurrent(request)) return;
+      if (!result.ok) {
         renderSettingsError(result);
+        return;
       }
-      return result;
+      if (!result.verificationToken || result.providerId !== draft.providerId) {
+        setSettingsSaveStatus(t("llm_connection_stale"), "error", 0);
+        return;
+      }
+      const saved = await bridge("save_postprocess_settings", {
+        providerId: draft.providerId,
+        verificationToken: result.verificationToken,
+      });
+      if (saved.ok) applySavedConnection(request, saved);
+      if (!settingsRequestIsCurrent(request)) return;
+      if (!saved.ok) {
+        renderSettingsError(saved);
+        return;
+      }
+      clearSettingsErrors();
+      $("llmApiKey").value = "";
+      setSettingsSaveStatus(t("llm_connection_saved"), "success");
+      maybeEnablePendingAutoStep(draft.providerId);
     } catch (error) {
-      setSettingsSaveStatus(String(error?.message || error || t("failed")), "error", 0);
+      if (settingsRequestIsCurrent(request)) setSettingsSaveStatus(String(error?.message || error || t("failed")), "error", 0);
     } finally {
-      setTestConnectionAttention(false);
-      $("testLlmConnection").disabled = busy;
-      $("getLlmModels").disabled = busy;
+      if (settingsRequest === request) setTestConnectionAttention(false);
+      finishSettingsRequest(request);
     }
   }
 
   async function getModels() {
-    setSettingsSaveStatus(t("llm_models_loading"), "", 0);
-    $("testLlmConnection").disabled = true;
-    $("getLlmModels").disabled = true;
+    const request = startSettingsRequest(t("llm_models_loading"));
+    const { providerId, apiKey, baseUrl, model } = request.draft;
     try {
-      const item = provider();
-      const result = await bridge("get_postprocess_models", {
-        providerId: item.id,
-        apiKey: $("llmApiKey").value.trim(),
-        baseUrl: $("llmBaseUrl").value.trim(),
-        model: $("llmModel").value.trim(),
-      });
+      const result = await bridge("get_postprocess_models", { providerId, apiKey, baseUrl, model });
+      if (!settingsRequestIsCurrent(request)) return;
       if (!result.ok) {
         renderSettingsError(result);
         return;
@@ -1325,20 +1379,14 @@
       const models = Array.isArray(result.models)
         ? result.models.map((value) => String(value || "").trim()).filter(Boolean)
         : [];
-      if (!models.length) {
-        item.availableModels = [];
-        renderModelChoices([]);
-        setSettingsSaveStatus(t("llm_models_empty"), "error", 0);
-        return;
-      }
-      item.availableModels = models;
+      provider(providerId).availableModels = models;
       renderModelChoices(models);
-      setSettingsSaveStatus(t("llm_models_loaded").replace("{count}", String(models.length)), "success", 4200);
+      if (models.length) setSettingsSaveStatus(t("llm_models_loaded").replace("{count}", String(models.length)), "success", 4200);
+      else setSettingsSaveStatus(t("llm_models_empty"), "error", 0);
     } catch (error) {
-      setSettingsSaveStatus(String(error?.message || error || t("failed")), "error", 0);
+      if (settingsRequestIsCurrent(request)) setSettingsSaveStatus(String(error?.message || error || t("failed")), "error", 0);
     } finally {
-      $("testLlmConnection").disabled = busy;
-      $("getLlmModels").disabled = busy;
+      finishSettingsRequest(request);
     }
   }
 
@@ -1511,6 +1559,15 @@
   }
 
   $("llmProvider").addEventListener("change", () => { renderProvider(); renderAutoPostprocessState(); persistAutoPlanSoon(); });
+  for (const id of ["llmApiKey", "llmBaseUrl", "llmModel", "llmReasoningMode", "llmCustomDisplayName"]) {
+    for (const event of ["input", "change"]) $(id).addEventListener(event, cancelSettingsRequest);
+  }
+  document.addEventListener("mswnavigation", event => {
+    if (event.detail.page !== "settings") leaveLlmSettings();
+  });
+  window.addEventListener("msw:launcher-settings-tab", event => {
+    if (event.detail.tab !== "connection") leaveLlmSettings();
+  });
   $("saveLlmSettings").addEventListener("click", () => { void saveSettings(); });
   $("testLlmConnection").addEventListener("click", testConnection);
   $("getLlmModels").addEventListener("click", getModels);
@@ -1660,10 +1717,22 @@
     persistAutoPlanSoon();
   });
   $("translationWriteMode").addEventListener('change', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
-  for (const id of ['proofread', 'resegment', 'translate']) $(id + 'Provider').addEventListener('change', () => { stepModelOverrides[id] = {model: '', reasoningMode: ''}; closeStepModels(id); renderAutoPostprocessState(); persistAutoPlanSoon(); });
+  for (const id of LLM_AUTO_STEPS) $(id + 'Provider').addEventListener('change', () => {
+    if (pendingAutoStep === id) leaveLlmSettings();
+    stepModelOverrides[id] = {model: '', reasoningMode: ''};
+    closeStepModels(id);
+    renderAutoPostprocessState();
+    persistAutoPlanSoon();
+  });
   $("autoTranslateBilingualOrder").addEventListener("change", persistAutoPlanSoon);
   $("autoTranslateSkipTargetLanguage").addEventListener("change", persistAutoPlanSoon);
-  document.addEventListener('mswmodules', () => { renderAutoPostprocessState(); persistAutoPlanSoon(); });
+  document.addEventListener('mswmodules', event => {
+    if (event.detail?.enabled === false && event.detail.id === pendingAutoStep && LLM_AUTO_STEPS.includes(pendingAutoStep)) {
+      leaveLlmSettings();
+    }
+    renderAutoPostprocessState();
+    persistAutoPlanSoon();
+  });
   document.addEventListener('mswqueuechange', () => { renderAutoPostprocessState(); void refreshSplitPreview(); });
   ["jsonPath", "srtPath", "mediaPath"].forEach((id) => $(id).addEventListener("input", () => {
     syncPaths();

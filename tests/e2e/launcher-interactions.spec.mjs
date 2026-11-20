@@ -268,8 +268,10 @@ test('LLM settings indicate a saved key without refilling it and save after conn
   await expect(page.locator('#llmSettingsSaveStatus')).toHaveText('连接成功（已自动保存到本地环境）');
   expect(await page.evaluate(() => window.__llmCalls.map(({ method }) => method))).toEqual([
     'test_postprocess_connection',
+    'save_postprocess_settings',
   ]);
-  expect(await page.evaluate(() => window.__llmCalls[0].payload.save)).toBe(true);
+  expect(await page.evaluate(() => window.__llmCalls[0].payload.prepareSave)).toBe(true);
+  expect(await page.evaluate(() => Object.keys(window.__llmCalls[1].payload).sort())).toEqual(['providerId', 'verificationToken']);
   await expect(page.locator('#llmApiKey')).toHaveValue('');
 });
 
@@ -288,7 +290,6 @@ test('LLM tested model synchronizes prefab summaries and reopening settings', as
       if (method === 'test_postprocess_connection') {
         window.__testedPayload = {...payload};
         if (window.__failTest) return {ok: false, code: 'postprocess_connection_failed'};
-        return {ok: true, saved: true, verified: true, reasoningMode: payload.reasoningMode, label: 'Gemini'};
       }
       return original(method, payload);
     };
@@ -315,27 +316,67 @@ test('LLM tested model synchronizes prefab summaries and reopening settings', as
   await expect(page.locator('#proofreadModel')).toHaveAttribute('placeholder', /gemini-3\.5-flash-lite/);
 });
 
-test('LLM delayed test saves the submitted model rather than a newer draft', async ({ page }) => {
+for (const action of ['leave settings', 'change provider', 'edit connection', 'cancel step']) {
+  test(`a delayed LLM check cannot save or enable a step after users ${action}`, async ({ page }) => {
+    await openLauncher(page);
+    await page.evaluate(() => {
+      MSWNavigation.show('prefab');
+      MSWLauncher.openAutoPostprocessStep('proofread');
+      const original = MSWLauncher.callBackend;
+      window.__saveAttempts = 0;
+      MSWLauncher.callBackend = async (method, payload) => {
+        if (method === 'save_postprocess_settings') window.__saveAttempts++;
+        const result = await original(method, payload);
+        if (method !== 'test_postprocess_connection') return result;
+        return new Promise(resolve => { window.__finishModelTest = () => resolve(result); });
+      };
+    });
+    await page.locator('#llmApiKey').fill('sk-test-only');
+    await page.locator('#llmModel').fill('tested-model');
+    await page.locator('#testLlmConnection').click();
+    await page.waitForFunction(() => typeof __finishModelTest === 'function');
+    if (action === 'leave settings') {
+      await page.keyboard.press('Escape');
+      await expect(page.locator('[data-page-id="prefab"]')).toHaveClass(/active/);
+    } else if (action === 'change provider') {
+      await page.locator('#llmProvider').selectOption('custom');
+      await page.locator('#llmApiKey').fill('sk-other-draft');
+    } else if (action === 'edit connection') {
+      await page.locator('#llmModel').fill('new-unsaved-draft');
+    } else {
+      await page.evaluate(() => MSWModules.setEnabled('proofread', false));
+    }
+    await page.evaluate(async () => {
+      __finishModelTest();
+      await new Promise(requestAnimationFrame);
+    });
+    expect(await page.evaluate(() => __saveAttempts)).toBe(0);
+    expect(await page.evaluate(() => MSWModules.isEnabled('proofread'))).toBe(false);
+    if (action === 'change provider') await expect(page.locator('#llmApiKey')).toHaveValue('sk-other-draft');
+    if (action === 'edit connection') await expect(page.locator('#llmModel')).toHaveValue('new-unsaved-draft');
+  });
+}
+
+test('verifying a local provider enables only the requesting postprocessing step', async ({ page }) => {
   await openLauncher(page);
   await page.evaluate(() => {
-    MSWLauncher.openSettings('llmSettingsSection');
-    const original = MSWLauncher.callBackend;
-    MSWLauncher.callBackend = async (method, payload) => {
-      if (method === 'test_postprocess_connection') {
-        window.__submittedProvider = payload.providerId;
-        return new Promise(resolve => { window.__finishModelTest = () => resolve({ok: true, saved: true, verified: true}); });
-      }
-      return original(method, payload);
-    };
+    MSWNavigation.show('prefab');
+    document.getElementById('proofreadProvider').value = 'custom';
+    MSWLauncher.openAutoPostprocessStep('proofread');
   });
-  await page.locator('#llmModel').fill('tested-model');
+  await expect(page.locator('#llmProvider')).toHaveValue('custom');
+  await page.locator('#llmBaseUrl').fill('http://localhost:1234/v1');
+  await page.locator('#llmModel').fill('local-model');
   await page.locator('#testLlmConnection').click();
-  await page.waitForFunction(() => typeof __finishModelTest === 'function');
-  await page.locator('#llmModel').fill('new-unsaved-draft');
-  await page.evaluate(() => __finishModelTest());
-  await expect(page.locator('#testLlmConnection')).toBeEnabled();
-  expect(await page.evaluate(() => MSWLauncher.config.postprocessProviders.find(p => p.id === __submittedProvider).model)).toBe('tested-model');
-  await expect(page.locator('#llmModel')).toHaveValue('new-unsaved-draft');
+  await expect(page.locator('#llmSettingsSaveStatus')).toContainText('连接成功');
+  expect(await page.evaluate(() => ({
+    proofread: MSWModules.isEnabled('proofread'),
+    translate: MSWModules.isEnabled('translate'),
+    provider: document.getElementById('proofreadProvider').value,
+  }))).toEqual({ proofread: true, translate: false, provider: 'custom' });
+  const custom = await page.evaluate(async () =>
+    (await MSWLauncher.callBackend('get_config')).postprocessProviders.find(item => item.id === 'custom'));
+  expect(custom).toMatchObject({ verified: true, requiresApiKey: false, hasApiKey: false });
 });
 
 test('Custom provider labels and missing-key errors follow the selected language', async ({ page }) => {
@@ -352,11 +393,13 @@ test('Custom provider labels and missing-key errors follow the selected language
   // S4：LLM 连接配置在更多设置·服务与连接。
   await page.evaluate(() => window.MSWLauncher.openSettings('llmSettingsSection'));
   await page.evaluate(() => {
-    window.MSWLauncher.callBackend = async (method) => (
+    const original = window.MSWLauncher.callBackend;
+    window.MSWLauncher.callBackend = async (method, payload) => (
       method === 'test_postprocess_connection'
         ? { ok: false, field: 'postprocessApiKey', code: 'api_key_missing', detail: 'Post-processing API key is required.', error: 'Post-processing API key is required.' }
-        : { ok: true }
+        : original(method, payload)
     );
+    window.__originalLlmBackend = original;
   });
 
   await page.locator('#llmApiKey').fill('');
@@ -372,11 +415,7 @@ test('Custom provider labels and missing-key errors follow the selected language
   await expect(page.locator('#llmApiKeyError')).toHaveText('');
 
   await page.evaluate(() => {
-    window.MSWLauncher.callBackend = async (method) => (
-      method === 'test_postprocess_connection'
-        ? { ok: true, saved: true, verified: true, maskedApiKey: 'sk-…mock' }
-        : { ok: true }
-    );
+    window.MSWLauncher.callBackend = window.__originalLlmBackend;
   });
   await page.locator('#llmApiKey').fill('sk-success');
   await page.locator('#testLlmConnection').click();

@@ -656,6 +656,14 @@ def _queue_idle(method):
     return guarded
 
 
+@dataclass(frozen=True, repr=False)
+class PostprocessConnectionCheck:
+    token: str
+    expires: float
+    previous: dict[str, str]
+    values: dict[str, str]
+
+
 @final
 class LauncherApi:
     def choose_user_config_file(self):
@@ -743,6 +751,8 @@ class LauncherApi:
     ) -> None:
         self.paths = paths or default_paths()
         self._runtime_state_lock = threading.RLock()
+        self._postprocess_settings_lock = Lock()
+        self._postprocess_checks: dict[str, PostprocessConnectionCheck] = {}
         self.window_getter = window_getter or _active_window
         self.default_server_port = default_server_port
         self._log_sink = log_sink
@@ -1326,6 +1336,21 @@ class LauncherApi:
 
     def save_postprocess_settings(self, payload: Mapping[str, object]) -> dict[str, object]:
         preset = preset_by_id(str(payload.get("providerId") or "deepseek"))
+        with self._postprocess_settings_lock:
+            token = payload.get("verificationToken")
+            if token is not None:
+                check = self._postprocess_checks.get(preset.id)
+                if not check or check.token != token:
+                    return _stale_postprocess_check()
+                del self._postprocess_checks[preset.id]
+                if time.monotonic() >= check.expires or _postprocess_values(self.paths.env_path, preset.env_prefix) != check.previous:
+                    return _stale_postprocess_check()
+                return self._save_verified_postprocess_settings(check.values)
+            self._postprocess_checks.pop(preset.id, None)
+            return self._write_postprocess_settings(payload)
+
+    def _write_postprocess_settings(self, payload: Mapping[str, object]) -> dict[str, object]:
+        preset = preset_by_id(str(payload.get("providerId") or "deepseek"))
         file_values = _postprocess_values(self.paths.env_path, preset.env_prefix)
         previous_values = {
             "apiKey": file_values["apiKey"],
@@ -1380,13 +1405,16 @@ class LauncherApi:
             "displayName": display_name if preset.id == "custom" else "",
             "maskedApiKey": masked_secret(api_key),
             "requiresApiKey": postprocess_api_key_required(preset.id, updates[f"{preset.env_prefix}_BASE_URL"]),
+            "baseUrl": updates[f"{preset.env_prefix}_BASE_URL"],
+            "model": updates[f"{preset.env_prefix}_MODEL"],
             "reasoningMode": reasoning_mode,
             "verified": is_llm_verified(self.paths.env_path, preset.id),
         }
 
     def save_postprocess_plan(self, payload: Mapping[str, object]) -> dict[str, object]:
         try:
-            plan = save_postprocess_plan(self.paths.env_path, payload.get("plan"))
+            with self._postprocess_settings_lock:
+                plan = save_postprocess_plan(self.paths.env_path, payload.get("plan"))
         except (OSError, UnicodeError, ValueError) as error:
             return _error_result("autoPostprocess", "config_save_failed", str(error))
         return {"ok": True, "plan": plan}
@@ -1417,9 +1445,27 @@ class LauncherApi:
         if not settings.base_url or not settings.model:
             detail = "LLM API URL and model are required."
             return {"ok": False, "field": "postprocessProvider", "code": "postprocess_connection_failed", "detail": detail, "error": detail}
+        values = {
+            "providerId": preset.id,
+            "apiKey": settings.api_key,
+            "baseUrl": settings.base_url,
+            "model": settings.model,
+            "reasoningMode": reasoning_mode,
+            "displayName": str(payload.get("displayName") or "").strip(),
+        }
+        check = None
+        if payload.get("prepareSave") is True:
+            # A network reply only permits a later commit of this exact draft.
+            check = PostprocessConnectionCheck(uuid.uuid4().hex, time.monotonic() + 300, file_values, values)
+            with self._postprocess_settings_lock:
+                self._postprocess_checks[preset.id] = check
         try:
             test_llm_connection(settings)
         except LlmClientError as error:
+            if check is not None:
+                with self._postprocess_settings_lock:
+                    if self._postprocess_checks.get(preset.id) is check:
+                        del self._postprocess_checks[preset.id]
             return _llm_error_result(
                 "postprocessProvider",
                 "postprocess_connection_failed",
@@ -1428,39 +1474,31 @@ class LauncherApi:
                 operation="connection test",
                 preserve_provider_response_code=False,
             )
-        if bool(payload.get("save")):
-            saved = self.save_postprocess_settings({
-                "providerId": preset.id,
-                "apiKey": settings.api_key,
-                "baseUrl": settings.base_url,
-                "model": settings.model,
-                "reasoningMode": reasoning_mode,
-                "displayName": str(payload.get("displayName") or "").strip(),
-            })
-            if not saved.get("ok"):
-                return saved
-            record_llm_verification(self.paths.env_path, preset.id, {
-                "apiKey": settings.api_key,
-                "baseUrl": settings.base_url,
-                "model": settings.model,
-            })
-            return {
-                **saved,
-                "saved": True,
-                "verified": True,
-            }
-        stored = _postprocess_values(self.paths.env_path, preset.env_prefix)
-        if (
-            stored["apiKey"] == settings.api_key
-            and (stored["baseUrl"] or preset.base_url) == settings.base_url
-            and (stored["model"] or preset.model) == settings.model
-        ):
-            record_llm_verification(self.paths.env_path, preset.id, {
-                "apiKey": settings.api_key,
-                "baseUrl": settings.base_url,
-                "model": settings.model,
-            })
-        return {"ok": True, "providerId": preset.id, "verified": is_llm_verified(self.paths.env_path, preset.id)}
+        with self._postprocess_settings_lock:
+            if check is not None:
+                if self._postprocess_checks.get(preset.id) is not check:
+                    return _stale_postprocess_check()
+                return {"ok": True, "providerId": preset.id, "verificationToken": check.token}
+            stored = _postprocess_values(self.paths.env_path, preset.env_prefix)
+            if bool(payload.get("save")):
+                if stored != file_values:
+                    return _stale_postprocess_check()
+                self._postprocess_checks.pop(preset.id, None)
+                return self._save_verified_postprocess_settings(values)
+            if (
+                stored["apiKey"] == settings.api_key
+                and (stored["baseUrl"] or preset.base_url) == settings.base_url
+                and (stored["model"] or preset.model) == settings.model
+            ):
+                record_llm_verification(self.paths.env_path, preset.id, values)
+            return {"ok": True, "providerId": preset.id, "verified": is_llm_verified(self.paths.env_path, preset.id)}
+
+    def _save_verified_postprocess_settings(self, values: Mapping[str, str]) -> dict[str, object]:
+        saved = self._write_postprocess_settings(values)
+        if saved.get("ok"):
+            record_llm_verification(self.paths.env_path, values["providerId"], values)
+            return {**saved, "saved": True, "verified": True}
+        return saved
 
     def get_postprocess_model_capabilities(self, payload: Mapping[str, object]) -> dict[str, object]:
         from maw.postprocess_llm import reasoning_capabilities
@@ -5122,6 +5160,10 @@ def _mapping_list(value: object) -> tuple[Mapping[str, object], ...]:
 def _postprocess_values(env_path: Path, prefix: str) -> dict[str, str]:
     from maw.msw.config import read_values
     return read_values(env_path, prefix)
+
+
+def _stale_postprocess_check() -> dict[str, object]:
+    return _error_result("postprocessProvider", "postprocess_connection_stale", "连接配置已变化，请重新测试。")
 
 
 def _postprocess_reasoning_mode(payload: Mapping[str, object], file_values: Mapping[str, str]) -> str:

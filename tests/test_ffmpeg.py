@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from contextlib import chdir
 from pathlib import Path
 from unittest import mock
 
@@ -104,6 +105,35 @@ class FfmpegResolverTests(unittest.TestCase):
 
         self.assertEqual(result, FfmpegTools())
         which.assert_not_called()
+
+    @unittest.skipUnless(os.name == "nt", "Windows PATH resolution")
+    def test_windows_path_prefers_native_tools_over_matching_script_names(self) -> None:
+        working_directory = self.root / "working"
+        working_directory.mkdir()
+        for tool in ("ffmpeg", "ffprobe"):
+            for suffix in (".py", ".exe.py"):
+                (working_directory / (tool + suffix)).write_text("# test module\n", encoding="utf-8")
+        binaries = self._write_tools(self.root / "bin", "ffmpeg", "ffprobe")
+
+        with chdir(working_directory), mock.patch.dict(os.environ, {"PATHEXT": ".PY;.CMD"}):
+            result = resolve_ffmpeg_tools(
+                environment={"PATH": str(self.root / "bin")}, include_bundled=False, include_macos=False,
+            )
+
+        self.assertEqual(result, FfmpegTools(binaries["ffmpeg"].resolve(), binaries["ffprobe"].resolve()))
+
+    @unittest.skipUnless(os.name == "nt", "Windows PATH resolution")
+    def test_windows_path_with_only_scripts_reports_tools_missing(self) -> None:
+        for tool in ("ffmpeg", "ffprobe"):
+            for suffix in (".py", ".cmd", ".exe.py"):
+                (self.root / (tool + suffix)).write_text("# test script\n", encoding="utf-8")
+
+        with chdir(self.root), mock.patch.dict(os.environ, {"PATHEXT": ".PY;.CMD;.EXE"}):
+            result = resolve_ffmpeg_tools(
+                environment={"PATH": str(self.root)}, include_bundled=False, include_macos=False,
+            )
+
+        self.assertEqual(result, FfmpegTools())
 
     def test_macos_candidates_are_added_to_search_path_and_resolved(self) -> None:
         homebrew = self._write_tools(self.root / "homebrew", "ffmpeg", "ffprobe")
