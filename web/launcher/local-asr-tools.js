@@ -3,56 +3,227 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const launcher = window.MSWLauncher;
-  const labels = [["FireRed 标点","FireRed punctuation"],["不使用","None"],["使用 ct-punc（需下载）","ct-punc (download required)"],["识别后补齐字词时间码","Fill word timestamps after ASR"],["不额外对齐","No additional alignment"],["只为本次识别结果补齐时间码，不修改其他轨道。","Align only the newly recognized source text; existing translations are preserved."],["扫描对齐模型","Scan alignment models"],["下载所选对齐模型","Download selected aligner"],["取消下载","Cancel download"],["字词时间码对齐","Word timestamp alignment"],["字幕工程或 SRT","Subtitle project or SRT"],["目标字幕轨","Target subtitle track"],["先选择输入文件","Choose an input file first"],["对应媒体","Matching media"],["对应音轨（从 0 起）","Matching audio stream (0-based)"],["对齐模型","Alignment model"],["处理方式","Mode"],["仅补齐缺失时间码","Fill missing timestamps"],["重新生成并覆盖已有时间码","Regenerate and replace existing timestamps"],["开始对齐","Start alignment"],["取消对齐","Cancel alignment"],["字幕对比工具","Subtitle comparison tools"],["在浏览器本地读取文件，按实际轨道比较；不上传、不修改原文件。","Compare selected tracks locally in your browser, without uploading or modifying files."],["转写文本对比","Transcription comparison"],["字词时间码查看与对比","View and compare word timestamps"],["字词时间码","Word timestamps"],["字幕对比","Subtitle comparison"],["运行环境版本与组件","Runtime version and components"],["刷新组件清单","Refresh component inventory"],["选择要处理的字幕轨道，以及与文本匹配的媒体和音轨。默认只补齐缺失时间码并输出新工程；覆盖已有时间码请选择“重新生成”。","Choose a subtitle track and matching media/audio stream. Fill missing timestamps and save a new project, or choose Regenerate to replace existing timestamps."]];
-  function localize() {
-    const en = document.documentElement.lang.startsWith('en');
-    document.querySelectorAll('[data-msw5]').forEach(node => { node.textContent = labels[Number(node.dataset.msw5)][en ? 1 : 0]; });
-  }
-  document.addEventListener('mswlanguage', localize);
-  localize();
+  const labels = [
+    ["FireRed 标点", "FireRed punctuation"], ["不使用", "None"], ["使用 ct-punc（需下载）", "ct-punc (download required)"],
+    ["识别后补齐字词时间码", "Fill word timestamps after ASR"], ["不额外对齐", "No additional alignment"],
+    ["只为本次识别结果补齐时间码，不修改其他轨道。", "Align only the newly recognized source text; existing translations are preserved."],
+    ["扫描对齐模型", "Scan alignment models"], ["下载所选对齐模型", "Download selected aligner"], ["取消下载", "Cancel download"],
+    ["字词时间码对齐", "Word timestamp alignment"], ["字幕工程或 SRT", "Subtitle project or SRT"],
+    ["目标字幕轨", "Target subtitle track"], ["先选择输入文件", "Choose an input file first"],
+    ["对应媒体", "Matching media"], ["对应音轨（从 0 起）", "Matching audio stream (0-based)"],
+    ["对齐模型", "Alignment model"], ["处理方式", "Mode"], ["仅补齐缺失时间码", "Fill missing timestamps"],
+    ["重新生成并覆盖已有时间码", "Regenerate and replace existing timestamps"],
+    ["开始对齐", "Start alignment"], ["取消对齐", "Cancel alignment"], ["字幕对比工具", "Subtitle comparison tools"],
+    ["在浏览器本地读取文件，按实际轨道比较；不上传、不修改原文件。", "Compare selected tracks locally in your browser, without uploading or modifying files."],
+    ["转写文本对比", "Transcription comparison"], ["字词时间码查看与对比", "View and compare word timestamps"],
+    ["字词时间码", "Word timestamps"], ["字幕对比", "Subtitle comparison"],
+    ["运行环境版本与组件", "Runtime version and components"], ["刷新组件清单", "Refresh component inventory"],
+    ["选择要处理的字幕轨道，以及与文本匹配的媒体和音轨。默认只补齐缺失时间码并输出新工程；覆盖已有时间码请选择“重新生成”。",
+      "Choose a subtitle track and matching media/audio stream. Fill missing timestamps and save a new project, or choose Regenerate to replace existing timestamps."],
+    ["管理对齐模型", "Manage alignment models"], ["对齐模型目录（可选）", "Alignment model folder (optional)"],
+    ["运行环境设置", "Runtime settings"],
+  ];
+  const text = (zh, en) => document.documentElement.lang.startsWith('en') ? en : zh;
   const call = (method, payload = {}) => launcher.callBackend(method, payload);
-  async function inventory() {
-    const result = await call('get_local_runtime_inventory');
-    const data = result.inventory;
-    $('runtimeInventory').textContent = !data ? result.error || '暂时无法读取组件清单' :
-      `运行环境：${data.runtimeVersionInstalled || '未安装'} / 所需 ${data.runtimeVersionExpected}\n${data.detail || ''}\n` +
-      (data.components || []).map(item => `${item.installed ? '✓' : '—'} ${item.name}`).join('\n');
+  const storage = globalThis.MSWConfig?.storage || localStorage;
+  const optionsKey = 'msw.local-asr-options';
+  const alignmentPaths = Object.create(null);
+  let modelsById = new Map();
+  let sharedInventory = null;
+  let scanRevision = 0;
+  let download = null;
+
+  function syncModelPaths() {
+    $('alignmentModelPath').value = alignmentPaths[$('alignmentModel').value] || '';
+    $('alignmentModelPath').disabled = !$('alignmentModel').value;
+    $('alignmentDownloadPath').value = alignmentPaths[$('alignmentDownloadModel').value] || '';
   }
-  $('refreshRuntimeInventory').onclick = () => void inventory();
-  $('refreshLocalRuntime').addEventListener('click', () => void inventory());
-  const configFields = ['fireredPunc', 'alignmentModel', 'alignmentModelPath'];
+
   try {
-    const saved = JSON.parse((globalThis.MSWConfig?.storage || localStorage).getItem('msw.local-asr-options') || '{}');
-    for (const key of configFields) if (typeof saved[key] === 'string') $(key).value = saved[key];
+    const saved = JSON.parse(storage.getItem(optionsKey) || '{}');
+    for (const key of ['fireredPunc', 'alignmentModel']) {
+      if (typeof saved[key] === 'string') $(key).value = saved[key];
+    }
+    for (const option of $('alignmentDownloadModel').options) {
+      const value = saved.alignmentModelPaths?.[option.value] ??
+        (option.value === $('alignmentModel').value ? saved.alignmentModelPath : '');
+      if (typeof value === 'string' && value) alignmentPaths[option.value] = value;
+    }
   } catch { /* Older settings remain usable. */ }
-  for (const key of configFields) $(key).addEventListener('change', () => {
-    (globalThis.MSWConfig?.storage || localStorage).setItem('msw.local-asr-options', JSON.stringify(Object.fromEntries(configFields.map(id => [id, $(id).value]))));
-  });
+  syncModelPaths();
+
+  function saveAlignmentOptions() {
+    storage.setItem(optionsKey, JSON.stringify({
+      fireredPunc: $('fireredPunc').value,
+      alignmentModel: $('alignmentModel').value,
+      alignmentModelPaths: alignmentPaths,
+    }));
+  }
+
   function localVisibility() {
     const local = $('provider').value === 'local';
     $('fireredPunc').closest('.field').classList.toggle('hidden', !local || $('model').value !== 'firered-asr2-ctc-local');
   }
+
+  function modelStatus(model) {
+    if (!model) return text('等待扫描', 'Waiting for scan');
+    if (model.status === 'path_invalid') return text('指定目录无有效模型', 'No valid model in the selected folder');
+    const installed = model.installed ? text('已下载', 'Downloaded') : text('未下载', 'Not downloaded');
+    const weight = model.installedSize ? `${installed} · ${model.installedSize}` : installed;
+    if (model.runtimeAvailable) return `${weight} · ${text('运行环境就绪', 'Runtime ready')}`;
+    const components = sharedInventory?.components || [];
+    const missing = components.length ? (model.runtimePackages || []).filter(name =>
+      components.some(item => item.name === name && !item.installed)) : model.missingRuntimePackages || [];
+    if (missing.length) return `${weight} · ${text('缺少依赖', 'Missing dependencies')} ${missing.join(', ')}`;
+    const runtime = sharedInventory?.runtimeVersionInstalled && sharedInventory.runtimeVersionInstalled !== sharedInventory.runtimeVersionExpected
+      ? text('运行环境需要升级', 'Runtime needs an upgrade')
+      : text('运行环境不可用', 'Runtime unavailable');
+    return `${weight} · ${runtime}`;
+  }
+
+  function renderAlignmentModels() {
+    const list = $('alignmentModelsInventory');
+    list.replaceChildren(...[...modelsById.values()].map(model => {
+      const item = document.createElement('li');
+      item.textContent = `${model.label || model.id} · ${modelStatus(model)}`;
+      return item;
+    }));
+    for (const [select, target] of [['alignmentModel', 'recognitionAlignmentStatus'], ['timestampModel', 'timestampAlignmentStatus']]) {
+      const id = $(select).value;
+      const model = modelsById.get(id);
+      $(target).textContent = id ? modelStatus(model) : '';
+      $(target).className = `local-status ${model?.installed && model.runtimeAvailable ? 'ready' : 'warn'}`;
+    }
+    const model = modelsById.get($('alignmentDownloadModel').value);
+    $('prepareAlignmentModel').disabled = Boolean(download) || !model || !model.runtimeAvailable ||
+      model.installed || model.status === 'path_invalid';
+    $('alignmentDownloadModel').disabled = Boolean(download);
+    $('alignmentDownloadPath').disabled = Boolean(download);
+    $('cancelAlignmentModel').hidden = !download;
+    $('cancelAlignmentModel').disabled = !download?.started || download.cancelling;
+  }
+
+  function localize() {
+    document.querySelectorAll('[data-msw5]').forEach(node => { node.textContent = text(...labels[Number(node.dataset.msw5)]); });
+    $('alignmentModelPath').placeholder = text(...labels[31]);
+    renderAlignmentModels();
+  }
+
+  async function scanModels({ explicit = false } = {}) {
+    const revision = ++scanRevision;
+    if (explicit && !download) $('alignmentModelsStatus').textContent = text('正在扫描对齐模型……', 'Scanning alignment models…');
+    try {
+      const result = await call('get_alignment_models', { modelPaths: { ...alignmentPaths } });
+      if (revision !== scanRevision) return;
+      if (!result.ok) throw new Error(result.detail || result.error || text('读取模型状态失败', 'Could not read alignment model status'));
+      modelsById = new Map((result.models || []).map(model => [model.id, model]));
+      sharedInventory = result.runtimeInventory || null;
+      launcher.setLocalRuntimeInventory(sharedInventory);
+      $('runtimeInventory').textContent = (sharedInventory?.components || [])
+        .map(item => `${item.installed ? '✓' : '—'} ${item.name}`).join('\n');
+      renderAlignmentModels();
+      if (explicit && !download) $('alignmentModelsStatus').textContent = '';
+    } catch (error) {
+      if (revision === scanRevision && !download) $('alignmentModelsStatus').textContent = error.message;
+    }
+  }
+
+  function openModelManager(select) {
+    if (select.value && !download) $('alignmentDownloadModel').value = select.value;
+    syncModelPaths();
+    renderAlignmentModels();
+    launcher.openSettings('alignmentModelsSettings', 'alignmentDownloadModel', { sharedRuntime: true });
+  }
+
+  function rememberAlignmentPath(select, field) {
+    if (!select.value) return;
+    alignmentPaths[select.value] = field.value.trim();
+    syncModelPaths();
+    saveAlignmentOptions();
+    void scanModels();
+  }
+
+  function finishDownload(message) {
+    download = null;
+    $('alignmentModelsStatus').textContent = message;
+    renderAlignmentModels();
+    void scanModels();
+  }
+
   $('provider').addEventListener('change', localVisibility);
   $('model').addEventListener('change', localVisibility);
-  async function models() {
-    const result = await call('get_alignment_models');
-    $('alignmentModelsStatus').textContent = result.ok ? (result.models || []).map(model => `${model.label || model.id}：${model.installed ? '已下载' : '未下载'}；${model.detail || ''}`).join('\n') : result.error || '读取模型状态失败';
-  }
-  $('refreshAlignmentModels').onclick = () => void models();
-  $('prepareAlignmentModel').onclick = async () => {
-    const modelId = $('alignmentModel').value;
-    if (!modelId) { $('alignmentModelsStatus').textContent = '请先选择对齐模型'; return; }
-    const result = await call('prepare_alignment_model', { modelId, modelPath: $('alignmentModelPath').value.trim() });
-    $('alignmentModelsStatus').textContent = result.ok ? '正在下载，首次准备可能需要数 GB 空间…' : result.detail || result.error || '无法开始下载';
-  };
-  $('cancelAlignmentModel').onclick = async () => { await call('cancel_alignment_model'); };
-  document.addEventListener('mswlauncherbackend', event => {
-    const data = event.detail;
-    if (data.type === 'localRuntimeReady') void inventory();
-    if (data.type === 'alignmentModelProgress') $('alignmentModelsStatus').textContent = data.message || '';
-    if (['alignmentModelPrepared', 'alignmentPrepareCancelled'].includes(data.type)) void models();
-    if (data.code === 'alignment_prepare_failed') $('alignmentModelsStatus').textContent = data.detail || '下载失败';
+  $('fireredPunc').addEventListener('change', saveAlignmentOptions);
+  $('alignmentModel').addEventListener('change', () => {
+    syncModelPaths();
+    saveAlignmentOptions();
+    renderAlignmentModels();
+    void scanModels();
   });
+  $('alignmentModelPath').addEventListener('change', () => rememberAlignmentPath($('alignmentModel'), $('alignmentModelPath')));
+  $('timestampModel').addEventListener('change', renderAlignmentModels);
+  $('alignmentDownloadModel').addEventListener('change', () => { syncModelPaths(); renderAlignmentModels(); });
+  $('alignmentDownloadPath').addEventListener('change', () => rememberAlignmentPath($('alignmentDownloadModel'), $('alignmentDownloadPath')));
+  $('manageRecognitionAlignment').onclick = () => openModelManager($('alignmentModel'));
+  $('manageTimestampAlignment').onclick = () => openModelManager($('timestampModel'));
+  $('openAlignmentRuntime').onclick = () => launcher.openSettings('localRuntimePanel', '', { sharedRuntime: true });
+  $('refreshAlignmentModels').onclick = () => void scanModels({ explicit: true });
+  $('refreshRuntimeInventory').onclick = () => void scanModels();
+  $('refreshLocalRuntime').addEventListener('click', () => void scanModels());
+  $('prepareAlignmentModel').onclick = async () => {
+    if (download) return;
+    const modelId = $('alignmentDownloadModel').value;
+    const task = { modelId, started: false, cancelling: false };
+    download = task;
+    $('alignmentModelsStatus').textContent = text('正在准备对齐模型……', 'Preparing alignment model…');
+    renderAlignmentModels();
+    try {
+      const result = await call('prepare_alignment_model', { modelId, modelPath: alignmentPaths[modelId] || '' });
+      if (download !== task) return;
+      if (result.alreadyInstalled) finishDownload(text('模型已下载。', 'Model already downloaded.'));
+      else if (!result.ok) finishDownload(result.detail || result.error || text('无法开始下载', 'Could not start the download'));
+      else { task.started = true; renderAlignmentModels(); }
+    } catch (error) {
+      if (download === task) finishDownload(error.message);
+    }
+  };
+  $('cancelAlignmentModel').onclick = async () => {
+    const task = download;
+    if (!task?.started || task.cancelling) return;
+    task.cancelling = true;
+    renderAlignmentModels();
+    try {
+      const result = await call('cancel_alignment_model');
+      if (download !== task) return;
+      if (result.ok && result.cancelling) {
+        $('alignmentModelsStatus').textContent = text('正在取消下载……', 'Cancelling download…');
+        return;
+      }
+      if (result.ok) finishDownload(text('下载已结束。', 'Download has ended.'));
+      else throw new Error(result.detail || result.error || text('取消失败', 'Could not cancel'));
+    } catch (error) {
+      if (download !== task) return;
+      task.cancelling = false;
+      $('alignmentModelsStatus').textContent = error.message;
+      renderAlignmentModels();
+    }
+  };
+  document.addEventListener('mswlauncherbackend', ({ detail: event }) => {
+    if (['localRuntimeReady', 'localRuntimeCancelled'].includes(event.type) ||
+        ['local_runtime_install_failed', 'local_runtime_cancelled'].includes(event.code)) void scanModels();
+    if (!download || (event.modelId && event.modelId !== download.modelId)) return;
+    if (event.type === 'alignmentModelProgress' && !download.cancelling) $('alignmentModelsStatus').textContent = event.message || '';
+    if (event.type === 'alignmentModelPrepared') finishDownload(text('模型下载完成。', 'Model download complete.'));
+    if (event.type === 'alignmentPrepareCancelled') finishDownload(text('已取消下载。', 'Download cancelled.'));
+    if (event.code === 'alignment_prepare_failed') finishDownload(event.detail || text('下载失败', 'Download failed'));
+  });
+  document.addEventListener('mswlanguage', localize);
+  document.addEventListener('mswlocalruntimepath', () => void scanModels());
+  window.addEventListener('mawlauncherready', () => void scanModels(), { once: true });
+  window.addEventListener('msw:launcher-settings-tab', event => {
+    if (event.detail.tab === 'runtime' && launcher.config) void scanModels();
+  });
+  localize();
+
   let inspectRevision = 0;
   let inspectedPath = '';
   let inputSupported = false;
@@ -113,7 +284,7 @@
       const result = await call('run_timestamp_alignment', {
         projectPath: /\.(mosp|json)$/i.test(path) ? path : '', srtPath: /\.srt$/i.test(path) ? path : '',
         mediaPath, targetTrack, audioIndex: audioText === '' ? null : Number(audioText),
-        modelId: $('timestampModel').value, alignmentMode: $('timestampMode').value,
+        modelId: $('timestampModel').value, modelPath: alignmentPaths[$('timestampModel').value] || '', alignmentMode: $('timestampMode').value,
       });
       $('timestampResult').textContent = result.ok ? `${result.projectPath}\n成功 ${result.report?.alignedSegments || 0} 段；跳过 ${result.report?.skippedSegments || 0} 段；失败 ${result.report?.failedSegments || 0} 段\n${(result.warnings || []).join('\n')}` : result.detail || result.error || '对齐失败';
     } catch (error) { $('timestampResult').textContent = error.message; }

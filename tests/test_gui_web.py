@@ -2568,16 +2568,21 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn(str((self.root / "exe").resolve()), result["error"])
 
     def test_check_ffmpeg_reports_found_when_both_tools_exist(self) -> None:
-        ffmpeg = self.root / "bin" / "ffmpeg.exe"
-        ffprobe = self.root / "bin" / "ffprobe.exe"
+        suffix = ".exe" if os.name == "nt" else ""
+        ffmpeg = self.root / "bin" / f"ffmpeg{suffix}"
+        ffprobe = self.root / "bin" / f"ffprobe{suffix}"
         ffmpeg.parent.mkdir()
         ffmpeg.write_bytes(b"exe")
         ffprobe.write_bytes(b"exe")
 
-        def which(name: str, *, path: str | None = None) -> str:
-            return str(ffmpeg if name == "ffmpeg" else ffprobe)
-
-        with mock.patch("maw.gui_web.MACOS_FFMPEG_CANDIDATE_DIRECTORIES", ()), mock.patch("maw.ffmpeg.shutil.which", side_effect=which):
+        if os.name != "nt":
+            ffmpeg.chmod(0o755)
+            ffprobe.chmod(0o755)
+        with (
+            mock.patch.dict(os.environ, {"PATH": str(ffmpeg.parent), "FFMPEG_PATH": ""}),
+            mock.patch("maw.gui_web.MACOS_FFMPEG_CANDIDATE_DIRECTORIES", ()),
+            mock.patch("maw.ffmpeg.bundled_ffmpeg_directories", return_value=()),
+        ):
             result = self.api.check_ffmpeg()
 
         self.assertTrue(result["found"])
@@ -4847,7 +4852,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('bridge("open_runtime_folder"', script)
         self.assertIn('def open_runtime_folder(', backend)
         self.assertIn("repair: state.config.ocrRuntime?.status === \"broken\"", script)
-        self.assertIn('runtimeStatus !== "missing"', script)
+        self.assertIn('repair: runtime.status === "broken"', script)
         self.assertIn('event.type === "localRuntimeProgress"', script)
         self.assertIn('event.type === "localRuntimeReady"', script)
         self.assertIn('def install_local_runtime(', backend)

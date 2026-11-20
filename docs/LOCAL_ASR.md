@@ -68,7 +68,9 @@ uv sync --group local
 
 这会安装 `qwen-asr`、FunASR 1.3.29+、faster-whisper（CTranslate2 运行时）、`torchaudio` 和它们需要的推理运行时。在 Windows 上，MSW 会从 PyTorch 官方 CUDA 13.0 索引安装 GPU 版 Torch / TorchAudio；默认设备选择会优先使用 CUDA，不可用时才回退 CPU。模型权重由上游运行时按模型 ID 下载到其缓存目录，不会写入仓库，需要用户显式准备，MSW 提供状态扫描与取消入口。
 
-普通用户不需要执行这个命令。Windows 打包版选择「本地模型」后，点击「安装本地模型支持」即可由 GUI 在 `%LOCALAPPDATA%\\MSW\\local-runtime` 创建独立 Python 环境并安装同一组依赖；安装完成后再点击「下载模型」。运行环境和模型缓存分别位于 `local-runtime` 与 `model-cache`，安装失败可以重试或修复，模型下载可以重新扫描。Launcher 的「模型保存目录」可以改到其他磁盘，设置会保存到 MSW 的 `.env`；Release 版优先使用应用程序同目录的 `.env`，不存在时使用 `%LOCALAPPDATA%\\MSW\\.env`，源码开发仍使用仓库根 `.env`。该设置同时作用于 Hugging Face 与 ModelScope 缓存。
+普通用户不需要执行这个命令。Windows 打包版在「更多设置 → 运行环境」点击「安装本地模型支持」，即可在 `%LOCALAPPDATA%\\MSW\\local-runtime` 创建独立 Python 环境。安装完成后可下载需要的模型。运行环境和模型缓存分别位于 `local-runtime` 与 `model-cache`，安装失败可以重试或修复，模型下载可以重新扫描。Launcher 的「模型保存目录」可以改到其他磁盘，设置会保存到 MSW 的 `.env`；Release 版优先使用应用程序同目录的 `.env`，不存在时使用 `%LOCALAPPDATA%\\MSW\\.env`，源码开发仍使用仓库根 `.env`。该设置同时作用于 Hugging Face 与 ModelScope 缓存。
+
+在「实用工具 → 字词时间码对齐」或预制工程的识别后对齐选项中点击「管理对齐模型」，可查看权重是否下载和运行依赖是否齐备，并为各模型记录已有权重目录。使用云端识别时仍可在这里安装或升级共享本地运行环境，现有供应商、识别模型和语言选择会保留。
 
 ## 命令行用法
 

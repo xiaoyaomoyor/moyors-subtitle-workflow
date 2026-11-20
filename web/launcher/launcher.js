@@ -926,6 +926,10 @@
     local_runtime_install_failed: "本地运行环境安装失败",
     local_runtime_cancelled: "本地运行环境安装已取消",
     settings_local_runtime: "本地模型运行时",
+    settings_shared_runtime: "共享本地运行环境",
+    local_runtime_upgrade: "升级并验证运行环境",
+    local_runtime_versions: "已安装版本 {installed} · 所需版本 {expected} · 组件 {detected}/{total}",
+    local_runtime_no_version: "未安装",
     local_runtime_view_settings: "在更多设置中查看",
     local_runtime_path_label: "本地运行环境目录",
     local_runtime_path_hint: "默认安装到用户目录；可改到空间更充足的磁盘。运行环境与模型缓存分开保存，更改后按新目录重新扫描。"
@@ -1017,6 +1021,10 @@
     local_runtime_install_failed: "Local runtime installation failed",
     local_runtime_cancelled: "Local runtime installation was cancelled",
     settings_local_runtime: "Local model runtime",
+    settings_shared_runtime: "Shared local runtime",
+    local_runtime_upgrade: "Upgrade and verify runtime",
+    local_runtime_versions: "Installed {installed} · Required {expected} · Components {detected}/{total}",
+    local_runtime_no_version: "Not installed",
     local_runtime_view_settings: "View in More Settings",
     local_runtime_path_label: "Local runtime directory",
     local_runtime_path_hint: "Installed in your user directory by default; move it to a drive with more space if needed. The runtime and model cache are kept separate; the install status is rescanned for the new directory."
@@ -1721,6 +1729,14 @@
       ? path.replace(/(\.[^.\\/]+)$/u, `.${operation}$1`)
       : fallback;
     let modelPrepareTimer = 0;
+    let runtimeInstallTimer = 0;
+    let alignmentDownloadTimer = 0;
+    let alignmentDownloadId = "";
+    const downloadedAligners = new Set();
+    const alignmentCatalog = [
+      { id: "firered-asr2-ctc", label: "FireRed CPU", runtimePackages: ["sherpa_onnx", "soundfile"] },
+      { id: "qwen3-forced-aligner-0.6b", label: "Qwen3 Forced Aligner", runtimePackages: ["qwen_asr", "torch"] },
+    ];
     return {
       asr_presets: async () => ({ok:false,message:'识别预设需要本机启动器服务。'}),
       get_config: async () => ({
@@ -1743,7 +1759,7 @@
         perVideoSubfolder: saved.perVideoSubfolder,
         attachModelName: saved.attachModelName,
         notifyOnComplete: saved.notifyOnComplete === true,
-        appVersion: "1.9.0",
+        appVersion: "1.10.0-beta.1",
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [...postprocessProviders.keys()].map(postprocessStatus),
         postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: true, steps: [] },
@@ -1881,8 +1897,50 @@
       get_postprocess_model_capabilities: async (payload) => ({ok: true, modes: ['auto','off','low','medium','high'], effectiveMode: payload.reasoningMode || 'off', minimum: String(payload.model).includes('gemini-3')}),
       save_settings: async (payload) => { saved = { ...saved, ...payload }; if (Object.prototype.hasOwnProperty.call(payload, "modelCacheRoot")) { state.config.modelCacheRoot = payload.modelCacheRoot || ""; state.config.localRuntime = { ...(state.config.localRuntime || {}), modelCachePath: payload.modelCacheRoot || "D:\\Models\\MSW" }; } return { ok: true, maskedApiKey: payload.apiKey ? "sk-…mock" : "", modelCacheRoot: Object.prototype.hasOwnProperty.call(payload, "modelCacheRoot") ? (payload.modelCacheRoot || "") : (state.config?.modelCacheRoot || ""), message: "mock saved" }; },
       get_local_runtime: async () => ({ ok: true, ...(state.config?.localRuntime || { status: "missing", ready: false }) }),
-      install_local_runtime: async () => { state.config.localRuntime = { status: "ready", ready: true, path: "D:\\Users\\Demo\\AppData\\Local\\MSW\\local-runtime", detail: "本地运行环境已就绪。" }; setTimeout(() => window.MSWLauncher.onBackendEvent({ type: "localRuntimeReady", runtime: state.config.localRuntime }), 400); return { ok: true, installing: true }; },
-      cancel_local_runtime: async () => ({ ok: true }),
+      install_local_runtime: async () => {
+        runtimeInstallTimer = setTimeout(() => {
+          state.config.localRuntime = { ...state.config.localRuntime, status: "ready", ready: true };
+          window.MSWLauncher.onBackendEvent({ type: "localRuntimeReady", runtime: state.config.localRuntime });
+        }, 400);
+        return { ok: true, installing: true };
+      },
+      cancel_local_runtime: async () => {
+        clearTimeout(runtimeInstallTimer);
+        window.MSWLauncher.onBackendEvent({ type: "localRuntimeCancelled" });
+        return { ok: true };
+      },
+      get_alignment_models: async () => {
+        const runtime = state.config?.localRuntime || {};
+        const ready = runtime.ready === true;
+        return {
+          ok: true, runtime,
+          runtimeInventory: {
+            runtimeVersionExpected: "8", runtimeVersionInstalled: ready ? "8" : "",
+            components: alignmentCatalog.flatMap(item => item.runtimePackages.map(name => ({ name, installed: ready }))),
+          },
+          models: alignmentCatalog.map(item => ({
+            ...item, installed: downloadedAligners.has(item.id), runtimeAvailable: ready,
+            missingRuntimePackages: ready ? [] : item.runtimePackages,
+          })),
+        };
+      },
+      prepare_alignment_model: async ({ modelId }) => {
+        alignmentDownloadId = modelId;
+        alignmentDownloadTimer = setTimeout(() => {
+          alignmentDownloadId = "";
+          downloadedAligners.add(modelId);
+          window.MSWLauncher.onBackendEvent({ type: "alignmentModelPrepared", modelId });
+        }, 400);
+        return { ok: true, preparing: true, modelId };
+      },
+      cancel_alignment_model: async () => {
+        const modelId = alignmentDownloadId;
+        if (!modelId) return { ok: true, cancelling: false };
+        clearTimeout(alignmentDownloadTimer);
+        alignmentDownloadId = "";
+        window.MSWLauncher.onBackendEvent({ type: "alignmentPrepareCancelled", modelId });
+        return { ok: true, cancelling: true };
+      },
       get_ocr_runtime: async () => ({ ok: true, ...(state.config?.ocrRuntime || { status: "missing", ready: false }), models: state.config?.ocrModels || [] }),
       save_ocr_settings: async ({ runtimePath }) => { state.config.ocrRuntime = { ...(state.config.ocrRuntime || {}), path: runtimePath || "D:\\Users\\Demo\\AppData\\Local\\MSW\\ocr-runtime" }; return { ok: true, runtimePath: state.config.ocrRuntime.path, runtime: state.config.ocrRuntime }; },
   save_local_settings: async ({ runtimePath }) => { state.config.localRuntime = { ...(state.config.localRuntime || {}), path: runtimePath || "D:\\Users\\Demo\\AppData\\Local\\MSW\\local-runtime" }; return { ok: true, runtimePath: state.config.localRuntime.path, runtime: state.config.localRuntime }; },
@@ -2845,11 +2903,27 @@
   async function loadHotwordFile(path, appendToText = false) { if (ext(path) !== ".txt") { setError("qwenAudioHotwordsFile", errText("hotwords_file_missing", "")); clearDropState(); return; } const result = await bridge("read_hotword_file", { path }); if (!result.ok) { applyErrorResult(result, false); clearDropState(); return; } if (appendToText) { const incoming = String(result.text || "").trim(); if (incoming) { const current = $("qwenAudioHotwords").value.trimEnd(); $("qwenAudioHotwords").value = current ? `${current}\n${incoming}` : incoming; } setHotwordsMode("text"); renderHotwordWarnings($("qwenAudioHotwords").value); setStatus(t("qwen_audio_hotwords_loaded")); } else { setQwenAudioHotwordsFile(result.path || path); renderHotwordWarnings(String(result.text || ""), Number($("qwenAudioHotwordWeight").value), true); } clearDropState(); }
   function isLocalProvider() { return provider()?.kind === "local" || provider()?.id === "local"; }
   function localStatus() { return selectedModel()?.localStatus || {}; }
+  let showSharedRuntime = false;
+  let sharedRuntime = { status: "checking" };
+  let sharedRuntimeRequest = 0;
+  let runtimeInventory = null;
+  function usesSharedRuntimePanel() { return showSharedRuntime || !isLocalProvider(); }
+  function runtimePanelModelId() { return usesSharedRuntimePanel() ? "" : $("model").value; }
+  function runtimePanelStatus() {
+    return usesSharedRuntimePanel() ? sharedRuntime : state.config?.localRuntime || {};
+  }
+  function runtimePanelShowsMoss() {
+    return !usesSharedRuntimePanel() && selectedModel()?.engine === "moss";
+  }
+  function setLocalRuntimeInventory(inventory) {
+    runtimeInventory = inventory;
+    if (state.config) renderLocalRuntime();
+  }
   function renderLocalRuntimePaths(runtime) {
     const container = $("localRuntimePaths");
     container.textContent = "";
     const entries = [
-      { label: t("local_runtime_path"), path: runtime.path || "", payload: { kind: "runtime", modelId: $("model").value } },
+      { label: t("local_runtime_path"), path: runtime.path || "", payload: { kind: "runtime", modelId: runtimePanelModelId() } },
     ].filter((entry) => entry.path);
     for (const entry of entries) {
       const line = document.createElement("span");
@@ -2914,28 +2988,42 @@
     container.append(link);
   }
   function renderLocalRuntime() {
-    if (!isLocalProvider()) return;
     syncLocalRuntimeControls();
-    const runtime = state.config.localRuntime || {};
+    const runtime = runtimePanelStatus();
     const installing = state.localRuntimeInstalling || runtime.status === "installing";
     const key = installing ? "local_runtime_installing" : ({ ready: "local_runtime_ready", broken: "local_runtime_broken", missing: "local_runtime_missing", checking: "local_runtime_checking", installing: "local_runtime_installing" }[runtime.status] || "local_runtime_missing");
     renderLocalRuntimePaths(runtime);
-    renderLocalModelCachePathLine(runtime);
+    if (isLocalProvider()) renderLocalModelCachePathLine(state.config.localRuntime || {});
     const target = $("localRuntimeStatus");
     // 实时流水只保留在进度条下方的 ProgressMessage 行，避免上下双显同一句。
     target.textContent = t(key);
     target.className = `local-status ${installing ? "warn" : (runtime.ready ? "ready" : "warn")}`;
     // 高级选项里的检测结果行与 Runtime 面板状态保持一致。
     const checkStatus = $("localRuntimeCheckStatus");
-    checkStatus.textContent = target.textContent;
-    checkStatus.className = target.className;
+    const asrRuntime = state.config.localRuntime || {};
+    const asrKey = installing ? "local_runtime_installing" : ({ ready: "local_runtime_ready", broken: "local_runtime_broken", checking: "local_runtime_checking" }[asrRuntime.status] || "local_runtime_missing");
+    checkStatus.textContent = t(asrKey);
+    checkStatus.className = `local-status ${asrRuntime.ready && !installing ? "ready" : "warn"}`;
+    $("localRuntimeHeading").textContent = t(usesSharedRuntimePanel() ? "settings_shared_runtime" : "settings_local_runtime");
+    const inventory = runtimePanelShowsMoss() ? null : runtimeInventory;
+    const components = inventory?.components || [];
+    const versionOutdated = Boolean(inventory?.runtimeVersionInstalled && inventory.runtimeVersionInstalled !== inventory.runtimeVersionExpected && !runtime.ready);
+    $("runtimeInventoryDetails").classList.toggle("hidden", runtimePanelShowsMoss());
+    const versions = $("localRuntimeVersions");
+    versions.hidden = !inventory;
+    versions.textContent = inventory ? t("local_runtime_versions")
+      .replace("{installed}", inventory.runtimeVersionInstalled || t("local_runtime_no_version"))
+      .replace("{expected}", inventory.runtimeVersionExpected || "—")
+      .replace("{detected}", String(components.filter(item => item.installed).length))
+      .replace("{total}", String(components.length)) : "";
     $("localRuntimeHint").textContent = runtimeHintText(runtime, "local_runtime_ready_hint", "local_runtime_hint");
-    $("localRuntimePath").value = runtime.path || $("localRuntimePath").value || "";
+    if (document.activeElement !== $("localRuntimePath")) $("localRuntimePath").value = runtime.path || "";
     $("localModelCachePath").value = state.config.modelCacheRoot || runtime.modelCachePath || $("localModelCachePath").value || "";
     const button = $("installLocalRuntime");
-    button.disabled = !installing && (state.running || state.batchRunning || state.localPreparing);
+    button.disabled = !installing && (runtime.status === "checking" || state.running || state.batchRunning || state.localPreparing);
     button.classList.toggle("hidden", !installing && runtime.status === "ready");
-    button.textContent = installing || runtime.status === "installing" ? t("local_runtime_cancel") : (runtime.status === "missing" ? t("local_runtime_install") : t("local_runtime_repair"));
+    button.textContent = t(installing ? "local_runtime_cancel" :
+      versionOutdated ? "local_runtime_upgrade" : runtime.status === "missing" ? "local_runtime_install" : "local_runtime_repair");
     $("refreshLocalRuntime").disabled = installing;
     const progress = $("localRuntimeProgress");
     progress.classList.toggle("hidden", !installing);
@@ -2992,24 +3080,28 @@
   function localRuntimeBusy() { return state.running || state.batchRunning || state.localPreparing || state.localRuntimeInstalling || state.config?.localRuntime?.status === "installing"; }
   function syncLocalRuntimeControls() {
     const busy = Boolean(localRuntimeBusy());
-    const moss = selectedModel()?.engine === "moss";
+    const moss = runtimePanelShowsMoss();
     $("localRuntimePath").disabled = busy || moss;
     $("pickLocalRuntimePath").disabled = busy || moss;
     $("localRuntimePath").closest(".field").classList.toggle("hidden", moss);
   }
   async function saveLocalRuntimePath(path) {
-    if (localRuntimeBusy() || selectedModel()?.engine === "moss") {
+    if (localRuntimeBusy() || runtimePanelShowsMoss()) {
       const result = { ok: false, field: "localRuntimePath", code: "local_runtime_busy", detail: state.lang === "en" ? "Wait for the current task to finish before changing the runtime directory." : "请等待当前任务结束后再切换运行环境目录。" };
       applyErrorResult(result); return result;
     }
-    const requestId = ++localRuntimeRequest;
+    const shared = usesSharedRuntimePanel();
+    const requestId = shared ? ++sharedRuntimeRequest : ++localRuntimeRequest;
+    setLocalRuntimeInventory(null);
     const value = String(path || "").trim();
     const result = await bridge("save_local_settings", { runtimePath: value });
-    if (requestId !== localRuntimeRequest) return result;
+    if (requestId !== (shared ? sharedRuntimeRequest : localRuntimeRequest)) return result;
     if (!result.ok) { applyErrorResult(result); return result; }
-    state.config.localRuntime = result.runtime || state.config.localRuntime || {};
+    if (shared) sharedRuntime = result.runtime || sharedRuntime;
+    else state.config.localRuntime = result.runtime || state.config.localRuntime || {};
     renderLocalRuntime();
     if (isLocalProvider()) void refreshLocalModels();
+    document.dispatchEvent(new CustomEvent("mswlocalruntimepath"));
     setError("localRuntimePath", "");
     setStatus(t("saved"));
     return result;
@@ -3055,6 +3147,19 @@
     state.config.modelCacheRoot = result.modelCachePath || state.config.modelCacheRoot || "";
     renderLocalRuntime();
     return result;
+  }
+  async function refreshRuntimePanel() {
+    if (!usesSharedRuntimePanel()) return refreshLocalRuntime();
+    const request = ++sharedRuntimeRequest;
+    const result = await bridge("get_local_runtime", { modelId: "" });
+    if (request !== sharedRuntimeRequest) return;
+    if (!result.ok) { applyErrorResult(result); return; }
+    sharedRuntime = result;
+    if (usesSharedRuntimePanel()) renderLocalRuntime();
+  }
+  function refreshRuntimeAfterTask() {
+    if (usesSharedRuntimePanel()) void refreshRuntimePanel();
+    if (isLocalProvider()) void refreshLocalModels();
   }
   async function refreshLocalModels() {
     if (!isLocalProvider()) return;
@@ -3103,6 +3208,7 @@
     }
     state.config.modelCacheRoot = result.modelCacheRoot || value;
     await refreshLocalModels();
+    document.dispatchEvent(new CustomEvent("mswlocalruntimepath"));
     setError("localModelCachePath", "");
     setStatus(t("saved"));
     return result;
@@ -3151,7 +3257,7 @@
     $("openaiCapabilityHint").textContent=caps.timestamps?t('openai_timestamps_required'):t('openai_timestamps_missing');
     return caps;
   }
-  function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const openai = current.id === "openai"; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); const local = isLocalProvider(); $("modelField").classList.remove("hidden"); $("customAsrFields").classList.toggle("hidden", !openai); $("localRuntimePanel").classList.toggle("hidden", !local); $("localModelPanel").classList.toggle("hidden", !local); $("localRuntimeCheckField").classList.toggle("hidden", !local); $("localDeviceField").classList.toggle("hidden", !local); if (!$("asrConnectionProvider").options.length) renderAsrConnection(current.id); $("providerNote").textContent = providerNoteText(current); $("providerNote").classList.toggle("hidden", !current.note); applySelectedModel(persistReset); renderKeyStatus(); syncAdvancedParamsGroup(); if (local) { renderLocalRuntime(); void refreshLocalRuntime(); if (!state.initializing) void refreshLocalModels(); } }
+  function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const openai = current.id === "openai"; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); const local = isLocalProvider(); $("modelField").classList.remove("hidden"); $("customAsrFields").classList.toggle("hidden", !openai); $("localModelPanel").classList.toggle("hidden", !local); $("localRuntimeCheckField").classList.toggle("hidden", !local); $("localDeviceField").classList.toggle("hidden", !local); if (!$("asrConnectionProvider").options.length) renderAsrConnection(current.id); $("providerNote").textContent = providerNoteText(current); $("providerNote").classList.toggle("hidden", !current.note); applySelectedModel(persistReset); renderKeyStatus(); syncAdvancedParamsGroup(); if (local) { renderLocalRuntime(); void refreshLocalRuntime(); if (!state.initializing) void refreshLocalModels(); } }
   function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); syncOpenAiFields(); syncLocalModelPath(model); syncLocalDevice(model); renderModelInfo(model); applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncQwenAudioOptions(model); syncSonioxContextOptions(model); syncOpenaiCapabilities(true); $("doubaoOptions").classList.toggle("hidden", current.id !== "doubao"); renderLocalModelStatus(); if (!state.initializing) void syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
   function applyProviderLanguages(current, model, persistReset = false) { const el = $("language"); $("languageGroup").classList.toggle("hidden", current.supportsLanguage === false); const previous = el.multiple ? Array.from(el.selectedOptions).map((o) => o.value) : (el.value ? [el.value] : []); const remembered = state.config.lastLanguage; const wanted = previous.length && persistReset ? previous : (remembered !== null && remembered !== undefined ? (remembered ? remembered.split(",") : []) : [state.config.language].filter(Boolean)); el.multiple = Boolean(current.multiLanguage); $("advancedOptionsGrid").classList.toggle("single-language", !current.multiLanguage); if (current.multiLanguage) el.size = 6; else el.removeAttribute("size"); const showRare = Boolean(state.config.showRareLangs); const commons = current.commonLanguages || []; const available = model.languages?.length ? model.languages : current.languages; const visible = !showRare && commons.length ? available.filter((item) => commons.includes(item.id)) : available; fillSelect("language", visible, ""); const codes = new Set(visible.map((item) => item.id)); const restored = wanted.filter((code) => code && codes.has(code)); if (current.multiLanguage) { Array.from(el.options).forEach((o) => { o.selected = restored.includes(o.value); }); } else { el.value = restored[0] || ""; } $("languageHint").classList.toggle("hidden", !current.multiLanguage); $("languageFilterHint").classList.toggle("hidden", showRare || commons.length === 0); $("languageReset").classList.toggle("hidden", !current.multiLanguage); }
   let asrPresetUi=null;
@@ -3519,7 +3625,8 @@
     $("notifyOnComplete").checked = state.config.notifyOnComplete === true;
   }
 
-  function openSettings(sectionId = "", focusId = "") {
+  function openSettings(sectionId = "", focusId = "", { sharedRuntime = false } = {}) {
+    showSharedRuntime = sharedRuntime;
     enterSettings(sectionId);
     // 工具箱抽屉会覆盖页面内容；进入设置页前先收起（旧弹窗位于抽屉之上，页面版没有该层级）。
     window.MSWLauncher?.closeToolbox?.();
@@ -3778,7 +3885,7 @@
       appendLog(t("local_prepare_cancelled"));
     }
     if (event.type === "localRuntimeProgress") {
-      const runtime = state.config?.localRuntime || {};
+      const runtime = runtimePanelStatus();
       if (state.localRuntimeInstalling || runtime.status === "installing") {
         state.localRuntimeProgress = Number(event.percent || 0);
         state.localRuntimeProgressMessage = event.message || "";
@@ -3786,26 +3893,26 @@
       }
     }
     if (event.type === "localRuntimeReady") {
-      const runtime = state.config?.localRuntime || {};
+      const runtime = runtimePanelStatus();
       const wasInstalling = state.localRuntimeInstalling || runtime.status === "installing";
       state.localRuntimeInstalling = false;
       state.localRuntimeProgress = 100;
       state.localRuntimeProgressMessage = "";
       renderLocalRuntime();
       if (wasInstalling) {
-        void refreshLocalModels();
+        refreshRuntimeAfterTask();
         setStatus(t("local_runtime_install_done"));
         appendLog(t("local_runtime_install_done"));
       }
     }
     if (event.type === "localRuntimeCancelled") {
-      const runtime = state.config?.localRuntime || {};
+      const runtime = runtimePanelStatus();
       const wasInstalling = state.localRuntimeInstalling || runtime.status === "installing";
       state.localRuntimeInstalling = false;
       state.localRuntimeProgressMessage = "";
       renderLocalRuntime();
       if (wasInstalling) {
-        void refreshLocalModels();
+        refreshRuntimeAfterTask();
         setStatus(t("local_runtime_cancelled"));
         appendLog(t("local_runtime_cancelled"));
       }
@@ -3851,11 +3958,11 @@
       $("logTitle")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
     }
     if (event.type === "error" && ["local_runtime_install_failed", "local_runtime_cancelled"].includes(event.code)) {
-      const runtime = state.config?.localRuntime || {};
+      const runtime = runtimePanelStatus();
       if (state.localRuntimeInstalling || runtime.status === "installing") {
         state.localRuntimeInstalling = false;
         state.localRuntimeProgressMessage = "";
-        void refreshLocalModels();
+        refreshRuntimeAfterTask();
         renderLocalRuntime();
         if (event.code === "local_runtime_install_failed") $("logTitle")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
       } else {
@@ -3905,7 +4012,7 @@
     if (event.type === "dropMedia" || event.type === "dropJson" || event.type === "dropSubtitle" || event.type === "dropHotwordFile" || event.type === "dropFfconcat" || event.type === "dropReject") handleRoutedDrop(event.path || "");
   }
   window.addEventListener('msw:config-notice', event => notify(event.detail.message, {error:true}));
-  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, notify, translate: t, errorText: errText, llmProviderLabel, viewportPixelsToPage, openSettings, closeSettings, setJsonPath, openServerEditor, openMediaRelink, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
+  window.MSWLauncher = { backend: "pending", config: null, callBackend: bridge, notify, translate: t, errorText: errText, llmProviderLabel, viewportPixelsToPage, openSettings, closeSettings, setLocalRuntimeInventory, setJsonPath, openServerEditor, openMediaRelink, startBlankEditor, getAudioTrackForMedia, getTranscriptionPayload: formPayload, appendLog, confirm: confirmAction, confirmResolve: null, onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); }, onBatchStart: hideErrorNotice, onBatchError: (result) => applyErrorResult(result, false), onLanguageChanged() {}, onProjectPathChanged() {}, onMediaPathChanged() {}, refreshServerStatus: () => { void refreshShownServerStatus(); } };
 
   window.MSWLauncher.validateQueueRecognition = mediaPath => validateLocal({ mediaPath, srtPath: 'queue.srt' });
   window.MSWLauncher.setQueueProgress = message => setStatus(message);
@@ -3998,9 +4105,38 @@
   $("refreshOcrRuntime").addEventListener("click", async () => { $("refreshOcrRuntime").disabled = true; try { await refreshOcrRuntime(); } finally { $("refreshOcrRuntime").disabled = false; } });
   $("installOcrRuntime").addEventListener("click", async () => { const runtime = state.config?.ocrRuntime || {}; if (state.ocrRuntimeInstalling || runtime.status === "installing") { await bridge("cancel_ocr_runtime"); return; } state.ocrRuntimeInstalling = true; state.ocrRuntimeProgress = 0; state.ocrRuntimeProgressMessage = t("ocr_runtime_installing"); renderOcrRuntime(); appendLog(t("ocr_runtime_installing")); const result = await bridge("install_ocr_runtime", { repair: state.config.ocrRuntime?.status === "broken" }); if (!result.ok) { state.ocrRuntimeInstalling = false; state.ocrRuntimeProgressMessage = ""; applyErrorResult(result); renderOcrRuntime(); } });
   $("localModelPath").addEventListener("input", () => { setError("localModelPath", ""); if (isLocalProvider()) { rememberLocalModelPath(); void refreshLocalModels(); } });
-  $("refreshLocalRuntime").addEventListener("click", async () => { $("refreshLocalRuntime").disabled = true; try { await refreshLocalRuntime(); await refreshLocalModels(); } finally { $("refreshLocalRuntime").disabled = false; } });
-  $("openLocalRuntimeSettings").addEventListener("click", () => { openSettings("localRuntimePanel"); void refreshLocalRuntime(); });
-  $("installLocalRuntime").addEventListener("click", async () => { if (!isLocalProvider()) return; const runtime = state.config?.localRuntime || {}; if (state.localRuntimeInstalling || runtime.status === "installing") { await bridge("cancel_local_runtime"); return; } state.localRuntimeInstalling = true; state.localRuntimeProgress = 0; state.localRuntimeProgressMessage = t("local_runtime_installing"); renderLocalRuntime(); appendLog(t("local_runtime_installing")); const runtimeStatus = state.config.localRuntime?.status || ""; const result = await bridge("install_local_runtime", { modelId: $("model").value, repair: Boolean(runtimeStatus && runtimeStatus !== "missing") }); if (!result.ok) { state.localRuntimeInstalling = false; state.localRuntimeProgressMessage = ""; applyErrorResult(result); renderLocalRuntime(); } });
+  $("refreshLocalRuntime").addEventListener("click", async () => {
+    $("refreshLocalRuntime").disabled = true;
+    try {
+      await refreshRuntimePanel();
+      if (isLocalProvider()) await refreshLocalModels();
+    } finally {
+      renderLocalRuntime();
+    }
+  });
+  $("openLocalRuntimeSettings").addEventListener("click", () => openSettings("localRuntimePanel"));
+  $("installLocalRuntime").addEventListener("click", async () => {
+    const runtime = runtimePanelStatus();
+    if (state.localRuntimeInstalling || runtime.status === "installing") {
+      await bridge("cancel_local_runtime");
+      return;
+    }
+    state.localRuntimeInstalling = true;
+    state.localRuntimeProgress = 0;
+    state.localRuntimeProgressMessage = t("local_runtime_installing");
+    renderLocalRuntime();
+    appendLog(t("local_runtime_installing"));
+    const result = await bridge("install_local_runtime", {
+      modelId: runtimePanelModelId(), repair: runtime.status === "broken",
+    });
+    if (!result.ok) {
+      state.localRuntimeInstalling = false;
+      state.localRuntimeProgressMessage = "";
+      applyErrorResult(result);
+      renderLocalRuntime();
+      refreshRuntimeAfterTask();
+    }
+  });
   $("refreshLocalModels").addEventListener("click", async () => { $("refreshLocalModels").disabled = true; try { await refreshLocalModels(); } finally { $("refreshLocalModels").disabled = false; } });
   $("prepareLocalModel").addEventListener("click", async () => { if (!isLocalProvider()) return; if (state.localPreparing) { state.localProgressMessage = t("local_prepare_cancelling"); renderLocalModelStatus(); appendLog(t("local_prepare_cancelling")); const result = await bridge("cancel_local_model"); if (!result.ok) { state.localProgressMessage = t("local_prepare_running"); applyErrorResult(result); renderLocalModelStatus(); } return; } state.localPreparing = true; state.localProgressMessage = t("local_prepare_running"); state.localProgress = null; renderLocalModelStatus(); appendLog(t("local_prepare_running")); const result = await bridge("prepare_local_model", { modelId: $("model").value, modelPath: $("localModelPath").value.trim(), device: $("localDevice").value, fireredPunc: $("fireredPunc").value }); if (!result.ok) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; applyErrorResult(result); renderLocalModelStatus(); } else if (result.alreadyInstalled) { state.localPreparing = false; state.localProgressMessage = ""; state.localProgress = null; renderLocalModelStatus(); setStatus(t("local_installed")); } });
   $("ffmpegHelp").addEventListener("click", () => bridge("open_url", { url: "https://ffmpeg.org/download.html" }));
@@ -4078,6 +4214,13 @@
   // 右上设置按钮已移除：经左导航进入「更多设置」时同样执行进入例程（刷新运行态等）。
   document.addEventListener("mswnavigation", (event) => {
     if (event.detail && event.detail.page === "settings" && !enteringSettings) enterSettings();
+    if (event.detail && event.detail.page !== "settings") showSharedRuntime = false;
+  });
+  window.addEventListener("msw:launcher-settings-tab", (event) => {
+    if (event.detail.tab === "runtime" && state.config) {
+      renderLocalRuntime();
+      void refreshRuntimePanel();
+    }
   });
   function bindStaticPages() {
     document.querySelectorAll("[data-goto-page]").forEach((button) => {

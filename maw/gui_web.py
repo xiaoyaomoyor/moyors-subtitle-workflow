@@ -167,7 +167,7 @@ EDITOR_HEALTH_PROBE_PATH: Final = "/api/startup-status"
 # 短暂超过默认 0.25s，但仍远小于 SERVER_START_TIMEOUT 的总预算。
 EDITOR_HEALTH_PROBE_TIMEOUT: Final = 2.0
 # Keep this aligned with pyproject.toml; release workflows synchronize and verify it.
-BUNDLED_APP_VERSION = "1.9.0"
+BUNDLED_APP_VERSION = "1.10.0-beta.1"
 MOSE_VERSION = "0.1.0"
 
 
@@ -3544,21 +3544,25 @@ class LauncherApi:
             ],
         }
 
-    def get_alignment_models(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+    def get_alignment_models(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         model_cache_root = effective_config(self.paths.env_path).model_cache_root
         runtime = self._local_runtime_status(model_cache_root)
         # When the host process does not contain optional packages, the managed
         # runtime is still a valid preparation/inference source.
         use_managed = bool(runtime.ready)
+        paths = (payload or {}).get("modelPaths")
         return {
             "ok": True,
             "runtime": runtime.to_payload(),
+            "runtimeInventory": local_runtime_inventory(model_cache_root),
             "modelCacheRoot": model_cache_root,
             "models": alignment_models_payload(
                 model_cache_root,
                 runtime_available=True if use_managed else None,
                 runtime_source="managed" if use_managed else "current",
                 runtime_python=runtime.python_path if use_managed else "",
+                model_paths={model.id: str(paths.get(model.id) or "") for model in ALIGNMENT_MODELS}
+                if isinstance(paths, Mapping) else None,
             ),
         }
 
@@ -3570,10 +3574,11 @@ class LauncherApi:
             event.set()
         return {"ok": True, "cancelling": active}
 
+    @_runtime_state_guard
     def prepare_alignment_model(self, payload: Mapping[str, object]) -> dict[str, object]:
         if self.worker and self.worker.is_alive():
             return {"ok": False, "error": "Transcription is already running."}
-        if self.local_prepare_worker and self.local_prepare_worker.is_alive():
+        if any(worker and worker.is_alive() for worker in (self.local_prepare_worker, self.local_runtime_worker)):
             return _error_result("alignmentModel", "alignment_prepare_running")
         if self.alignment_prepare_worker and self.alignment_prepare_worker.is_alive():
             return _error_result("alignmentModel", "alignment_prepare_running")
@@ -3595,10 +3600,10 @@ class LauncherApi:
         )
         if status.status == "installed":
             return {"ok": True, "alreadyInstalled": True, "modelId": model.id, "status": status.to_payload()}
-        if not status.runtime_available:
-            return _error_result("alignmentModel", "local_runtime_missing", status.detail)
         if status.status == "path_invalid":
             return _error_result("alignmentModelPath", "alignment_model_path_invalid", status.detail)
+        if not status.runtime_available:
+            return _error_result("alignmentModel", "local_runtime_missing", status.detail)
         self.alignment_prepare_cancel_event = Event()
         self.pump.start()
         self.alignment_prepare_worker = threading.Thread(
@@ -3661,7 +3666,10 @@ class LauncherApi:
         托管 runtime 的根目录解析链是「显式配置 -> 进程级 MAW_LOCAL_RUNTIME_ROOT ->
         默认 app-data」；这里不改动任何调用方签名，只负责维护 .env 与进程环境变量。
         """
-        if any(worker and worker.is_alive() for worker in (self.queue_worker, self.worker, self.batch_worker, self.local_runtime_worker, self.local_prepare_worker)):
+        if any(worker and worker.is_alive() for worker in (
+            self.queue_worker, self.worker, self.batch_worker, self.local_runtime_worker,
+            self.local_prepare_worker, self.alignment_prepare_worker,
+        )):
             return _error_result("localRuntimePath", "local_runtime_busy", "转写、安装或模型准备进行中，暂时不能切换本地运行环境目录。")
         value = str(payload.get("runtimePath") or payload.get("path") or "").strip()
         candidate = Path(value).expanduser().resolve(strict=False) if value else None
@@ -3704,7 +3712,7 @@ class LauncherApi:
     def install_local_runtime(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         if (self.worker and self.worker.is_alive()) or (self.batch_worker and self.batch_worker.is_alive()):
             return {"ok": False, "error": "Transcription is already running."}
-        if self.local_prepare_worker and self.local_prepare_worker.is_alive():
+        if any(worker and worker.is_alive() for worker in (self.local_prepare_worker, self.alignment_prepare_worker)):
             return _error_result("model", "local_prepare_running")
         if getattr(self, "local_runtime_worker", None) and self.local_runtime_worker.is_alive():
             return _error_result("model", "local_runtime_install_failed", "本地运行环境正在安装中。")
@@ -4258,8 +4266,9 @@ class LauncherApi:
                 engine=engine,
             )
             if cancel_event.is_set():
-                return
-            self._emit({"type": "localRuntimeReady", "runtime": status.to_payload()})
+                self._emit({"type": "localRuntimeCancelled"})
+            else:
+                self._emit({"type": "localRuntimeReady", "runtime": status.to_payload()})
         except LocalRuntimeCancelled as error:
             recover_local_runtime_install(engine)
             if cancel_event.is_set():
@@ -4268,7 +4277,9 @@ class LauncherApi:
                 self._emit({"type": "error", "code": "local_runtime_cancelled", "field": "model", "detail": str(error)})
         except (LocalRuntimeError, OSError) as error:
             recover_local_runtime_install(engine)
-            if not cancel_event.is_set():
+            if cancel_event.is_set():
+                self._emit({"type": "localRuntimeCancelled"})
+            else:
                 self._emit({"type": "error", "code": "local_runtime_install_failed", "field": "model", "detail": str(error)})
         finally:
             self.pump.flush()
@@ -4380,7 +4391,7 @@ class LauncherApi:
         def on_event(message: str) -> None:
             if not cancel_event.is_set():
                 self._emit({"type": "log", "message": message})
-                self._emit({"type": "alignmentModelProgress", "message": message})
+                self._emit({"type": "alignmentModelProgress", "modelId": model_id, "message": message})
 
         try:
             if use_managed_runtime:
@@ -4424,6 +4435,7 @@ class LauncherApi:
                     "type": "error",
                     "code": "alignment_prepare_failed",
                     "field": "alignmentModel",
+                    "modelId": model_id,
                     "detail": str(error),
                 })
         finally:

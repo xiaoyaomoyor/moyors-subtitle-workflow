@@ -92,7 +92,7 @@
       <div class="nav-spacer"></div>
       <div class="nav-footer">
         <span class="nav-footer-short">MSW</span>
-        <span class="nav-footer-full">MSW：<span id="appVersion">v1.9.0</span></span>
+        <span class="nav-footer-full">MSW：<span id="appVersion">v1.10.0-beta.1</span></span>
       </div>
       </div>
     </nav>
@@ -242,7 +242,10 @@
           <div id="localModelPanel" class="local-model-panel hidden">
             <div class="field"><label for="fireredPunc" data-msw5="0">FireRed 标点</label><select id="fireredPunc"><option value="none" data-msw5="1">不使用</option><option value="ct-punc" data-msw5="2">使用 ct-punc（需下载）</option></select></div>
             <div class="field"><label for="alignmentModel" data-msw5="3">识别后补齐字词时间码</label><select id="alignmentModel"><option value="" data-msw5="4">不额外对齐</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option><option value="firered-asr2-ctc">FireRed CPU</option></select><input id="alignmentModelPath" placeholder="对齐模型目录（可选）"><p class="hint" data-msw5="5">只为本次识别结果补齐时间码，不修改其他轨道。</p></div>
-            <div class="button-row"><button type="button" id="refreshAlignmentModels" data-msw5="6" class="ghost">扫描对齐模型</button><button type="button" id="prepareAlignmentModel" data-msw5="7" class="ghost">下载所选对齐模型</button><button type="button" id="cancelAlignmentModel" data-msw5="8" class="ghost">取消下载</button></div><p id="alignmentModelsStatus" class="hint" role="status"></p>
+            <div class="local-status-row">
+              <p id="recognitionAlignmentStatus" class="local-status" role="status"></p>
+              <button id="manageRecognitionAlignment" type="button" class="inline-link" data-msw5="30">管理对齐模型</button>
+            </div>
             <div class="local-status-row">
               <p id="localModelStatus" class="local-status" aria-live="polite"></p>
               <button id="refreshLocalModels" class="ghost small" type="button" data-i18n="local_refresh">重新扫描</button>
@@ -911,6 +914,10 @@
               <div class="field"><label for="timestampMedia" data-msw5="13">对应媒体</label><div class="path-row"><input id="timestampMedia"><button type="button" id="pickTimestampMedia" class="ghost" data-i18n="choose">选择</button></div></div>
               <div class="field"><label for="timestampAudio" data-msw5="14">对应音轨（从 0 起）</label><input id="timestampAudio" type="number" min="0" max="127"></div>
               <div class="field"><label for="timestampModel" data-msw5="15">对齐模型</label><select id="timestampModel"><option value="firered-asr2-ctc">FireRed CPU</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option></select></div>
+              <div class="local-status-row">
+                <p id="timestampAlignmentStatus" class="local-status" role="status"></p>
+                <button id="manageTimestampAlignment" type="button" class="inline-link" data-msw5="30">管理对齐模型</button>
+              </div>
               <div class="field"><label for="timestampMode" data-msw5="16">处理方式</label><select id="timestampMode"><option value="fill" data-msw5="17">仅补齐缺失时间码</option><option value="generate" data-msw5="18">重新生成并覆盖已有时间码</option></select></div>
               <div class="button-row"><button type="button" id="runTimestampTool" class="primary" data-msw5="19">开始对齐</button><button type="button" id="cancelTimestampTool" data-msw5="20" class="ghost">取消对齐</button></div><p id="timestampResult" role="status" class="hint"></p>
             </section>
@@ -1272,8 +1279,8 @@
           </div>
           </section>
           <section id="settingsRuntimePanel" class="settings-panel hidden" role="tabpanel" aria-labelledby="settingsRailRuntime" data-settings-panel="runtime" aria-hidden="true">
-          <div id="localRuntimePanel" class="local-runtime-panel settings-section hidden">
-            <h3 data-i18n="settings_local_runtime">本地模型运行时</h3>
+          <div id="localRuntimePanel" class="local-runtime-panel settings-section">
+            <h3 id="localRuntimeHeading" data-i18n="settings_local_runtime">本地模型运行时</h3>
             <p class="hint warn hint-callout" data-i18n="local_beta_note">当前为 beta 版本，未经过充分测试，不保证后续的维护和更新，请谨慎使用。</p>
             <div class="field">
               <label for="localRuntimePath" data-i18n="local_runtime_path_label">本地运行环境目录</label>
@@ -1285,7 +1292,8 @@
               <p class="hint" data-i18n="local_runtime_path_hint">默认安装到用户目录；可改到空间更充足的磁盘。更改后会按新目录重新扫描安装状态。</p>
             </div>
             <div id="localRuntimePaths" class="runtime-paths hidden"></div>
-            <details><summary data-msw5="27">运行环境版本与组件</summary><button id="refreshRuntimeInventory" class="ghost small" type="button" data-msw5="28">刷新组件清单</button><pre id="runtimeInventory" class="hint" style="white-space:pre-wrap" aria-live="polite"></pre></details>
+            <p id="localRuntimeVersions" class="hint" aria-live="polite" hidden></p>
+            <details id="runtimeInventoryDetails"><summary data-msw5="27">运行环境版本与组件</summary><button id="refreshRuntimeInventory" class="ghost small" type="button" data-msw5="28">刷新组件清单</button><pre id="runtimeInventory" class="hint" style="white-space:pre-wrap" aria-live="polite"></pre></details>
             <div class="local-status-row">
               <p id="localRuntimeStatus" class="local-status" aria-live="polite"></p>
               <button id="refreshLocalRuntime" class="ghost small" type="button" data-i18n="local_refresh">重新扫描</button>
@@ -1298,6 +1306,25 @@
               <p id="localRuntimeHint" class="hint"></p>
               <button id="installLocalRuntime" class="primary small" type="button" data-i18n="local_runtime_install">安装本地模型支持</button>
             </div>
+          </div>
+          <div class="settings-section" id="alignmentModelsSettings">
+            <h3 data-msw5="30">管理对齐模型</h3>
+            <ul id="alignmentModelsInventory" class="hint"></ul>
+            <div class="field">
+              <label for="alignmentDownloadModel" data-msw5="15">对齐模型</label>
+              <select id="alignmentDownloadModel"><option value="firered-asr2-ctc">FireRed CPU</option><option value="qwen3-forced-aligner-0.6b">Qwen3 Forced Aligner</option></select>
+            </div>
+            <div class="field">
+              <label for="alignmentDownloadPath" data-msw5="31">对齐模型目录（可选）</label>
+              <input id="alignmentDownloadPath" type="text" autocomplete="off">
+            </div>
+            <div class="button-row">
+              <button type="button" id="refreshAlignmentModels" data-msw5="6" class="ghost">扫描对齐模型</button>
+              <button type="button" id="prepareAlignmentModel" data-msw5="7" class="ghost">下载所选对齐模型</button>
+              <button type="button" id="cancelAlignmentModel" data-msw5="8" class="ghost" hidden>取消下载</button>
+              <button type="button" id="openAlignmentRuntime" data-msw5="32" class="inline-link">运行环境设置</button>
+            </div>
+            <p id="alignmentModelsStatus" class="hint" role="status"></p>
           </div>
           <div class="settings-section" id="ocrSettingsSection">
             <h3 data-i18n="settings_ocr">OCR 支持</h3>
