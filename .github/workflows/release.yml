@@ -314,7 +314,9 @@ jobs:
         timeout-minutes: 15
         shell: pwsh
         run: |
-          npx playwright test tests/e2e/find-edit.spec.mjs tests/e2e/launcher-shell.spec.mjs tests/e2e/click-behavior.spec.mjs tests/e2e/split-desynced-items.spec.mjs tests/e2e/ass-preview-efficiency.spec.mjs --project=chromium --max-failures=3 --output=test-results/beta-1100
+          npx playwright test tests/e2e/find-edit.spec.mjs tests/e2e/launcher-shell.spec.mjs tests/e2e/split-desynced-items.spec.mjs tests/e2e/ass-preview-efficiency.spec.mjs --project=chromium --max-failures=3 --output=test-results/beta-1100
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright test tests/e2e/click-behavior.spec.mjs --grep 'B splits at the pointer|B flashes a yellow marker' --project=chromium --max-failures=2 --output=test-results/beta-1100-split
           exit $LASTEXITCODE
 
       - name: Check English UI and real video exports in Chromium
