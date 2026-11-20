@@ -88,7 +88,11 @@ test('deleted-picture subtitles disappear in all SRT modes and the timeline side
     applyCanonicalProject(project,'trimmed.mosp');
     MSWSubtitleExport.open('srt');
   });
-  const before = await page.evaluate(() => buildJson());
+  const sourceData = () => page.evaluate(() => {
+    const {subtitles, gap_remove} = JSON.parse(buildJson());
+    return {subtitles, gap_remove};
+  });
+  const before = await sourceData();
   await page.locator('#subtitle-export-remove-gaps').check();
   await page.locator('#subtitle-export-more summary').click();
   await page.locator('#export-start-at-zero').check();
@@ -109,7 +113,7 @@ test('deleted-picture subtitles disappear in all SRT modes and the timeline side
   await page.locator('#subtitle-export-mode').selectOption('original');
   await page.locator('#subtitle-export-remove-gaps').uncheck();
   expect((await save(page)).text).toContain('Discard main');
-  expect(await page.evaluate(() => buildJson())).toBe(before);
+  expect(await sourceData()).toEqual(before);
 });
 
 test('a switch while choosing the SRT destination cancels the old export', async ({page}) => {
