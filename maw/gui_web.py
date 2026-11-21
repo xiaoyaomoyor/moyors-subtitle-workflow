@@ -167,7 +167,7 @@ EDITOR_HEALTH_PROBE_PATH: Final = "/api/startup-status"
 # 短暂超过默认 0.25s，但仍远小于 SERVER_START_TIMEOUT 的总预算。
 EDITOR_HEALTH_PROBE_TIMEOUT: Final = 2.0
 # Keep this aligned with pyproject.toml; release workflows synchronize and verify it.
-BUNDLED_APP_VERSION = "1.10.0-beta.2"
+BUNDLED_APP_VERSION = "1.10.0"
 MOSE_VERSION = "0.1.0"
 
 
@@ -4744,6 +4744,8 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path, *, vali
             raise PreflightError("model", "local_model_missing", local_status.detail)
         if local_status.status == "partial":
             raise PreflightError("model", "local_model_incomplete", local_status.detail)
+        if local_model_path:
+            local_model_path = local_status.path
         if model.engine == "firered" and firered_punc == "ct-punc":
             _ctc_ready, punc_ready = firered_components_ready(
                 model,

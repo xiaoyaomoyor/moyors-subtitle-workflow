@@ -92,7 +92,7 @@
       <div class="nav-spacer"></div>
       <div class="nav-footer">
         <span class="nav-footer-short">MSW</span>
-        <span class="nav-footer-full">MSW：<span id="appVersion">v1.10.0-beta.2</span></span>
+        <span class="nav-footer-full">MSW：<span id="appVersion">v1.10.0</span></span>
       </div>
       </div>
     </nav>
@@ -264,8 +264,9 @@
             <div class="field">
               <label for="localModelPath" data-i18n="local_model_path">已有模型目录（可选）</label>
               <div class="path-row">
-                <input id="localModelPath" type="text" autocomplete="off">
+                <input id="localModelPath" type="text" autocomplete="off" aria-describedby="localModelPathError localModelHint">
                 <button id="pickLocalModelPath" class="ghost" type="button" data-i18n="choose_folder">选择文件夹</button>
+                <button id="clearLocalModelPath" class="ghost hidden" type="button" data-i18n="local_path_reset">自动检测</button>
               </div>
               <p id="localModelPathError" class="field-error"></p>
             </div>

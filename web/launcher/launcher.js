@@ -901,6 +901,9 @@
     local_partial: "已检测到主模型，但仍缺少组件",
     local_installed: "已检测到本地模型",
     local_path_selected: "已使用指定的模型目录",
+    local_path_reset: "自动检测",
+    local_path_detected: "已检测到本地模型",
+    local_path_files_missing: "所选目录无效或缺少模型文件",
     local_prepare_hint: "下载/准备会使用 QwenASR 或 FunASR 的上游缓存；模型文件不写入 MSW 工程。",
     local_prepare_running: "正在准备模型……",
     local_prepare_cancelling: "正在取消模型准备……",
@@ -996,6 +999,9 @@
     local_partial: "Main model found, but components are missing",
     local_installed: "Local model detected",
     local_path_selected: "Using the selected model folder",
+    local_path_reset: "Auto-detect",
+    local_path_detected: "Local model detected",
+    local_path_files_missing: "Invalid folder or missing model files",
     local_prepare_hint: "Download/preparation uses the QwenASR or FunASR upstream cache; model files are not written into the MSW project.",
     local_prepare_running: "Preparing model…",
     local_prepare_cancelling: "Cancelling model preparation…",
@@ -1678,6 +1684,7 @@
   let ocrRuntimeRequest = 0;
   let localRuntimeRequest = 0;
   let localModelsRequest = 0;
+  let localModelPickerRequest = 0;
   // Runtime and model checks both update localRuntime.  A single revision
   // prevents an older request of either kind from putting stale status back
   // after a newer check has already completed.
@@ -1759,7 +1766,7 @@
         perVideoSubfolder: saved.perVideoSubfolder,
         attachModelName: saved.attachModelName,
         notifyOnComplete: saved.notifyOnComplete === true,
-        appVersion: "1.10.0-beta.2",
+        appVersion: "1.10.0",
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [...postprocessProviders.keys()].map(postprocessStatus),
         postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: true, steps: [] },
@@ -3112,13 +3119,15 @@
     syncLocalRuntimeControls();
     const preparing = state.localPreparing;
     const target = $("localModelStatus");
-    const key = status.status === "installed" && status.path ? "local_path_selected" : ({ installed: "local_installed", partial: "local_partial", runtime_missing: "local_runtime_missing", path_mismatch: "local_model_path_mismatch", missing: "local_missing", checking: "local_checking" }[status.status] || "local_missing");
+    const customPath = $("localModelPath").value.trim();
+    const key = status.status === "installed" && status.path ? (customPath ? "local_path_selected" : "local_path_detected") : ({ installed: "local_installed", partial: "local_partial", runtime_missing: "local_runtime_missing", path_invalid: "local_path_files_missing", path_mismatch: "local_model_path_mismatch", missing: "local_missing", checking: "local_checking" }[status.status] || "local_missing");
     // 与 runtime 面板一致：preparing 状态行固定"正在准备"文案，实时流水只在进度条下方。
     target.textContent = t(preparing ? "local_prepare_running" : key);
     target.className = `local-status ${preparing ? "warn" : (status.status === "installed" ? "ready" : "warn")}`;
     $("localModelHint").textContent = localModelHintText(status);
     // Automatic cache discovery is separate from the user-selected override.
-    $("localModelPath").placeholder = status.path || "";
+    $("localModelPath").placeholder = !customPath && status.installed ? (status.path || "") : "";
+    $("clearLocalModelPath").classList.toggle("hidden", !customPath);
     const canPrepare = Boolean(status.canPrepare) && !preparing;
     const button = $("prepareLocalModel");
     button.disabled = preparing ? false : !canPrepare;
@@ -3186,6 +3195,8 @@
     if (!supported.includes(select.value)) select.value="auto";
   }
   function syncLocalModelPath(model) {
+    const nextId = isLocalProvider() ? model.id : null;
+    if (state.localModelId !== nextId) ++localModelPickerRequest;
     if (!isLocalProvider()) return;
     if (state.localModelId && state.localModelId !== model.id) state.localModelPaths[state.localModelId] = $("localModelPath").value.trim();
     $("localModelPath").value = state.localModelPaths[model.id] || "";
@@ -3197,6 +3208,16 @@
     const id = selectedModel().id, path = $("localModelPath").value.trim();
     state.localModelPaths[id] = path;
     savePrefsDebounced({localModelPaths: {...(pendingPrefs.localModelPaths || {}), [id]: path}});
+  }
+  function updateLocalModelPath(path) {
+    ++localModelPickerRequest;
+    if (!isLocalProvider()) return;
+    if ($("localModelPath").value !== path) $("localModelPath").value = path;
+    $("localModelPath").placeholder = "";
+    $("clearLocalModelPath").classList.toggle("hidden", !path.trim());
+    setError("localModelPath", "");
+    rememberLocalModelPath();
+    return refreshLocalModels();
   }
   async function saveLocalModelCache(path) {
     const value = String(path || "").trim();
@@ -4092,7 +4113,16 @@
     if (document.visibilityState === "visible") autoRefreshServerStatus();
   });
   $("openKeyUrl").addEventListener("click", () => bridge("open_url", { url: asrConnectionProvider().keyUrl }));
-  $("pickLocalModelPath").addEventListener("click", async () => { const result = await bridge("choose_folder", { kind: "model" }); if (result.ok) { $("localModelPath").value = result.path; rememberLocalModelPath(); setError("localModelPath", ""); await refreshLocalModels(); } });
+  $("pickLocalModelPath").addEventListener("click", async () => {
+    if (!isLocalProvider()) return;
+    const modelId = selectedModel().id;
+    const requestId = ++localModelPickerRequest;
+    const result = await bridge("choose_folder", { kind: "model" });
+    if (result.ok && result.path && requestId === localModelPickerRequest && isLocalProvider() && selectedModel().id === modelId) {
+      await updateLocalModelPath(result.path);
+    }
+  });
+  $("clearLocalModelPath").addEventListener("click", () => void updateLocalModelPath(""));
   $("pickLocalModelCachePath").addEventListener("click", async () => { const result = await bridge("choose_folder", { kind: "model-cache" }); if (result.ok) { $("localModelCachePath").value = result.path; await saveLocalModelCache(result.path); } });
   $("localModelCachePath").addEventListener("input", () => setError("localModelCachePath", ""));
   $("localModelCachePath").addEventListener("change", async () => { await saveLocalModelCache($("localModelCachePath").value); });
@@ -4104,7 +4134,7 @@
   $("localRuntimePath").addEventListener("change", async () => { await saveLocalRuntimePath($("localRuntimePath").value); });
   $("refreshOcrRuntime").addEventListener("click", async () => { $("refreshOcrRuntime").disabled = true; try { await refreshOcrRuntime(); } finally { $("refreshOcrRuntime").disabled = false; } });
   $("installOcrRuntime").addEventListener("click", async () => { const runtime = state.config?.ocrRuntime || {}; if (state.ocrRuntimeInstalling || runtime.status === "installing") { await bridge("cancel_ocr_runtime"); return; } state.ocrRuntimeInstalling = true; state.ocrRuntimeProgress = 0; state.ocrRuntimeProgressMessage = t("ocr_runtime_installing"); renderOcrRuntime(); appendLog(t("ocr_runtime_installing")); const result = await bridge("install_ocr_runtime", { repair: state.config.ocrRuntime?.status === "broken" }); if (!result.ok) { state.ocrRuntimeInstalling = false; state.ocrRuntimeProgressMessage = ""; applyErrorResult(result); renderOcrRuntime(); } });
-  $("localModelPath").addEventListener("input", () => { setError("localModelPath", ""); if (isLocalProvider()) { rememberLocalModelPath(); void refreshLocalModels(); } });
+  $("localModelPath").addEventListener("input", (event) => void updateLocalModelPath(event.target.value));
   $("refreshLocalRuntime").addEventListener("click", async () => {
     $("refreshLocalRuntime").disabled = true;
     try {

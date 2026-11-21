@@ -31,6 +31,8 @@ test('editor remembers separate directories, restores after reopening, and keeps
   await page.locator('#msw-asr-providerId').selectOption('local');
   await page.locator('#msw-asr-modelId').selectOption(qwen);
   await save(page,qwen,'C:/Models/Qwen');
+  await expect(page.locator('#msw-asr-localModelPath')).toHaveAttribute('aria-invalid','true');
+  await expect(page.locator('#msw-asr-local-status')).toContainText('目录不存在');
   await page.locator('#msw-asr-modelId').selectOption(whisper);
   await expect(page.locator('#msw-asr-localModelPath')).toHaveValue('');
   await save(page,whisper,'C:/Models/Whisper');
@@ -68,6 +70,9 @@ test('editor shows MPS only for Qwen when the host advertises macOS support',asy
 test('launcher persists changes through its bridge and never replaces a cleared directory with a detected cache',async({page})=>{
   await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{
     MSWLauncher.bridgeOverride=async(method,payload,next)=>{
+      if(method==='choose_folder'&&payload.kind==='model'){
+        return new Promise(resolve=>{window.completeModelPicker=resolve;});
+      }
       if(method==='save_prefs'&&payload.localModelPaths){
         const paths=JSON.parse(localStorage.getItem('test-model-paths')||'{}');
         localStorage.setItem('test-model-paths',JSON.stringify({...paths,...payload.localModelPaths}));
@@ -80,7 +85,7 @@ test('launcher persists changes through its bridge and never replaces a cleared 
         }
       }
       if(method==='get_local_models')for(const model of result.models){
-        model.localStatus={...model.localStatus,path:'C:/Automatic/Cache',status:'installed'};
+        model.localStatus={...model.localStatus,path:'C:/Automatic/Cache',status:'installed',installed:true};
       }
       return result;
     };
@@ -105,7 +110,31 @@ test('launcher persists changes through its bridge and never replaces a cleared 
   await expect(page.locator('#localModelPath')).toHaveValue('C:/Custom/Qwen');
   await open();await page.locator('#model').selectOption(qwen);
   await expect(page.locator('#localModelPath')).toHaveValue('C:/Custom/Qwen');
-  await page.locator('#localModelPath').fill('');
+  const pick=page.locator('#pickLocalModelPath');
+  async function completePicker(result){
+    await page.evaluate(result=>{
+      window.completeModelPicker(result);
+      window.completeModelPicker=null;
+    },result);
+  }
+  await pick.click();
+  await page.waitForFunction(()=>!!window.completeModelPicker);
+  await completePicker({ok:false,code:'cancelled'});
+  await expect(page.locator('#localModelPath')).toHaveValue('C:/Custom/Qwen');
+  await pick.click();
+  await page.waitForFunction(()=>!!window.completeModelPicker);
+  await page.locator('#model').selectOption('funasr-local');
+  await completePicker({ok:true,path:'C:/Custom/Delayed'});
+  await expect(page.locator('#localModelPath')).toHaveValue('');
+  await page.locator('#model').selectOption(qwen);
+  await expect(page.locator('#localModelPath')).toHaveValue('C:/Custom/Qwen');
+  await pick.click();
+  await page.waitForFunction(()=>!!window.completeModelPicker);
+  await completePicker({ok:true,path:'C:/Custom/Accepted'});
+  await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('test-model-paths')||'{}')['qwen3-asr-local'])).toBe('C:/Custom/Accepted');
+  await page.locator('#clearLocalModelPath').click();
   await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('test-model-paths')||'{}')['qwen3-asr-local'])).toBe('');
   await expect(page.locator('#localModelPath')).toHaveValue('');
+  await expect(page.locator('#localModelPath')).toHaveAttribute('placeholder','C:/Automatic/Cache');
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('test-model-paths')||'{}')['funasr-local'])).toBeUndefined();
 });

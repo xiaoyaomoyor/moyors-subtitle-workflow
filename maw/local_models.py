@@ -34,7 +34,15 @@ from maw.local_runtime import (
     resolve_model_cache_root,
 )
 from maw.punctuation import CT_PUNC_MODEL_REF
-from maw.hub_download import MIRROR_REVISIONS, find_hub_snapshot, modelscope_repo_id, snapshot_is_complete
+from maw.hub_download import (
+    MIRROR_REVISIONS,
+    find_hub_snapshot,
+    matches_mirror_snapshot,
+    modelscope_repo_id,
+    read_config_object,
+    repo_snapshot_dirs,
+    snapshot_is_complete,
+)
 
 
 LocalModelEvent = Callable[[str], None]
@@ -64,6 +72,9 @@ def _funasr_model_uses_vad(model_ref: str) -> bool:
 _MODEL_WEIGHT_SUFFIXES = frozenset({
     ".bin", ".ckpt", ".gguf", ".model", ".onnx", ".pb", ".pt", ".pth", ".safetensors",
 })
+_HUB_ENGINES = frozenset({"qwen-asr", "qwen", "qwen3-asr", "moss", "whisper"})
+_FUNASR_ENGINES = frozenset({"funasr", "fun-asr"})
+_QWEN_ENGINES = frozenset({"qwen-asr", "qwen", "qwen3-asr"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,60 +152,24 @@ def inspect_local_model(
         )
 
     if explicit is not None:
-        mismatch = _explicit_path_mismatch(model, explicit)
-        if mismatch:
+        resolved, status, detail = _resolve_explicit_model_dir(model, explicit)
+        if resolved is None:
             return LocalModelStatus(
                 model.id,
                 model.engine,
                 model.model_ref,
-                "path_mismatch",
+                status,
                 True,
                 False,
                 str(explicit),
-                mismatch,
-                model.required_model_refs,
-                runtime_source,
-                runtime_python,
-            )
-        if model.engine == "firered":
-            ctc_valid = all(
-                (explicit / name).is_file() and (explicit / name).stat().st_size > 0
-                for name in (FIRERED_ASR2_CTC_MODEL_FILE, FIRERED_ASR2_CTC_TOKENS_FILE)
-            )
-            if not ctc_valid:
-                return LocalModelStatus(
-                    model.id,
-                    model.engine,
-                    model.model_ref,
-                    "path_invalid",
-                    True,
-                    False,
-                    str(explicit),
-                    "所选目录缺少有效的 FireRedASR2-CTC 模型文件。",
-                    model.required_model_refs,
-                    runtime_source,
-                    runtime_python,
-                )
-            valid = True
-        elif model.engine in {"qwen-asr", "qwen", "qwen3-asr", "moss", "whisper"}:
-            valid = snapshot_is_complete(explicit)
-        else:
-            valid = _model_directory_has_file(explicit, require_weight=True)
-        if not valid:
-            return LocalModelStatus(
-                model.id,
-                model.engine,
-                model.model_ref,
-                "path_invalid",
-                True,
-                False,
-                str(explicit),
-                "模型目录为空，或尚未包含有效模型文件。",
+                detail,
                 model.required_model_refs,
                 runtime_source,
                 runtime_python,
             )
         detail = "已使用指定的模型目录。"
+        if resolved != explicit:
+            detail = "已找到指定目录中的模型快照。"
         if model.engine == "firered" and _find_ct_punc_model(model_cache_root) is None:
             detail = "已检测到 FireRed CTC；可选 FunASR ct-punc 尚未准备，选择“不使用”仍可运行。"
         return LocalModelStatus(
@@ -204,12 +179,12 @@ def inspect_local_model(
             "installed",
             True,
             True,
-            str(explicit),
+            str(resolved),
             detail,
             model.required_model_refs,
             runtime_source,
             runtime_python,
-            _installed_model_size(explicit),
+            _installed_model_size(resolved),
         )
 
     paths = _find_model_paths(model, model_cache_root)
@@ -338,12 +313,14 @@ def prepare_local_model(
     individual temporary file.
     """
     status = inspect_local_model(model, model_path, model_cache_root=model_cache_root)
-    if status.status == "path_invalid":
+    if status.status in {"path_invalid", "path_mismatch"}:
         raise ValueError(status.detail)
     if not status.runtime_available:
         raise RuntimeError(status.detail)
     if model.kind != "local":
         raise ValueError("only local models can be prepared")
+    if str(model_path).strip():
+        model_path = status.path
 
     if status.runtime_source == "managed":
         if model.engine == "firered":
@@ -734,8 +711,9 @@ def firered_components_ready(
 
 def _explicit_path_mismatch(model: ModelConfig, path: Path) -> str:
     """Reject an obvious model-family mix-up without blocking custom folders."""
-    value = str(path).casefold().replace("_", "-")
-    if model.engine in {"qwen-asr", "qwen", "qwen3-asr", "moss", "whisper"}:
+    repo = path.parent.parent if path.parent.name == "snapshots" else path
+    value = repo.name.casefold().replace("_", "-")
+    if model.engine in _HUB_ENGINES:
         if "funasr" in value or "paraformer" in value:
             return "当前目录看起来属于 FunASR / Paraformer，不是当前模型。"
         if model.engine == "moss" and ("qwen3-asr" in value or "forcedaligner" in value or "forced-aligner" in value):
@@ -747,12 +725,98 @@ def _explicit_path_mismatch(model: ModelConfig, path: Path) -> str:
             or "transcribe-diarize" in value
         ):
             return "当前目录看起来属于 Qwen3-ASR 或 MOSS，不是 Faster-Whisper。"
-    if model.engine in {"funasr", "fun-asr"}:
+    if model.engine in _FUNASR_ENGINES:
         if "qwen3-asr" in value or "forcedaligner" in value or "forced-aligner" in value:
             return "当前目录看起来属于 Qwen3-ASR，不是 FunASR / Paraformer。"
-        if "faster-whisper" in value or "faster_whisper" in value:
+        if "faster-whisper" in value:
             return "当前目录看起来属于 Faster-Whisper，不是 FunASR / Paraformer。"
     return ""
+
+
+def _config_family(config: dict) -> str:
+    """Recognize conflicting ASR families while allowing nonstandard metadata."""
+    model_type = config.get("model_type", "")
+    architectures = config.get("architectures") or ()
+    if not isinstance(architectures, (list, tuple)):
+        architectures = (architectures,)
+    fingerprint = " ".join(
+        value.casefold().replace("_", "").replace("-", "")
+        for value in (model_type, *architectures) if isinstance(value, str)
+    )
+    thinker = config.get("thinker_config")
+    if "forcedaligner" in fingerprint or (isinstance(thinker, dict) and thinker.get("classify_num")):
+        return "aligner"
+    for family, tokens in (
+        ("qwen-asr", ("qwen3asr", "qwen2audio", "qwenaudio")),
+        ("moss", ("moss", "transcribediarize")),
+        ("whisper", ("whisper",)),
+        ("funasr", ("funasr", "paraformer", "sensevoice")),
+    ):
+        if any(token in fingerprint for token in tokens):
+            return family
+    # CTranslate2 Whisper configs do not have model_type or architectures.
+    if {"alignment_heads", "lang_ids", "suppress_ids"} <= config.keys():
+        return "whisper"
+    return ""
+
+
+def _model_folder_error(model: ModelConfig, path: Path) -> tuple[str, str]:
+    if model.engine in _HUB_ENGINES:
+        config = read_config_object(path / "config.json")
+        family = _config_family(config) if config is not None else ""
+        expected = "qwen-asr" if model.engine in _QWEN_ENGINES else model.engine
+        if family and family != expected:
+            return "path_mismatch", f"目录中的模型类型与当前选择不符（{family}）。"
+        if config is not None and snapshot_is_complete(path):
+            return "", ""
+        return "path_invalid", "模型目录为空，或缺少有效的 config.json、模型权重或分片。请选择包含这些文件的目录。"
+    if model.engine in _FUNASR_ENGINES:
+        config = read_config_object(path / "config.json")
+        family = _config_family(config) if config is not None else ""
+        if family and family != "funasr":
+            return "path_mismatch", f"目录中的模型类型与当前选择不符（{family}）。"
+        if (_model_directory_has_file(path, require_weight=True, recursive=False)
+                and (_nonempty_file(path / "config.yaml")
+                     or read_config_object(path / "configuration.json"))):
+            return "", ""
+        return "path_invalid", "模型目录为空，或缺少同层的 FunASR 权重和 config.yaml / configuration.json。"
+    if model.engine == "firered":
+        if all(_nonempty_file(path / name) for name in (FIRERED_ASR2_CTC_MODEL_FILE, FIRERED_ASR2_CTC_TOKENS_FILE)):
+            return "", ""
+        return "path_invalid", "所选目录缺少有效的 FireRedASR2-CTC 模型文件。"
+    return "path_invalid", "所选目录没有可识别的本地模型。"
+
+
+def _resolve_explicit_model_dir(model: ModelConfig, path: Path) -> tuple[Path | None, str, str]:
+    mismatch = _explicit_path_mismatch(model, path)
+    if mismatch:
+        return None, "path_mismatch", mismatch
+    status, detail = _model_folder_error(model, path)
+    if not status:
+        return path, "", ""
+    if status == "path_mismatch" or model.engine == "firered":
+        return None, status, detail
+
+    snapshots = repo_snapshot_dirs(path)
+    if not snapshots:
+        return None, status, detail
+    revision = next((revision for repo, revision in MIRROR_REVISIONS if repo == model.model_ref), "")
+    matching = []
+    for snapshot in snapshots:
+        if revision and snapshot.name != revision and not matches_mirror_snapshot(snapshot, model.model_ref, revision):
+            continue
+        snapshot_status, snapshot_detail = _model_folder_error(model, snapshot)
+        if not snapshot_status:
+            matching.append(snapshot)
+        elif snapshot_status == "path_mismatch" and status != "path_mismatch":
+            status, detail = snapshot_status, snapshot_detail
+    if len(matching) == 1:
+        return matching[0].resolve(), "", ""
+    if matching:
+        return None, "path_invalid", "目录内有多个可用快照，请直接选择要使用的快照目录。"
+    if revision and status != "path_mismatch":
+        return None, "path_invalid", "目录内没有完整的 MOSS 固定版本快照。"
+    return None, status, detail
 
 
 def _find_model_paths(
@@ -770,7 +834,7 @@ def _find_model_paths(
         if punc_path is None:
             missing.append("FunASR ct-punc（自动标点）")
         return (ctc_path or punc_path, missing)
-    if model.engine in {"qwen-asr", "qwen", "qwen3-asr", "moss", "whisper"}:
+    if model.engine in _HUB_ENGINES:
         main = _find_hub_model(model.model_ref, model_cache_root)
         if main is None:
             return None
@@ -779,7 +843,7 @@ def _find_model_paths(
             if _find_hub_model(ref, model_cache_root) is None
         ]
         return main, missing
-    if model.engine in {"funasr", "fun-asr"}:
+    if model.engine in _FUNASR_ENGINES:
         for ref in (model.model_ref, *model.cache_refs):
             main = _find_modelscope_model(ref, model_cache_root)
             if main is not None:
@@ -862,7 +926,14 @@ def _modelscope_snapshot_dir(candidate: Path) -> Path | None:
     return candidate if _model_directory_has_file(candidate, require_weight=True) else None
 
 
-def _model_directory_has_file(path: Path, *, require_weight: bool = False) -> bool:
+def _nonempty_file(path: Path) -> bool:
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def _model_directory_has_file(path: Path, *, require_weight: bool = False, recursive: bool = True) -> bool:
     """Return whether a model directory contains a non-empty usable file."""
     pending = [path]
     visited: set[str] = set()
@@ -883,7 +954,7 @@ def _model_directory_has_file(path: Path, *, require_weight: bool = False) -> bo
                         continue
                     if not require_weight or child.suffix.casefold() in _MODEL_WEIGHT_SUFFIXES:
                         return True
-                elif child.is_dir():
+                elif recursive and child.is_dir():
                     pending.append(child)
             except OSError:
                 continue

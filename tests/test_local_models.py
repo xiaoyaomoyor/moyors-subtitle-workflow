@@ -158,6 +158,7 @@ class LocalModelDiscoveryTests(unittest.TestCase):
         model = local_model("funasr-local")
         with tempfile.TemporaryDirectory() as temp_dir:
             (Path(temp_dir) / "model.pt").write_bytes(b"weights")
+            (Path(temp_dir) / "config.yaml").write_text("model: Paraformer\n", encoding="utf-8")
             with mock.patch("maw.local_models.importlib.util.find_spec", return_value=mock.Mock()):
                 status = inspect_local_model(model, temp_dir)
 
@@ -173,6 +174,82 @@ class LocalModelDiscoveryTests(unittest.TestCase):
         self.assertEqual(status.status, "path_invalid")
         self.assertFalse(status.installed)
         self.assertIn("为空", status.detail)
+
+    def test_funasr_needs_config_and_weights_in_the_same_folder(self) -> None:
+        model = local_model("funasr-local")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / "site-packages" / "test-data"
+            nested.mkdir(parents=True)
+            (nested / "model.pt").write_bytes(b"weights")
+            (root / "config.yaml").write_text("model: Paraformer\n", encoding="utf-8")
+            with mock.patch("maw.local_models._missing_runtime_packages", return_value=()):
+                self.assertEqual(inspect_local_model(model, root).status, "path_invalid")
+                self.assertEqual(inspect_local_model(model, nested).status, "path_invalid")
+                snapshot = root / "snapshots" / "main"
+                snapshot.mkdir(parents=True)
+                (snapshot / "configuration.json").write_text('{"model": "Paraformer"}', encoding="utf-8")
+                (snapshot / "model.pt").write_bytes(b"weights")
+                self.assertEqual(Path(inspect_local_model(model, root).path), snapshot.resolve())
+
+    def test_hub_directory_requires_compatible_model_files_in_one_snapshot(self) -> None:
+        model = local_model("qwen3-asr-local")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_only = root / "snapshots" / "config"
+            weights_only = root / "snapshots" / "weights"
+            wrong = root / "snapshots" / "unlabelled"
+            for path in (config_only, weights_only, wrong):
+                path.mkdir(parents=True)
+            (config_only / "config.json").write_text('{"model_type":"qwen3_asr"}', encoding="utf-8")
+            (weights_only / "model.safetensors").write_bytes(b"weights")
+            (wrong / "config.json").write_text('{"model_type":"whisper"}', encoding="utf-8")
+            (wrong / "model.bin").write_bytes(b"weights")
+            with mock.patch("maw.local_models._missing_runtime_packages", return_value=()):
+                self.assertEqual(inspect_local_model(model, wrong).status, "path_mismatch")
+                self.assertFalse(inspect_local_model(model, root).installed)
+                (config_only / "model.safetensors").write_bytes(b"weights")
+                ready = inspect_local_model(model, root)
+                self.assertTrue(ready.installed)
+                self.assertEqual(Path(ready.path), config_only.resolve())
+                (weights_only / "config.json").write_text('{"model_type":"custom"}', encoding="utf-8")
+                self.assertIn("多个可用快照", inspect_local_model(model, root).detail)
+
+    def test_explicit_moss_wrapper_chooses_the_pinned_mirror(self) -> None:
+        from maw.hub_download import MIRROR_REVISIONS
+
+        model = local_model("moss-transcribe-diarize-local")
+        mirror = next(value for (repo, _revision), value in MIRROR_REVISIONS.items() if repo == model.model_ref)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("other", mirror):
+                snapshot = root / "snapshots" / name
+                snapshot.mkdir(parents=True)
+                (snapshot / "config.json").write_text('{"model_type":"moss"}', encoding="utf-8")
+                (snapshot / "model.safetensors").write_bytes(b"weights")
+            with mock.patch("maw.local_models._missing_runtime_packages", return_value=()):
+                status = inspect_local_model(model, root)
+            self.assertTrue(status.installed)
+            self.assertEqual(Path(status.path), (root / "snapshots" / mirror).resolve())
+
+    def test_prepare_uses_validated_snapshot_and_rejects_incompatible_paths(self) -> None:
+        model = local_model("qwen3-asr-local")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            snapshot = root / "snapshots" / "main"
+            snapshot.mkdir(parents=True)
+            config = snapshot / "config.json"
+            config.write_text('{"model_type":"qwen3_asr"}', encoding="utf-8")
+            (snapshot / "model.safetensors").write_bytes(b"weights")
+            with mock.patch("maw.local_models._missing_runtime_packages", return_value=()), mock.patch(
+                "maw.local_models.prepare_model_in_process"
+            ) as prepare:
+                self.assertTrue(prepare_local_model(model, model_path=root).installed)
+                self.assertEqual(prepare.call_args.kwargs["model_path"], str(snapshot.resolve()))
+                config.write_text('{"model_type":"whisper"}', encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "模型类型"):
+                    prepare_local_model(model, model_path=root)
+                self.assertEqual(prepare.call_count, 1)
 
     def test_explicit_folder_without_weight_file_is_rejected(self) -> None:
         model = local_model("funasr-local")

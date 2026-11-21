@@ -159,6 +159,14 @@ class HubDownloadTests(unittest.TestCase):
         self.assertEqual(self.ms_download.call_args.kwargs['revision'], mirror_revision)
         self.assertEqual(find_hub_snapshot(repo, self.root, revision=revision).path, path.resolve())
 
+    def test_malformed_shard_index_is_rejected_without_raising(self):
+        path = model(self.root / 'download')
+        index = path / 'model.safetensors.index.json'
+        for data in ([], {"weight_map": {"a": ["part"]}}, {"weight_map": {"a": "../model.safetensors"}}):
+            with self.subTest(data=data):
+                index.write_text(json.dumps(data), encoding='utf-8')
+                self.assertFalse(snapshot_is_complete(path))
+
     def test_unknown_mirror_is_not_guessed(self):
         self.hf_download.side_effect = TimeoutError()
         with self.assertRaises(TimeoutError):

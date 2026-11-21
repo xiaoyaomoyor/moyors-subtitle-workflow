@@ -13,7 +13,7 @@
   const terminal=new Set(['succeeded','failed','cancelled','interrupted']);
   let providers=[],savedConnection={},cursor=0,timer=null,polling=false,submission=null,batchSubmission=false,busy=false,loading=null;
   let retrying = null, retrySource = null;
-  let presetUi=null, localModelPaths={}, localModelId=null;
+  let presetUi=null, localModelPaths={}, savedLocalModelPaths={}, localModelId=null;
   presetUi=global.MSWAsrPresets.create({root:el('presets'),request:payload=>media.request('asr-presets',payload),
     locked:()=>busy||Boolean(loading),confirm:async text=>global.confirm(text),
     getOptions:()=>({...Object.fromEntries(fields.map(key=>[key,el(key).value])),speakerColors:el('speakerColors').checked,qwenKeepDialect:el('qwenKeepDialect').checked,openaiDiarize:el('openaiDiarize').checked}),
@@ -78,6 +78,13 @@
     el('openaiDiarize').closest('label').hidden=!caps.diarize&&!caps.customDiarize;
     return caps;
   }
+  function renderLocalModelStatus() {
+    const model=providers.find(item=>item.id===el('providerId').value)?.models.find(item=>item.id===localModelId);
+    const path=el('localModelPath').value.trim();
+    const status=path===(savedLocalModelPaths[localModelId]||'')?model?.localStatus:null;
+    el('local-status').textContent=status?.detail||'';
+    el('localModelPath').setAttribute('aria-invalid',String(['path_invalid','path_mismatch'].includes(status?.status)));
+  }
   function selectModel() {
     const provider=providers.find(item=>item.id===el('providerId').value),model=provider?.models.find(item=>item.id===el('modelId').value);
     if (!model) return;
@@ -88,7 +95,7 @@
     for(const option of el('device').options)option.hidden=option.disabled=!devices.includes(option.value);
     if(!devices.includes(el('device').value))el('device').value='auto';
     settingsRoot.querySelectorAll('[data-asr-firered]').forEach(node=>node.hidden=model.engine!=='firered');
-    el('local-status').textContent=model.localStatus?.detail||'';
+    renderLocalModelStatus();
     options(el('languages'),model.languages);
     el('openaiModel').closest('label').hidden=provider.id!=='openai'||model.id!=='custom-asr';
     for (const [kind,key] of [['context','supportsContext'],['hotwords','supportsHotwords'],['vocabulary','supportsVocabulary'],['speaker','supportsSpeaker'],['dialect','supportsKeepDialect']])
@@ -104,7 +111,7 @@
     if (loading) return loading;
     loading=(async()=>{
       const config=await media.request('asr-settings');providers=config.providers;
-      localModelPaths={...(config.localModelPaths||{})};localModelId=null;
+      savedLocalModelPaths=config.localModelPaths||{};localModelPaths={...savedLocalModelPaths};localModelId=null;
       savedConnection=Object.fromEntries(connectionFields.map(key=>[key,config.options[key]||'']));
       options(el('environment-provider'),providers,config.options.providerId);selectEnvironment();
       options(el('providerId'),providers,config.options.providerId);selectProvider(config.options.modelId);
@@ -312,6 +319,7 @@
     }catch(error){el('local-progress').textContent=error.message;}
   });
   settingsRoot.addEventListener('input',updateScope);
+  el('localModelPath').addEventListener('input',renderLocalModelStatus);
   el('target-track').addEventListener('change',updateScope);
   el('providerId').addEventListener('change',()=>selectProvider());el('modelId').addEventListener('change',selectModel);
   el('mode').addEventListener('change',updateScope);el('edit-range').addEventListener('click',()=>ranges.openEditor());
@@ -326,8 +334,9 @@
     if (busy||!available) return;
     busy=true;updateScope();
     try {const config=await media.request('asr-settings',{section:'call',provider:providerInput()});
-      providers=config.providers;localModelPaths={...localModelPaths,...config.localModelPaths};
-      el('local-status').textContent=providers.find(p=>p.id===el('providerId').value)?.models.find(m=>m.id===el('modelId').value)?.localStatus?.detail||'';message('识别设置已保存');}
+      providers=config.providers;savedLocalModelPaths=config.localModelPaths||{};
+      localModelPaths={...savedLocalModelPaths,...localModelPaths};
+      renderLocalModelStatus();message('识别设置已保存');}
     catch(error){message(error.message);}finally{busy=false;updateScope();}
   });
   el('save-environment').addEventListener('click',async()=>{
@@ -336,7 +345,9 @@
     try {
       const config=await media.request('asr-settings',{section:'environment',provider:{providerId:el('environment-provider').value,
         ...Object.fromEntries(connectionFields.map(key=>[key,el(key).value])),apiKey:el('apiKey').value}});
-      providers=config.providers;savedConnection=Object.fromEntries(connectionFields.map(key=>[key,config.options[key]||'']));
+      providers=config.providers;savedLocalModelPaths=config.localModelPaths||{};
+      savedConnection=Object.fromEntries(connectionFields.map(key=>[key,config.options[key]||'']));
+      renderLocalModelStatus();
       selectEnvironment();el('environment-message').textContent=t('ASR 环境配置已保存');
     }catch(error){el('environment-message').textContent=error.message;}finally{busy=false;updateScope();}
   });

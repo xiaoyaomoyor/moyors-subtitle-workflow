@@ -38,6 +38,14 @@ class HubSnapshot:
     source: str
 
 
+def read_config_object(path: Path) -> dict | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def snapshot_is_complete(path: Path) -> bool:
     """Check the snapshot itself, not a parent containing another snapshot.
 
@@ -45,19 +53,19 @@ Hub libraries verify transfer hashes; this inexpensive offline check additionall
 rejects missing config, empty weights and incomplete sharded checkpoints.
 """
     try:
-        if not isinstance(json.loads((path / "config.json").read_text(encoding="utf-8")), dict):
+        if read_config_object(path / "config.json") is None:
             return False
         weights = [p for p in path.iterdir() if p.is_file() and p.suffix in _WEIGHTS and p.stat().st_size > 0]
         if not weights:
             return False
         indexes = list(path.glob("*.index.json"))
         for index in indexes:
-            mapping = json.loads(index.read_text(encoding="utf-8")).get("weight_map")
+            mapping = (read_config_object(index) or {}).get("weight_map")
             if not isinstance(mapping, dict) or not mapping:
                 return False
+            if any(not isinstance(name, str) or Path(name).name != name for name in mapping.values()):
+                return False
             for name in set(mapping.values()):
-                if not isinstance(name, str) or Path(name).name != name:
-                    return False
                 part = path / name
                 if not part.is_file() or part.stat().st_size == 0:
                     return False
@@ -73,6 +81,26 @@ def modelscope_repo_id(repo_id: str) -> str:
     return MODELSCOPE_REPO_ALIASES.get(repo_id, "")
 
 
+def repo_snapshot_dirs(repo: Path) -> list[Path]:
+    try:
+        return sorted(
+            (path for path in (repo / "snapshots").iterdir() if path.is_dir()),
+            key=lambda path: (path.stat().st_mtime, path.name),
+            reverse=True,
+        )
+    except OSError:
+        return []
+
+
+def matches_mirror_snapshot(path: Path, repo_id: str, revision: str) -> bool:
+    mirror_revision = MIRROR_REVISIONS.get((repo_id, revision))
+    return bool(mirror_revision) and (
+        path.name == mirror_revision or
+        read_config_object(path / ".msw-hub.json") ==
+        {"repo": modelscope_repo_id(repo_id), "revision": mirror_revision}
+    )
+
+
 def find_hub_snapshot(repo_id: str, model_cache_root=None, *, revision: str = "") -> HubSnapshot | None:
     # Discovery imports no optional ML packages. Kept here so both preparation
     # and GUI status use precisely the same snapshot selection rules.
@@ -85,8 +113,7 @@ def find_hub_snapshot(repo_id: str, model_cache_root=None, *, revision: str = ""
             commit = ref.read_text(encoding="utf-8").strip() if ref.is_file() else revision
             candidates = [root / commit]
         else:
-            candidates = sorted(root.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True) if root.is_dir() else []
-            candidates.append(repo)
+            candidates = [*repo_snapshot_dirs(repo), repo]
         for path in candidates:
             if snapshot_is_complete(path):
                 return HubSnapshot(path.resolve(), "huggingface")
@@ -96,19 +123,12 @@ def find_hub_snapshot(repo_id: str, model_cache_root=None, *, revision: str = ""
         return None
     for root in _modelscope_cache_roots(model_cache_root):
         for repo in _modelscope_repo_candidates(root, mirror.split("/")):
-            snapshots = repo / "snapshots"
-            candidates = sorted(snapshots.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True) if snapshots.is_dir() else []
-            candidates.append(repo)
+            candidates = [*repo_snapshot_dirs(repo), repo]
             for path in candidates:
                 if not snapshot_is_complete(path):
                     continue
-                if mirror_revision and path.name != mirror_revision:
-                    try:
-                        marker = json.loads((path / ".msw-hub.json").read_text(encoding="utf-8"))
-                        if marker != {"repo": mirror, "revision": mirror_revision}:
-                            continue
-                    except (OSError, ValueError):
-                        continue
+                if mirror_revision and not matches_mirror_snapshot(path, repo_id, revision):
+                    continue
                 return HubSnapshot(path.resolve(), "modelscope")
     return None
 

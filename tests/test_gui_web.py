@@ -2788,6 +2788,21 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(result["code"], "local_model_missing")
         self.assertEqual(result["field"], "model")
 
+    def test_local_request_passes_resolved_snapshot_instead_of_selected_repository(self) -> None:
+        repo = self.root / "download"
+        snapshot = repo / "snapshots" / "main"
+        snapshot.mkdir(parents=True)
+        (snapshot / "config.json").write_text('{"model_type":"qwen3_asr"}', encoding="utf-8")
+        (snapshot / "model.safetensors").write_bytes(b"weights")
+        with mock.patch("maw.local_models._missing_runtime_packages", return_value=()):
+            request = _request_from_payload({
+                "providerId": "local",
+                "modelId": "qwen3-asr-local",
+                "localModelPath": str(repo),
+                "srtPath": str(self.root / "out.srt"),
+            }, self.env_path, validate_media=False)
+        self.assertEqual(request.model_path, str(snapshot.resolve()))
+
     def test_start_transcription_rejects_empty_resolved_api_key(self) -> None:
         """Given media and output but no key anywhere, When starting, Then API key blocks."""
         media = self.root / "clip.mp3"
