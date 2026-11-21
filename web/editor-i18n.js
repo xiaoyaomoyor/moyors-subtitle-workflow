@@ -1026,6 +1026,7 @@
     '次色仅在 \\\\k 卡拉 OK 标签中使用，当前未支持': 'Secondary color is reserved for karaoke tags, which are not currently supported',
     '本地模型（Beta）': 'Local models (Beta)',
     '本地模型目录（可选）': 'Local model directory (optional)',
+    '留空时自动检测': 'Leave blank to auto-detect',
     'FireRed 标点': 'FireRed punctuation',
     'ct-punc（需下载）': 'ct-punc (download required)',
     '识别后补齐字词时间码': 'Fill word timestamps after ASR',
