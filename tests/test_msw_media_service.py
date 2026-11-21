@@ -19,7 +19,7 @@ class MediaServiceTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.tools = resolve_ffmpeg_tools()
         self.context = {'projectId': 'bound', 'binding': 'binding', 'saveRevision': None}
-        self.api = SimpleNamespace(data_root=self.root, context=lambda: self.context,
+        self.api = SimpleNamespace(data_root=self.root, context=lambda **_: self.context,
             lock=threading.RLock(), _persistence=None, exports=SimpleNamespace(tools=lambda: self.tools),
             server=SimpleNamespace(save_lock=threading.RLock(), project=SimpleNamespace(
                 data={'segments': []}, json_path=None, media_path=None, source_media_path=None)))

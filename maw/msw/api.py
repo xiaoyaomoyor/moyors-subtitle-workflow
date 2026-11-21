@@ -245,7 +245,7 @@ class ProcessingAPI:
             handler.end_headers()
             shutil.copyfileobj(stream, handler.wfile)
 
-    def context(self):
+    def context(self, *, include_save_revision=True):
         path = self.server.project.json_path
         key = str(path.resolve()) if path else ""
         with self.lock:
@@ -255,8 +255,10 @@ class ProcessingAPI:
             project_id = (self.server.project.data.get("msw") or {}).get("project_id")
             if not valid_id(project_id):
                 project_id = str(uuid.uuid5(uuid.NAMESPACE_URL, key or self.server.request_token))
-            revision = hashlib.sha256(path.read_bytes()).hexdigest() if path and path.is_file() else None
-            return {"projectId": project_id, "binding": self.binding, "saveRevision": revision}
+            context = {"projectId": project_id, "binding": self.binding}
+            if include_save_revision:
+                context["saveRevision"] = hashlib.sha256(path.read_bytes()).hexdigest() if path and path.is_file() else None
+            return context
 
     def invalidate_binding(self):
         with self.lock:

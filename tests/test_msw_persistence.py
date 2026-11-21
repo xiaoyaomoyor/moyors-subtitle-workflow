@@ -98,6 +98,15 @@ class PersistenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.server.confirm_saved_project('wrong',self.api.context()['saveRevision'])
 
+    def test_media_binding_check_can_run_while_the_project_file_is_busy(self):
+        context = self.api.context()
+        payload = {'project_id': context['projectId'], 'binding': context['binding'], 'client_token': 'asr-page'}
+        media = self.api.media
+        with patch.object(Path, 'read_bytes', side_effect=PermissionError('project file busy')):
+            media.check_context(payload)
+            with self.assertRaisesRegex(ValueError, '工程已切换'):
+                media.check_context({**payload, 'binding': 'previous-window'})
+
     def test_confirm_save_with_assets_requests_full_verification(self):
         self.asset()
         self.server.save_project(copy.deepcopy(self.server.project.data))

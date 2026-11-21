@@ -47,7 +47,8 @@ class MediaService:
             pass
 
     def check_context(self, payload):
-        if not valid_id(payload.get('project_id')) or payload.get('binding') != self.api.context()['binding']:
+        # A media or ASR request can overlap autosave replacing the project file.
+        if not valid_id(payload.get('project_id')) or payload.get('binding') != self.api.context(include_save_revision=False)['binding']:
             raise ValueError('工程已切换，请重新导入媒体')
         if not valid_id(payload.get('client_token')):
             raise ValueError('缺少媒体导入会话')
