@@ -12,7 +12,7 @@ MSW（Moyor's Subtitle Workflow / 我的字幕流）是一个聚焦 ASR 与 TTS 
 
 [项目官网](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow) · [下载与版本记录](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases) · [文档目录](docs/README.md) · [环境配置清单](docs/ENVIRONMENT.md)
 
-MSW **v1.10.0** 改进本地模型目录识别、长工程编辑、对齐模型管理和 ASS 字体兼容。见 [正式版下载](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/latest)与[更新记录](CHANGELOG.md#1100---2026-11-21)。
+MSW **v1.11.0** 更新 Soniox 异步转写模型，修复去空隙试听漏音、字体兼容、旧式双语预览和启动器退出问题。见 [正式版下载](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/latest)与[更新记录](CHANGELOG.md#1110---2026-11-21)。
 
 发行流程覆盖 Windows x64 标准／lite、macOS arm64 标准／lite 和 Linux x86_64 AppImage，共五种安装包。
 

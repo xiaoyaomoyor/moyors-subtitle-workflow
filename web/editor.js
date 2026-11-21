@@ -2102,6 +2102,7 @@ function applyHistoryRecord(record) {
   // 视口属于本次撤销动作，不随历史快照恢复。
   const cueListAnchor = captureCueListRenderAnchor();
   const previousWaveformStructure = multiSubtitleWaveformStructureKey();
+  const previousBilingualVisible = multiSubtitleVisible();
   if(snapshot.timebase){
     DATA.timebase=normalizeTimelineTimebase(snapshot.timebase);
     timelineFpsManuallySet=snapshot.timelineFpsManuallySet===true;
@@ -2148,6 +2149,7 @@ function applyHistoryRecord(record) {
   renderAll({
     waveform: structureChanged ? 'full' : 'overlay',
     cueListAnchor,
+    refreshPreview: previousBilingualVisible !== multiSubtitleVisible(),
   });
   if (record.view) restoreEditorSelection(record.view);
   return true;
@@ -4109,7 +4111,7 @@ multiSubtitleToggle?.addEventListener('change', () => {
   multi.enabled = next;
   multi._dirty = true;
   // 开关会改变波形是否需要副字幕 lane，因此这里才执行完整波形重建。
-  renderAll({ waveform: 'full' });
+  renderAll({ waveform: 'full', refreshPreview: true });
   if (!promptImportSecondSrt) return;
   // 多重字幕模式已开启；提示只决定是否现在导入第二条字幕，
   // 用户取消导入也保持开启，之后仍可拖入 SRT 或重新走导入流程。
@@ -6856,7 +6858,7 @@ function cueListDescriptor(main,extension,track,mainIndex,extIndex,build) {
       }
     }};
 }
-function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null, validated = false } = {}) {
+function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueListAnchor, changedCueIds = null, validated = false, refreshPreview = false } = {}) {
   queueCleanupPreview();
   if (window.MSWFlatEditor?.active) return window.MSWFlatEditor.render();
   const transactionChanges=layerPrepareRender({validated});
@@ -6983,9 +6985,12 @@ function renderAll({ waveform = 'overlay', preserveCueListScroll = true, cueList
   cueListPlaybackKey = null;
   updateCueListPlayback(undefined, false);
   restoreCueListRenderAnchor(cueListAnchor);
-  // Paused fixed-track previews must reflect edits and enabled states too.
-  // Playback events alone leave deleted/disabled annotations on the frame.
-  if (fixedPresentationMode()) refreshSubtitlePreview();
+  // Playback events alone leave deleted or disabled subtitles on a paused frame.
+  if (refreshPreview) {
+    refreshSubtitlePreview(window.MSWE?.resolve('audio-timeline')?.currentTimeMs());
+  } else if (fixedPresentationMode()) {
+    refreshSubtitlePreview();
+  }
 }
 
 function reindexCueRow(row,main,extension,track,mainIndex,extIndex) {

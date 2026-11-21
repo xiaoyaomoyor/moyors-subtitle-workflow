@@ -19,6 +19,59 @@ test.afterAll(async () => {
   cleanupTempDir(tempDir);
 });
 
+test('paused legacy preview refreshes when bilingual subtitles are toggled or restored from history', async ({ page }) => {
+  await page.goto(server.url + '?subtitle-layers=0&subtitle-tracks=0');
+  await page.waitForFunction(() => player.readyState >= 1 && player.duration > 1);
+  await page.evaluate(async () => {
+    DATA.segments.splice(0, DATA.segments.length, { start: 0, end: 3000, text: 'Original', items: [] });
+    DATA.multi_subtitle = {
+      schema: 'moy.asr.multi_subtitle.v1',
+      enabled: true,
+      display_mode: 'both',
+      tracks: [{
+        id: 'extension-1',
+        role: 'extension',
+        name: 'Extension',
+        segments: [{ start: 0, end: 3000, text: 'Translation' }],
+      }],
+      bindings: [],
+    };
+    const seeked = new Promise(resolve => player.addEventListener('seeked', resolve, { once: true }));
+    player.currentTime = 0.5;
+    await seeked;
+    overlayToggle.checked = true;
+    extensionOverlayToggle.checked = true;
+    renderAll();
+    refreshSubtitlePreview();
+  });
+  await expect(page.locator('#overlay-extension-text')).toHaveText('Translation');
+
+  const result = await page.evaluate(() => {
+    const readPreview = () => ({
+      enabled: multiSubtitleToggle.checked,
+      visible: !overlayExtensionTextEl.classList.contains('hidden'),
+    });
+    multiSubtitleToggle.click();
+    const disabled = readPreview();
+    performUndo();
+    const undone = readPreview();
+    performRedo();
+    const redone = readPreview();
+    multiSubtitleToggle.click();
+    return { disabled, undone, redone, enabled: readPreview(), paused: player.paused, time: player.currentTime };
+  });
+  expect(result).toEqual({
+    disabled: { enabled: false, visible: false },
+    undone: { enabled: true, visible: true },
+    redone: { enabled: false, visible: false },
+    enabled: { enabled: true, visible: true },
+    paused: true,
+    time: 0.5,
+  });
+  await expect(page.locator('#overlay-main-text')).toHaveText('Original');
+  await expect(page.locator('#overlay-extension-text')).toHaveText('Translation');
+});
+
 test('playback refreshes the subtitle preview and playhead without timeupdate', async ({ page }) => {
   // Disable only the page's timeupdate listeners. Native playback still advances;
   // the test proves that the playback-frame loop is the independent visual path.

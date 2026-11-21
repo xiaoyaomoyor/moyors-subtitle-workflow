@@ -1766,7 +1766,7 @@
         perVideoSubfolder: saved.perVideoSubfolder,
         attachModelName: saved.attachModelName,
         notifyOnComplete: saved.notifyOnComplete === true,
-        appVersion: "1.10.0",
+        appVersion: "1.11.0",
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [...postprocessProviders.keys()].map(postprocessStatus),
         postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: true, steps: [] },
