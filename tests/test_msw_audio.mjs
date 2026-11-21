@@ -145,14 +145,20 @@ test('heat colors use one fixed scale across assets', () => {
   assert.equal(core.dbColor(0), core.dbColor(-6));
 });
 
-function transportHarness(load = async () => new ArrayBuffer(0)) {
+function transportHarness(load = async () => new ArrayBuffer(0), options = {}) {
   const sources = [], gains = [], mediaSources = [];
   class AudioContext {
     currentTime = 0; sampleRate = 24000; state = 'running'; destination = {};
     resume() { return Promise.resolve(); }
     async decodeAudioData() { return { length: 48000, sampleRate: 24000, numberOfChannels: 1, getChannelData: () => new Float32Array(48000).fill(.25) }; }
     createBufferSource() { const node = { connect() {}, disconnect() {}, stop() {}, start(...args) { this.startArgs = args; } }; sources.push(node); return node; }
-    createGain() { const node = { gain: { value: 0, cancelScheduledValues() {}, setTargetAtTime(value) {this.value=value;} }, connect() {}, disconnect() {} }; gains.push(node); return node; }
+    createGain() {
+      const param = {value: 0, scheduled: [], cancelScheduledValues() { this.scheduled = []; },
+        setValueAtTime(value, time) { this.scheduled.push([value,time]); },
+        setTargetAtTime(value) { this.value = value; }};
+      const node = {gain:param, connect() {}, disconnect() {}};
+      gains.push(node); return node;
+    }
     createMediaElementSource(player) { const node = {player,connect() {this.connected=true;},disconnect() {this.connected=false;}}; mediaSources.push(node); return node; }
   }
   const player = Object.assign(new EventTarget(), { currentTime: 1.5, duration: 10, paused: true, ended: false, seeking: false, readyState: 4, volume: .5, muted: false, playbackRate: 1 });
@@ -162,9 +168,53 @@ function transportHarness(load = async () => new ArrayBuffer(0)) {
   const state = { clips: ext.audio_clips, audible: ext.audio_clips, assets: new Map(ext.assets.map(a => [a.id, a])), tracks: new Map(ext.audio_tracks.map(t => [t.id, t])), end: 3000 };
   const window = { MSWAudio: core, AudioContext };
   vm.runInNewContext(fs.readFileSync(new URL('../web/msw-audio-transport.js', import.meta.url), 'utf8'), { window, performance, AbortController, setTimeout, clearTimeout, queueMicrotask });
-  const transport = window.MSWAudioTransport.create({ player, getState: () => state, load, changed() {}, hint() {}, frame() {} });
-  return { transport, player, sources, gains, mediaSources, asset: ext.assets[0] };
+  const transport = window.MSWAudioTransport.create({ player, getState: () => state, load, changed() {}, hint() {}, frame() {}, ...options });
+  return { transport, player, sources, gains, mediaSources, state, asset: ext.assets[0] };
 }
+
+test('first native play arms the gap gate at the current rate and seek or pause resets it', async () => {
+  const gap = {start:2000,end:3000};
+  const h = transportHarness(undefined, {nextGap: now => now < gap.end ? gap : null});
+  try {
+    h.state.audible = [];
+    h.player.playbackRate = 2;
+    await h.player.play();
+    assert.equal(h.mediaSources.length, 1);
+    const gate = h.gains[0].gain;
+    assert.deepEqual(gate.scheduled, [[1,0],[0,.25]]);
+    h.player.playbackRate = 1;
+    h.player.dispatchEvent(new Event('ratechange'));
+    assert.deepEqual(gate.scheduled, [[1,0],[0,.5]]);
+    h.player.seeking = true;
+    h.player.dispatchEvent(new Event('seeking'));
+    assert.deepEqual(gate.scheduled, [[0,0]]);
+    h.player.currentTime = 3;
+    h.player.seeking = false;
+    h.player.dispatchEvent(new Event('seeked'));
+    assert.deepEqual(gate.scheduled, [[1,0]]);
+    h.player.currentTime = 1.5;
+    h.player.dispatchEvent(new Event('timeupdate'));
+    h.player.pause();
+    assert.deepEqual(gate.scheduled, [[1,0]]);
+  } finally { h.transport.clear(); }
+});
+
+test('a user pause during a native gap seek cancels the automatic resume', async () => {
+  const h = transportHarness(undefined, {nextGap: now => now < 3000 ? {start:2000,end:3000} : null});
+  try {
+    h.state.audible = [];
+    await h.player.play();
+    assert.equal(h.transport.jumpNativeGap(() => { h.player.seeking = true; }), true);
+    assert.equal(h.transport.virtualPlaying(), true);
+    assert.equal(h.player.paused, true);
+    h.transport.pause();
+    h.player.currentTime = 3;
+    h.player.seeking = false;
+    h.player.dispatchEvent(new Event('seeked'));
+    assert.equal(h.transport.isNativeGapJump(), false);
+    assert.equal(h.player.paused, true);
+  } finally { h.transport.clear(); }
+});
 
 test('transport schedules the seek offset, applies monitor gain and releases ended node references', async () => {
   const h = transportHarness();

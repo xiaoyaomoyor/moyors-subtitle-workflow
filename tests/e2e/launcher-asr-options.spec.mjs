@@ -11,6 +11,35 @@ async function open(page) {
   await page.evaluate(() => MSWNavigation.show('prefab'));
 }
 
+test('Soniox defaults to v6 and a saved v5 choice still restores', async ({page}) => {
+  let savedModel = '';
+  await page.exposeFunction('rememberMockAsrModel', value => {
+    if (value) savedModel = value;
+    return savedModel;
+  });
+  await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => {
+    MSWLauncher.bridgeOverride = async (method, payload, next) => {
+      if (method === 'get_config') {
+        const config = await next(method, payload), saved = await window.rememberMockAsrModel();
+        if (!saved) return config;
+        const provider = config.providers.find(item => item.models.some(model => model.id === saved));
+        return {...config, providerId: provider.id, modelId: saved, lastModel: saved};
+      }
+      if (method === 'save_prefs' && payload.modelId) await window.rememberMockAsrModel(payload.modelId);
+      return next(method, payload);
+    };
+  }, {once:true}));
+  await open(page);
+  await page.evaluate(() => { MSWModules.setEnabled('asr', true); MSWWorkflow.setCollapsed('asr', false); });
+  await page.locator('#provider').selectOption('soniox');
+  await expect(page.locator('#model')).toHaveValue('stt-async-v6');
+  await page.locator('#model').selectOption('stt-async-v5');
+  await expect.poll(() => savedModel).toBe('stt-async-v5');
+  await open(page);
+  await expect(page.locator('#provider')).toHaveValue('soniox');
+  await expect(page.locator('#model')).toHaveValue('stt-async-v5');
+});
+
 test('ASR failures show actionable localized messages and retain unknown-error reporting', async ({ page }) => {
   await open(page);
   for (const [code, zh, en] of [

@@ -1,9 +1,11 @@
 // Bounded Web Audio cache and cancellable scheduling on the source timeline.
 (function (global) {
   'use strict';
-  function create({ player, getState, load, changed, hint, frame, beforePlay = () => {}, skipAt = () => null, skipNative = () => false }) {
+  function create({ player, getState, load, changed, hint, frame, beforePlay = () => {},
+    skipAt = () => null, nextGap = () => null, skipNative = () => false }) {
     let context, epoch = 0, timer, anchor, virtual = null, busy = 0, buffering = null, internalPause = false;
     let mediaNode = null, mediaGain = null, sourceGainDb = 0, sourceRevision = 0, gainRequest = 0;
+    let gapOutput = null, gapSchedule = '', gapAudioUnavailable = null, nativeGapJump = null;
     let playbackRevision = 0;
     const mediaGraphs = new WeakMap();
     const buffers = new Map(), heats = new Map(), pending = new Map(), failures = new Map(), nodes = new Map(), queue = [];
@@ -11,6 +13,7 @@
     const LIMIT = 128 * 1024 * 1024;
     const clock = () => performance.now() / 1000;
     const ctx = () => context ||= new (global.AudioContext || global.webkitAudioContext)();
+    const output = () => gapOutput || ctx().destination;
     function connectMedia() {
       if (mediaNode) return;
       const audioContext = ctx();
@@ -22,7 +25,7 @@
       mediaNode = graph.node; mediaGain = graph.gain;
       mediaGain.gain.cancelScheduledValues(audioContext.currentTime);
       mediaGain.gain.value = Math.pow(10, sourceGainDb / 20);
-      mediaNode.connect(mediaGain); mediaGain.connect(audioContext.destination);
+      mediaNode.connect(mediaGain); mediaGain.connect(output());
     }
     function resetSourceGain() {
       sourceRevision++; sourceGainDb = 0;
@@ -46,6 +49,95 @@
     }
     const time = () => virtual ? virtual.time + (virtual.playing ? (clock() - virtual.stamp) * 1000 : 0) : player.currentTime * 1000;
     const playing = () => !buffering && (virtual ? virtual.playing : !player.paused && !player.ended && !player.seeking && player.readyState >= 3);
+    function setGapGate(key = '', delay = null) {
+      if (!gapOutput || gapSchedule === key) return;
+      gapSchedule = key;
+      const now = ctx().currentTime, gain = gapOutput.gain;
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(delay === 0 ? 0 : 1, now);
+      if (delay > 0) gain.setValueAtTime(0, now + delay);
+    }
+    function refreshGapAudio() {
+      if (nativeGapJump) return;
+      if (!virtual && player.seeking && !player.paused) {
+        setGapGate('seeking', 0);
+        return;
+      }
+      if (!playing()) { setGapGate(); return; }
+      const mediaTime = time(), gap = nextGap(mediaTime);
+      if (!gap || (!virtual && gapAudioUnavailable === player)) { setGapGate(); return; }
+      if (!global.AudioContext && !global.webkitAudioContext) return;
+      const audioContext = ctx();
+      if (!gapOutput) {
+        gapOutput = audioContext.createGain();
+        gapOutput.connect(audioContext.destination);
+        for (const gain of [mediaGain, ...Array.from(nodes.values(), node => node.gain)]) {
+          if (gain) { gain.disconnect(); gain.connect(gapOutput); }
+        }
+      }
+      if (!virtual && !mediaNode) {
+        try { connectMedia(); }
+        catch (_) {
+          // Some media sources cannot be routed through Web Audio. Keep the
+          // existing seek behavior if the browser rejects the audio graph.
+          gapAudioUnavailable = player;
+          setGapGate();
+          return;
+        }
+        if (audioContext.state !== 'running') {
+          void audioContext.resume().then(() => {
+            setGapGate();
+            refreshGapAudio();
+          }).catch(() => {});
+        }
+      }
+      const rate = virtual ? 1 : player.playbackRate || 1;
+      const delay = Math.max(0, (gap.start - mediaTime) / 1000 / rate);
+      setGapGate(`${gap.start}:${gap.end}:${rate}:${delay === 0}`, delay);
+    }
+    function cancelGapDrainTimer() {
+      if (nativeGapJump?.timer == null) return;
+      clearTimeout(nativeGapJump.timer);
+      nativeGapJump.timer = null;
+    }
+    function cancelNativeGapJump() {
+      if (!nativeGapJump) return;
+      cancelGapDrainTimer();
+      nativeGapJump = null;
+      setGapGate();
+    }
+    function finishNativeGapJump() {
+      const jump = nativeGapJump;
+      if (!jump || player.seeking || jump.timer != null) return;
+      const audioContext = ctx();
+      // Drain the old MediaElementSource samples while paused so the first
+      // retained samples after the seek do not get muted.
+      const until = audioContext.currentTime + Math.max(.02, audioContext.baseLatency || 0)
+        + 256 / (audioContext.sampleRate || 48000);
+      const resume = () => {
+        if (nativeGapJump !== jump) return;
+        jump.timer = null;
+        if (player.seeking) return;
+        const remaining = until - audioContext.currentTime;
+        if (remaining > 0 && audioContext.state === 'running') {
+          jump.timer = setTimeout(resume, Math.max(1, remaining * 1000));
+          return;
+        }
+        cancelNativeGapJump();
+        if (!player.ended) void player.play().catch(() => frame());
+      };
+      resume();
+    }
+    function jumpNativeGap(seek) {
+      if (player.paused || player.seeking || !mediaNode || !gapOutput || ctx().state !== 'running') return false;
+      nativeGapJump = {timer: null};
+      setGapGate('jump', 0);
+      player.pause();
+      stop();
+      seek();
+      if (!player.seeking) finishNativeGapJump();
+      return true;
+    }
     const reset = () => {
       anchor = null;
       for (const item of nodes.values()) { try { item.source?.stop(); } catch (_) {} item.source?.disconnect(); item.gain?.disconnect(); }
@@ -115,7 +207,7 @@
     function cancelBuffering() { buffering = null; }
     function bufferBeforePlay(assets, now) {
       const ticket = { ids: new Set(assets.map(a => a.id)), epoch };
-      buffering = ticket; stop();
+      buffering = ticket; stop(); setGapGate();
       if (virtual) virtual = { time: now, stamp: clock(), playing: false };
       if (!player.paused) { internalPause = true; player.pause(); }
       hint('正在准备配音，加载完成后继续播放'); frame();
@@ -134,14 +226,16 @@
       if (!virtual && player.playbackRate !== 1 && state.audible.length) {
         player.playbackRate = 1; hint('带配音贴片时使用 1× 播放');
       }
+      refreshGapAudio();
       if (virtual && now >= state.end) {
-        virtual = { time: state.end, stamp: clock(), playing: false }; reset(); frame(); return;
+        virtual = { time: state.end, stamp: clock(), playing: false }; reset(); setGapGate(); frame(); return;
       }
       if (virtual) {
         const skipped = skipAt(now);
         if (skipped) {
           reset();
           virtual = { time: skipped.end, stamp: clock(), playing: true };
+          refreshGapAudio();
           frame();
           timer = setTimeout(tick, 0);
           return;
@@ -169,7 +263,7 @@
         source.buffer = item.buffer;
         const level = Math.pow(10, global.MSWAudio.levelDb(clip, state.tracks.get(clip.track_id)) / 20);
         gain.gain.value = level * (player.muted ? 0 : player.volume);
-        source.connect(gain); gain.connect(audioContext.destination);
+        source.connect(gain); gain.connect(output());
         const node = { source, gain, level, assetId: asset.id, done: false }; nodes.set(clip.id, node);
         source.onended = () => {
           node.done = true; source.disconnect(); gain.disconnect(); source.onended = null;
@@ -184,6 +278,7 @@
     }
     function wake() {
       if (buffering) return;
+      refreshGapAudio();
       if (mediaNode) void ctx().resume().catch(() => hint('点击播放以启用源音频试听'));
       if (!getState().audible.length) {
         if (virtual) virtual = { time: time(), stamp: clock(), playing: false };
@@ -204,20 +299,25 @@
       }
     }
     function onPause() {
+      if (nativeGapJump) return;
       if (internalPause) { internalPause = false; return; }
-      if (!virtual) { cancelBuffering(); stop(); }
+      if (!virtual) { cancelBuffering(); stop(); setGapGate(); }
     }
-    const events = { play: wake, playing: wake, pause: onPause, waiting: stop, seeking: stop,
-      seeked: () => { if (playing()) wake(); }, ratechange: () => { reset(); if (playing()) wake(); },
+    const events = { play: wake, playing: wake, pause: onPause,
+      waiting: () => { stop(); if (!player.seeking && !nativeGapJump) setGapGate(); },
+      timeupdate: refreshGapAudio,
+      seeking: () => { cancelBuffering(); stop(); cancelGapDrainTimer(); refreshGapAudio(); },
+      seeked: () => { if (nativeGapJump) finishNativeGapJump(); else if (playing()) wake(); else refreshGapAudio(); },
+      ratechange: () => { reset(); if (playing()) wake(); },
       volumechange: () => { for (const node of nodes.values()) if (node.gain) node.gain.gain.value = node.level * (player.muted ? 0 : player.volume); },
       ended: () => {
-        stop(); const state = getState(), end = player.duration * 1000;
+        cancelNativeGapJump(); stop(); setGapGate(); const state = getState(), end = player.duration * 1000;
         if (state.audible.length && state.end > end) { virtual = { time: end, stamp: clock(), playing: true }; wake(); }
-      }, emptied: () => { cancelBuffering(); virtual = null; stop(); } };
-    events.seeking = () => { cancelBuffering(); stop(); };
+      }, emptied: () => { cancelNativeGapJump(); cancelBuffering(); virtual = null; stop(); setGapGate(); },
+      loadstart: cancelNativeGapJump, abort: cancelNativeGapJump, error: cancelNativeGapJump };
     function attachPlayer(next) {
       if (!next || next === player) return;
-      sourceRevision++; playbackRevision++; cancelBuffering(); virtual = null; internalPause = false; stop();
+      sourceRevision++; playbackRevision++; cancelNativeGapJump(); cancelBuffering(); virtual = null; internalPause = false; stop(); setGapGate();
       for (const [event, listener] of Object.entries(events)) player.removeEventListener(event, listener);
       mediaNode?.disconnect(); mediaGain?.disconnect(); mediaNode = mediaGain = null;
       player = next;
@@ -228,15 +328,17 @@
     }
     for (const [event, listener] of Object.entries(events)) player.addEventListener(event, listener);
     return Object.freeze({
-      attachPlayer, refreshGains, setSourceGainDb, resetSourceGain, sourceGainDb: () => sourceGainDb,
+      attachPlayer, refreshGains, refreshGapAudio, jumpNativeGap, setSourceGainDb, resetSourceGain, sourceGainDb: () => sourceGainDb,
+      isNativeGapJump: () => nativeGapJump !== null,
       ensure, buffers, heats, failures,
       reset: () => { const resume = !!buffering; cancelBuffering(); reset();
         if (resume) { if (virtual) { virtual.playing = true; virtual.stamp = clock(); } else void player.play().catch(() => {}); }
         if (playing()) wake(); },
       currentTime: () => virtual ? time() : null,
-      virtualPlaying: () => buffering ? true : virtual?.playing ?? null,
-      pause: () => { playbackRevision++; cancelBuffering(); if (virtual) virtual = { time: time(), stamp: clock(), playing: false }; player.pause(); stop(); frame(); },
+      virtualPlaying: () => buffering || nativeGapJump ? true : virtual?.playing ?? null,
+      pause: () => { playbackRevision++; cancelNativeGapJump(); cancelBuffering(); if (virtual) virtual = { time: time(), stamp: clock(), playing: false }; player.pause(); stop(); setGapGate(); frame(); },
       toggle: () => {
+        if (nativeGapJump) { cancelNativeGapJump(); frame(); return true; }
         if (buffering) { cancelBuffering(); stop(); frame(); return true; }
         if (!virtual && Number.isFinite(player.duration) && player.duration > 0) return false;
         const state = getState(); if (!state.audible.length) return false;
@@ -245,11 +347,11 @@
           virtual = null; stop(); player.currentTime = 0; void player.play().catch(() => {}); frame(); return true;
         }
         virtual = { time: now >= state.end ? 0 : now || 0, stamp: clock(), playing: nextPlaying };
-        stop(); if (nextPlaying) wake(); frame(); return true;
+        stop(); if (nextPlaying) wake(); else setGapGate(); frame(); return true;
       },
       seek: ms => {
         const mediaEnd = Number.isFinite(player.duration) ? player.duration * 1000 : 0;
-        const wasBuffering = !!buffering, wasPlaying = playing() || wasBuffering; cancelBuffering();
+        const wasBuffering = !!buffering, wasPlaying = playing() || wasBuffering || !!nativeGapJump; cancelBuffering();
         if (ms <= mediaEnd && mediaEnd > 0) {
           if (virtual || wasBuffering) {
             virtual = null; reset();
@@ -259,11 +361,12 @@
           return false;
         }
         if (!getState().end) return false;
-        virtual = { time: ms, stamp: clock(), playing: wasPlaying }; player.pause(); reset(); if (wasPlaying) wake(); frame(); return true;
+        cancelNativeGapJump();
+        virtual = { time: ms, stamp: clock(), playing: wasPlaying }; player.pause(); reset(); if (wasPlaying) wake(); else setGapGate(); frame(); return true;
       },
       clear: () => {
         resetSourceGain();
-        epoch++; playbackRevision++; cancelBuffering(); virtual = null; stop();
+        epoch++; playbackRevision++; cancelNativeGapJump(); cancelBuffering(); virtual = null; stop(); setGapGate();
         for (const work of pending.values()) work.controller.abort();
         for (const work of queue.splice(0)) work.resolve(null);
         pending.clear(); buffers.clear(); heats.clear(); failures.clear(); reportedErrors.clear();

@@ -20,6 +20,37 @@ SCRIPT_SAMPLES = {
 
 
 MACOS_FONT_ASSETS = Path('/System/Library/AssetsV2')
+# Common Macintosh language IDs and their Windows LCID equivalents.
+_MAC_LANGUAGE_LOCALES = {0: 0x409, 11: 0x411, 19: 0x404, 23: 0x412, 33: 0x804}
+_UNSAFE_ASS_NAME = re.compile(r'[\\{},\x00-\x1f\x7f]')
+
+
+def _font_name_records(font):
+    """Prefer Windows Unicode names for the same name field and language."""
+    records = []
+    windows_slots = set()
+    for record in font['name'].names:
+        if record.nameID not in {1, 4, 6, 16}:
+            continue
+        try:
+            value = record.toUnicode().strip()
+        except Exception:
+            continue  # One damaged record need not hide the rest of the face.
+        if not value or _UNSAFE_ASS_NAME.search(value):
+            continue
+        platform = getattr(record, 'platformID', 3)
+        language = _MAC_LANGUAGE_LOCALES.get(record.langID) if platform == 1 else record.langID
+        slot = (record.nameID, language & 0x3ff) if isinstance(language, int) else None
+        records.append((platform, slot, (record.nameID, language or 0, value)))
+        if platform == 3 and slot is not None:
+            windows_slots.add(slot)
+    names, legacy = [], set()
+    for platform, slot, record in records:
+        if platform == 1 and slot in windows_slots:
+            legacy.add(record[2])
+        else:
+            names.append(record)
+    return names, legacy.difference(record[2] for record in names)
 
 
 def font_roots() -> tuple[Path, ...]:
@@ -59,12 +90,10 @@ def installed_fonts():
                 owner = TTCollection(str(path),lazy=True) if path.suffix.lower() in {'.ttc','.otc'} else TTFont(str(path),lazy=True)
                 faces = owner.fonts if hasattr(owner,'fonts') else [owner]
                 for font in faces:
-                    for record in font['name'].names:
-                        if record.nameID not in {1,16}:
-                            continue
-                        name=record.toUnicode().strip()
-                        if name:
-                            result.setdefault(name.casefold(),set()).add(path.resolve())
+                    names, _legacy = _font_name_records(font)
+                    for name_id, _language, name in names:
+                        if name_id in {1, 16}:
+                            result.setdefault(name.casefold(), set()).add(path.resolve())
             except Exception:
                 # A damaged third-party font must not prevent other families loading.
                 continue
@@ -85,16 +114,15 @@ def font_catalog():
         try:
             owner = TTCollection(str(path), lazy=True) if path.suffix.lower() in {'.ttc', '.otc'} else TTFont(str(path), lazy=True)
             for font in owner.fonts if hasattr(owner, 'fonts') else [owner]:
-                names = [(r.nameID, r.langID, r.toUnicode().strip()) for r in font['name'].names
-                         if r.nameID in {1, 4, 6, 16}]
+                names, legacy = _font_name_records(font)
                 family_names = [r for r in names if r[0] in {1, 16} and r[2]]
                 if not family_names:
                     continue
                 # Keep separately selectable Windows/CSS families (Arial Black,
                 # Arial Narrow, etc.); typographic name 16 can collapse them.
-                family = min(family_names, key=lambda r: (r[1] not in (0x409, 0), r[0] != 1, r[2]))[2]
+                family = min(family_names, key=lambda r: (r[0] != 1, r[1] not in (0x409, 0), r[2]))[2]
                 chinese = [r for r in family_names if r[1] & 0x3ff == 4 and re.search(r'[\u3400-\u9fff]', r[2])]
-                label = min(chinese, key=lambda r: (r[1] != 0x804, r[0] != 1, r[2]))[2] if chinese else family
+                label = min(chinese, key=lambda r: (r[0] != 1, r[1] != 0x804, r[2]))[2] if chinese else family
                 cmap = font.getBestCmap() or {}
                 cjk = sum(ord(c) in cmap for c in '中文天地人山水日月一二三') >= 10 and sum(0x3400 <= c <= 0x9fff for c in cmap) >= 128
                 latin = all(ord(c) in cmap for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
@@ -103,9 +131,12 @@ def font_catalog():
                     scripts.add('han')
                 if latin:
                     scripts.add('latin')
-                entry = families.setdefault(family.casefold(), dict(family=family, label=label, aliases=set(), scripts=set(), cjk=False, latin=False))
+                entry = families.setdefault(family.casefold(), dict(
+                    family=family, label=label, aliases=set(), legacy_aliases=set(), scripts=set(), cjk=False, latin=False,
+                ))
                 entry['scripts'].update(scripts)
                 entry['aliases'].update(r[2] for r in names if r[2])
+                entry['legacy_aliases'].update(legacy)
                 if chinese:
                     entry['label'] = label
                 entry['cjk'] |= cjk
@@ -115,21 +146,25 @@ def font_catalog():
         finally:
             if owner is not None:
                 owner.close()
-    return [dict(entry, aliases=sorted(entry['aliases']), scripts=sorted(entry['scripts'])) for entry in sorted(families.values(), key=lambda e: e['family'].casefold())]
+    return [dict(entry, aliases=sorted(entry['aliases']), legacy_aliases=sorted(entry['legacy_aliases'] - entry['aliases']),
+                 scripts=sorted(entry['scripts']))
+            for entry in sorted(families.values(), key=lambda e: e['family'].casefold())]
 
 
 @lru_cache(maxsize=1)
 def _font_aliases():
-    candidates = {}
+    candidates, legacy = {}, {}
     for entry in font_catalog():
         family = entry['family']
         # Never introduce ASS control characters from a system name table.
-        if re.search(r'[\\{},\x00-\x1f]', family):
+        if _UNSAFE_ASS_NAME.search(family):
             continue
         for alias in entry['aliases']:
             candidates.setdefault(alias.casefold(), set()).add(family)
+        for alias in entry.get('legacy_aliases', ()):
+            legacy.setdefault(alias.casefold(), set()).add(family)
     # Some full names are shared by otherwise unrelated collections.
-    return {name: next(iter(families)) for name, families in candidates.items() if len(families) == 1}
+    return {name: next(iter(families)) for name, families in (legacy | candidates).items() if len(families) == 1}
 
 
 @lru_cache(maxsize=256)
@@ -194,7 +229,8 @@ def family_metrics(family, bold=False, italic=False):
         try:
             owner = TTCollection(str(path), lazy=True) if path.suffix.lower() in {'.ttc', '.otc'} else TTFont(str(path), lazy=True)
             for font in owner.fonts if hasattr(owner, 'fonts') else [owner]:
-                names = {r.toUnicode().strip().casefold() for r in font['name'].names if r.nameID in {1, 16}}
+                records, _legacy = _font_name_records(font)
+                names = {name.casefold() for name_id, _language, name in records if name_id in {1, 16}}
                 if family.casefold() not in names:
                     continue
                 os2, head, hhea = font.get('OS/2'), font['head'], font['hhea']

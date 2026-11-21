@@ -328,7 +328,9 @@ test('range ASR keeps the original waveform cue color and undo restores its grou
   expect(await page.evaluate(()=>DATA.segments[1].color_ref.headIdx)).toBe(0);
 });
 
-for (const [provider,model] of [['qwen','fun-asr'],['soniox','stt-async-v5'],['openai','whisper-1']])
+for (const [provider,model] of [
+  ['qwen','fun-asr'],['soniox','stt-async-v6'],['soniox','stt-async-v5'],['openai','whisper-1']
+])
 test(`${provider}/${model}: editor settings route to the existing cloud transcription adapter`,async({page})=>{
   await open(page);await page.locator('#msw-asr-close').click();await page.evaluate(()=>MSWE.resolve('processing-host').openAsrEnvironment());
   await page.locator('#msw-asr-environment-provider').selectOption(provider);

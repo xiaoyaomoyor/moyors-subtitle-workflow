@@ -46,6 +46,20 @@ def _segment(start, end, text, speaker=None):
 
 
 class TokenMappingTests(unittest.TestCase):
+    def test_v6_mixed_tokens_keep_spoken_numbers_punctuation_and_timing(self) -> None:
+        tokens = [
+            _token("预", 0, 100, "1", "zh"), _token("算", 100, 220, "1", "zh"),
+            _token(" fifteen", 250, 480, "1", "en"), _token(" dollars", 490, 680, "1", "en"),
+            _token(".", 680, 710, "1", "en"), _token(" Check", 900, 1100, "2", "en"),
+            _token(" ID", 1100, 1250, "2", "en"), _token(" AB", 1260, 1380, "2", "en"),
+            _token("12", 1380, 1500, "2", "en"), _token("?", 1500, 1520, "2", "en"),
+        ]
+        items = soniox.tokens_to_items(soniox.merge_word_fragments(tokens))
+        self.assertEqual([item["text"].strip() for item in items], [
+            "预", "算", "fifteen", "dollars.", "Check", "ID", "AB12?",
+        ])
+        self.assertEqual((items[-1]["start"], items[-1]["end"], items[-1]["speaker"]), (1260, 1520, "2"))
+
     def test_tokens_to_items_preserves_ms_text_and_speaker(self) -> None:
         tokens = [
             _token("大", 0, 300, speaker="1"),
@@ -341,6 +355,13 @@ class MajorityLanguageTests(unittest.TestCase):
 
 
 class ApiClientTests(unittest.TestCase):
+    def test_default_v6_keeps_explicit_v5_override(self):
+        with mock.patch.dict("os.environ", {}, clear=True), mock.patch.object(soniox, "_load_env_file") as config:
+            config.return_value = {}
+            self.assertEqual(soniox.load_config()["model"], "stt-async-v6")
+            config.return_value = {"SONIOX_MODEL": "stt-async-v5"}
+            self.assertEqual(soniox.load_config()["model"], "stt-async-v5")
+
     def test_build_soniox_context_supports_all_documented_sections(self) -> None:
         context = soniox.build_soniox_context(
             general="domain=Healthcare\ntopic=Diabetes management",

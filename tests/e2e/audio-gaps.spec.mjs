@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DURATION_MS, cleanupTempDir, findFreePort, generateProjectJson, generateWav, makeTempDir, startServer, startBlankServer, clickMenubarItem } from './helpers.mjs';
@@ -369,4 +370,109 @@ test('playing a WAV crosses a removed gap without a second seek or a restart', a
     player.pause();
     return window.mediaSeekEvents;
   })).toEqual([2.3]);
+});
+
+test('the audio clock silences a removed range while the page thread is busy and allows audition', async ({page}) => {
+  const fixture = join(tempDir, 'gap-tone.wav');
+  generateWav(fixture, 4);
+  const bytes = readFileSync(fixture), rate = bytes.readUInt32LE(24);
+  for (let offset = 44; offset + 1 < bytes.length; offset += 2) {
+    const seconds = (offset - 44) / 2 / rate;
+    const audible = (seconds >= 1.025 && seconds < 1.9) || (seconds >= 2.9 && seconds < 3.65);
+    bytes.writeInt16LE(audible
+      ? Math.round(4000 * Math.sin(2 * Math.PI * 440 * seconds)) : 0, offset);
+  }
+  await page.evaluate(async base64 => {
+    const createGain = AudioContext.prototype.createGain;
+    AudioContext.prototype.createGain = function () {
+      const context = this, node = createGain.call(context), connect = node.connect.bind(node);
+      node.connect = function (destination, ...args) {
+        if (destination === context.destination) {
+          window.gapMonitor = {context, node};
+          if (window.gapSampleProbe) connect(window.gapSampleProbe);
+        }
+        return connect(destination, ...args);
+      };
+      return node;
+    };
+    const samples = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+    player.src = URL.createObjectURL(new Blob([samples], {type:'audio/wav'}));
+    await new Promise(resolve => player.addEventListener('canplay', resolve, {once:true}));
+    DATA.gap_remove = {schema:'moy.asr.gap_remove.v1',detector:'audio_gate',skip_playback:true,
+      gaps:[{start:1000,end:2000,removed:true}]};
+    await MSWE.resolve('audio-timeline').setSourceGainDb(0);
+    const {context, node} = window.gapMonitor;
+    const code = `class GapProbe extends AudioWorkletProcessor {
+      constructor() { super(); this.peak = 0; this.frames = 0; this.first = null; this.last = null;
+        this.port.onmessage = () => {
+          this.port.postMessage({peak:this.peak, frames:this.frames, first:this.first, last:this.last});
+          this.peak = this.frames = 0;
+          this.first = this.last = null;
+        };
+      }
+      process(inputs) {
+        for (const channel of inputs[0] || []) {
+          this.frames += channel.length;
+          for (const sample of channel) {
+            this.peak = Math.max(this.peak, Math.abs(sample));
+            if (Math.abs(sample) > .005) { this.first ??= currentTime; this.last = currentTime; }
+          }
+        }
+        return true;
+      }
+    } registerProcessor('gap-probe', GapProbe);`;
+    const url = URL.createObjectURL(new Blob([code], {type:'text/javascript'}));
+    try { await context.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+    window.gapSampleProbe = new AudioWorkletNode(context, 'gap-probe');
+    node.connect(window.gapSampleProbe);
+    window.gapSampleProbe.connect(context.destination);
+    window.readGapSamples = () => new Promise(resolve => {
+      window.gapSampleProbe.port.onmessage = event => resolve(event.data);
+      window.gapSampleProbe.port.postMessage('read and reset');
+    });
+    player.currentTime = .5;
+    await new Promise(resolve => player.addEventListener('seeked', resolve, {once:true}));
+    window.nativeGapSeeks = [];
+    player.addEventListener('seeking', () => window.nativeGapSeeks.push(player.currentTime));
+    player.addEventListener('playing', () => {
+      const block = () => {
+        if (player.currentTime < .7) { requestAnimationFrame(block); return; }
+        window.gapStallStart = player.currentTime;
+        const until = performance.now() + 600;
+        while (performance.now() < until) { /* Simulate a long render on the page thread. */ }
+      };
+      requestAnimationFrame(block);
+    }, {once:true});
+  }, bytes.toString('base64'));
+  await page.locator('#media-play-toggle').click();
+  await page.waitForFunction(() => player.currentTime > 2.12);
+  const skipped = await page.evaluate(async () => {
+    player.pause();
+    return {...await window.readGapSamples(), seek:window.nativeGapSeeks, stall:window.gapStallStart};
+  });
+  expect(skipped.stall).toBeLessThan(1);
+  expect(skipped.frames).toBeGreaterThan(8000);
+  expect(skipped.seek).toEqual([2]);
+  expect(skipped.peak, JSON.stringify(skipped)).toBeLessThan(.005);
+
+  await page.locator('#media-play-toggle').click();
+  await page.waitForFunction(() => player.currentTime > 3.2);
+  const retained = await page.evaluate(async () => {
+    player.pause();
+    return window.readGapSamples();
+  });
+  expect(retained.peak).toBeGreaterThan(.05);
+
+  await page.evaluate(async () => {
+    previewGapAt(0, 1120);
+    player.currentTime = 1.12;
+    await new Promise(resolve => player.addEventListener('seeked', resolve, {once:true}));
+  });
+  await page.locator('#media-play-toggle').click();
+  await expect.poll(() => page.evaluate(() => player.currentTime)).toBeGreaterThan(1.5);
+  const auditioned = await page.evaluate(async () => {
+    player.pause();
+    return window.readGapSamples();
+  });
+  expect(auditioned.peak).toBeGreaterThan(.05);
 });

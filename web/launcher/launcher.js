@@ -1808,7 +1808,10 @@
             supportsSpeaker: true,
             multiLanguage: true,
             commonLanguages: ["zh", "en", "ja", "ko"],
-            models: [{ id: "stt-async-v5", label: "Soniox Async STT（v5，上下文）", envKey: "SONIOX_API_KEY", note: "支持 general、text、terms 和 translation_terms 上下文", supportsSpeaker: true, supportsContext: true, languages: [{ id: "zh", label: "中文 / Mandarin" }, { id: "en", label: "英语 / English" }, { id: "ja", label: "日语 / Japanese" }, { id: "ko", label: "韩语 / Korean" }, { id: "fr", label: "法语 / French" }, { id: "de", label: "德语 / German" }] }],
+            models: [
+              { id: "stt-async-v6", label: "Soniox Async STT（v6，上下文）", envKey: "SONIOX_API_KEY", note: "支持 general、text、terms 和 translation_terms 上下文", supportsSpeaker: true, supportsContext: true },
+              { id: "stt-async-v5", label: "Soniox Async STT（v5，旧版）", envKey: "SONIOX_API_KEY", note: "兼容旧预设。Soniox 将于 2026-12-15 起把 v5 请求转给 v6。", supportsSpeaker: true, supportsContext: true }
+            ],
             regions: [],
             languages: [{ id: "zh", label: "中文 / Mandarin" }, { id: "en", label: "英语 / English" }, { id: "ja", label: "日语 / Japanese" }, { id: "ko", label: "韩语 / Korean" }, { id: "fr", label: "法语 / French" }, { id: "de", label: "德语 / German" }]
           },
@@ -2293,7 +2296,8 @@
     "fun-asr": "fun-asr (speaker support)",
     "qwen3-asr-flash-filetrans": "qwen3-asr (higher accuracy)",
     "custom-asr": "Custom",
-    "stt-async-v5": "Soniox Async STT (v5, context)",
+    "stt-async-v6": "Soniox Async STT (v6, context)",
+    "stt-async-v5": "Soniox Async STT (v5, legacy)",
     "16k_zh_en_2.0": "Tencent Cloud recorded-file ASR (large model 2.0)",
     "qwen3-asr-local": "Qwen3-ASR 0.6B (recommended)",
     "qwen3-asr-1.7b-local": "Qwen3-ASR 1.7B",
@@ -2308,7 +2312,8 @@
     "qwen-audio-3.0-asr-flash-filetrans": "Supports instant hotwords, context, and speaker diarization.",
     "fun-asr": "Supports speaker diarization and word-level timestamps.",
     "custom-asr": "Fill in your custom ASR model name after selecting this.",
-    "stt-async-v5": "Supports general, text, terms, and translation_terms context.",
+    "stt-async-v6": "Supports general, text, terms, and translation_terms context.",
+    "stt-async-v5": "Kept for older presets. Soniox routes v5 requests to v6 from December 15, 2026.",
     "16k_zh_en_2.0": "Enter the SecretId here; configure SecretKey in the local .env.",
     "qwen3-asr-local": "Runs locally; the first preparation downloads Qwen3-ASR and the Forced Aligner.",
     "qwen3-asr-1.7b-local": "Higher recognition quality; shares the Qwen3 Forced Aligner with 0.6B.",

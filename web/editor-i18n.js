@@ -1025,6 +1025,8 @@
     '读取本机字体，填充字体下拉列表': 'Read local fonts to populate the font list',
     '次色仅在 \\\\k 卡拉 OK 标签中使用，当前未支持': 'Secondary color is reserved for karaoke tags, which are not currently supported',
     '本地模型（Beta）': 'Local models (Beta)',
+    'Soniox Async STT（v6，上下文）': 'Soniox Async STT (v6, context)',
+    'Soniox Async STT（v5，旧版）': 'Soniox Async STT (v5, legacy)',
     '本地模型目录（可选）': 'Local model directory (optional)',
     '留空时自动检测': 'Leave blank to auto-detect',
     'FireRed 标点': 'FireRed punctuation',

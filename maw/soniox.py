@@ -55,7 +55,7 @@ from maw.speaker import (
 )
 
 BASE_URL = "https://api.soniox.com"
-DEFAULT_MODEL = "stt-async-v5"
+DEFAULT_MODEL = "stt-async-v6"
 
 # Soniox documents this as 8,000 tokens (approximately 10,000 characters).
 # The API remains authoritative for the actual token count.

@@ -37,6 +37,7 @@ from maw.ffmpeg import resolve_ffmpeg_tools
 from maw.project_io import write_mosp
 from maw.project import repair_segment_durations, validate_project
 from maw.soniox import (
+    DEFAULT_MODEL,
     MAX_AUDIO_SECONDS,
     SonioxContextError,
     apply_speaker_colors,
@@ -145,7 +146,7 @@ def main():
     )
     parser.add_argument(
         "--model", default=None,
-        help="覆盖 Soniox 模型（默认读 .env 的 SONIOX_MODEL，兜底 stt-async-v5）",
+        help=f"覆盖 Soniox 模型（默认读 .env 的 SONIOX_MODEL，兜底 {DEFAULT_MODEL}）",
     )
     parser.add_argument(
         "--context-json", default=None,

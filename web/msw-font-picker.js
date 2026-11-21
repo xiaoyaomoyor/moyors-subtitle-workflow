@@ -7,7 +7,17 @@
     let families=[],loaded=false,error='',active=null,query='',index=-1,options=[];
     const states=new Map(inputs.map(input=>[input,{value:'',mixed:false}]));
     const script=input=>input.dataset.fontScript||'han';
-    const entry=value=>families.find(f=>f.family.toLocaleLowerCase()===value.toLocaleLowerCase())||families.find(f=>f.aliases.some(a=>a.toLocaleLowerCase()===value.toLocaleLowerCase()));
+    function entry(value) {
+      const key=value.toLocaleLowerCase();
+      const exact=families.find(font=>font.family.toLocaleLowerCase()===key);
+      if(exact)return exact;
+      const labels=families.filter(font=>font.label.toLocaleLowerCase()===key);
+      if(labels.length===1)return labels[0];
+      const matches=names=>families.filter(font=>font[names]?.some(alias=>alias.toLocaleLowerCase()===key));
+      const current=matches('aliases');
+      const candidates=current.length?current:matches('legacy_aliases');
+      return candidates.length===1?candidates[0]:undefined;
+    }
     const label=(font,input)=>script(input)==='latin'?font.family:font.label;
     const canonical=input=>entry(input.value.trim())?.family||input.value.trim();
     const close=()=>{if(active){active.setAttribute('aria-expanded','false');active.removeAttribute('aria-activedescendant');}menu.hidden=true;active=null;};

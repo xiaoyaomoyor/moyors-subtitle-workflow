@@ -5521,6 +5521,7 @@ function updateGapRemoveUi() {
   }
   renderGapRemoveList();
   waveformEditor?.refreshGapOverlay();
+  window.MSWE?.resolve('audio-timeline')?.refreshGapAudio();
 }
 
 function readGapDetectionSettings() {
@@ -12435,6 +12436,7 @@ function startJklReversePlayback() {
     flashHint('请先加载媒体，然后才能预览', 'invalid');
     return false;
   }
+  if (window.MSWE?.resolve('audio-timeline')?.isNativeGapJump()) pauseTimelinePlayback();
   jklReversePlaying = true;
   jklReverseLastTimestamp = 0;
   player.playbackRate = Math.max(0.0625, Math.abs(jklPlaybackRate));
@@ -12451,8 +12453,10 @@ function playJklForward() {
   }
   stopJklReversePlayback({ render: false });
   player.playbackRate = Math.max(0.0625, Math.abs(jklPlaybackRate));
-  const promise = player.play();
-  if (promise && promise.catch) promise.catch(() => {});
+  if (!window.MSWE?.resolve('audio-timeline')?.isNativeGapJump()) {
+    const promise = player.play();
+    if (promise && promise.catch) promise.catch(() => {});
+  }
   syncMediaControls();
   return true;
 }
@@ -12670,7 +12674,8 @@ function bindPlayerEvents(mediaElement) {
   });
   mediaElement.addEventListener('playing', () => startPlaybackRefresh(mediaElement));
   mediaElement.addEventListener('pause', () => {
-    if (spacePlaybackPress?.media === mediaElement && spacePlaybackPress.active) finishSpacePlayback({resume:false});
+    const gapJump = mediaElement === player && window.MSWE?.resolve('audio-timeline')?.isNativeGapJump();
+    if (!gapJump && spacePlaybackPress?.media === mediaElement && spacePlaybackPress.active) finishSpacePlayback({resume:false});
     stopPlaybackRefresh(mediaElement);
     if (player !== mediaElement) return;
     if (cueListScroll.owner === 'follow') invalidateCueListVisualAnchorRestore();
@@ -13091,7 +13096,8 @@ function finishSpacePlayback({tap=false,resume=true,restoreRate=true}={}) {
       else if(jklPlaybackRate===2)jklPlaybackRate=player.playbackRate;
     }
     else if(same && jklPlaybackRate===2)jklPlaybackRate=player.playbackRate;
-    if(!same || !state.playing || state.reverse)state.media.pause();
+    if(same && (!state.playing || state.reverse))pauseTimelinePlayback();
+    else if(!same)state.media.pause();
     if(same && state.reverse && resume && !state.media.ended)startJklReversePlayback();
   } else if(tap && !state.longPress && same)togglePlayback();
   syncMediaControls();
@@ -13102,13 +13108,16 @@ function startSpacePlaybackHold(state) {
   if(!spacePlaybackSameMedia(state) || document.hidden || !spacePlaybackAllowed({target:document.activeElement})) {
     finishSpacePlayback({resume:false});return;
   }
-  if(window.MSWE?.resolve('audio-timeline')?.hasAudible()) {flashHint('带配音贴片时使用 1× 播放');return;}
+  const audio=window.MSWE?.resolve('audio-timeline');
+  if(audio?.hasAudible()) {flashHint('带配音贴片时使用 1× 播放');return;}
   if(!hasLoadedMedia()) {flashHint('请先加载媒体，然后才能预览','invalid');return;}
   state.active=true;
   stopJklReversePlayback({render:false});jklPlaybackRate=2;state.media.playbackRate=2;
   document.getElementById('media-speed-hold').hidden=false;
-  const promise=state.media.play();
-  if(promise?.catch)promise.catch(()=>{if(spacePlaybackPress===state)finishSpacePlayback({resume:false});});
+  if(!audio?.isNativeGapJump()) {
+    const promise=state.media.play();
+    if(promise?.catch)promise.catch(()=>{if(spacePlaybackPress===state)finishSpacePlayback({resume:false});});
+  }
   syncMediaControls();
 }
 document.addEventListener('keydown', (e) => {
@@ -13171,7 +13180,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (isJklDirectionMode()) {
     if (k === 'k') {
-      const wasPlaying = jklReversePlaying || !player.paused;
+      const wasPlaying = isPlaybackActive();
       if (!wasPlaying) {
         jklPlaybackRate = 1;
         player.playbackRate = 1;
@@ -13181,7 +13190,7 @@ document.addEventListener('keydown', (e) => {
       stopJklReversePlayback({ render: false });
       jklPlaybackRate = 1;
       player.playbackRate = 1;
-      player.pause();
+      pauseTimelinePlayback();
       update();
       waveformEditor?.updatePlayback();
       syncMediaControls();
@@ -13683,7 +13692,7 @@ document.addEventListener('keydown', (e) => {
   const segment = segments[first];
   if (!segment) return;
   seekFromWaveform(segment.start / 1000);
-  if (player.paused) togglePlayback();
+  if (!isPlaybackActive()) togglePlayback();
 });
 
 function seekCurrentCueBoundary(boundary) {
@@ -13692,8 +13701,7 @@ function seekCurrentCueBoundary(boundary) {
   const duration = Number(player?.duration);
   if (!target || !Number.isFinite(timeMs) || !hasLoadedMedia()
       || !Number.isFinite(duration) || duration <= 0) return false;
-  stopJklReversePlayback({ render: false });
-  player.pause();
+  pauseTimelinePlayback();
   return seekMediaTo(timeMs / 1000);
 }
 
@@ -15072,7 +15080,27 @@ function playbackGapAt(tMs, isPlaying) {
   });
 }
 
+function nextPlaybackGap(tMs) {
+  if (getGapRemoveData(false)?.skip_playback !== true) return null;
+  const gaps = getRemovedGapRanges();
+  let lo = 0, hi = gaps.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (gaps[mid].end <= tMs) lo = mid + 1;
+    else hi = mid;
+  }
+  // Auditioning a marked gap also excludes any pieces left by clip protection.
+  if (gapPreviewRange && tMs >= gapPreviewRange.start && tMs < gapPreviewRange.end) {
+    while (lo < gaps.length && window.AsrGapRemoveCore.isGapPreviewActive(
+      gaps[lo], Math.max(tMs, gaps[lo].start), gapPreviewRange,
+    )) lo++;
+  }
+  return gaps[lo] || null;
+}
+
 function skipNativePlaybackGap(tMs) {
+  const audio = window.MSWE?.resolve('audio-timeline');
+  if (audio?.isNativeGapJump()) return false;
   const gap = playbackGapAt(tMs, !player.paused && !player.ended);
   // A previous seek can still report a time inside the gap. Both playback
   // updates and the audio scheduler share this guard for the native clock.
@@ -15084,7 +15112,8 @@ function skipNativePlaybackGap(tMs) {
   if (lastNativeGapSkip?.player === player && lastNativeGapSkip.project === DATA
       && lastNativeGapSkip.start === gap.start && lastNativeGapSkip.end === gap.end) return false;
   lastNativeGapSkip = {player, project: DATA, start: gap.start, end: gap.end};
-  seekFromWaveform(gap.end / 1000, {gapSkip: true});
+  const seek = () => seekFromWaveform(gap.end / 1000, {gapSkip: true});
+  if (!audio?.jumpNativeGap(seek)) seek();
   return true;
 }
 
@@ -24596,6 +24625,7 @@ window.MSWE?.register('processing-host', () => Object.freeze({
   get assetLibrary() { return waveformEditor?.assetLibrary; },
   get player() { return player; },
   audioPlaybackSkip: timeMs => playbackGapAt(timeMs, true),
+  nextPlaybackGap,
   skipNativePlaybackGap,
   refreshAudioPlayback: (timeMs) => {
     if (Number.isFinite(timeMs)) {

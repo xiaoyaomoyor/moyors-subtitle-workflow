@@ -42,6 +42,7 @@
     frame: () => host.refreshAudioPlayback(transport.currentTime()),
     beforePlay: () => host.assetLibrary?.querySelector('audio')?.pause(),
     skipAt: time => host.audioPlaybackSkip(time),
+    nextGap: time => host.nextPlaybackGap(time),
     skipNative: time => host.skipNativePlaybackGap(time),
     load: async (asset, signal) => {
       if (!host.config?.processingUrl) throw Error('请通过本机编辑器服务打开音频素材');
@@ -507,6 +508,8 @@
     virtualPlaying: transport.virtualPlaying, pause: transport.pause, hasAudible: () => sync().audible.length > 0,
     protectGaps: gaps => { sync(); if (gapSource !== gaps) { gapSource = gaps; protectedRanges = core.protectGaps(gaps, extension()); } return protectedRanges; },
     diagnostics: transport.diagnostics,
+    refreshGapAudio: transport.refreshGapAudio,
+    jumpNativeGap: transport.jumpNativeGap, isNativeGapJump: transport.isNativeGapJump,
     sourceGainDb: transport.sourceGainDb,
     previewClipGains: gains => {
       const ext = extension();

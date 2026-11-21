@@ -10,7 +10,7 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 
 import test_selected_position as position_tests
 from maw.ass_styles import _normalize_style, DEFAULT_ASS_STYLE
-from maw.msw import cue_style, subtitle_animation, subtitle_gradient
+from maw.msw import cue_style, subtitle_animation, subtitle_fonts, subtitle_gradient
 from maw.msw.subtitle_fonts import _font_aliases, font_catalog, font_roots, resolve_font_family, styled_text, text_font
 from maw.font_scripts import SCRIPT_FONTS
 from maw.msw.track_presentation import measured_text
@@ -39,14 +39,33 @@ class MixedFontTests(unittest.TestCase):
             builder.setupNameTable({'familyName':'Fixture Family', 'styleName':'Regular'})
             builder.setupOS2()
             builder.setupPost()
+            builder.font['name'].setName('Fixture__ Family', 1, 1, 0, 0)
             builder.save(path)
+            caches = (subtitle_fonts.installed_fonts, font_catalog, _font_aliases, resolve_font_family,
+                      subtitle_fonts.family_metrics)
+            for cached in caches:
+                cached.cache_clear()
+                self.addCleanup(cached.cache_clear)
+            with patch('maw.msw.subtitle_fonts.font_roots', return_value=(Path(folder),)):
+                catalog = font_catalog()
+                face = next(entry for entry in catalog if entry['family'] == 'Fixture Family')
+                self.assertIn('Fixture__ Family', face['legacy_aliases'])
+                self.assertNotIn('Fixture__ Family', face['aliases'])
+                self.assertNotIn('fixture__ family', subtitle_fonts.installed_fonts())
+                self.assertEqual(resolve_font_family('Fixture__ Family'), 'Fixture Family')
+                self.assertIn(ord('A'), subtitle_fonts.family_metrics('Fixture__ Family'))
+                self.assertEqual(font_manifest(['Fixture__ Family'])['missing'], [])
+                legacy = copy.deepcopy(project)
+                legacy['subtitles']['cues'][0]['content']['subtitle_style'] = {'fontName': 'Fixture__ Family'}
+                ass = preview_ass(dict(project=legacy, video=video))['ass']
+                self.assertIn(',Fixture Family,', ass)
+                self.assertNotIn('Fixture__ Family', ass)
+                self.assertEqual(legacy['subtitles']['cues'][0]['content']['subtitle_style']['fontName'], 'Fixture__ Family')
             registry = {'fixture family': {path}, 'exact family': {path}}
             catalog = [{'family': 'Fixture Family', 'aliases': ['FixtureMT', 'Fixture Full', 'Exact Family', 'Ambiguous']},
                        {'family': 'Other Family', 'aliases': ['Ambiguous']}]
             _font_aliases.cache_clear()
             resolve_font_family.cache_clear()
-            self.addCleanup(_font_aliases.cache_clear)
-            self.addCleanup(resolve_font_family.cache_clear)
             with patch('maw.msw.subtitle_fonts.installed_fonts', return_value=registry), \
                  patch('maw.msw.subtitle_preview.installed_fonts', return_value=registry), \
                  patch('maw.msw.subtitle_fonts.font_catalog', return_value=catalog):
@@ -108,6 +127,15 @@ class MixedFontTests(unittest.TestCase):
         self.assertNotIn('kana', catalog[0]['scripts'])
         self.assertNotIn('fixture', json.dumps(catalog))
         owner.close.assert_called_once()
+
+    def test_macintosh_only_family_stays_available(self):
+        font = MagicMock()
+        record = MagicMock(nameID=1, langID=0, platformID=1)
+        record.toUnicode.return_value = 'Mac-only Family'
+        font.__getitem__.return_value.names = [record]
+        names, legacy = subtitle_fonts._font_name_records(font)
+        self.assertEqual(names, [(1, 0x409, 'Mac-only Family')])
+        self.assertEqual(legacy, set())
 
     def test_chinese_label_does_not_make_latin_only_face_a_chinese_font(self):
         def record(name, value):

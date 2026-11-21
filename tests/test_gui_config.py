@@ -293,7 +293,7 @@ class GuiConfigTests(unittest.TestCase):
 
         self.assertEqual(provider.label, "Soniox STT")
         self.assertIn("console.soniox.com", provider.key_url)
-        self.assertEqual(provider.models[0].id, "stt-async-v5")
+        self.assertEqual([model.id for model in provider.models], ["stt-async-v6", "stt-async-v5"])
         self.assertEqual(provider.models[0].env_key, "SONIOX_API_KEY")
         self.assertEqual(provider.regions, ())
         self.assertTrue(provider.supports_speaker)

@@ -433,10 +433,19 @@ OPENAI_ASR_MODELS: Final[tuple[ModelConfig, ...]] = tuple(
 
 SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (
     ModelConfig(
-        id="stt-async-v5",
-        label="Soniox Async STT（v5，上下文）",
+        id="stt-async-v6",
+        label="Soniox Async STT（v6，上下文）",
         env_key="SONIOX_API_KEY",
         note="支持 general、text、terms 和 translation_terms 上下文",
+        supports_speaker=True,
+        supports_context=True,
+        languages=SONIOX_LANGUAGES,
+    ),
+    ModelConfig(
+        id="stt-async-v5",
+        label="Soniox Async STT（v5，旧版）",
+        env_key="SONIOX_API_KEY",
+        note="兼容旧预设。Soniox 将于 2026-12-15 起把 v5 请求转给 v6。",
         supports_speaker=True,
         supports_context=True,
         languages=SONIOX_LANGUAGES,

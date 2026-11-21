@@ -1385,6 +1385,7 @@ class GuiWebBridgeTests(unittest.TestCase):
                 "customPrompt": "",
             })
 
+        self.api.pump.flush()
         self.api.pump.shutdown()
         scripts = "\n".join(self.window.scripts)
         self.assertTrue(result["ok"])
@@ -3213,6 +3214,44 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn("onBackendEvents", self.window.scripts[0])
         self.assertLess(self.window.scripts[0].index("one"), self.window.scripts[0].index("two"))
 
+    def test_event_pump_discards_queued_and_late_events_on_shutdown(self) -> None:
+        window = mock.Mock()
+        pump = EventPump(window_getter=lambda: window)
+        pump.enqueue({"type": "log", "message": "queued"})
+        pump.shutdown()
+        pump.enqueue({"type": "log", "message": "late"})
+        pump.start()
+        pump.flush()
+        self.assertIsNone(pump.thread)
+        self.assertTrue(pump.events.empty())
+        window.evaluate_js.assert_not_called()
+
+    def test_event_pump_can_close_during_evaluation_without_waiting(self) -> None:
+        window = mock.Mock()
+        pump = EventPump(window_getter=lambda: window)
+
+        def close_during_evaluation(_script):
+            pump.shutdown()
+            raise RuntimeError("WebView is closing")
+
+        window.evaluate_js.side_effect = close_during_evaluation
+        pump.enqueue({"type": "log", "message": "in flight"})
+        pump.flush()
+        pump.flush()
+        window.evaluate_js.assert_called_once()
+
+    def test_launcher_shutdown_disables_ui_before_cancelling_tasks(self) -> None:
+        def cancel():
+            self.assertTrue(self.api.pump.stop_event.is_set())
+            self.api._emit({"type": "log", "message": "cancelled"})
+            self.api.pump.flush()
+
+        with mock.patch.object(self.api, "cancel_transcription", side_effect=cancel), \
+                mock.patch.object(self.api, "_stop_all_sessions"), mock.patch.object(self.api, "stop_alignment_server"):
+            self.api.shutdown()
+        self.assertTrue(self.api.pump.events.empty())
+        self.assertFalse(self.window.scripts)
+
     def test_ffprobe_start_failure_is_recognised_from_child_output(self) -> None:
         self.assertTrue(_is_ffprobe_start_failure([
             "subprocess.CalledProcessError: Command ['ffprobe', ...]",
@@ -3245,13 +3284,18 @@ class GuiWebBridgeTests(unittest.TestCase):
             "returned non-zero exit status 1.",
         ]))
 
-    def test_launcher_api_queues_started_event_and_shutdown_flushes(self) -> None:
-        self.api._emit({"type": "log", "message": "queued"})
+    def test_launcher_shutdown_keeps_persisted_event_and_drops_ui_delivery(self) -> None:
+        event = {"type": "log", "message": "queued"}
+        sink = mock.Mock()
+        with mock.patch.object(self.api, "_log_sink", sink):
+            self.api._emit(event)
+            self.assertFalse(self.api.pump.events.empty())
+            self.api.shutdown()
 
-        self.api.shutdown()
-
-        self.assertTrue(self.window.scripts)
-        self.assertIn("queued", self.window.scripts[-1])
+        sink.append.assert_called_once_with(event)
+        sink.close.assert_called_once()
+        self.assertTrue(self.api.pump.events.empty())
+        self.assertFalse(self.window.scripts)
 
     def test_worker_emits_done_with_json_when_optional_html_is_missing(self) -> None:
         request = TranscriptionRequest(

@@ -487,16 +487,19 @@ class EventPump:
 
     def start(self) -> None:
         with self.lock:
-            if self.thread and self.thread.is_alive():
+            if self.stop_event.is_set() or (self.thread and self.thread.is_alive()):
                 return
-            self.stop_event.clear()
             self.thread = threading.Thread(target=self._run, daemon=True)
             self.thread.start()
 
     def enqueue(self, event: Mapping[str, object]) -> None:
-        self.events.put(dict(event))
+        with self.lock:
+            if not self.stop_event.is_set():
+                self.events.put(dict(event))
 
     def flush(self) -> None:
+        if self.stop_event.is_set():
+            return
         batch: list[Mapping[str, object]] = []
         while True:
             try:
@@ -509,11 +512,19 @@ class EventPump:
         if window is None:
             return
         script = f"window.MSWLauncher && window.MSWLauncher.onBackendEvents({json.dumps(batch, ensure_ascii=False)})"
-        window.evaluate_js(script)
+        # Evaluating JavaScript can synchronously wait on the GUI thread. Do
+        # not hold the shutdown lock across that call or join it on closing.
+        try:
+            if not self.stop_event.is_set():
+                window.evaluate_js(script)
+        except Exception:
+            if not self.stop_event.is_set():
+                raise
 
     def shutdown(self) -> None:
-        self.stop_event.set()
-        self.flush()
+        with self.lock:
+            self.stop_event.set()
+            self.events = queue.Queue()
 
     def _run(self) -> None:
         while not self.stop_event.wait(self.interval):
@@ -3917,6 +3928,7 @@ class LauncherApi:
         return {"ok": True, "stickerDir": str(path)}
 
     def shutdown(self) -> None:
+        self.pump.shutdown()
         self.cancel_transcription()
         self.cancel_batch_transcription()
         self.cancel_media_tool()
@@ -3941,7 +3953,6 @@ class LauncherApi:
                 if isinstance(stream, TeeWriter) and stream._sink is self._log_sink:
                     stream.flush()
             self._log_sink.close()
-        self.pump.shutdown()
 
     def _worker_main(self, request: TranscriptionRequest, cancel_event: Event) -> None:
         child_output: list[str] = []
