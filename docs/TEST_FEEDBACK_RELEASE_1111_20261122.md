@@ -8,7 +8,7 @@
 | A　运行环境子进程回收 | 已修复 | 用真实 Windows 子进程验证回调异常清理，定向用例覆盖关闭输出后的取消及 POSIX 组所有权。 |
 | B　FCP 7 XML 媒体回链 | 已修复 | XML 结构、时间轴边界、路径及浏览器导出已测。剪辑软件实机回链尚待验证。 |
 | C　启动器配置读取 | 已修复 | 隐藏的原生 WebView2 窗口连续两次读取已保存的主题并正常退出。 |
-| 三平台回归与正式发布 | 进行中 | 版本和发行说明已同步，待完整回归及三平台五包构建。 |
+| 三平台回归与正式发布 | 已修复 | 三平台构建、五包完整性及公开附件核对通过，GitHub 已列为最新正式版。 |
 
 ## A　运行环境
 
@@ -37,3 +37,19 @@
 首轮标签指向 `8b30e55b2f6ed7cdef952f363f7e560611800f1d`。macOS、Linux 通过，Windows 的首组浏览器测试 73 项通过、1 项短按空格用例失败。浏览器追踪显示，按下命令完成到抬起命令开始相隔约 392 ms，超过产品的 350 ms 长按阈值。首轮候选未公开。 [初次发布工作流](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/44997306552)
 
 短按用例调整为在同一次浏览器任务中派发按下、读取播放状态、再派发抬起，仍核对按下时不播放、抬起后仅切换一次。长按和重复按键继续走实际键盘输入。空格套件 13 项通过，涉及短按的用例再连续通过 5 次。第二轮发布沿用同一份产品代码。
+
+第二轮标签指向 `97445935795dcb9f6b886c6d2da453ccfd732712`。首轮候选标签保留在本机，三平台以复测后的候选重新构建。 [第二次发布工作流](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/44998753471)
+
+## 正式版发行结果
+
+MSW v1.11.1 于北京时间 2026-11-22 16:40:07 公开，已核对为最新正式版。Windows 云端 Chromium 共 676 项通过。Linux 和 macOS 两边真实进程组用例均通过，验证父进程退出后回收持有管道且忽略 SIGTERM 的子进程。 [GitHub Release](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/releases/tag/v1.11.1)
+
+独立下载五个构建包，并核对 ZIP 里的前端以及子运行环境路径模块与发布提交一致。Windows 标准版及 lite 在本机通过打包编辑器和媒体入口测试。五个包的 SHA-256 与公开附件及发行说明一致。五个安装包和两个源码下载入口均返回 HTTP 200。
+
+| 应用包 | SHA-256 |
+| --- | --- |
+| `MSW-Windows-x64-v1.11.1.zip` | `2aa80a39de100b2f01cc00ec0a34eb8f5c181a6bae4a6a32ba3551a1ed711451` |
+| `MSW-lite-Windows-x64-v1.11.1.zip` | `95a89312872e0fef070b633e6a818ecdb962651868c9f39fddf63fcc311c9dc5` |
+| `MSW-macOS-arm64-v1.11.1.zip` | `3565c8dccbb5a66ac3e647f4163dc8a6bce8763479c366dc841b9dac0f6b87aa` |
+| `MSW-lite-macOS-arm64-v1.11.1.zip` | `0b781a961239bae5fbd082970873ee969a01ea440d0f26c7b6ceb85dd100ad3d` |
+| `MSW-Linux-x86_64-v1.11.1.AppImage` | `1c8c5d82ae411fd7bb8c4041f45f850efdf0a6f936d06d70c6c67a75eac50774` |
