@@ -167,7 +167,7 @@ EDITOR_HEALTH_PROBE_PATH: Final = "/api/startup-status"
 # 短暂超过默认 0.25s，但仍远小于 SERVER_START_TIMEOUT 的总预算。
 EDITOR_HEALTH_PROBE_TIMEOUT: Final = 2.0
 # Keep this aligned with pyproject.toml; release workflows synchronize and verify it.
-BUNDLED_APP_VERSION = "1.11.0"
+BUNDLED_APP_VERSION = "1.11.1"
 MOSE_VERSION = "0.1.0"
 
 
@@ -707,7 +707,7 @@ class LauncherApi:
         atomic_write_text(path, json.dumps(result['package'], ensure_ascii=False, indent=2) + '\n')
         return {'ok': True, 'notes': result['notes']}
 
-    def get_user_config(self):
+    def get_user_config(self, _payload: Mapping[str, object] | None = None):
         from maw.user_config import UserConfig, config_path
         # load_env migrates only the explicit non-sensitive preference allowlist.
         from maw.gui_config import load_env

@@ -37,7 +37,7 @@ from maw.runtimes.base import (
     model_cache_environment,
     resolve_model_cache_root,
 )
-from maw.runtime_manifest import read_runtime_manifest
+from maw.runtime_manifest import RuntimeManifest, read_runtime_manifest
 from maw.runtimes.local_spec import (
     EMBED_PYTHON_ZIP,
     PYTORCH_INDEX,
@@ -106,10 +106,10 @@ def local_runtime_inventory(model_cache_root: str | Path | None = None) -> dict[
     ``runtime.json`` may be missing or stale; those values are returned as-is
     so the UI can explain why a runtime needs repair.
     """
-    root = LOCAL.resolve_root()
-    manifest = read_runtime_manifest(root)
-    missing = set(LOCAL.missing_package_dirs(root))
-    status = LOCAL.status(model_cache_root=model_cache_root, runtime_root=root)
+    status = LOCAL.status(model_cache_root=model_cache_root)
+    root = Path(status.path) if status.path else None
+    manifest = read_runtime_manifest(root) if root is not None else RuntimeManifest.empty()
+    missing = set(LOCAL.missing_package_dirs(root) if root is not None else LOCAL.spec.package_dirs)
     components = [
         {
             "name": name,
@@ -259,7 +259,7 @@ def prepare_model_in_runtime(
         command.append("--trust-remote-code")
     return _run_process(
         command,
-        env=_runtime_env(model_cache_root, default_runtime_root(engine)),
+        env=_runtime_env(model_cache_root, Path(status.path)),
         cancel=cancel_event or Event(),
         on_line=on_event or (lambda _line: None),
         cwd=str(helper.parent),
@@ -337,7 +337,7 @@ def prepare_alignment_model_in_runtime(
         model_id=model_id,
         model_path=model_path,
         model_cache_root=model_cache_root,
-        runtime_root=default_runtime_root(),
+        runtime_root=Path(status.path),
         on_event=on_event,
         cancel_event=cancel_event,
     )
@@ -378,7 +378,7 @@ def prepare_punctuation_model_in_runtime(
         str(status.python_path),
         model_path=model_path,
         model_cache_root=model_cache_root,
-        runtime_root=default_runtime_root(),
+        runtime_root=Path(status.path),
         on_event=on_event,
         cancel_event=cancel_event,
     )
@@ -537,7 +537,7 @@ def run_timestamp_alignment_in_runtime(
 
     _run_process(
         command,
-        env=_runtime_env(model_cache_root, default_runtime_root() if status.ready else None),
+        env=_runtime_env(model_cache_root, Path(status.path) if status.ready else None),
         cancel=cancel_event or Event(),
         on_line=on_line,
         cwd=str(helper.parent),

@@ -308,9 +308,9 @@ def extract_waveform(
     ]
     if cancel_event is not None and cancel_event.is_set():
         raise WaveformError('波形生成已取消')
-    from maw.gui_platform import process_group_kwargs
+    from maw.gui_platform import popen_process_tree, process_group_kwargs, release_process_tree, terminate_process_tree
     try:
-        process = subprocess.Popen(
+        process = popen_process_tree(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -335,7 +335,6 @@ def extract_waveform(
     def watch_cancel():
         while not finished.wait(.1):
             if cancel_event.is_set():
-                from maw.gui_platform import terminate_process_tree
                 terminate_process_tree(process, timeout=3)
                 return
     watcher = threading.Thread(target=watch_cancel, daemon=True) if cancel_event is not None else None
@@ -396,11 +395,11 @@ def extract_waveform(
     finally:
         finished.set()
         if process.poll() is None:
-            from maw.gui_platform import terminate_process_tree
             terminate_process_tree(process, timeout=3)
         reader.join()
         if watcher:
             watcher.join()
+        release_process_tree(process)
         process.stdout.close()
         process.stderr.close()
     stderr = errors.decode("utf-8", errors="replace").strip()

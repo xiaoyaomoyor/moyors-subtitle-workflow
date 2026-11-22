@@ -3843,7 +3843,7 @@ test('serializes the shared plan as deterministic FCP 7 XML and mapped SRT', () 
   assert.equal(xmlElements(xml, 'track').length, 3);
   assert.ok(xml.includes('<duration>147</duration>'));
   assert.ok(xml.includes('<in>47</in><out>119</out>'));
-  assert.ok(xml.includes('file://localhost/C:/fixtures/%E6%B5%8B%E8%AF%95%20%26%20take.mp4'));
+  assert.ok(xml.includes('file://localhost/c%3a/fixtures/%E6%B5%8B%E8%AF%95%20%26%20take.mp4'));
   assert.ok(xml.includes('file:///icons/%E6%B5%8B%E8%AF%95%20%26%20icon.png'));
   assert.deepEqual(parseSrt(srt).map(({ start, end }) => [start, end]), [
     ['00:00:00,700', '00:00:00,950'],
@@ -3958,7 +3958,7 @@ test('resolves sticker media from sticker_root and emits one clip per subtitle o
   parseXml(xml);
   assert.equal((xml.match(/<clipitem id="sticker-clip-/g) || []).length, 2);
   assert.equal((xml.match(/<file id="file-sticker-[^"]+">/g) || []).length, 1);
-  assert.match(xml, /<pathurl>file:\/\/localhost\/E(?:%3A|:)\/%E7%B4%A0%E6%9D%90\/%E8%A1%A8%E6%83%85%E5%8C%85\/%E6%8F%8F%E8%BE%B9gif\/.+<\/pathurl>/);
+  assert.match(xml, /<pathurl>file:\/\/localhost\/e%3a\/%E7%B4%A0%E6%9D%90\/%E8%A1%A8%E6%83%85%E5%8C%85\/%E6%8F%8F%E8%BE%B9gif\/.+<\/pathurl>/);
   assert.match(xml, /<clipitem id="sticker-clip-1"><masterclipid>master-sticker-1<\/masterclipid><name>[^<]+<\/name><enabled>TRUE<\/enabled><alphatype>straight<\/alphatype><pixelaspectratio>square<\/pixelaspectratio>/);
   assert.match(xml, /<file id="file-sticker-[^"]+">[\s\S]*?<timecode><rate><timebase>30<\/timebase><ntsc>FALSE<\/ntsc><\/rate><string>00:00:00:00<\/string><frame>0<\/frame><displayformat>NDF<\/displayformat><\/timecode>[\s\S]*?<media><video><samplecharacteristics>[\s\S]*?<width>720<\/width><height>480<\/height>/);
   assert.match(xml, /<clipitem id="sticker-clip-1">[\s\S]*?<start>30<\/start><end>60<\/end>/);
@@ -4148,16 +4148,40 @@ test('clamps gap-removed cues and stickers to source duration before serializati
   }
 });
 
-test('resolves every source video and audio file reference to one definition', () => {
+test('FCP7 supplies timecode on every file definition and reuses those definitions by ID', () => {
+  const fps = '30000/1001';
+  const verifyDefinitions = (xml, expectedCount) => {
+    const definitions = [...xml.matchAll(/<file id="([^"]+)">([\s\S]*?)<\/file>/g)];
+    assert.equal(definitions.length, expectedCount);
+    const ids = new Set(definitions.map(([, id]) => id));
+    assert.equal(ids.size, expectedCount);
+    for (const [, , contents] of definitions) {
+      assert.match(contents, /<timecode><rate><timebase>30<\/timebase><ntsc>TRUE<\/ntsc><\/rate><string>00:00:00:00<\/string><frame>0<\/frame><displayformat>NDF<\/displayformat><\/timecode><media>/);
+      if (contents.includes('<pathurl>')) {
+        assert.match(contents, /^<name>[^<]+<\/name><pathurl>[^<]+<\/pathurl>/);
+      }
+    }
+    for (const [, id] of xml.matchAll(/<file id="([^"]+)"\/>/g)) assert.ok(ids.has(id));
+  };
   const plan = helpers.buildProjectExportPlan({
-    media: { path: 'fixture.mp4', type: 'video', durationMs: 1000 },
+    media: { path: 'file:///D%3A/fixture%20video.mp4', type: 'video', durationMs: 1000 },
     gaps: [{ start: 200, end: 300, removed: true }],
     segments: [
-      { start: 0, end: 200, sticker: { path: 'one.png' } },
-      { start: 300, end: 600, sticker: { path: 'two.png' } },
+      { start: 0, end: 200, text: 'First', sticker: { path: '\\\\server\\share\\one.png' } },
+      { start: 300, end: 600, text: 'Second', sticker: { path: 'E:/images/two.png' } },
     ],
-  });
-  const xml = helpers.serializeFcp7Xml(plan);
+  }, { fps });
+  const xml = helpers.serializeFcp7Xml(plan, { nativeTextObjects: true });
+  verifyDefinitions(xml, 6);
+  assert.ok(xml.includes('<pathurl>file://localhost/d%3a/fixture%20video.mp4</pathurl>'));
+  assert.ok(xml.includes('<pathurl>file://server/share/one.png</pathurl>'));
+  assert.ok(xml.includes('<pathurl>file://localhost/e%3a/images/two.png</pathurl>'));
+  assert.doesNotMatch(xml, /<timebase>\d+\/\d+<\/timebase>/);
+  assert.equal(helpers.exportPathToFileUrl('/media/D:/take.mp4', { fcp7: true }), 'file:///media/D:/take.mp4');
+  const audio = helpers.buildProjectExportPlan({
+    media: { path: 'D:/fixture.wav', type: 'audio', durationMs: 1000 }, segments: [],
+  }, { fps });
+  verifyDefinitions(helpers.serializeFcp7Xml(audio), 1);
   const sourceVideoRefs = [...xml.matchAll(/<clipitem id="video-clip-\d+">[\s\S]*?<file id="([^"]+)"/g)].map((match) => match[1]);
   const sourceAudioRefs = [...xml.matchAll(/<clipitem id="audio-clip-\d+">[\s\S]*?<file id="([^"]+)"/g)].map((match) => match[1]);
   assert.ok(sourceVideoRefs.length > 1);
@@ -4165,10 +4189,11 @@ test('resolves every source video and audio file reference to one definition', (
   assert.deepEqual(new Set(sourceAudioRefs), new Set(['file-source-audio']));
   assert.equal((xml.match(/<file id="file-source-video-1"><name>/g) || []).length, 1);
   assert.equal((xml.match(/<file id="file-source-audio"><name>/g) || []).length, 1);
-  assert.match(xml, /<clipitem id="video-clip-1">[\s\S]*?<in>0<\/in><out>6<\/out>/);
-  assert.match(xml, /<clipitem id="video-clip-2">[\s\S]*?<in>9<\/in><out>30<\/out>/);
-  assert.match(xml, /<clipitem id="audio-clip-1">[\s\S]*?<in>0<\/in><out>6<\/out>/);
-  assert.match(xml, /<clipitem id="audio-clip-2">[\s\S]*?<in>9<\/in><out>30<\/out>/);
+  const clips = xmlElements(xml, 'clipitem');
+  for (const kind of ['video', 'audio']) {
+    assert.match(clips.find(clip => clip.startsWith(`<clipitem id="${kind}-clip-1">`)), /<in>0<\/in><out>5<\/out>/);
+    assert.match(clips.find(clip => clip.startsWith(`<clipitem id="${kind}-clip-2">`)), /<in>8<\/in><out>30<\/out>/);
+  }
 });
 
 test('clamps public export mappings beyond source duration to output duration', () => {

@@ -1766,7 +1766,7 @@
         perVideoSubfolder: saved.perVideoSubfolder,
         attachModelName: saved.attachModelName,
         notifyOnComplete: saved.notifyOnComplete === true,
-        appVersion: "1.11.0",
+        appVersion: "1.11.1",
         stickerDir: saved.stickerDir || "",
         postprocessProviders: [...postprocessProviders.keys()].map(postprocessStatus),
         postprocessAutoPlan: saved.postprocessAutoPlan || { version: 1, enabled: false, retainIntermediate: true, steps: [] },
@@ -3825,7 +3825,11 @@
     api = realApi || mockApi();
     window.MSWLauncher.backend = realApi ? "real" : "mock";
     if (realApi?.get_user_config && window.MSWConfig) {
-      try { await window.MSWConfig.connect(await bridge('get_user_config'), payload => bridge('update_user_config', payload)); }
+      try {
+        const snapshot = await bridge('get_user_config');
+        if (!snapshot?.sections) throw new Error('User configuration snapshot unavailable');
+        await window.MSWConfig.connect(snapshot, payload => bridge('update_user_config', payload));
+      }
       catch (_) { notify('用户配置读取失败，原文件已保留。', {error:true}); }
     }
     activeSettingsTab = readStoredSettingsTab();

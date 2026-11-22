@@ -12,6 +12,11 @@ PACKAGES = {
     'macos': ('MSW-macOS-arm64-{tag}.zip', 'MSW-lite-macOS-arm64-{tag}.zip'),
     'linux': ('MSW-Linux-x86_64-{tag}.AppImage',),
 }
+RUNTIME_PATH_MODULES = tuple(
+    f"{runtime}/maw/runtimes/{module}.py"
+    for runtime in ('local-runtime', 'ocr-runtime')
+    for module in ('pathwin', 'winsecurity')
+)
 
 
 def check_runtime_requirements(text: str, label: str) -> None:
@@ -30,6 +35,9 @@ def check_bundle(directory: Path) -> None:
     """Check unpacked bundles too, including the Linux AppImage contents."""
     if any(directory.rglob('blank-editor.html')):
         raise ValueError('Retired portable editor must not be distributed')
+    for suffix in RUNTIME_PATH_MODULES:
+        if not any(path.as_posix().endswith('/' + suffix) for path in directory.rglob(PurePosixPath(suffix).name)):
+            raise ValueError(f'Missing runtime module: {suffix}')
     for filename in ('requirements-local.txt', 'requirements-local-cpu.txt'):
         manifests = list(directory.rglob(filename))
         if not manifests:
@@ -63,7 +71,7 @@ def check_zip(path: Path) -> None:
                     'FAQ-常见问题.txt', 'web/launcher/logo.svg', 'web/favicon.svg',
                     'maw/msw/yukkuri_worker.mjs', 'maw/msw/yukkuri_resources.json',
                     'maw/msw/tts_service_runner.py',
-                    'tools/compare.html', 'tools/timestamp-compare.html')
+                    'tools/compare.html', 'tools/timestamp-compare.html', *RUNTIME_PATH_MODULES)
         for suffix in required:
             if not any(name == suffix or name.endswith('/' + suffix) for name in names):
                 raise ValueError(f'{path.name}: missing {suffix}')

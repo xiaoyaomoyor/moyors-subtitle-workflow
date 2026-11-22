@@ -52,7 +52,7 @@ from maw.runtime_manifest import (
     write_runtime_manifest,
 )
 from maw.runtime_mirror_picker import pick_fastest_mirror, probe_index_reachable
-from maw.runtimes import freezer
+from maw.runtimes import freezer, pathwin
 
 GET_PIP_SCRIPT: Final = "get-pip.py"
 # Use the same verified pip in the embedded bootstrap and the host venv.
@@ -233,11 +233,18 @@ class ManagedRuntime:
     # -- 路径 -----------------------------------------------------------------
 
     def resolve_root(self, configured: str | Path | None = None) -> Path:
-        """显式配置 -> 进程级环境变量 -> 默认 app-data 目录。"""
+        """Resolve an explicit path, an environment override, or a user default."""
         override = str(configured or "").strip() or aliased_values(os.environ).get(self.spec.root_env, "").strip()
         if override:
-            return Path(override).expanduser().resolve(strict=False)
-        return default_app_data_root() / self.spec.dir_name
+            supplied = Path(override).expanduser()
+            if sys.platform == "win32":
+                raw = Path(os.path.abspath(supplied))
+                checked = pathwin.resolve_root(raw, dir_name=self.spec.dir_name)
+                if checked != raw:
+                    return checked
+            return pathwin.resolve_root(supplied.resolve(strict=False), dir_name=self.spec.dir_name)
+        return pathwin.resolve_root(default_app_data_root() / self.spec.dir_name,
+                                    dir_name=self.spec.dir_name, default=True)
 
     def python_path(self, root: str | Path | None = None) -> Path:
         target = self.resolve_root(root) if root is None else Path(root)
@@ -338,7 +345,14 @@ class ManagedRuntime:
         model_cache_root: str | Path | None = None,
     ) -> RuntimeStatus:
         """missing / broken / installing / ready，复用 runtime.json manifest。"""
-        root = self.resolve_root(runtime_root)
+        try:
+            root = self.resolve_root(runtime_root)
+        except pathwin.AsciiRootUnavailable as error:
+            model_cache = resolve_model_cache_root(model_cache_root) if self.spec.has_model_cache else ""
+            return self._status("broken", False, "", "", str(error), model_cache=model_cache)
+        return self._status_at(root, model_cache_root)
+
+    def _status_at(self, root: Path, model_cache_root: str | Path | None) -> RuntimeStatus:
         python = self.interpreter(root)
         model_cache = resolve_model_cache_root(model_cache_root) if self.spec.has_model_cache else ""
         if not root.exists():
@@ -386,7 +400,10 @@ class ManagedRuntime:
 
     def mark_install_aborted(self, runtime_root: str | Path | None = None) -> bool:
         """Mark an interrupted install as broken instead of leaving ``installing`` behind."""
-        root = self.resolve_root(runtime_root)
+        try:
+            root = self.resolve_root(runtime_root)
+        except pathwin.AsciiRootUnavailable:
+            return False
         manifest = read_runtime_manifest(root)
         if not manifest.installing:
             return False
@@ -407,7 +424,7 @@ class ManagedRuntime:
         self,
         status: str,
         ready: bool,
-        root: Path,
+        root: Path | str,
         python: Path | str,
         detail: str,
         runtime_version: str | None = None,
@@ -447,10 +464,14 @@ class ManagedRuntime:
         cancel = cancel_event or Event()
         spec = self.spec
 
-        root = self.resolve_root(runtime_root)
+        try:
+            root = self.resolve_root(runtime_root)
+            pathwin.prepare_install_root(root, dir_name=spec.dir_name)
+            root.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise self._error(f"{spec.message_prefix}无法使用运行环境目录：{error}") from error
         if root.exists() and not root.is_dir():
             raise self._error(f"{spec.message_prefix}路径不能是一个文件：{root}")
-        root.parent.mkdir(parents=True, exist_ok=True)
 
         # 引导策略按运行形态分叉：打包版（Windows）依赖随包分发的 bootstrap
         # 资产；打包版（unix）用宿主 python3 建 venv，无需任何 bundle 资产；
@@ -478,9 +499,10 @@ class ManagedRuntime:
                     "请使用官方打包版。"
                 )
 
-        if self.status(runtime_root=runtime_root, model_cache_root=model_cache_root).ready and not repair:
+        status = self._status_at(root, model_cache_root)
+        if status.ready and not repair:
             emit(spec.ready_emit_done, 100, "ready")
-            return self.status(runtime_root=runtime_root, model_cache_root=model_cache_root)
+            return status
 
         _may_cancel(cancel, spec)
         python = self.interpreter(root)
@@ -599,12 +621,20 @@ class ManagedRuntime:
 
         emit(f"正在验证{spec.feature_label}运行时……", 90, "verify")
         verify_command = [str(python), "-c", spec.verify_command]
-        self.run(
-            verify_command,
-            env=self.environment(root, model_cache_root),
-            cancel=cancel,
-            on_line=lambda line: emit(line, 94, "verify"),
-        )
+        try:
+            self.run(
+                verify_command,
+                env=self.environment(root, model_cache_root),
+                cancel=cancel,
+                on_line=lambda line: emit(line, 94, "verify"),
+            )
+        except spec.cancelled_class:
+            raise
+        except spec.error_class as error:
+            hint = pathwin.verify_hint(root)
+            if not hint:
+                raise
+            raise self._error(str(error) + hint) from error
         _may_cancel(cancel, spec)
 
         missing = self.missing_package_dirs(root)
@@ -632,7 +662,9 @@ class ManagedRuntime:
             ):
                 path.mkdir(parents=True, exist_ok=True)
         emit(spec.ready_emit_done, 100, "ready")
-        return self.status(runtime_root=runtime_root, model_cache_root=model_cache_root)
+        # Installation keeps its selected root even if creating directories made
+        # a different spelling discoverable in the meantime.
+        return self._status_at(root, model_cache_root)
 
     def _prepare_host_venv(
         self,
@@ -1084,25 +1116,47 @@ def _run_process(
         name="maw-runtime-output",
         daemon=True,
     )
-    reader.start()
-    while True:
-        if cancel.is_set():
-            terminate_process_tree(process)
-            raise cancelled_class(cancelled_message)
-        try:
-            raw_line = lines.get(timeout=0.1)
-        except queue.Empty:
-            if process.poll() is not None and not reader.is_alive():
+    completed = False
+    try:
+        reader.start()
+        while True:
+            if cancel.is_set():
+                raise cancelled_class(cancelled_message)
+            try:
+                raw_line = lines.get(timeout=0.1)
+            except queue.Empty:
+                if process.poll() is not None and not reader.is_alive():
+                    break
+                continue
+            if raw_line is None:
                 break
-            continue
-        if raw_line is None:
-            break
-        line = raw_line.rstrip("\r\n")
-        if line:
-            output.append(line)
-            on_line(line)
-    return_code = process.wait()
-    release_process_tree(process)
+            line = raw_line.rstrip("\r\n")
+            if line:
+                output.append(line)
+                on_line(line)
+        # A worker can close stdout and keep running. Keep cancellation active
+        # while waiting for the actual exit too.
+        while True:
+            if cancel.is_set():
+                raise cancelled_class(cancelled_message)
+            try:
+                return_code = process.wait(timeout=0.1)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        completed = True
+    finally:
+        try:
+            if completed:
+                release_process_tree(process)
+            else:
+                terminate_process_tree(process)
+        finally:
+            if reader.ident is not None:
+                reader.join(timeout=1.0)
+            # A live reader may be holding the stream's I/O lock.
+            if not reader.is_alive() and process.stdout is not None:
+                process.stdout.close()
     if return_code != 0:
         for line in reversed(output):
             try:

@@ -5454,29 +5454,28 @@
     }[character]));
   }
 
-  function exportPathToFileUrl(value, { encodeDriveColon = false } = {}) {
+  function exportPathToFileUrl(value, { fcp7 = false } = {}) {
     const source = String(value ?? '').trim();
     if (!source) throw new Error('missing export path');
+    const drivePrefix = (letter) => fcp7 ? `${letter.toLowerCase()}%3a` : `${letter}:`;
     if (/^file:\/\//i.test(source)) {
       const match = /^file:\/\/([^/]*)(\/.*)?$/i.exec(source);
       if (!match) throw new Error('invalid file URL');
       const authority = match[1];
       const pathValue = match[2] || '';
-      const driveUrlMatch = /^\/([A-Za-z]):\/(.*)$/.exec(pathValue);
-      if (authority.toLowerCase() === 'localhost' && driveUrlMatch) {
-        const encodedPath = driveUrlMatch[2].split('/').map((part) => encodeURIComponent(part)).join('/');
-        const drive = encodeDriveColon ? `${driveUrlMatch[1]}%3A` : `${driveUrlMatch[1]}:`;
-        return `file://localhost/${drive}/${encodedPath}`;
-      }
-      if (!authority && driveUrlMatch) {
-        const encodedDrivePath = driveUrlMatch[2].split('/').map((part) => encodeURIComponent(part)).join('/');
-        return `file://localhost/${driveUrlMatch[1]}:/${encodedDrivePath}`;
+      const encodeUrlPath = (path) => path.split('/').map((part) => {
+        const encoded = encodeURIComponent(part);
+        return fcp7 ? encoded.replace(/%25([0-9a-f]{2})/gi, '%$1') : encoded;
+      }).join('/');
+      const drivePattern = fcp7 ? /^\/([A-Za-z])(?::|%3a)\/(.*)$/i : /^\/([A-Za-z]):\/(.*)$/;
+      const driveUrlMatch = drivePattern.exec(pathValue);
+      if ((!authority || authority.toLowerCase() === 'localhost') && driveUrlMatch) {
+        return `file://localhost/${drivePrefix(driveUrlMatch[1])}/${encodeUrlPath(driveUrlMatch[2])}`;
       }
       if (authority && !pathValue || authority && !/^\/[^/]+(?:\/|$)/.test(pathValue)) {
         throw new Error('UNC file URL must include a share');
       }
-      const encodedPath = pathValue.split('/').map((part) => encodeURIComponent(part)).join('/');
-      return `file://${authority}${encodedPath}`;
+      return `file://${authority}${encodeUrlPath(pathValue)}`;
     }
     const normalized = source.replace(/\\/g, '/');
     const uncMatch = /^\/\/([^/]+)(\/.*)?$/.exec(normalized);
@@ -5489,8 +5488,7 @@
     const driveMatch = /^([A-Za-z]):\/(.*)$/.exec(normalized);
     if (driveMatch) {
       const encodedDriveParts = driveMatch[2].split('/').map((part) => encodeURIComponent(part)).join('/');
-      const drive = encodeDriveColon ? `${driveMatch[1]}%3A` : `${driveMatch[1]}:`;
-      return `file://localhost/${drive}/${encodedDriveParts}`;
+      return `file://localhost/${drivePrefix(driveMatch[1])}/${encodedDriveParts}`;
     }
     const withLeadingSlash = normalized;
     const rooted = withLeadingSlash.startsWith('/') ? withLeadingSlash : `/${withLeadingSlash}`;
@@ -5767,6 +5765,10 @@
     return `<rate><timebase>${fcpTimebase(profile)}</timebase><ntsc>${profile.denominator === 1001 ? 'TRUE' : 'FALSE'}</ntsc></rate>`;
   }
 
+  function fcpFileTimecode(profile) {
+    return `<timecode>${fcpRate(profile)}<string>00:00:00:00</string><frame>0</frame><displayformat>NDF</displayformat></timecode>`;
+  }
+
   function fcpTimeRange(startMs, endMs, plan) {
     const start = exportPlanFrame(plan, startMs, 'floor');
     const end = Math.max(start + 1, exportPlanFrame(plan, endMs, 'ceil'));
@@ -5930,10 +5932,10 @@
     return `<filter>${effect}</filter>`;
   }
 
-  function fcpClipItem({ id, fileId, name, path, width, height, sourceStartMs, sourceEndMs, sourceStartFrame = null, startMs, endMs, startFrame, endFrame, plan, mediaKind, track, link, defineFile = true, encodeDriveColon = false }) {
+  function fcpClipItem({ id, fileId, name, path, width, height, sourceStartMs, sourceEndMs, sourceStartFrame = null, startMs, endMs, startFrame, endFrame, plan, mediaKind, track, link, defineFile = true }) {
     const sourceRange = fcpTimeRange(sourceStartMs, sourceEndMs, plan);
     const timeline = fcpTimeRange(startMs, endMs, plan);
-    const url = escapeExportXml(exportPathToFileUrl(path, { encodeDriveColon }));
+    const url = escapeExportXml(exportPathToFileUrl(path, { fcp7: true }));
     const isSticker = mediaKind === 'sticker';
     const media = mediaKind === 'audio' ? '<sourcetrack><mediatype>audio</mediatype><trackindex>1</trackindex><channel>1</channel><channelcount>2</channelcount></sourcetrack>'
       : '<sourcetrack><mediatype>video</mediatype><trackindex>1</trackindex></sourcetrack>';
@@ -5941,10 +5943,10 @@
     const fileMedia = mediaKind === 'audio'
       ? `<media><audio><duration>${sourceDuration}</duration><channelcount>2</channelcount></audio></media>`
       : isSticker
-        ? `<media><video><samplecharacteristics><rate><timebase>${plan.frameProfile.numerator}/${plan.frameProfile.denominator}</timebase><ntsc>${plan.frameProfile.denominator === 1001 ? 'TRUE' : 'FALSE'}</ntsc></rate><width>${Number.isInteger(width) && width > 0 ? width : 720}</width><height>${Number.isInteger(height) && height > 0 ? height : 480}</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance></samplecharacteristics></video></media>`
+        ? `<media><video><samplecharacteristics>${fcpRate(plan.frameProfile)}<width>${Number.isInteger(width) && width > 0 ? width : 720}</width><height>${Number.isInteger(height) && height > 0 ? height : 480}</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance></samplecharacteristics></video></media>`
         : `<media><video><duration>${sourceDuration}</duration></video><audio><duration>${sourceDuration}</duration><channelcount>2</channelcount></audio></media>`;
     const file = defineFile
-      ? `<file id="${escapeExportXml(fileId)}"><name>${escapeExportXml(fileBasename(path))}</name><pathurl>${url}</pathurl><duration>${sourceDuration}</duration>${fcpRate(plan.frameProfile)}${isSticker ? `<timecode><rate>${fcpRate(plan.frameProfile).replace('<rate>', '').replace('</rate>', '')}</rate><string>00:00:00:00</string><frame>0</frame><displayformat>NDF</displayformat></timecode>` : ''}${fileMedia}</file>`
+      ? `<file id="${escapeExportXml(fileId)}"><name>${escapeExportXml(fileBasename(path))}</name><pathurl>${url}</pathurl><duration>${sourceDuration}</duration>${fcpRate(plan.frameProfile)}${fcpFileTimecode(plan.frameProfile)}${fileMedia}</file>`
       : `<file id="${escapeExportXml(fileId)}"/>`;
     const frameStart = startFrame ?? timeline.start;
     const frameEnd = Math.max(frameStart + 1, endFrame ?? frameStart + sourceRange.duration);
@@ -6020,7 +6022,7 @@
           path: sticker.path, width: sticker.width, height: sticker.height, sourceStartMs: 0,
           sourceEndMs: Math.max(1, sticker.endMs - sticker.startMs),
           startMs: sticker.startMs, endMs: sticker.endMs, plan: exportPlan, mediaKind: 'sticker', track: `${trackPrefix}-${index + 1}`,
-          defineFile, encodeDriveColon: true,
+          defineFile,
         });
         return `<track>${clip}</track>`;
       }).filter(Boolean);
@@ -6046,7 +6048,7 @@
         // Graphic 画布尺寸必须与序列一致：缺失时 Premiere 按 DV NTSC 720x480
         // 分配画布，与序列不匹配导致文字不显示（粘贴重置后才能显示）。
         const textFileMedia = `<media><video><duration>${range.duration}</duration><samplecharacteristics>${fcpRate(exportPlan.frameProfile)}<width>${sequenceWidth}</width><height>${sequenceHeight}</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance></samplecharacteristics></video></media>`;
-        return `<clipitem id="${clipId}"><name>${escapeExportXml(cue.text)}</name><enabled>TRUE</enabled><duration>${range.duration}</duration>${fcpRate(exportPlan.frameProfile)}<start>${range.start}</start><end>${range.end}</end><in>0</in><out>${range.duration}</out><file id="file-${clipId}"><name>MSW GraphicAndType</name><mediaSource>GraphicAndType</mediaSource><duration>${range.duration}</duration>${fcpRate(exportPlan.frameProfile)}${textFileMedia}</file>${fcp7TextGraphicGroupFilter()}<filter><effect><name>${escapeExportXml(cue.text)}</name><effectid>GraphicAndType</effectid><effectcategory>graphic</effectcategory><effecttype>filter</effecttype><mediatype>video</mediatype><pproBypass>false</pproBypass><parameter authoringApp="MSW"><parameterid>1</parameterid><name>Source Text</name><value>${text}</value></parameter>${motionParams}</effect></filter></clipitem>`;
+        return `<clipitem id="${clipId}"><name>${escapeExportXml(cue.text)}</name><enabled>TRUE</enabled><duration>${range.duration}</duration>${fcpRate(exportPlan.frameProfile)}<start>${range.start}</start><end>${range.end}</end><in>0</in><out>${range.duration}</out><file id="file-${clipId}"><name>MSW GraphicAndType</name><mediaSource>GraphicAndType</mediaSource><duration>${range.duration}</duration>${fcpRate(exportPlan.frameProfile)}${fcpFileTimecode(exportPlan.frameProfile)}${textFileMedia}</file>${fcp7TextGraphicGroupFilter()}<filter><effect><name>${escapeExportXml(cue.text)}</name><effectid>GraphicAndType</effectid><effectcategory>graphic</effectcategory><effecttype>filter</effecttype><mediatype>video</mediatype><pproBypass>false</pproBypass><parameter authoringApp="MSW"><parameterid>1</parameterid><name>Source Text</name><value>${text}</value></parameter>${motionParams}</effect></filter></clipitem>`;
       }).join('');
       return generators ? `<track>${generators}</track>` : '';
     }).filter(Boolean) : [];

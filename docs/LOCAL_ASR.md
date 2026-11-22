@@ -2,6 +2,8 @@
 
 Launcher 的安装／修复和目录选择位于“设置 → 运行环境”。非 MOSS 环境支持 `MSW_LOCAL_RUNTIME_ROOT`（兼容 `MAW_LOCAL_RUNTIME_ROOT`），保存后重新扫描，重启后继续使用；安装、模型准备和单项／批量转写期间禁止切换。MOSS、OCR、TTS 与模型权重目录保持独立，详见[输出布局与环境设置](OUTPUT_LAYOUT.md)。
 
+Windows 默认运行环境路径含非 ASCII 字符时，MSW 优先使用同一目录的 ASCII 短名。若系统没有短名，默认环境安装在 `%PROGRAMDATA%` 下按当前 Windows 用户隔离的目录。可用 `MSW_RUNTIME_ASCII_ROOT` 指定可写且目录链权限受保护的 ASCII 父目录，MSW 会在其中为各用户与各运行环境建立子目录。显式指定含中文的环境路径时，安装自检失败可到现有设置改选 ASCII 目录。界面显示的短路径与原目录指向同一位置，模型缓存路径独立设置。
+
 > 注意：当前为 beta 版本，未经过充分测试，不保证后续的维护和更新，请谨慎使用。
 
 beta.5 在 Launcher 与编辑器 ASR 中均提供可选本地模型；云端入口继续保留。模型准备与字词时间码工具见[升级指南](BETA5_UPGRADE.md)。

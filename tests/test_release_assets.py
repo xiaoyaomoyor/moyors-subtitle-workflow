@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from zipfile import ZipFile
 
-from scripts.check_release_assets import check_bundle, check_release, expected_names
+from scripts.check_release_assets import RUNTIME_PATH_MODULES, check_bundle, check_release, expected_names
 
 
 class ReleaseAssetTests(unittest.TestCase):
@@ -20,7 +20,8 @@ class ReleaseAssetTests(unittest.TestCase):
                          'README-开始使用.txt', '_internal/web/launcher/logo.svg', '_internal/web/favicon.svg',
                          '_internal/maw/msw/yukkuri_worker.mjs', '_internal/maw/msw/yukkuri_resources.json',
                          '_internal/maw/msw/tts_service_runner.py',
-                         '_internal/tools/compare.html', '_internal/tools/timestamp-compare.html']
+                         '_internal/tools/compare.html', '_internal/tools/timestamp-compare.html',
+                         *('_internal/' + suffix for suffix in RUNTIME_PATH_MODULES)]
                 if '-lite-' not in name:
                     files += ['ffmpeg/bin/ffmpeg.exe', 'ffmpeg/bin/ffprobe.exe']
                 for file in files:
@@ -37,6 +38,10 @@ class ReleaseAssetTests(unittest.TestCase):
             check_release(self.root, self.tag, 'windows')
 
     def test_unpacked_bundle_requires_matching_native_core_in_both_manifests(self):
+        for suffix in RUNTIME_PATH_MODULES:
+            module = self.root / suffix
+            module.parent.mkdir(parents=True, exist_ok=True)
+            module.touch()
         for filename in ('requirements-local.txt', 'requirements-local-cpu.txt'):
             (self.root / filename).write_text('sherpa-onnx==1.13.8\nsherpa-onnx-core==1.13.8\n')
         check_bundle(self.root)

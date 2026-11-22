@@ -1,6 +1,6 @@
 # 构建与发布 MSW
 
-MSW `1.11.0` 发行内容见[更新记录](../CHANGELOG.md#1110---2026-11-21)和[上游筛选](UPSTREAM_1110_ASSESSMENT_20261121.md)。发布标签指向经过验证的 `my-feature` 候选提交。
+MSW `1.11.1` 发行内容见[更新记录](../CHANGELOG.md#1111---2026-11-22)和[上游筛选](UPSTREAM_1111_ASSESSMENT_20261122.md)。发布标签指向经过验证的 `my-feature` 候选提交。
 
 ## 发布清单
 
@@ -43,8 +43,8 @@ GUI 分发资源采用明确清单；不携带仓库历史截图、开发反馈�
 
 1. 核对候选包的提交 SHA；分别在目标平台启动 Launcher、打开 Server 编辑器、加载工程并保存，至少完成一次对应环境可用的配音与导出。CI 的启动检查不能代替真实用户环境验收。
 2. 检查 `CHANGELOG.md` 的 MSW 版本条目。旧上游版本说明和开发明细放在 `archived/`，避免发行说明只列上游更新而漏掉 MSW 配音功能。
-3. 运行 `python scripts/prepare_release_notes.py --tag v1.11.0 --output <临时目录>/release-notes.md`，审阅实际正文。文档链接固定到该标签。
-4. 维护者确认公开发布后，在已验证的 `my-feature` 提交上创建并推送 `v1.11.0` 标签。标签 push 会重新构建并验证五个包，随后先建立草稿并上传五包，上传成功才公开为 Release。beta 标签标记为预发行版。
+3. 运行 `python scripts/prepare_release_notes.py --tag v1.11.1 --output <临时目录>/release-notes.md`，审阅实际正文。文档链接固定到该标签。
+4. 维护者确认公开发布后，在已验证的 `my-feature` 提交上创建并推送 `v1.11.1` 标签。标签 push 会重新构建并验证五个包，随后先建立草稿并上传五包，上传成功才公开为 Release。beta 标签标记为预发行版。
 5. 若同名 Release 已有附件，先核查附件来源与状态；失败运行不能视为发布完成。完成后复查七项下载、版本、SHA-256 与文档链接。
 
-本文件说明发行流程。正式版的检查结果见 [v1.11.0 验收记录](TEST_FEEDBACK_RELEASE_1110_20261121.md)。
+本文件说明发行流程。正式版的检查结果见 [v1.11.1 验收记录](TEST_FEEDBACK_RELEASE_1111_20261122.md)。

@@ -6,9 +6,14 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import select
 import shutil
+import signal
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,8 +22,9 @@ from unittest import mock
 
 import maw.runtimes as runtimes  # noqa: F401  (intentionally imported for registry coverage)
 import maw.runtimes.base as base_mod
+from maw import gui_platform
 from maw.runtime_manifest import STATUS_INSTALLING, STATUS_READY, write_runtime_manifest
-from maw.runtimes import LOCAL, MOSS, OCR, get_runtime
+from maw.runtimes import LOCAL, MOSS, OCR, get_runtime, pathwin, winsecurity
 from maw.runtimes.base import ManagedRuntime, ManagedRuntimeError, RuntimeSpec
 from maw.runtimes.local_spec import LOCAL_SPEC, PYTORCH_INDEX, LocalRuntimeError
 from maw.runtimes.moss_spec import MOSS_SPEC, PYTORCH_INDEX as MOSS_PYTORCH_INDEX
@@ -32,6 +38,142 @@ def _fake_extract(_zip_path: Path, target_dir: Path) -> None:
     python = target_dir / "python.exe"
     python.parent.mkdir(parents=True, exist_ok=True)
     python.write_bytes(b"python")
+
+
+class WindowsRuntimePathTests(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name).resolve()
+        self.default = self.root / '測試用戶'
+        self.default.mkdir()
+        self.enterContext(mock.patch.object(pathwin.sys, 'platform', 'win32'))
+        self.enterContext(mock.patch.object(base_mod, 'default_app_data_root', return_value=self.default))
+        self.enterContext(mock.patch.dict(os.environ, {
+            'MSW_RUNTIME_ASCII_ROOT': str(self.root),
+            'MSW_LOCAL_RUNTIME_ROOT': '', 'MAW_OCR_RUNTIME_ROOT': '', 'MAW_MOSS_RUNTIME_ROOT': '',
+        }))
+        self.enterContext(mock.patch.object(winsecurity, 'current_user_sid', return_value='S-1-5-21-1-2-3-1001'))
+
+    def test_default_uses_existing_ancestor_short_alias_for_new_runtime(self):
+        alias = self.root / 'TEST~1'
+        with mock.patch.object(pathwin, '_short_path', return_value=alias), \
+                mock.patch.object(Path, 'samefile', return_value=True) as samefile:
+            self.assertEqual(LOCAL.resolve_root(), alias / 'local-runtime')
+        samefile.assert_called_once_with(self.default)
+
+    def test_no_short_name_uses_per_user_fallback_without_relocating_explicit_path(self):
+        with mock.patch.object(pathwin, '_short_path', side_effect=lambda path: path), \
+                mock.patch.object(winsecurity, 'private_runtime_root') as validate:
+            roots = [runtime.resolve_root() for runtime in (LOCAL, OCR, MOSS)]
+            self.assertEqual({root.parent for root in roots}, {roots[0].parent})
+            self.assertEqual({root.name for root in roots}, {'local-runtime', 'ocr-runtime', 'local-runtime-moss'})
+            self.assertTrue(str(roots[0]).isascii())
+            self.assertEqual(LOCAL.resolve_root(self.default), self.default)
+            validate.assert_called_with(roots[-1], create=False)
+            with mock.patch.object(winsecurity, 'current_user_sid', return_value='S-1-5-21-1-2-3-1002'):
+                self.assertNotEqual(LOCAL.resolve_root().parent, roots[0].parent)
+
+    def test_unsafe_fallback_fails_status_and_install_before_reading_manifest(self):
+        with mock.patch.object(pathwin, '_short_path', side_effect=lambda path: path), \
+                mock.patch.object(winsecurity, 'private_runtime_root', side_effect=winsecurity.SecurityError('junction')), \
+                mock.patch.object(base_mod, 'read_runtime_manifest') as read:
+            status = LOCAL.status()
+            self.assertEqual(status.status, 'broken')
+            self.assertFalse(status.ready)
+            self.assertIn('MSW_RUNTIME_ASCII_ROOT', status.detail)
+            with self.assertRaisesRegex(LocalRuntimeError, '无法安全使用'):
+                LOCAL.install()
+        read.assert_not_called()
+
+    def test_fallback_is_prepared_before_install_and_remains_resolvable(self):
+        with mock.patch.object(pathwin, '_short_path', side_effect=lambda path: path), \
+                mock.patch.object(pathwin, '_validate_fallback') as validate:
+            chosen = LOCAL.resolve_root()
+            pathwin.prepare_install_root(chosen, dir_name=LOCAL.spec.dir_name)
+            self.assertEqual(LOCAL.resolve_root(chosen), chosen)
+        self.assertEqual(validate.call_args_list, [mock.call(chosen), mock.call(chosen, create=True),
+                                                   mock.call(chosen), mock.call(chosen)])
+
+
+class RuntimeProcessTests(unittest.TestCase):
+    def run_worker(self, command, cancel, on_line):
+        return base_mod._run_process(
+            command, env=os.environ, cancel=cancel, on_line=on_line, cwd=os.getcwd(),
+            error_class=LOCAL_SPEC.error_class, cancelled_class=LOCAL_SPEC.cancelled_class,
+            cancelled_message=LOCAL_SPEC.cancelled_message, message_prefix='synthetic runtime',
+        )
+
+    def test_callback_exception_stops_owned_worker_and_closes_output(self):
+        children = []
+        start = base_mod.popen_process_tree
+
+        def capture(*args, **kwargs):
+            child = start(*args, **kwargs)
+            children.append(child)
+            return child
+
+        def reject(_line):
+            raise ValueError('synthetic callback error')
+
+        try:
+            with mock.patch.object(base_mod, 'popen_process_tree', side_effect=capture):
+                with self.assertRaisesRegex(ValueError, 'synthetic callback error'):
+                    self.run_worker([sys.executable, '-u', '-c', 'import time; print("ready"); time.sleep(20)'],
+                                    Event(), reject)
+            child, = children
+            self.assertIsNotNone(child.poll())
+            self.assertTrue(child.stdout.closed)
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    gui_platform.terminate_process_tree(child)
+                child.stdout.close()
+
+    def test_cancel_is_observed_while_waiting_after_output_closes(self):
+        cancel = Event()
+
+        def wait(timeout):
+            cancel.set()
+            raise subprocess.TimeoutExpired('synthetic worker', timeout)
+
+        child = mock.Mock(stdout=io.StringIO('ready\n'), wait=mock.Mock(side_effect=wait))
+        with mock.patch.object(base_mod, 'popen_process_tree', return_value=child), \
+                mock.patch.object(base_mod, 'terminate_process_tree') as terminate:
+            with self.assertRaises(LOCAL_SPEC.cancelled_class):
+                self.run_worker(['synthetic'], cancel, lambda _line: None)
+        terminate.assert_called_once_with(child)
+        self.assertTrue(child.stdout.closed)
+
+    def test_posix_cleanup_signals_only_recorded_group_after_root_exits(self):
+        with mock.patch.object(gui_platform.sys, 'platform', 'darwin'), \
+                mock.patch.object(gui_platform.os, 'killpg', create=True) as signal_group, \
+                mock.patch.object(gui_platform, '_posix_group_alive', return_value=False):
+            owned = mock.Mock(pid=4321, _maw_process_group_id=4321, poll=mock.Mock(return_value=0))
+            gui_platform.terminate_process_tree(owned)
+            gui_platform.terminate_process_tree(mock.Mock(pid=1234, poll=mock.Mock(return_value=0)))
+        signal_group.assert_called_once_with(4321, signal.SIGTERM)
+
+    @unittest.skipIf(sys.platform == 'win32', 'POSIX process groups require a POSIX host')
+    def test_posix_clears_inherited_pipe_after_the_worker_exits(self):
+        descendant = 'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); print("ready", flush=True); time.sleep(30)'
+        launcher = 'import subprocess, sys; subprocess.Popen([sys.executable, "-c", sys.argv[1]])'
+        child = gui_platform.popen_process_tree([sys.executable, '-c', launcher, descendant],
+                                                stdout=subprocess.PIPE, **gui_platform.process_group_kwargs())
+        try:
+            self.assertEqual(child.wait(timeout=8), 0)
+            self.assertTrue(select.select([child.stdout], [], [], 4)[0])
+            self.assertEqual(child.stdout.readline(), b'ready\n')
+            gui_platform.terminate_process_tree(child, timeout=0.3)
+            self.assertTrue(select.select([child.stdout], [], [], 3)[0])
+            self.assertEqual(child.stdout.read(), b'')
+        finally:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            child.wait(timeout=3)
+            child.stdout.close()
 
 
 class RuntimeRegistryTests(unittest.TestCase):

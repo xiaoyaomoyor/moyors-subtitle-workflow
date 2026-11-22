@@ -575,6 +575,13 @@ class GuiWebBridgeTests(unittest.TestCase):
             self.assertFalse(self.env_path.exists())
             self.assertEqual(self.api.get_config()["theme"], "system")
 
+    def test_config_snapshot_accepts_the_launcher_bridge_payload(self) -> None:
+        self.assertTrue(self.api.save_prefs({'theme': 'dark'})['ok'])
+        reopened = LauncherApi(paths=self.paths, window_getter=lambda: self.window)
+        snapshot = reopened.get_user_config({})
+        self.assertEqual(snapshot['sections']['launcher']['MAW_GUI_THEME'], 'dark')
+        self.assertEqual(reopened._user_pref_baseline['MAW_GUI_THEME'], 'dark')
+
     def test_zoom_preference_round_trips_normalized_through_config(self) -> None:
         result = self.api.save_prefs({"zoomPercent": 115})
 

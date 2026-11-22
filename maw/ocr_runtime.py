@@ -226,7 +226,7 @@ def run_ocr_in_runtime(
 
     _run_process(
         command,
-        env=_runtime_env(resolve_ocr_runtime_root(runtime_root)),
+        env=_runtime_env(Path(status.path)),
         cancel=cancel_event or Event(),
         on_line=handle_line,
         cwd=str(worker.parent.parent),
