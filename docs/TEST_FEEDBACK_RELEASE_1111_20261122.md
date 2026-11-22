@@ -33,3 +33,7 @@
 ## 正式版回归
 
 完整 Python 回归 `python -m unittest discover -v -s tests -t . -p "test_*.py"` 运行 2,608 项，其中 2,579 项通过、29 项按条件跳过。Windows 的 POSIX 实机组测试交由 macOS、Linux 构建运行。
+
+首轮标签指向 `8b30e55b2f6ed7cdef952f363f7e560611800f1d`。macOS、Linux 通过，Windows 的首组浏览器测试 73 项通过、1 项短按空格用例失败。浏览器追踪显示，按下命令完成到抬起命令开始相隔约 392 ms，超过产品的 350 ms 长按阈值。首轮候选未公开。 [初次发布工作流](https://github.com/xiaoyaomoyor/moyors-subtitle-workflow/actions/runs/44997306552)
+
+短按用例调整为在同一次浏览器任务中派发按下、读取播放状态、再派发抬起，仍核对按下时不播放、抬起后仅切换一次。长按和重复按键继续走实际键盘输入。空格套件 13 项通过，涉及短按的用例再连续通过 5 次。第二轮发布沿用同一份产品代码。

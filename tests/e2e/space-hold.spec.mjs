@@ -26,9 +26,17 @@ const badge=page=>page.locator('#media-speed-hold');
 async function hold(page){await page.keyboard.down('Space');await expect(badge(page)).toBeVisible();await expect.poll(()=>state(page)).toMatchObject({rate:2,paused:false,reverse:false});}
 
 test('short taps toggle exactly once and held key repeats do not toggle playback',async({page})=>{
-  await page.locator('#media-play-toggle').focus();
-  await page.keyboard.down('Space');expect((await state(page)).paused).toBe(true);
-  await page.keyboard.up('Space');await expect.poll(()=>state(page)).toMatchObject({paused:false});
+  // Keep the tap in one browser task so runner round trips cannot turn it into a hold.
+  const pausedOnKeydown = await page.locator('#media-play-toggle').evaluate(button => {
+    button.focus();
+    const key = { key: ' ', code: 'Space', bubbles: true, cancelable: true };
+    button.dispatchEvent(new KeyboardEvent('keydown', key));
+    const paused = player.paused;
+    button.dispatchEvent(new KeyboardEvent('keyup', key));
+    return paused;
+  });
+  expect(pausedOnKeydown).toBe(true);
+  await expect.poll(()=>state(page)).toMatchObject({paused:false});
   await hold(page);await page.keyboard.down('Space');expect((await state(page)).paused).toBe(false);
   await page.keyboard.up('Space');await expect.poll(()=>state(page)).toMatchObject({rate:1,paused:false});
   await page.keyboard.press('Space');await expect.poll(()=>state(page)).toMatchObject({paused:true});
